@@ -1387,7 +1387,7 @@
       l_crab: ['b_crab', { r: '#ff4f4f', R: '#a82424', y: '#ffd84a' }],
       l_goblin: ['b_goblin', { g: '#c8e04a', G: '#8a9a2e', b: '#a82424', B: '#6b1818' }],
       l_titan: ['b_golem', { g: '#7a8aa8', G: '#4f5a78', c: '#ff7a2e', w: '#b0bcd8' }],
-      l_demon: ['b_imp', { r: '#6b1a3a', R: '#3a0c20', y: '#ff3b3b', h: '#e8e4d8' }],
+      l_demon: ['b_imp', { r: '#c0265a', R: '#781436', y: '#ffe27a', h: '#f4f0e4', k: '#1a0c14', o: '#b36bff', f: '#e0d0ff' }],
     };
     if (spriteId === 'l_eye') return { canvas: bigEye(), scale: 2 };
     if (spriteId === 'l_button') return { canvas: button('#3a3348', false, 0, true), scale: 2, isButton: true };

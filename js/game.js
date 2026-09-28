@@ -8,7 +8,7 @@
     chestNeed: 10,          // clicks per chest before upgrades
     autoChestFactor: 0.1,   // auto clicks give less chest progress than real ones
     depthGold: 1.08,        // gold multiplier per depth
-    bossBase: 800,          // boss hp at depth 0
+    bossBase: 400,          // boss hp at depth 0
     bossGrowth: 2.5,        // boss hp growth per depth
     lordHp: 4,
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps

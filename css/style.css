@@ -80,7 +80,7 @@ button { font: inherit; color: inherit; }
 .buff { font: 8px/1 var(--font-display); padding: 5px 7px; background: rgba(10,9,16,.8); border: 2px solid var(--gold); color: var(--gold); }
 .buff.storm { border-color: #7fe9ff; color: #7fe9ff; }
 .hint { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); pointer-events: none;
-  font: 16px/1.5 var(--font-display); color: var(--text); text-shadow: 2px 2px 0 var(--ink); text-align: center; animation: bob 1.2s ease-in-out infinite; white-space: nowrap; }
+  font: 16px/1.5 var(--font-display); color: var(--text); text-shadow: 2px 2px 0 var(--ink); text-align: center; animation: bob 1.2s ease-in-out infinite; width: max-content; max-width: 88%; }
 @keyframes bob { 50% { transform: translate(-50%, -4px); } }
 
 #toasts { position: absolute; top: 54px; right: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; pointer-events: none; z-index: 5; width: min(70%, 320px); }
