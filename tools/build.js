@@ -1,0 +1,62 @@
+// Builds single-file versions of the game:
+//   dist/bttn.html     — standalone page (open locally, host anywhere, itch.io)
+//   dist/artifact.html — the same page body without <html>/<head>/<body> wrappers
+// Usage: node tools/build.js
+'use strict';
+const fs = require('fs');
+const path = require('path');
+
+const root = path.join(__dirname, '..');
+const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+const html = read('index.html');
+
+// CSS with fonts inlined as data URIs
+let css = read('css/style.css').replace(/url\('\.\.\/fonts\/([^']+)'\)/g, (m, f) => {
+  const b64 = fs.readFileSync(path.join(root, 'fonts', f)).toString('base64');
+  return `url(data:font/woff2;base64,${b64})`;
+});
+
+const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+const js = scripts.map(src => `/* ${src} */\n` + read(src)).join('\n');
+const safeJs = js.replace(/<\/script/gi, '<\\/script');
+
+const body = html.slice(html.indexOf('<!--BODY-->') + '<!--BODY-->'.length, html.indexOf('<!--/BODY-->')).trim();
+const title = (html.match(/<title>([^<]*)<\/title>/) || [, 'BTTN'])[1];
+const desc = (html.match(/<meta name="description" content="([^"]*)">/) || [, ''])[1];
+
+const standalone = `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>${title}</title>
+<meta name="description" content="${desc}">
+<style>
+${css}
+</style>
+</head>
+<body>
+${body}
+<script>
+${safeJs}
+</script>
+</body>
+</html>
+`;
+
+const artifact = `<title>${title}</title>
+<style>
+${css}
+</style>
+${body}
+<script>
+${safeJs}
+</script>
+`;
+
+fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
+fs.writeFileSync(path.join(root, 'dist', 'bttn.html'), standalone);
+fs.writeFileSync(path.join(root, 'dist', 'artifact.html'), artifact);
+const kb = s => (Buffer.byteLength(s) / 1024).toFixed(1) + ' KB';
+console.log('dist/bttn.html', kb(standalone));
+console.log('dist/artifact.html', kb(artifact));

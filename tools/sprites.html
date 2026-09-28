@@ -1,0 +1,28 @@
+<!doctype html><meta charset="utf-8"><title>BTTN sprite sheet</title>
+<style>body{background:#1b1a24;color:#ddd;font:11px monospace;margin:8px} canvas{image-rendering:pixelated}</style>
+<canvas id="c"></canvas>
+<script src="../js/util.js"></script><script src="../js/data.js"></script><script src="../js/sprites.js"></script>
+<script>
+const S = 5, ids = Object.keys(G.SPR.defs).filter(id => !/_v$/.test(id));
+const cols = 12, cell = 24 * S + 10;
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+const extra = 4;
+c.width = cols * cell; c.height = (Math.ceil((ids.length + extra) / cols) + 1) * (cell + 14);
+ctx.imageSmoothingEnabled = false;
+ctx.fillStyle = '#2a2833'; ctx.fillRect(0, 0, c.width, c.height);
+function put(i, canvas, label, sc) {
+  const x = (i % cols) * cell + 4, y = Math.floor(i / cols) * (cell + 14) + 4;
+  ctx.fillStyle = (i + Math.floor(i / cols)) % 2 ? '#56a83c' : '#3b3346'; ctx.fillRect(x, y, cell - 8, cell - 8);
+  sc = sc || S;
+  ctx.drawImage(canvas, x + 2, y + 2, canvas.width * sc, canvas.height * sc);
+  ctx.fillStyle = '#fff'; ctx.fillText(label, x, y + cell + 2);
+}
+ids.forEach((id, i) => put(i, G.SPR.get(id), id, G.SPR.defs[id].w > 12 ? 3 : S));
+let n = ids.length;
+put(n++, G.SPR.button('#e8413c', false), 'button', 3);
+put(n++, G.SPR.button('#e8413c', true), 'pressed', 3);
+put(n++, G.SPR.button('rainbow', false, 200), 'rainbow', 3);
+put(n++, G.SPR.bigEye(), 'bigEye', 3);
+put(n++, G.SPR.get('p_drake', {gold:true}), 'gold drake', S);
+put(n++, G.SPR.button('#3a3348', false, 0, true), 'mad', 3);
+</script>
