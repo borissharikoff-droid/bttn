@@ -727,7 +727,7 @@
     const salvOpts = [0, 1, 2, 3];
     body.innerHTML = `
       <div class="charCard">
-        <div class="portrait">${img(cls.spr, '', 7)}</div>
+        <div class="portrait"><img data-doll src="${G.Doll.portrait(h, 4)}" alt=""></div>
         <div class="charInfo">
           <input id="heroName" maxlength="16" placeholder="${esc(t('namePh'))}" value="${esc(S.profile.name || '')}" aria-label="${esc(t('namePh'))}">
           <div class="clsLine">${esc(L(cls.name))} · <span data-lvl></span></div>
@@ -795,6 +795,8 @@
     const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5)]);
     if (key === rf.key && !force) return;
     rf.key = key;
+    const dk = JSON.stringify(h.eq);
+    if (dk !== rf.dollKey) { rf.dollKey = dk; const im = document.querySelector('.portrait img[data-doll]'); if (im) im.src = G.Doll.portrait(h, 4); }
     for (const el of rf.slots) {
       const g = h.eq[el.dataset.slot];
       const box = el.querySelector('[data-in]');
@@ -896,7 +898,7 @@
       const cls = G.CLASS_BY_ID[e.cls] || G.CLASSES[0];
       const nm = N.displayName(e) || t('anon');
       return `<div class="lrow ${e.me ? 'me' : ''} ${e.ok ? '' : 'bad'}">
-        <b class="rk">${i + 1}</b>${img(cls.spr, '', 3)}
+        <b class="rk">${i + 1}</b><img class="ldoll" src="${G.Doll.portrait(G.Doll.fromSnapshot(e), 2, true)}" alt="">
         <span class="nm">${esc(nm)}${e.me ? ' · ' + esc(t('you')) : ''}<small>${esc(L(cls.name))} · ${esc(t('lvl'))} ${e.lvl}${e.ok ? '' : ' · ' + esc(t('unverified'))}</small></span>
         <span class="v"><b>${esc(t('depthShort'))} ${e.depth + 1}</b><small>${esc(t('power'))} ${fmt(e.power || 0)}</small></span>
       </div>`;

@@ -231,6 +231,7 @@
       text(hp.x, hp.y - 28, G.t('levelUp', lvl), '#ffe27a', 4, { life: 1.6, max: 1.6, vy: -14 });
     });
     G.on('ability', type => {
+      hero.cast = 0.35;
       const b = btnPos(), hp = heroPos();
       const cfg = { potion: ['#ff4f7e', '#ffc0cc'], tome: ['#56d45a', '#d8ffd0'], scroll: ['#ffd84a', '#fff3a0'], skull: ['#b36bff', '#ffffff'], orb: ['#7fe9ff', '#ffffff'], wing: ['#ffffff', '#bfe8ff'], egg: ['#ffe27a', '#ffffff'] }[type] || ['#ffffff'];
       if (type === 'skull' || type === 'egg') {
@@ -389,8 +390,38 @@
 
   // ---------- Hero & mobs ----------
   const mobVis = new Map();
-  let heroFace = 1, heroAtkT = 0, btnHurtT = 0;
-  function heroPos() { const b = btnPos(); return { x: b.x - 30, y: b.y + 16 }; }
+  let btnHurtT = 0;
+  // The Warden's animation state: position, facing, walk cycle and the current move
+  const hero = { x: null, y: null, face: 1, walk: 0, moving: false, atk: null, cast: 0, tgt: null, tgtT: 9, hand: null, top: null };
+  function heroBase() { const b = btnPos(); return { x: b.x - 30, y: b.y + 16 }; }
+  function heroPos() {
+    if (hero.x == null) { const p = heroBase(); hero.x = p.x; hero.y = p.y; }
+    return { x: Math.round(hero.x), y: Math.round(hero.y) };
+  }
+  const ATTACK = { sword: ['swing', 0.24], katana: ['swing', 0.2], scythe: ['swing', 0.3], dagger: ['stab', 0.15], bow: ['shot', 0.3], staff: ['cast', 0.3], wand: ['cast', 0.22] };
+  // Melee Wardens step out to meet the crowd and fall back to the Button
+  function stepHero(dt) {
+    const base = heroBase();
+    if (hero.x == null) { hero.x = base.x; hero.y = base.y; }
+    const wt = G.D.hero ? G.D.hero.wtype : 'dagger';
+    let gx = base.x, gy = base.y;
+    hero.tgtT += dt;
+    if (MELEE[wt] && hero.tgt && hero.tgtT < 0.9 && !bossVis) {
+      const dx = hero.tgt.x - base.x, dy = hero.tgt.y - base.y, d = Math.hypot(dx, dy);
+      const go = clamp(d - 11, 0, 26);
+      if (d > 0) { gx = base.x + dx / d * go; gy = base.y + dy / d * go; }
+    }
+    gy = clamp(gy, 30, H - Math.ceil(70 / S));
+    const dx = gx - hero.x, dy = gy - hero.y, d = Math.hypot(dx, dy);
+    hero.moving = d > 0.7;
+    if (hero.moving) {
+      const st = Math.min(d, 80 * dt);
+      hero.x += dx / d * st; hero.y += dy / d * st; hero.walk += dt;
+      if (!hero.atk && Math.abs(dx) > 0.5) hero.face = dx > 0 ? 1 : -1;
+    }
+    if (hero.atk && (hero.atk.t += dt) >= hero.atk.dur) hero.atk = null;
+    if (hero.cast > 0) hero.cast -= dt;
+  }
   St.heroPos = heroPos;
   function mobPos(m) {
     const b = btnPos();
@@ -450,24 +481,55 @@
   function drawHero(hp) {
     const h = G.S.hero;
     if (!h || !h.cls) return;
-    const cls = G.CLASS_BY_ID[h.cls];
-    const spr = SPR.get(cls.spr);
-    const w = h.eq.weapon;
-    if (w && w.r >= 3) glow(hp.x, hp.y - 2, 9, G.RARITIES[w.r].color, 0.18 + 0.06 * Math.sin(time * 4));
-    if (G.R.hb && G.R.hb.wing > 0) glow(hp.x, hp.y - 10, 12, '#ffffff', 0.25);
+    const w = h.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
+    if (w && w.r >= 3) glow(hp.x, hp.y - 6, 10, G.RARITIES[w.r].color, 0.16 + 0.06 * Math.sin(time * 4));
+    if (G.R.hb && G.R.hb.wing > 0) glow(hp.x, hp.y - 12, 12, '#ffffff', 0.25);
     shadow(hp.x, hp.y - 1, 14);
-    const bob = heroAtkT > 0 ? -1 : Math.round(Math.sin(time * 3) * 0.6);
-    const x = Math.round(hp.x - spr.width), y = Math.round(hp.y - spr.height * 2 + bob);
-    lctx.save();
-    if (heroFace < 0) { lctx.translate(x + spr.width * 2, y); lctx.scale(-1, 1); lctx.drawImage(spr, 0, 0, spr.width * 2, spr.height * 2); }
-    else lctx.drawImage(spr, x, y, spr.width * 2, spr.height * 2);
-    lctx.restore();
-    if (w) {
-      const ws = SPR.get('it_' + w.id);
-      const wx = Math.round(hp.x + heroFace * 9 - ws.width / 2), wy = Math.round(hp.y - 16 + (heroAtkT > 0 ? -2 : 0));
-      lctx.drawImage(ws, wx, wy);
+    let pose = 'rest', ang = G.Doll.restAngle(wt), draw = 0;
+    const a = hero.atk;
+    if (a) {
+      const k = a.t / a.dur;
+      if (a.kind === 'swing') {
+        if (k < 0.25) { pose = 'up'; ang = -2.4; }
+        else if (k < 0.6) { pose = 'fwd'; ang = G.lerp(-2.4, 0.8, (k - 0.25) / 0.35); }
+        else ang = G.lerp(0.8, ang, (k - 0.6) / 0.4);
+      } else if (a.kind === 'stab') {
+        if (k < 0.35) ang = -0.3; else if (k < 0.8) { pose = 'fwd'; ang = 0; }
+      } else if (a.kind === 'shot') { pose = 'fwd'; draw = k < 0.5 ? k / 0.5 : 0; }
+      else if (a.kind === 'cast') {
+        if (k < 0.4) { pose = 'up'; ang = -1.9; } else if (k < 0.85) { pose = 'fwd'; ang = -0.55; }
+      }
     }
-    if (heroAtkT > 0) heroAtkT -= 1 / 60;
+    if (hero.cast > 0) { pose = 'up'; ang = -1.7; }
+    const legs = hero.moving ? Math.floor(hero.walk * 11) % 4 : 0;
+    const bob = hero.moving || a ? 0 : Math.floor(time * 1.6) % 2;
+    const lunge = a && a.kind !== 'shot' && pose === 'fwd' ? hero.face : 0;
+    const r = G.Doll.draw(lctx, h, hp.x + lunge, hp.y, { face: hero.face, legs, pose, bob, ang, draw, time });
+    hero.hand = { x: r.hx, y: r.hy }; hero.top = r.top;
+    // a crescent smear behind the blade, and a flash ahead of a stab
+    if (a && w) {
+      const k = a.t / a.dur, col = G.WEAPONS[wt].col;
+      if (a.kind === 'swing' && k >= 0.25 && k < 0.8) {
+        const cur = k < 0.6 ? ang : 0.8, from = Math.max(-2.4, cur - 2.2);
+        lctx.fillStyle = col;
+        for (let t = from; t <= cur; t += 0.1) {
+          lctx.globalAlpha = 0.25 + 0.6 * (t - from) / Math.max(0.01, cur - from);
+          for (const rr of [9, 11]) lctx.fillRect(Math.round(r.hx + hero.face * Math.cos(t) * rr), Math.round(r.hy + Math.sin(t) * rr), 1, 1);
+        }
+        lctx.globalAlpha = 1;
+      } else if (a.kind === 'stab' && k >= 0.35 && k < 0.8) {
+        lctx.fillStyle = '#ffffff';
+        for (let j = 10; j < 15; j++) { lctx.globalAlpha = 1 - (j - 10) / 5; lctx.fillRect(Math.round(r.hx + hero.face * j), Math.round(r.hy), 1, 1); }
+        lctx.globalAlpha = 1;
+      }
+    }
+    if (a && a.kind === 'cast' && !a.flash && a.t / a.dur >= 0.4 && w) {
+      a.flash = true;
+      const tp = G.Doll.tip(w, r.hx, r.hy, hero.face, -0.55);
+      burst(tp.x, tp.y, [G.WEAPONS[wt].col, '#ffffff'], 7, 45, { grav: 0, life: 0.25 });
+      ring(tp.x, tp.y, 5, 4, G.WEAPONS[wt].col, 0.18);
+    }
+    if (hero.moving && Math.random() < 0.3) part(hp.x + rand(-3, 3), hp.y, pick(['#c8b89a', '#8a7a60']), { vx: -hero.face * rand(5, 15), vy: rand(-10, -2), grav: 20, life: 0.3 });
   }
   const MELEE = { dagger: 1, sword: 1, katana: 1, scythe: 1 };
   function onHeroAttack(ev) {
@@ -495,15 +557,17 @@
       return;
     }
     const hp = heroPos();
-    const src = { x: hp.x + heroFace * 9, y: hp.y - 12 };
+    const src = hero.hand ? { x: hero.hand.x, y: hero.hand.y - 1 } : { x: hp.x + hero.face * 9, y: hp.y - 12 };
     if (ev.src === 'pet') {
       if (shots.length > 90) return;
       const t = pts[0], pp = petPos(Math.floor(Math.random() * Math.max(1, G.S.active.length)));
       if (G.S.active.length) shots.push({ x: pp.x, y: pp.y, sx: pp.x, sy: pp.y, tx: t.x, ty: t.y - 6, t: 0, dur: 0.22, col: '#fff3a0' });
       return;
     }
-    heroFace = pts[0].x >= hp.x ? 1 : -1;
-    heroAtkT = 0.08;
+    hero.face = pts[0].x >= hp.x ? 1 : -1;
+    const kind = ATTACK[wt] || ATTACK.dagger;
+    if (!hero.atk || hero.atk.t > hero.atk.dur * 0.5) hero.atk = { kind: kind[0], t: 0, dur: kind[1] };
+    if (!ev.boss) { hero.tgt = { x: pts[0].x, y: pts[0].y }; hero.tgtT = 0; }
     if (shots.length > 110) return;
     const melee = MELEE[wt];
     const area = ev.aoe ? aoePx(ev.aoe) : null;
@@ -511,13 +575,14 @@
       const ty = t.y - 7;
       if (t.m) mobVisOf(t.m).hit = 0.08;
       const dur = melee ? 0.1 : wt === 'bow' ? 0.16 : 0.22;
-      shots.push({ x: src.x, y: src.y, sx: src.x, sy: src.y, tx: t.x, ty, t: 0, dur, col: ev.crit ? '#ff7a2e' : col, flat: wt === 'bow' || melee, big: wt === 'staff' || ev.crit, key: melee, boom: !melee && area && !ev.boss ? { x: t.x, y: t.y - 3, rx: area.rx, ry: area.ry, col } : null });
+      if (!melee) shots.push({ x: src.x, y: src.y, sx: src.x, sy: src.y, tx: t.x, ty, t: 0, dur, col: ev.crit ? '#ff7a2e' : col, flat: wt === 'bow', big: wt === 'staff' || ev.crit, arrow: wt === 'bow', boom: area && !ev.boss ? { x: t.x, y: t.y - 3, rx: area.rx, ry: area.ry, col } : null });
+      else if (ev.boss) shots.push({ x: src.x, y: src.y, sx: src.x, sy: src.y, tx: t.x, ty, t: 0, dur, col: ev.crit ? '#ff7a2e' : col, flat: true, key: true });
       if (wt === 'staff') shots.push({ x: src.x, y: src.y + 2, sx: src.x, sy: src.y + 2, tx: t.x, ty: ty + 3, t: 0, dur: dur * 1.1, col, flat: false });
       if (melee && !ev.boss) { // a crescent sweep through the pack
         const a = Math.atan2(t.y - hp.y, t.x - hp.x);
         ring(t.x, t.y - 4, area ? area.rx : 8, area ? area.ry : 5, ev.crit ? '#ff7a2e' : col, 0.14, [a - 1.2, a + 1.2]);
       } else if (melee) {
-        for (let j = 0; j < 5; j++) { const a = -1 + j * 0.5; part(t.x + Math.cos(a) * 6 * heroFace, ty + Math.sin(a) * 6, col, { vx: 0, vy: 0, grav: 0, life: 0.14 }); }
+        for (let j = 0; j < 5; j++) { const a = -1 + j * 0.5; part(t.x + Math.cos(a) * 6 * hero.face, ty + Math.sin(a) * 6, col, { vx: 0, vy: 0, grav: 0, life: 0.14 }); }
       }
       if (ev.crit && i === 0) text(t.x, ty - 8, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 });
     });
@@ -818,6 +883,7 @@
       } });
     });
     // Mobs and the hero
+    if (G.S.hero && G.S.hero.cls) stepHero(dt);
     for (const m of R.mobs || []) {
       const v = mobVisOf(m);
       v.vp = v.vp == null ? m.p : v.vp + (m.p - v.vp) * Math.min(1, vdt * 14);
@@ -895,6 +961,14 @@
       const k = s.t / s.dur;
       const arc = s.flat ? 0 : 6;
       const x = s.sx + (s.tx - s.sx) * k, y = s.sy + (s.ty - s.sy) * k - Math.sin(k * Math.PI) * arc;
+      if (s.arrow) { // a shaft with a head, pointing where it flies
+        const d = Math.hypot(s.tx - s.sx, s.ty - s.sy) || 1, ux = (s.tx - s.sx) / d, uy = (s.ty - s.sy) / d;
+        lctx.fillStyle = '#c8a870';
+        for (let j = 1; j <= 4; j++) lctx.fillRect(Math.round(x - ux * j), Math.round(y - uy * j), 1, 1);
+        lctx.fillStyle = '#f0ead8'; lctx.fillRect(Math.round(x - ux * 5), Math.round(y - uy * 5), 1, 1);
+        lctx.fillStyle = s.col; lctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+        continue;
+      }
       lctx.fillStyle = s.col;
       lctx.fillRect(Math.round(x), Math.round(y), s.big ? 3 : 2, s.big ? 3 : 2);
       lctx.globalAlpha = 0.5;
@@ -1225,7 +1299,7 @@
     ctx.font = crisp(3) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12';
     const s = (G.S.profile.name || G.L(G.CLASS_BY_ID[h.cls].name)) + ' · ' + G.t('lvl') + ' ' + h.lvl;
-    const y = hp.y - 25;
+    const y = (hero.top != null ? hero.top : hp.y - 22) - 6;
     ctx.strokeText(s, hp.x, y); ctx.fillStyle = '#ffe27a'; ctx.fillText(s, hp.x, y);
   }
   function drawChestTip(c) {
