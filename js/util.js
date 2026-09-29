@@ -47,15 +47,20 @@
 
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const lerp = (a, b, t) => a + (b - a) * t;
-  const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
-  const randInt = (a, b) => Math.floor(a + Math.random() * (b - a + 1));
-  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-  const chance = p => Math.random() < p;
+  // All game randomness goes through G.rng so a run can be replayed from a seed
+  // (G.useSeed) — the base for a cheat-resistant ladder. Visual effects may
+  // keep using Math.random.
+  G.rng = Math.random;
+  const rnd = () => G.rng();
+  const rand = (a = 0, b = 1) => a + rnd() * (b - a);
+  const randInt = (a, b) => Math.floor(a + rnd() * (b - a + 1));
+  const pick = arr => arr[Math.floor(rnd() * arr.length)];
+  const chance = p => rnd() < p;
 
   function weighted(weights) { // returns index
     let total = 0;
     for (let i = 0; i < weights.length; i++) total += weights[i];
-    let r = Math.random() * total;
+    let r = rnd() * total;
     for (let i = 0; i < weights.length; i++) { r -= weights[i]; if (r < 0) return i; }
     return weights.length - 1;
   }
@@ -70,6 +75,8 @@
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
   }
+
+  G.useSeed = seed => { G.rng = seed == null ? Math.random : seeded(seed); };
 
   function todayKey(d) {
     d = d || new Date();

@@ -29,6 +29,10 @@
         <button class="btn fight" id="btnFight" hidden>⚔</button>
         <button class="btn fight" id="btnRetreat" hidden style="animation:none">✕</button>
       </div>
+      <div class="hpRow" id="hpRow" hidden>
+        <div class="meter hpm" id="hpWrap"><i id="hpMeter"></i><span id="hpText"></span></div>
+        <button class="abil" id="btnAbil" hidden><img alt=""><i id="abilCd"></i></button>
+      </div>
       <div class="meters">
         <div class="meter"><i id="chestMeter"></i><span id="chestText"></span></div>
         <div class="meter combo" id="comboWrap"><i id="comboMeter"></i><span id="comboText"></span></div>
@@ -56,6 +60,7 @@
 <script src="js/data.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/game.js"></script>
+<script src="js/hero.js"></script>
 <script src="js/ach.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/audio.js"></script>

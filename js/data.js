@@ -284,8 +284,8 @@
 
   // ---------- Stat potions (reset on ascension, like a hero's death) ----------
   G.POTIONS = [
-    { id: 'att',  short: 'ATT', color: '#e04cf0', name: { ru: 'Атака', en: 'Attack' },     desc: { ru: 'Клик +5%', en: 'Click +5%' } },
-    { id: 'def',  short: 'DEF', color: '#9a9aa6', name: { ru: 'Защита', en: 'Defense' },   desc: { ru: 'Урон по боссам +8%', en: 'Boss damage +8%' } },
+    { id: 'att',  short: 'ATT', color: '#e04cf0', name: { ru: 'Атака', en: 'Attack' },     desc: { ru: 'Урон героя и клик +5%', en: 'Hero damage and clicks +5%' } },
+    { id: 'def',  short: 'DEF', color: '#9a9aa6', name: { ru: 'Защита', en: 'Defense' },   desc: { ru: 'Прочность кнопки +8%', en: 'Button toughness +8%' } },
     { id: 'spd',  short: 'SPD', color: '#41d65b', name: { ru: 'Скорость', en: 'Speed' },   desc: { ru: 'Автоклики и голем +5%', en: 'Auto clicks and golem +5%' } },
     { id: 'dex',  short: 'DEX', color: '#ff9b2d', name: { ru: 'Ловкость', en: 'Dexterity' }, desc: { ru: 'Шанс крита +0.5%', en: 'Crit chance +0.5%' } },
     { id: 'vit',  short: 'VIT', color: '#e0413b', name: { ru: 'Живучесть', en: 'Vitality' }, desc: { ru: 'Доход героев +5%', en: 'Hero income +5%' } },
@@ -343,8 +343,8 @@
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------
   G.LEGACY = [
-    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: { ru: 'Наследие силы', en: 'Ancestral Might' }, desc: { ru: 'Клик +40%', en: 'Click gold +40%' },
-      fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; } },
+    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: { ru: 'Наследие силы', en: 'Ancestral Might' }, desc: { ru: 'Клик и урон героя +40%', en: 'Clicks and hero damage +40%' },
+      fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; D.heroMult *= 1 + 0.4 * L; } },
     { id: 'lg_guild', base: 1, growth: 1.6, max: 25, name: { ru: 'Наследие гильдии', en: 'Ancestral Guild' }, desc: { ru: 'Доход героев +40%', en: 'Hero income +40%' },
       fx: (L, D) => { D.gpsMult *= 1 + 0.4 * L; } },
     { id: 'lg_start', base: 2, growth: 2, max: 8, name: { ru: 'Фора', en: 'Head Start' }, desc: { ru: 'Старт с золотом: 100 × 10^ур.', en: 'Start with 100 × 10^lvl gold' },

@@ -17,6 +17,7 @@
 
   const TABS = [
     { id: 'upg', icon: 'ic_rune', unlock: () => true },
+    { id: 'hero', icon: 'ic_sword', unlock: () => true },
     { id: 'heroes', icon: 'h_knight', unlock: S => S.goldTotal >= 40 || S.ascensions > 0 },
     { id: 'coll', icon: 'ic_bag', unlock: S => S.st.chests >= 1 },
     { id: 'quests', icon: 'ic_scroll', unlock: S => S.st.chests >= 5 || S.ascensions > 0 },
@@ -45,6 +46,7 @@
     S.seen.tabs.upg = 1; S.seen.tabs._u_upg = 1;
     UI.render();
     UI.update(true);
+    if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
 
   function buildTabs() {
@@ -71,6 +73,7 @@
     $('#btnMusic img').src = ic('ic_echo', 3);
     $('#btnFight').addEventListener('click', () => { G.Audio.unlock(); G.startBoss(); });
     $('#btnRetreat').addEventListener('click', () => G.fleeBoss());
+    $('#btnAbil').addEventListener('click', () => { G.Audio.unlock(); if (!G.castAbility()) G.Audio.error(); });
   }
 
   function bindKeys() {
@@ -84,8 +87,9 @@
         G.Stage.keyClick();
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
-      else if (/^Digit[1-9]$/.test(e.code)) {
-        const d = TABS[+e.code.slice(5) - 1];
+      else if (e.code === 'KeyQ') { G.castAbility(); }
+      else if (/^Digit[0-9]$/.test(e.code)) {
+        const d = TABS[(+e.code.slice(5) + 9) % 10];
         if (d && tabOpen(d.id)) UI.go(d.id);
       }
     });
@@ -107,11 +111,14 @@
     G.on('bossWin', (rew) => { dirtyTab('quests'); dirtyTab('asc'); });
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && tab === 'heroes') || (kind === 'upg' && tab === 'upg') || (kind === 'node' && tab === 'stars') || (kind === 'legacy' && tab === 'asc')) UI.update(true); if (kind === 'node' && tab === 'stars') UI.render(); });
-    G.on('ascend', g => { UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); });
+    G.on('ascend', g => { if (g) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
     G.on('quests', () => dirtyTab('quests'));
     G.on('questClaim', () => { if (tab === 'quests') UI.render(); });
     G.on('daily', () => { if (tab === 'quests') UI.render(); });
     G.on('pets', () => { if (tab === 'pets') UI.render(); });
+    G.on('gear', (g, equipped) => { if (equipped && g.r >= 2) UI.toast(`<span>${esc(t('equipped'))}: <b style="color:${G.RARITIES[g.r].color}">${esc(L(G.ITEM_BY_ID[g.id].name))}</b></span>`, '', 'it_' + g.id); });
+    G.on('levelUp', lvl => { if (lvl % 5 === 0) UI.toast(`<b>${esc(t('levelUp', lvl))}</b>`, 'ach', 'ic_star'); });
+    G.on('buttonBreak', () => UI.toast(`<b>${esc(t('overload'))}</b> ${esc(t('overloadHint'))}`, '', 'ic_skull'));
   }
   const dirty = {};
   function dirtyTab(id) { dirty[id] = true; }
@@ -164,7 +171,7 @@
     setClass($('#comboWrap'), 'hot', comboK >= 1);
     setText($('#comboText'), t('combo') + ' ' + Math.floor(R.combo) + ' · ×' + (1 + R.combo * D.comboPer).toFixed(2));
     setText($('#chestText'), t('nextChest') + ' ' + Math.floor(S.chestMeter / D.chestNeed * 100) + '%');
-    const bossShown = S.st.chests >= 10 || S.st.bossKills > 0;
+    const bossShown = !!(S.hero && S.hero.cls);
     $('#bossRow').hidden = !bossShown;
     if (bossShown) {
       if (R.boss) {
@@ -177,12 +184,31 @@
         setClass($('#bossWrap'), 'hp', false);
         const need = D.bossNeed;
         $('#bossMeter').style.width = Math.min(100, S.bossMeter / need * 100) + '%';
-        setText($('#bossText'), R.bossReady ? t('bossReady') : t('bossMeter', Math.max(0, Math.ceil(need - S.bossMeter))));
+        setText($('#bossText'), R.bossReady ? t('bossReady') : t('clearMeter', Math.min(S.bossMeter, Math.ceil(need)), Math.ceil(need)));
         $('#btnFight').hidden = !R.bossReady; $('#btnRetreat').hidden = true;
       }
     }
+    // Button HP and ability
+    const h = S.hero;
+    $('#hpRow').hidden = !(h && h.cls);
+    if (h && h.cls) {
+      const k = Math.max(0, h.hp / (D.heroHp || 1));
+      $('#hpMeter').style.width = k * 100 + '%';
+      setClass($('#hpWrap'), 'low', k < 0.35);
+      setText($('#hpText'), R.stun > 0 ? t('overload') : t('buttonHp', fmt(Math.max(0, h.hp)), fmt(D.heroHp)));
+      const ab = h.eq.ability, btn = $('#btnAbil');
+      btn.hidden = !ab;
+      if (ab) {
+        const type = G.ITEM_TYPE[ab.id];
+        if (btn._id !== ab.id) { btn._id = ab.id; btn.querySelector('img').src = ic('it_' + ab.id, 3); btn.title = L(G.ABILITIES[type].name) + ' (Q)'; }
+        const cd = Math.max(0, R.abilCd), tot = G.ABILITIES[type].cd;
+        $('#abilCd').style.height = (cd > 0 ? cd / tot * 100 : 0) + '%';
+        setClass(btn, 'ready', cd <= 0);
+      }
+    }
     // Buffs
-    const bh = S.buffs.map(b => `<span class="buff ${b.id}">${esc(t(b.id))} ${Math.ceil(b.t)}s</span>`).join('');
+    const bh = S.buffs.map(b => `<span class="buff ${b.id}">${esc(t(b.id))} ${Math.ceil(b.t)}s</span>`).join('')
+      + Object.keys(R.hb || {}).filter(k => R.hb[k] > 0).map(k => `<span class="buff storm">${esc(L(G.ABILITIES[k].name))} ${Math.ceil(R.hb[k])}s</span>`).join('');
     const bEl = $('#buffs');
     if (bEl._h !== bh) { bEl.innerHTML = bh; bEl._h = bh; }
     // Tutorial hint
@@ -552,6 +578,7 @@
       case 'combo': return t('q_combo', q.n);
       case 'mod': return t('q_mod', q.n);
       case 'wisp': return t('q_wisp');
+      case 'kills': return t('q_kills', fmt(q.n));
     }
     return '';
   }
@@ -667,6 +694,161 @@
     setText($('#tabSub'), fmt(S.fame) + ' ★');
   };
 
+  // Character: paper doll, stats, bag, enchanting and records
+  let selGear = null; // gear uid
+  const SLOT_ICON = { weapon: 'ic_sword', ability: 'ic_scroll', armor: 'it_chainmail', ring: 'it_copper_ring' };
+  function findGear(u) {
+    const h = G.S.hero;
+    for (const s of G.SLOTS) if (h.eq[s] && h.eq[s].u === u) return { g: h.eq[s], worn: s };
+    const g = h.bag.find(x => x.u === u);
+    return g ? { g, worn: null } : null;
+  }
+  function gearName(g) { return L(G.ITEM_BY_ID[g.id].name) + (g.e ? ' +' + g.e : ''); }
+  function mainLine(g) {
+    const slot = G.slotOf(g.id), type = G.ITEM_TYPE[g.id], v = G.mainStat(g);
+    if (slot === 'weapon') return t('g_weapon', L(G.WEAPONS[type].name), fmt(v, true), G.WEAPONS[type].targets);
+    if (slot === 'armor') return t('g_armor', fmt(v));
+    if (slot === 'ring') return t('g_ring', G.fmtPct(v));
+    return t('g_ability', G.fmtPct(v), L(G.ABILITIES[type].name), L(G.ABILITIES[type].desc));
+  }
+  function affLine(a) {
+    const d = G.AFFIXES[a[0]];
+    return `<li>${esc(L(d.name))} <b>${d.x ? '+' + a[1].toFixed(2) + '×' : G.fmtPct(a[1])}</b></li>`;
+  }
+  function gearTile(g, extra) {
+    const r = G.RARITIES[g.r];
+    return `<button class="gear r${g.r} ${extra || ''}" data-g="${g.u}" style="--rc:${r.color}" aria-label="${esc(gearName(g))}">${img('it_' + g.id, '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u></button>`;
+  }
+  renderers.hero = function (body) {
+    const S = G.S, h = S.hero;
+    if (!h.cls) { body.innerHTML = `<p class="note">${esc(t('pickClassHint'))}</p><button class="btn gold" data-pick>${esc(t('pickClass'))}</button>`; body.querySelector('[data-pick]').onclick = () => UI.pickClass(); return; }
+    const cls = G.CLASS_BY_ID[h.cls];
+    const salvOpts = [0, 1, 2, 3];
+    body.innerHTML = `
+      <div class="charCard">
+        <div class="portrait">${img(cls.spr, '', 7)}</div>
+        <div class="charInfo">
+          <input id="heroName" maxlength="16" placeholder="${esc(t('namePh'))}" value="${esc(S.profile.name || '')}" aria-label="${esc(t('namePh'))}">
+          <div class="clsLine">${esc(L(cls.name))} · <span data-lvl></span></div>
+          <div class="pbar"><i data-xp></i><span data-xpt></span></div>
+          <div class="power"><small>${esc(t('power'))}</small><b data-pow></b></div>
+        </div>
+      </div>
+      <div class="doll">${G.SLOTS.map(s => `<div class="dslot" data-slot="${s}"><span class="lbl">${esc(t('slot_' + s))}</span><div data-in></div></div>`).join('')}</div>
+      <div class="detail" data-gd></div>
+      <div class="statList heroStats" data-stats></div>
+      <div class="sect">${esc(t('bag'))} <span data-bagn></span> · ${img('ic_ess', 'inl', 2)} <span data-shards></span> ${esc(t('shards'))}</div>
+      <div class="bag" data-bag></div>
+      <div class="setList" style="margin-top:8px">
+        <div class="setRow"><span>${esc(t('autoEquip'))}</span><button class="toggle ${h.auto ? 'on' : ''}" data-ht="auto" aria-label="${esc(t('autoEquip'))}"></button></div>
+        <div class="setRow"><span>${esc(t('autoCast'))}</span><button class="toggle ${h.cast ? 'on' : ''}" data-ht="cast" aria-label="${esc(t('autoCast'))}"></button></div>
+        <div class="setRow"><span>${esc(t('autoSalv'))}</span><span class="seg" data-salv>${salvOpts.map(r => `<button data-r="${r}" class="${h.salv === r ? 'on' : ''}">${r === 0 ? esc(t('off')) : esc(L(G.RARITIES[r].name)).slice(0, 5) + '.'}</button>`).join('')}</span></div>
+        <div class="setRow"><span>${esc(t('salvBelow'))}</span><button class="btn" data-salvall>${esc(t('salvage'))}</button></div>
+      </div>
+      <div class="sect">${esc(t('records'))}</div>
+      <div class="statList" data-rec></div>
+      <p class="note">${esc(t('ladderSoon'))}</p>`;
+    refs.hero = {
+      lvl: body.querySelector('[data-lvl]'), xp: body.querySelector('[data-xp]'), xpt: body.querySelector('[data-xpt]'), pow: body.querySelector('[data-pow]'),
+      slots: $$('.dslot', body), gd: body.querySelector('[data-gd]'), stats: body.querySelector('[data-stats]'), bag: body.querySelector('[data-bag]'),
+      bagn: body.querySelector('[data-bagn]'), shards: body.querySelector('[data-shards]'), rec: body.querySelector('[data-rec]'), key: '',
+    };
+    $('#heroName', body).addEventListener('change', e => { S.profile.name = e.target.value.trim().slice(0, 16); });
+    body.addEventListener('click', e => {
+      const tg = e.target.closest('[data-ht]');
+      if (tg) { h[tg.dataset.ht] = h[tg.dataset.ht] ? 0 : 1; tg.classList.toggle('on'); return; }
+      const sb = e.target.closest('[data-salv] button');
+      if (sb) { h.salv = +sb.dataset.r; $$('[data-salv] button', body).forEach(x => x.classList.toggle('on', x === sb)); return; }
+      if (e.target.closest('[data-salvall]')) {
+        const r = G.salvageBelow(Math.max(1, h.salv || 2));
+        UI.toast(esc(t('salvaged', r.n, fmt(r.v))), '', 'ic_ess'); refs.hero.key = ''; return;
+      }
+      const gt = e.target.closest('[data-g]');
+      if (gt) { selGear = +gt.dataset.g; refs.hero.key = ''; updaters.hero(true); return; }
+      const ds = e.target.closest('.dslot');
+      if (ds && !e.target.closest('[data-g]')) { const g = h.eq[ds.dataset.slot]; if (g) { selGear = g.u; refs.hero.key = ''; updaters.hero(true); } return; }
+      const act = e.target.closest('[data-act]');
+      if (act) {
+        const f = findGear(selGear); if (!f) return;
+        const a = act.dataset.act;
+        if (a === 'equip') G.equip(f.g);
+        else if (a === 'unequip') G.unequip(f.worn);
+        else if (a === 'enchant') { if (!G.enchant(f.g)) G.Audio.error(); }
+        else if (a === 'salvage') { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_ess'); selGear = null; } }
+        refs.hero.key = ''; updaters.hero(true);
+      }
+    });
+    if (!selGear || !findGear(selGear)) selGear = h.eq.weapon ? h.eq.weapon.u : null;
+  };
+  updaters.hero = function (force) {
+    const S = G.S, D = G.D, h = S.hero, rf = refs.hero;
+    if (!rf || !h.cls) return;
+    const c = D.hero;
+    setText(rf.lvl, t('lvl') + ' ' + h.lvl);
+    rf.xp.style.width = Math.min(100, h.xp / G.xpNeed(h.lvl) * 100) + '%';
+    setText(rf.xpt, fmt(Math.floor(h.xp)) + ' / ' + fmt(G.xpNeed(h.lvl)));
+    setText(rf.pow, fmt(D.power));
+    setText(rf.shards, fmt(h.shards));
+    setText(rf.bagn, h.bag.length + '/' + G.TUNE.bagMax);
+    setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
+    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, G.lang(), Math.floor(h.shards / 5)]);
+    if (key === rf.key && !force) return;
+    rf.key = key;
+    for (const el of rf.slots) {
+      const g = h.eq[el.dataset.slot];
+      const box = el.querySelector('[data-in]');
+      const hh = g ? gearTile(g, selGear === g.u ? 'sel' : '') : `<span class="empty">${img(SLOT_ICON[el.dataset.slot], '', 3, { dark: true })}</span>`;
+      if (box._h !== hh) { box.innerHTML = hh; box._h = hh; }
+    }
+    // Bag, grouped by slot and sorted by power
+    const order = G.SLOTS;
+    const bag = h.bag.slice().sort((a, b) => order.indexOf(G.slotOf(a.id)) - order.indexOf(G.slotOf(b.id)) || b.r - a.r || b.il - a.il);
+    rf.bag.innerHTML = bag.length ? bag.map(g => gearTile(g, selGear === g.u ? 'sel' : '')).join('') : `<p class="note">${esc(t('bagEmpty'))}</p>`;
+    // upgrade arrows
+    const cur = D.power;
+    $$('[data-g]', rf.bag).forEach(el => { const g = h.bag.find(x => x.u === +el.dataset.g); if (g && G.powerWith(G.slotOf(g.id), g) > cur) el.querySelector('u').hidden = false; });
+    // Stats
+    const cls = G.CLASS_BY_ID[h.cls];
+    const rows = [
+      ['st_dps', fmt(c.dps, true)], ['st_hit', fmt(c.hit, true)], ['st_rate', c.rate.toFixed(2) + t('perSec')], ['st_targets', c.targets],
+      ['st_crit', Math.round(c.crit * 100) + '% · ×' + c.critMult.toFixed(1)], ['st_hp', fmt(c.hp)],
+      ['st_class', c.own ? t('classBonusOn') : t('classBonusOff', cls.weapons.map(w => L(G.WEAPONS[w].name)).join(', '))],
+    ];
+    rf.stats.innerHTML = rows.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('');
+    // Records (ladder material)
+    const rec = [['rec_depth', S.bestDepth], ['rec_power', fmt(S.rec.maxPower)], ['rec_level', S.rec.maxLevel], ['rec_mad', S.rec.madTime ? G.fmtTime(S.rec.madTime) : '—'], ['rec_id', S.profile.id]];
+    rf.rec.innerHTML = rec.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('');
+    // Detail
+    const f = selGear ? findGear(selGear) : null;
+    if (!f) { rf.gd.innerHTML = `<p>${esc(t('tapItem'))}</p>`; return; }
+    const g = f.g, r = G.RARITIES[g.r], slot = G.slotOf(g.id);
+    const cmp = f.worn ? null : G.powerWith(slot, g) - G.powerWith(slot, h.eq[slot]);
+    const ec = G.enchantCost(g);
+    const canE = g.e < G.ENCHANT_MAX && h.shards >= ec.shards && S.gold >= ec.gold;
+    rf.gd.innerHTML = `
+      <h3 style="color:${r.color}">${esc(gearName(g))}</h3>
+      <p>${esc(L(r.name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}</p>
+      <p>${esc(mainLine(g))}</p>
+      ${g.a.length ? `<ul class="affs">${g.a.map(affLine).join('')}</ul>` : ''}
+      ${cmp !== null ? `<p>${esc(t('vsWorn'))}: <b style="color:${cmp >= 0 ? 'var(--good)' : 'var(--bad)'}">${cmp >= 0 ? '+' : ''}${fmt(cmp)} ${esc(t('power').toLowerCase())}</b></p>` : ''}
+      <div class="act">
+        ${f.worn ? `<button class="btn" data-act="unequip">${esc(t('unequip'))}</button>` : `<button class="btn gold" data-act="equip">${esc(t('equip'))}</button>`}
+        <button class="btn ${canE ? 'gold' : ''}" data-act="enchant" ${g.e >= G.ENCHANT_MAX ? 'disabled' : ''}>${esc(t('enchant'))} ${g.e >= G.ENCHANT_MAX ? t('max') : `${img('ic_ess', '', 2)}${fmt(ec.shards)} ${img('ic_coin', '', 2)}${fmt(ec.gold)}`}</button>
+        ${f.worn ? '' : `<button class="btn red" data-act="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))}</button>`}
+      </div>`;
+  };
+  UI.pickClass = function () {
+    if (!$('#modal').hidden) { setTimeout(UI.pickClass, 500); return; }
+    const html = `<p>${esc(t('pickClassHint'))}</p><div class="classGrid">${G.CLASSES.map(c => `
+      <button class="clsCard" data-c="${c.id}">${img(c.spr, '', 6)}<b>${esc(L(c.name))}</b><small>${esc(L(c.desc))}</small></button>`).join('')}</div>`;
+    const m = UI.modal(t('pickClass'), html, [], true);
+    m.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => {
+      G.chooseClass(b.dataset.c);
+      m.hidden = true; m.innerHTML = '';
+      UI.render();
+    }));
+  };
+
   // Settings
   renderers.set = function (body) {
     const s = G.S.set;
@@ -746,7 +928,7 @@
     clearTimeout(bannerT);
     bannerT = setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; }, 400); }, it.r >= 6 ? 2600 : 1700);
   };
-  UI.modal = function (title, html, actions) {
+  UI.modal = function (title, html, actions, locked) {
     const m = $('#modal');
     m.innerHTML = `<div class="box" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h2>${esc(title)}</h2>${html}<div class="acts">${(actions || []).map((a, i) => `<button class="btn ${a.cls || ''}" data-a="${i}">${esc(a.label)}</button>`).join('')}</div></div>`;
     m.hidden = false;
@@ -754,8 +936,9 @@
     m.onclick = e => {
       const b = e.target.closest('[data-a]');
       if (b) { const a = actions[+b.dataset.a]; close(); a.fn && a.fn(); }
-      else if (e.target === m) close();
+      else if (e.target === m && !locked) close();
     };
+    return m;
     const first = m.querySelector('[data-a]'); if (first) first.focus();
   };
   UI.offline = function (r) {

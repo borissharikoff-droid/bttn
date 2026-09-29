@@ -44,7 +44,7 @@
       seen: {}, tut: 0,
     };
   }
-  G.newState = newState;
+  G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
   G.S = newState();
 
   // Runtime-only state (not saved)
@@ -64,6 +64,7 @@
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
       offCap: 7200, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 25,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
+      heroMult: 1, hpMult: 1,
     };
   }
 
@@ -86,6 +87,7 @@
     for (const u of G.UPGRADES) { const L = S.upg[u.id] || 0; if (L) u.fx(L, d); }
     for (const n of G.NODES) { const L = S.nodes[n.id] || 0; if (L) n.fx(L, d); }
     for (const l of G.LEGACY) { const L = S.legacy[l.id] || 0; if (L) l.fx(L, d); }
+    if (G.heroEcon) G.heroEcon(d);
 
     // Collection bonuses
     const sums = {};
@@ -102,7 +104,7 @@
 
     // Potions
     const P = S.pots, pp = d.potPow;
-    d.clickMult *= 1 + 0.05 * P.att * pp; d.bossMult *= 1 + 0.08 * P.def * pp;
+    d.clickMult *= 1 + 0.05 * P.att * pp; d.heroMult *= 1 + 0.05 * P.att * pp; d.hpMult *= 1 + 0.08 * P.def * pp;
     d.spdMult *= 1 + 0.05 * P.spd * pp; d.crit += 0.005 * P.dex * pp;
     d.gpsMult *= 1 + 0.05 * P.vit * pp; d.essMult *= 1 + 0.05 * P.wis * pp;
     d.goldMult *= 1 + 0.03 * P.life * pp; d.petMult *= 1 + 0.04 * P.mana * pp;
@@ -153,6 +155,7 @@
     d.click = (clickCore * buffGold + d.gps * d.clickGpsPct) * buffClick;
     d.incomeRef = Math.max(1, d.gps + (clickCore * buffGold + d.gps * d.clickGpsPct) * 3);
     d.effLuck = d.luck + S.depth * 0.003;
+    if (G.heroFinish) G.heroFinish(d);
     Object.keys(D).forEach(k => delete D[k]);
     Object.assign(D, d);
     R.dirty = false;
@@ -209,8 +212,8 @@
     if (crit) { gain *= D.critMult; S.st.crits++; questProgress('crit', 1); }
     if (mega) { gain *= 30; S.st.megas++; }
     addGold(gain, 'click');
-    let dmg = 0;
-    if (R.boss) { dmg = gain * D.bossMult; hitBoss(dmg); }
+    const dmg = R.boss ? D.heroHit * TUNE.clickVolley : 0;
+    if (G.heroVolley && !(R.stun > 0)) G.heroVolley(TUNE.clickVolley, 'click');
     S.chestMeter += D.chestProg;
     spawnFromMeter();
     questProgress('clicks', 1);
@@ -227,7 +230,8 @@
     const critEV = 1 + D.crit * (D.critMult - 1);
     const gain = D.click * critEV * n;
     addGold(gain, 'auto');
-    if (R.boss) hitBoss(gain * D.bossMult);
+    const petN = n * D.petCps / Math.max(1e-9, D.autoCps + D.petCps);
+    if (G.heroVolley && petN > 0) G.heroVolley(TUNE.petVolley * petN, 'pet');
     G.S.chestMeter += D.chestProg * TUNE.autoChestFactor * n;
     emit('autoClicks', n, gain);
   }
@@ -345,6 +349,7 @@
       loot.items.push({ it, v, isNew: before === 0, star: stars(before + 1) > stars(before) });
       if (it.r === 6) { S.st.divine++; }
       if (stars(before + 1) > stars(before)) R.dirty = true;
+      if (G.gainGear) G.gainGear(it, c.tier);
       questProgress('rarity', it.r);
     }
     if (c.mod === 'golden') loot.gold += D.incomeRef * 8 * (c.tier + 1);
@@ -357,7 +362,6 @@
     S.opened[c.tier]++;
     S.st.chests++;
     if (c.mod) { S.st.modded++; questProgress('mod', 1); }
-    if (!R.boss && source !== 'boss') S.bossMeter++;
     questProgress('chests', 1);
     emit('chestOpen', loot);
     if (c.mod === 'lightning' && !depthGuard) {
@@ -439,7 +443,8 @@
     if (R.boss || !R.bossReady) return false;
     const d = S.depth;
     const lord = isLord(d);
-    const hp = bossHp(d);
+    const hp = G.bossHp(d);
+    if (G.heroBossStart) G.heroBossStart();
     R.boss = { d, lord, hp, max: hp, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0),
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
     R.bossReady = false;
@@ -461,6 +466,7 @@
     b.dead = true;
     const d = b.d;
     const first = S.st.bossKills === 0;
+    if (d === 39 && S.rec && !S.rec.madTime) S.rec.madTime = S.st.playTime;
     S.st.bossKills++;
     if (b.lord) S.st.lordKills++;
     const rew = { gold: D.incomeRef * (b.lord ? 40 : 10), ess: (2 + d * 0.3) * (b.lord ? 3 : 1) * D.essMult,
@@ -496,7 +502,7 @@
 
   // ---------- Wisps ----------
   function spawnWisp() {
-    R.wisp = { t: TUNE.wispLife, life: TUNE.wispLife, seed: Math.random() };
+    R.wisp = { t: TUNE.wispLife, life: TUNE.wispLife, seed: G.rng() };
     emit('wisp', R.wisp);
   }
   function catchWisp() {
@@ -642,7 +648,7 @@
     const S = G.S;
     return S.maxDepth + Math.log10(S.goldRun + 10);
   }
-  const QUEST_KINDS = ['clicks', 'chests', 'rarity', 'gold', 'boss', 'crit', 'combo', 'mod', 'wisp'];
+  const QUEST_KINDS = ['clicks', 'chests', 'rarity', 'gold', 'boss', 'crit', 'combo', 'mod', 'wisp', 'kills'];
   function makeQuest(exclude) {
     const S = G.S;
     const lv = progLevel();
@@ -662,8 +668,9 @@
       case 'combo': q.n = Math.min(D.comboCap, Math.round(45 + lv * 8)); break;
       case 'mod': q.n = 3; break;
       case 'wisp': q.n = 1; break;
+      case 'kills': q.n = Math.round((40 + lv * 6) / 5) * 5; break;
     }
-    const roll = Math.random();
+    const roll = G.rng();
     if (roll < 0.15) { q.rw = 'eggs'; q.rn = 1 + (lv > 30 ? 1 : 0); }
     else if (roll < 0.5) { q.rw = 'ess'; q.rn = Math.round(4 + lv * 1.5); }
     else { q.rw = 'gold'; q.rn = 20; } // seconds of income, paid at claim time
@@ -771,6 +778,7 @@
     if (L.lg_deep) S.depth = S.maxDepth = 2 * L.lg_deep;
     if (L.lg_stars) S.essence = S.lastRunEss * 0.12 * L.lg_stars;
     R.boss = null; R.bossReady = false; R.combo = 0;
+    if (G.heroReset) G.heroReset(false);
     R.dirty = true; recalc();
     fillQuests();
     emit('ascend', g);
@@ -827,10 +835,10 @@
     // Scouts
     if (D.scout) S.chestMeter += D.scout * D.chestNeed * dt;
     spawnFromMeter();
+    if (G.heroTick) G.heroTick(dt);
     // Boss
     if (R.boss) {
       const b = R.boss;
-      hitBoss(D.gps * TUNE.heroBossPct * D.bossMult * dt);
       if (R.boss) {
         b.t -= dt;
         if (b.t <= 0) bossFail();
@@ -908,6 +916,8 @@
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
     G.S = S;
+    if (G.ensureHero) G.ensureHero(S);
+    if (R.mobs) R.mobs.length = 0;
     R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null;
     R.dirty = true; recalc();
     return S;

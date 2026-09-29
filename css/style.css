@@ -312,6 +312,52 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 .pullCard em { font: 8px/1 var(--font-display); font-style: normal; color: var(--gold); }
 @keyframes reveal { from { transform: scale(.4) rotate(-10deg); opacity: 0; } to { transform: none; opacity: 1; } }
 
+/* Character */
+.hpRow { display: flex; gap: 8px; align-items: stretch; }
+.hpRow .meter { flex: 1; align-self: center; }
+.meter.hpm > i { background: var(--good); }
+.meter.hpm.low > i { background: var(--hp); }
+.abil { position: relative; width: 44px; height: 44px; padding: 0; margin-top: -26px; cursor: pointer; pointer-events: auto; overflow: hidden;
+  background: var(--panel2); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line-hi), 0 3px 0 var(--ink); display: grid; place-items: center; }
+.abil img { width: 30px; height: 30px; position: relative; z-index: 1; }
+.abil i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(10,9,16,.7); z-index: 2; }
+.abil.ready { box-shadow: inset 0 0 0 2px var(--gold), 0 3px 0 var(--ink); animation: pulse 1.1s ease-in-out infinite; }
+.charCard { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px; background: linear-gradient(180deg, #2a2438, #1d1a28); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line-hi); }
+.portrait { width: 84px; height: 84px; display: grid; place-items: center; background: var(--slot); border: 2px solid var(--ink); }
+.portrait img { width: 70px; height: 70px; }
+.charInfo { display: grid; gap: 5px; min-width: 0; }
+.charInfo input { width: 100%; background: var(--ink); color: var(--gold); border: 2px solid var(--line); padding: 4px 6px; font: 8px/1.4 var(--font-display); -webkit-user-select: text; user-select: text; }
+.clsLine { color: var(--dim); }
+.power { display: flex; align-items: baseline; gap: 8px; }
+.power b { font: 16px/1 var(--font-display); color: var(--gold); text-shadow: 2px 2px 0 var(--ink); }
+.power small { color: var(--dim); }
+.doll { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+.dslot { display: grid; justify-items: center; gap: 3px; padding: 5px 3px; background: var(--panel2); border: 2px solid var(--ink); cursor: pointer; }
+.dslot .lbl { font: 8px/1 var(--font-display); color: var(--dim); }
+.dslot [data-in] { width: 100%; }
+.dslot .empty { display: grid; place-items: center; aspect-ratio: 1; background: var(--slot); border: 2px solid var(--ink); }
+.dslot .empty img { width: 50%; opacity: .5; }
+.gear { position: relative; width: 100%; aspect-ratio: 1; padding: 0; display: grid; place-items: center; cursor: pointer;
+  background: var(--slot); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--rc), inset 0 -4px 0 rgba(0,0,0,.25); }
+.gear img { width: 70%; height: 70%; }
+.gear em { position: absolute; right: 3px; top: 3px; font: 8px/1 var(--font-display); font-style: normal; color: var(--gold); text-shadow: 1px 1px 0 var(--ink); }
+.gear small { position: absolute; left: 3px; bottom: 2px; font-size: 10px; color: var(--dim); }
+.gear u { position: absolute; right: 3px; bottom: 2px; text-decoration: none; color: var(--good); font-size: 10px; }
+.gear.sel { outline: 2px solid #fff; outline-offset: -2px; }
+.gear.r6 { animation: shimmer 2.5s linear infinite; }
+.bag { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; }
+.bag .note { grid-column: 1 / -1; }
+.affs { margin: 0; padding-left: 18px; color: var(--dim); }
+.affs b { color: var(--good); font-weight: normal; }
+.heroStats { margin: 8px 4px; }
+.inl { width: 14px; height: 14px; vertical-align: -2px; }
+.classGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.clsCard { display: grid; justify-items: center; gap: 4px; padding: 10px 6px; cursor: pointer; text-align: center; background: var(--panel2); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line); }
+.clsCard:hover { box-shadow: inset 0 0 0 2px var(--gold); }
+.clsCard img { width: 60px; height: 60px; }
+.clsCard b { color: var(--gold); }
+.clsCard small { color: var(--dim); }
+
 /* ---------- Phones ---------- */
 @media (max-width: 860px) {
   body { overflow: hidden; }
@@ -336,6 +382,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   .petGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .achGrid { grid-template-columns: minmax(0, 1fr); }
   .pullGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .bag { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .abil { width: 38px; height: 38px; margin-top: -20px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }

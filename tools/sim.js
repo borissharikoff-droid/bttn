@@ -9,16 +9,19 @@ const ctx = { console, Math, JSON, Date, performance: { now: () => simNow * 1000
 let simNow = 0;
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['util.js', 'data.js', 'game.js', 'ach.js']) {
+for (const f of ['util.js', 'data.js', 'game.js', 'hero.js', 'ach.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx, { filename: f });
 }
 const G = ctx.G;
 const MIN = +(process.argv[2] || 180);
 const CPS = +(process.argv[3] || 6);
 const QUIET = process.argv.includes('-q');
+let botSeed = 12345; const botRnd = () => ((botSeed = (botSeed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 
+if (process.env.SEED) G.useSeed(+process.env.SEED);
 G.S = G.newState();
 G.recalc();
+G.chooseClass(process.env.CLS || 'knight');
 G.fillQuests();
 
 const log = [];
@@ -74,6 +77,13 @@ function tryBuy() {
   return false;
 }
 
+function enchantAll() { // enchant worn gear, cheapest first
+  let k = 0;
+  while (k++ < 10) {
+    const worn = G.SLOTS.map(s => G.S.hero.eq[s]).filter(g => g && g.e < G.ENCHANT_MAX).sort((a, b) => G.enchantCost(a).shards - G.enchantCost(b).shards);
+    if (!worn.length || !G.enchant(worn[0])) break;
+  }
+}
 function buyNodes() {
   let bought = true;
   while (bought) {
@@ -104,20 +114,21 @@ for (let t = 0; t < MIN * 60; t += dt) {
     clickAcc -= 1;
     const S = G.S;
     // 30% of clicks go to chests when there are chests on the field
-    if (S.chests.length && Math.random() < 0.3) G.clickChest(S.chests[S.chests.length - 1]);
+    if (S.chests.length && botRnd() < 0.3) G.clickChest(S.chests[S.chests.length - 1]);
     else G.manualClick(0, 0);
-    if (G.R.wisp && Math.random() < 0.2) G.catchWisp();
+    if (G.R.wisp && botRnd() < 0.2) G.catchWisp();
   }
   G.tick(dt);
   if (G.R.bossReady && !G.R.boss) G.startBoss();
-  if (Math.round(t * 5) % 5 === 0) { let k = 0; while (tryBuy() && k++ < 30); buyNodes(); }
+  if (Math.round(t * 5) % 5 === 0) { enchantAll(); let k = 0; while (tryBuy() && k++ < 30); buyNodes(); }
   if (G.S.eggs >= 1) G.pull(G.S.eggs >= 9 ? 10 : 1);
+
   G.S.quests.forEach((q, i) => { if (q.done) G.claimQuest(i); });
   // Ascend when fame gain would double total fame and at least 20 minutes passed
   const fg = G.fameGain();
   if (G.S.depth > lastDepth) { lastDepth = G.S.depth; lastDepthT = t; }
   if (fg >= 10 && t - lastAscend > 10 * 60 && (fg >= G.S.fameTotal * 0.6 || t - lastDepthT > 6 * 60)) {
-    G.ascend(); lastAscend = t; buyLegacy(); lastDepth = G.S.depth; lastDepthT = t;
+    G.ascend(); lastAscend = t; buyLegacy(); G.chooseClass(process.env.CLS || 'knight'); lastDepth = G.S.depth; lastDepthT = t;
   }
   if (t >= nextLog) {
     nextLog += (t < 1800 ? 60 : 600);
@@ -125,7 +136,7 @@ for (let t = 0; t < MIN * 60; t += dt) {
     const heroes = G.HEROES.map(h => S.heroes[h.id] || 0).filter(Boolean).join('/');
     log.push(`${String((t / 60).toFixed(0)).padStart(4)}m gold ${G.fmt(S.gold).padStart(8)} run ${G.fmt(S.goldRun).padStart(8)} gps ${G.fmt(D.gps).padStart(8)} click ${G.fmt(D.click).padStart(7)} ` +
       `d${S.depth} (best ${S.bestDepth}) chests ${S.st.chests} ess ${G.fmt(S.essence, 1)} nodes ${Object.values(S.nodes).reduce((a, b) => a + b, 0)} ` +
-      `pets ${Object.keys(S.pets).length} eggs ${S.eggs} fame ${G.fmt(G.fameGain())}/${S.fameTotal} ach ${Object.keys(S.ach).length} heroes ${heroes} boss ${bossTries - bossFails}/${bossTries}`);
+      `lv ${S.hero.lvl} pow ${G.fmt(D.power)} eq ${G.SLOTS.map(s=>{const g=S.hero.eq[s];return g?g.r+'/'+g.il+'+'+g.e:'-'}).join(' ')} sh ${G.fmt(S.hero.shards)} pets ${Object.keys(S.pets).length} eggs ${S.eggs} fame ${G.fmt(G.fameGain())}/${S.fameTotal} ach ${Object.keys(S.ach).length} heroes ${heroes} boss ${bossTries - bossFails}/${bossTries}`);
   }
 }
 console.log(log.join('\n'));
