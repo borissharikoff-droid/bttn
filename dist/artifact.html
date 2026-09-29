@@ -81,9 +81,6 @@ button { font: inherit; color: inherit; }
 .buffs { display: flex; gap: 6px; flex-wrap: wrap; }
 .buff { font: 8px/1 var(--font-display); padding: 5px 7px; background: rgba(10,9,16,.8); border: 2px solid var(--gold); color: var(--gold); }
 .buff.storm { border-color: #7fe9ff; color: #7fe9ff; }
-.hint { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); pointer-events: none;
-  font: 16px/1.5 var(--font-display); color: var(--text); text-shadow: 2px 2px 0 var(--ink); text-align: center; animation: bob 1.2s ease-in-out infinite; width: max-content; max-width: 88%; }
-@keyframes bob { 50% { transform: translate(-50%, -4px); } }
 
 #toasts { position: absolute; top: 54px; right: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; pointer-events: none; z-index: 5; width: min(70%, 320px); }
 .toast { display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: var(--panel); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line-hi), 0 3px 0 var(--ink); font-size: 15px; line-height: 1.2; animation: toastIn .18s ease-out; max-width: 100%; }
@@ -373,6 +370,61 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 .lrow.me { box-shadow: inset 0 0 0 2px var(--gold); }
 .lrow.bad { opacity: .5; }
 
+/* Onboarding */
+.iconBtn.help { font: 16px/1 var(--font-display); color: var(--gold); }
+.linkBtn { background: none; border: 0; padding: 6px 4px; color: var(--dim); text-decoration: underline; cursor: pointer; font: inherit; }
+#coach { position: fixed; z-index: 15; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 12px;
+  background: var(--panel); border: 3px solid var(--ink); box-shadow: inset 0 0 0 2px var(--gold), 0 5px 0 var(--ink); }
+#coach.pop { animation: coachIn .25s cubic-bezier(.2,1.5,.4,1); }
+@keyframes coachIn { from { transform: translateY(10px) scale(.96); opacity: 0; } }
+#coach .guide { width: 64px; height: 64px; display: grid; place-items: center; background: var(--slot); border: 2px solid var(--ink); }
+#coach .guide img { width: 50px; height: 50px; animation: bob2 1.4s ease-in-out infinite; }
+@keyframes bob2 { 50% { transform: translateY(-3px); } }
+#coach .say b { font: 8px/1.6 var(--font-display); color: var(--gold); }
+#coach .say small { float: right; color: var(--dim); }
+#coach .say p { margin: 4px 0 0; color: var(--text); }
+#coach .acts { display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 6px; }
+#coach .acts:empty { display: none; }
+#pointer { position: fixed; left: 0; top: 0; z-index: 16; pointer-events: none; transition: transform .18s ease-out; }
+#pointer img { width: 50px; height: 50px; display: block; animation: poke .7s ease-in-out infinite; filter: drop-shadow(0 3px 0 rgba(0,0,0,.5)); }
+@keyframes poke { 50% { transform: translateY(8px); } }
+.tut-hl { position: relative; z-index: 3; outline: 3px solid var(--gold) !important; outline-offset: 2px; animation: hl 1s ease-in-out infinite; }
+@keyframes hl { 50% { outline-color: #fff; } }
+#intro { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; cursor: pointer;
+  background: radial-gradient(ellipse at 50% 40%, #241d36 0%, #0a0910 75%); transition: opacity .45s; }
+#intro.out { opacity: 0; }
+.introInner { width: min(560px, 100%); text-align: center; display: grid; gap: 12px; justify-items: center; }
+.introInner .art { min-height: 200px; display: grid; place-items: center; gap: 10px; }
+.introInner h2 { margin: 0; min-height: 3em; font: 16px/1.6 var(--font-display); color: var(--gold); text-shadow: 3px 3px 0 var(--ink); }
+.introInner p { margin: 0; color: var(--dim); font-size: 20px; max-width: 34ch; }
+.introInner .acts { display: flex; gap: 16px; align-items: center; margin-top: 6px; }
+.fadeIn { animation: fadeIn 1s .6s both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } }
+.introTitle { display: flex; gap: 6px; font: 48px/1 var(--font-display); color: var(--gold); text-shadow: 4px 4px 0 #8a4a10, 8px 8px 0 var(--ink); }
+.introTitle span { display: inline-block; animation: dropIn .6s cubic-bezier(.3,1.6,.5,1) both; }
+@keyframes dropIn { from { transform: translateY(-80px); opacity: 0; } }
+.dropBtn { width: 234px; max-width: 70vw; animation: dropIn .8s .7s cubic-bezier(.3,1.5,.5,1) both; }
+.row3 { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.row3 img { width: 84px; }
+.row3.small img { width: 50px; }
+.popIn { display: inline-block; animation: popIn .45s cubic-bezier(.3,1.7,.5,1) both; }
+@keyframes popIn { from { transform: scale(0) rotate(-20deg); opacity: 0; } }
+.march { display: flex; align-items: center; gap: 12px; }
+.march img { width: 72px; }
+.march .midBtn { width: 156px; }
+.march .mL { display: flex; gap: 6px; animation: marchL 2.4s ease-in-out infinite alternate; }
+.march .mR { display: flex; gap: 6px; animation: marchR 2.4s ease-in-out infinite alternate; }
+@keyframes marchL { from { transform: translateX(-60px); } to { transform: translateX(6px); } }
+@keyframes marchR { from { transform: translateX(60px); } to { transform: translateX(-6px); } }
+.dots { display: flex; gap: 6px; }
+.dots i { width: 10px; height: 10px; background: var(--line); }
+.dots i.on { background: var(--gold); }
+.helpList { display: grid; gap: 8px; text-align: left; }
+.helpRow { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: start; }
+.helpRow img { width: 30px; height: 30px; }
+.helpRow b { color: var(--gold); }
+.helpRow p { margin: 2px 0 0 !important; text-align: left !important; }
+
 /* ---------- Phones ---------- */
 @media (max-width: 860px) {
   body { overflow: hidden; }
@@ -388,7 +440,6 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   .tab { width: 36px; height: 36px; }
   .tab img { width: 22px; height: 22px; }
   #toasts { top: auto; bottom: 56px; right: 8px; width: min(80%, 300px); }
-  .hint { font-size: 8px; white-space: normal; width: 86%; }
   .toast { font-size: 15px; padding: 5px 8px; }
   .toast img { width: 18px; height: 18px; }
   .iconBtn { width: 30px; height: 30px; }
@@ -399,6 +450,15 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   .pullGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .bag { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .abil { width: 38px; height: 38px; margin-top: -20px; }
+  #coach { grid-template-columns: 44px minmax(0, 1fr); padding: 8px; }
+  #coach .guide { width: 44px; height: 44px; }
+  #coach .guide img { width: 36px; height: 36px; }
+  #coach .acts { margin-top: 2px; }
+  .note.keys { display: none; }
+  .introTitle { font-size: 32px; }
+  .row3 img { width: 60px; }
+  .march img { width: 48px; }
+  .march .midBtn { width: 110px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
@@ -409,13 +469,13 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   <section id="stageWrap">
     <canvas id="stage" aria-label="BTTN"></canvas>
     <div class="hud top">
-      <div class="realm"><b id="realmName"></b> · <span data-depth-label>Гл.</span> <span id="depthNum">1</span><small id="realmSub"></small></div>
+      <div class="realm"><b id="realmName"></b> · <span data-depth-label>Depth</span> <span id="depthNum">1</span><small id="realmSub"></small></div>
       <div class="hudBtns">
+        <button class="iconBtn help" id="btnHelp" aria-label="Help">?</button>
         <button class="iconBtn" id="btnSound" aria-label="Sound"><img alt=""></button>
         <button class="iconBtn" id="btnMusic" aria-label="Music"><img alt=""></button>
       </div>
     </div>
-    <div class="hint" id="hint" hidden></div>
     <div id="toasts" aria-live="polite"></div>
     <div id="banner" hidden></div>
     <div class="hud bottom">
@@ -451,6 +511,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   </aside>
 </div>
 <div id="modal" hidden></div>
+<div id="intro" hidden></div>
+<div id="coach" hidden></div>
+<div id="pointer" hidden></div>
 <script>
 /* js/util.js */
 // BTTN — shared helpers. Every file attaches to the global G namespace so the
@@ -579,7 +642,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 })(globalThis.G = globalThis.G || {});
 
 /* js/data.js */
-// BTTN — all game content. Names are bilingual {ru, en}; descriptions use {0}
+// BTTN — all game content. Descriptions use {0}
 // placeholders filled from val(level). Effects are applied in G.recalc().
 (function (G) {
   'use strict';
@@ -587,13 +650,13 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   // ---------- Rarities ----------
   // secs: item value measured in "seconds of income" so chests stay relevant all game.
   G.RARITIES = [
-    { id: 'common',    name: { ru: 'Обычный',       en: 'Common' },    color: '#c7b299', dark: '#7a6650', secs: 0.4,    ess: 0.06, bonusMul: 1 },
-    { id: 'uncommon',  name: { ru: 'Необычный',     en: 'Uncommon' },  color: '#63d85b', dark: '#2d7a28', secs: 1,    ess: 0.14, bonusMul: 1.5 },
-    { id: 'rare',      name: { ru: 'Редкий',        en: 'Rare' },      color: '#4fa8ff', dark: '#1f5aa8', secs: 2.5,   ess: 0.35, bonusMul: 2 },
-    { id: 'epic',      name: { ru: 'Эпический',     en: 'Epic' },      color: '#b36bff', dark: '#5f2aa8', secs: 6,   ess: 0.9,  bonusMul: 3 },
-    { id: 'legendary', name: { ru: 'Легендарный',   en: 'Legendary' }, color: '#ffa033', dark: '#a8560f', secs: 16,  ess: 2.4,  bonusMul: 4 },
-    { id: 'mythic',    name: { ru: 'Мифический',    en: 'Mythic' },    color: '#ff4f7e', dark: '#9e1f44', secs: 50,  ess: 6,    bonusMul: 6 },
-    { id: 'divine',    name: { ru: 'Божественный',  en: 'Divine' },    color: '#ffffff', dark: '#9aa6c0', secs: 160, ess: 18,   bonusMul: 10 },
+    { id: 'common',    name: 'Common',    color: '#c7b299', dark: '#7a6650', secs: 0.4,    ess: 0.06, bonusMul: 1 },
+    { id: 'uncommon',  name: 'Uncommon',  color: '#63d85b', dark: '#2d7a28', secs: 1,    ess: 0.14, bonusMul: 1.5 },
+    { id: 'rare',      name: 'Rare',      color: '#4fa8ff', dark: '#1f5aa8', secs: 2.5,   ess: 0.35, bonusMul: 2 },
+    { id: 'epic',      name: 'Epic',      color: '#b36bff', dark: '#5f2aa8', secs: 6,   ess: 0.9,  bonusMul: 3 },
+    { id: 'legendary', name: 'Legendary', color: '#ffa033', dark: '#a8560f', secs: 16,  ess: 2.4,  bonusMul: 4 },
+    { id: 'mythic',    name: 'Mythic',    color: '#ff4f7e', dark: '#9e1f44', secs: 50,  ess: 6,    bonusMul: 6 },
+    { id: 'divine',    name: 'Divine',    color: '#ffffff', dark: '#9aa6c0', secs: 160, ess: 18,   bonusMul: 10 },
   ];
   // Base chest tier weights before luck.
   G.CHEST_WEIGHTS = [1000, 280, 80, 22, 6, 1.5, 0.3];
@@ -601,79 +664,79 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 
   // ---------- Collection bonus types (per star, before rarity multiplier) ----------
   G.BONUS = {
-    click: { v: 0.02,  name: { ru: 'Сила клика', en: 'Click gold' },       pct: true },
-    gps:   { v: 0.01,  name: { ru: 'Доход героев', en: 'Hero income' },     pct: true },
-    gold:  { v: 0.01,  name: { ru: 'Всё золото', en: 'All gold' },          pct: true },
-    crit:  { v: 0.001, name: { ru: 'Шанс крита', en: 'Crit chance' },       pct: true },
-    critd: { v: 0.1,   name: { ru: 'Сила крита', en: 'Crit power' },        pct: false, x: true },
-    luck:  { v: 0.005, name: { ru: 'Удача', en: 'Luck' },                   pct: true },
-    ess:   { v: 0.015, name: { ru: 'Эссенция', en: 'Essence' },             pct: true },
-    item:  { v: 0.02,  name: { ru: 'Цена предметов', en: 'Item value' },    pct: true },
-    boss:  { v: 0.03,  name: { ru: 'Урон по боссам', en: 'Boss damage' },   pct: true },
-    chest: { v: 0.015, name: { ru: 'Частота сундуков', en: 'Chest rate' },  pct: true },
-    egg:   { v: 0.02,  name: { ru: 'Шанс яиц', en: 'Egg chance' },          pct: true },
-    pet:   { v: 0.015, name: { ru: 'Сила питомцев', en: 'Pet power' },      pct: true },
-    combo: { v: 2,     name: { ru: 'Макс. комбо', en: 'Max combo' },        pct: false },
+    click: { v: 0.02,  name: 'Click gold',  pct: true },
+    gps:   { v: 0.01,  name: 'Hero income', pct: true },
+    gold:  { v: 0.01,  name: 'All gold',    pct: true },
+    crit:  { v: 0.001, name: 'Crit chance', pct: true },
+    critd: { v: 0.1,   name: 'Crit power',  pct: false, x: true },
+    luck:  { v: 0.005, name: 'Luck',        pct: true },
+    ess:   { v: 0.015, name: 'Essence',     pct: true },
+    item:  { v: 0.02,  name: 'Item value',  pct: true },
+    boss:  { v: 0.03,  name: 'Boss damage', pct: true },
+    chest: { v: 0.015, name: 'Chest rate',  pct: true },
+    egg:   { v: 0.02,  name: 'Egg chance',  pct: true },
+    pet:   { v: 0.015, name: 'Pet power',   pct: true },
+    combo: { v: 2,     name: 'Max combo',   pct: false },
   };
 
   // ---------- Items: 7 rarities x 6. w = drop weight inside the rarity, m = value multiplier ----------
   const W = [30, 25, 20, 13, 8, 4], M = [0.7, 0.85, 1.0, 1.25, 1.6, 2.2];
   const itemRows = [
     [ // common
-      ['rusty_dagger', 'Ржавый кинжал', 'Rusty Dagger', 'click'],
-      ['twig_staff', 'Посох-ветка', 'Twig Staff', 'ess'],
-      ['short_bow', 'Короткий лук', 'Short Bow', 'crit'],
-      ['leather_vest', 'Кожаная куртка', 'Leather Vest', 'gps'],
-      ['copper_ring', 'Медное кольцо', 'Copper Ring', 'luck'],
-      ['old_boot', 'Старый сапог', 'Old Boot', 'item'],
+      ['rusty_dagger', 'Rusty Dagger', 'click'],
+      ['twig_staff', 'Twig Staff', 'ess'],
+      ['short_bow', 'Short Bow', 'crit'],
+      ['leather_vest', 'Leather Vest', 'gps'],
+      ['copper_ring', 'Copper Ring', 'luck'],
+      ['old_boot', 'Old Boot', 'item'],
     ],
     [ // uncommon
-      ['steel_sword', 'Стальной меч', 'Steel Sword', 'click'],
-      ['oak_wand', 'Дубовая палочка', 'Oak Wand', 'ess'],
-      ['hunter_bow', 'Охотничий лук', "Hunter's Bow", 'critd'],
-      ['chainmail', 'Кольчуга', 'Chainmail', 'boss'],
-      ['emerald_ring', 'Изумрудное кольцо', 'Emerald Ring', 'luck'],
-      ['hp_potion', 'Зелье здоровья', 'Health Potion', 'gold'],
+      ['steel_sword', 'Steel Sword', 'click'],
+      ['oak_wand', 'Oak Wand', 'ess'],
+      ['hunter_bow', "Hunter's Bow", 'critd'],
+      ['chainmail', 'Chainmail', 'boss'],
+      ['emerald_ring', 'Emerald Ring', 'luck'],
+      ['hp_potion', 'Health Potion', 'gold'],
     ],
     [ // rare
-      ['sapphire_blade', 'Сапфировый клинок', 'Sapphire Blade', 'click'],
-      ['frost_staff', 'Ледяной посох', 'Frost Staff', 'ess'],
-      ['crystal_dagger', 'Хрустальный кинжал', 'Crystal Dagger', 'crit'],
-      ['knight_shield', 'Рыцарский щит', "Knight's Shield", 'boss'],
-      ['mana_tome', 'Том маны', 'Mana Tome', 'pet'],
-      ['sapphire_amulet', 'Сапфировый амулет', 'Sapphire Amulet', 'chest'],
+      ['sapphire_blade', 'Sapphire Blade', 'click'],
+      ['frost_staff', 'Frost Staff', 'ess'],
+      ['crystal_dagger', 'Crystal Dagger', 'crit'],
+      ['knight_shield', "Knight's Shield", 'boss'],
+      ['mana_tome', 'Mana Tome', 'pet'],
+      ['sapphire_amulet', 'Sapphire Amulet', 'chest'],
     ],
     [ // epic
-      ['shadow_katana', 'Теневая катана', 'Shadow Katana', 'critd'],
-      ['necro_skull', 'Череп некроманта', 'Necro Skull', 'ess'],
-      ['arcane_orb', 'Чародейская сфера', 'Arcane Orb', 'gps'],
-      ['demon_helm', 'Шлем демона', 'Demon Helm', 'boss'],
-      ['void_cloak', 'Плащ пустоты', 'Void Cloak', 'combo'],
-      ['amethyst_tiara', 'Аметистовая тиара', 'Amethyst Tiara', 'egg'],
+      ['shadow_katana', 'Shadow Katana', 'critd'],
+      ['necro_skull', 'Necro Skull', 'ess'],
+      ['arcane_orb', 'Arcane Orb', 'gps'],
+      ['demon_helm', 'Demon Helm', 'boss'],
+      ['void_cloak', 'Void Cloak', 'combo'],
+      ['amethyst_tiara', 'Amethyst Tiara', 'egg'],
     ],
     [ // legendary
-      ['dragon_sword', 'Меч дракона', 'Dragonfire Sword', 'click'],
-      ['phoenix_bow', 'Лук феникса', 'Phoenix Bow', 'crit'],
-      ['sun_staff', 'Солнечный посох', 'Sunstaff', 'gps'],
-      ['golden_plate', 'Золотые латы', 'Golden Plate', 'gold'],
-      ['titan_ring', 'Кольцо титана', 'Titan Ring', 'luck'],
-      ['ancient_scroll', 'Древний свиток', 'Ancient Scroll', 'item'],
+      ['dragon_sword', 'Dragonfire Sword', 'click'],
+      ['phoenix_bow', 'Phoenix Bow', 'crit'],
+      ['sun_staff', 'Sunstaff', 'gps'],
+      ['golden_plate', 'Golden Plate', 'gold'],
+      ['titan_ring', 'Titan Ring', 'luck'],
+      ['ancient_scroll', 'Ancient Scroll', 'item'],
     ],
     [ // mythic
-      ['blood_scythe', 'Кровавая коса', 'Blood Scythe', 'critd'],
-      ['star_codex', 'Звёздный фолиант', 'Star Codex', 'ess'],
-      ['chaos_wand', 'Жезл хаоса', 'Chaos Wand', 'chest'],
-      ['moon_orb', 'Лунная сфера', 'Bloodmoon Orb', 'pet'],
-      ['realm_heart', 'Сердце Королевства', 'Heart of the Realm', 'gold'],
-      ['king_crown', 'Корона королей', 'Crown of Kings', 'boss'],
+      ['blood_scythe', 'Blood Scythe', 'critd'],
+      ['star_codex', 'Star Codex', 'ess'],
+      ['chaos_wand', 'Chaos Wand', 'chest'],
+      ['moon_orb', 'Bloodmoon Orb', 'pet'],
+      ['realm_heart', 'Heart of the Realm', 'gold'],
+      ['king_crown', 'Crown of Kings', 'boss'],
     ],
     [ // divine
-      ['eternity_blade', 'Клинок вечности', 'Eternity Blade', 'click'],
-      ['celestial_staff', 'Небесный посох', 'Celestial Staff', 'gps'],
-      ['halo', 'Нимб', 'Halo', 'luck'],
-      ['seraph_wing', 'Крыло серафима', 'Seraph Wing', 'egg'],
-      ['cosmic_egg', 'Космическое яйцо', 'Cosmic Egg', 'pet'],
-      ['golden_button', 'Золотая кнопка', 'The Golden Button', 'gold'],
+      ['eternity_blade', 'Eternity Blade', 'click'],
+      ['celestial_staff', 'Celestial Staff', 'gps'],
+      ['halo', 'Halo', 'luck'],
+      ['seraph_wing', 'Seraph Wing', 'egg'],
+      ['cosmic_egg', 'Cosmic Egg', 'pet'],
+      ['golden_button', 'The Golden Button', 'gold'],
     ],
   ];
   G.ITEMS = [];
@@ -681,7 +744,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   itemRows.forEach((row, r) => {
     G.ITEMS_BY_RARITY[r] = [];
     row.forEach((it, i) => {
-      const item = { id: it[0], r, name: { ru: it[1], en: it[2] }, bonus: it[3], w: W[i], m: M[i], idx: G.ITEMS.length };
+      const item = { id: it[0], r, name: it[1], bonus: it[2], w: W[i], m: M[i], idx: G.ITEMS.length };
       G.ITEMS.push(item);
       G.ITEMS_BY_RARITY[r].push(item);
     });
@@ -692,18 +755,18 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   // ---------- Heroes (idle income) ----------
   G.HERO_MILESTONES = [10, 25, 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000];
   G.HEROES = [
-    { id: 'rogue',    name: { ru: 'Разбойник', en: 'Rogue' },       cost: 50,     gps: 0.2,    shot: '#9aa0a8' },
-    { id: 'archer',   name: { ru: 'Лучник', en: 'Archer' },         cost: 400,    gps: 1.2,    shot: '#9be15d' },
-    { id: 'wizard',   name: { ru: 'Маг', en: 'Wizard' },            cost: 4500,   gps: 8,      shot: '#5ab4ff' },
-    { id: 'priest',   name: { ru: 'Жрица', en: 'Priestess' },       cost: 50000,  gps: 45,     shot: '#fff3a0' },
-    { id: 'warrior',  name: { ru: 'Воин', en: 'Warrior' },          cost: 5.5e5,  gps: 260,    shot: '#ff7a4a' },
-    { id: 'knight',   name: { ru: 'Рыцарь', en: 'Knight' },         cost: 6e6,  gps: 1400,   shot: '#cfd8e0' },
-    { id: 'paladin',  name: { ru: 'Паладин', en: 'Paladin' },       cost: 8.5e7,  gps: 7800,   shot: '#ffd84a' },
-    { id: 'necro',    name: { ru: 'Некромант', en: 'Necromancer' }, cost: 1.3e9,  gps: 44000,  shot: '#c06bff' },
-    { id: 'mystic',   name: { ru: 'Мистик', en: 'Mystic' },         cost: 2e10,  gps: 2.6e5,  shot: '#ff6bd8' },
-    { id: 'sorcerer', name: { ru: 'Чародей', en: 'Sorcerer' },      cost: 3e11, gps: 1.6e6,  shot: '#ff4040' },
-    { id: 'ninja',    name: { ru: 'Ниндзя', en: 'Ninja' },          cost: 4e12,   gps: 1e7,    shot: '#ffffff' },
-    { id: 'summoner', name: { ru: 'Призыватель', en: 'Summoner' },  cost: 5.5e13, gps: 6.5e7,  shot: '#6bffb0' },
+    { id: 'rogue',    name: 'Rogue',       cost: 50,     gps: 0.2,    shot: '#9aa0a8' },
+    { id: 'archer',   name: 'Archer',      cost: 400,    gps: 1.2,    shot: '#9be15d' },
+    { id: 'wizard',   name: 'Wizard',      cost: 4500,   gps: 8,      shot: '#5ab4ff' },
+    { id: 'priest',   name: 'Priestess',   cost: 50000,  gps: 45,     shot: '#fff3a0' },
+    { id: 'warrior',  name: 'Warrior',     cost: 5.5e5,  gps: 260,    shot: '#ff7a4a' },
+    { id: 'knight',   name: 'Knight',      cost: 6e6,  gps: 1400,   shot: '#cfd8e0' },
+    { id: 'paladin',  name: 'Paladin',     cost: 8.5e7,  gps: 7800,   shot: '#ffd84a' },
+    { id: 'necro',    name: 'Necromancer', cost: 1.3e9,  gps: 44000,  shot: '#c06bff' },
+    { id: 'mystic',   name: 'Mystic',      cost: 2e10,  gps: 2.6e5,  shot: '#ff6bd8' },
+    { id: 'sorcerer', name: 'Sorcerer',    cost: 3e11, gps: 1.6e6,  shot: '#ff4040' },
+    { id: 'ninja',    name: 'Ninja',       cost: 4e12,   gps: 1e7,    shot: '#ffffff' },
+    { id: 'summoner', name: 'Summoner',    cost: 5.5e13, gps: 6.5e7,  shot: '#6bffb0' },
   ];
   G.HERO_GROWTH = 1.15;
   G.FINGER_MILESTONES = [10, 25, 50, 75, 100, 125, 150, 200];
@@ -711,69 +774,69 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   // ---------- Shop upgrades (gold) ----------
   G.UPGRADES = [
     { id: 'finger', icon: 'ic_finger', base: 15, growth: 1.5, max: 0,
-      name: { ru: 'Крепкий палец', en: 'Iron Finger' },
-      desc: { ru: '+1 к силе клика. На 10, 25, 50, 75… ур. — клик ×2', en: '+1 click power. Levels 10, 25, 50, 75… double clicks' },
+      name: 'Iron Finger',
+      desc: '+1 click power. Levels 10, 25, 50, 75… double clicks',
       fx: (L, D) => { D.clickAdd += L; D.clickMult *= Math.pow(2, G.FINGER_MILESTONES.filter(m => L >= m).length); } },
     { id: 'might', icon: 'ic_rune', base: 5000, growth: 30, max: 15,
-      name: { ru: 'Руна силы', en: 'Rune of Might' },
-      desc: { ru: 'Сила клика ×1.5 за уровень', en: 'Click gold ×1.5 per level' },
+      name: 'Rune of Might',
+      desc: 'Click gold ×1.5 per level',
       fx: (L, D) => { D.clickMult *= Math.pow(1.5, L); } },
     { id: 'echo', icon: 'ic_echo', base: 100000.0, growth: 15, max: 10,
-      name: { ru: 'Эхо-удар', en: 'Echo Strike' },
-      desc: { ru: 'Клик даёт +1% дохода героев в сек. за уровень', en: 'Each click adds +1% of hero income per level' },
+      name: 'Echo Strike',
+      desc: 'Each click adds +1% of hero income per level',
       fx: (L, D) => { D.clickGpsPct += 0.01 * L; } },
     { id: 'keen', icon: 'ic_eye', base: 200, growth: 2.5, max: 20,
-      name: { ru: 'Зоркий глаз', en: 'Keen Eye' },
-      desc: { ru: '+0.5% шанс критического клика', en: '+0.5% critical click chance' },
+      name: 'Keen Eye',
+      desc: '+0.5% critical click chance',
       fx: (L, D) => { D.crit += 0.005 * L; } },
     { id: 'deadly', icon: 'ic_skull', base: 1000, growth: 3.5, max: 15,
-      name: { ru: 'Смертельный удар', en: 'Deadly Blow' },
-      desc: { ru: 'Множитель крита +0.5', en: 'Crit multiplier +0.5' },
+      name: 'Deadly Blow',
+      desc: 'Crit multiplier +0.5',
       fx: (L, D) => { D.critMult += 0.5 * L; } },
     { id: 'sense', icon: 'ic_nose', base: 100, growth: 2.4, max: 20,
-      name: { ru: 'Чутьё кладоискателя', en: 'Treasure Sense' },
-      desc: { ru: 'Сундуки появляются на 5% чаще', en: 'Chests appear 5% more often' },
+      name: 'Treasure Sense',
+      desc: 'Chests appear 5% more often',
       fx: (L, D) => { D.chestProg += 0.05 * L; } },
     { id: 'hall', icon: 'ic_hall', base: 300, growth: 3.5, max: 10,
-      name: { ru: 'Просторный зал', en: 'Spacious Hall' },
-      desc: { ru: '+1 место для сундуков', en: '+1 chest slot' },
+      name: 'Spacious Hall',
+      desc: '+1 chest slot',
       fx: (L, D) => { D.slots += L; } },
     { id: 'golem', icon: 'ic_key', base: 2500, growth: 3, max: 20,
-      name: { ru: 'Ключ-голем', en: 'Key Golem' },
-      desc: { ru: 'Сам открывает сундуки. Каждый ур. на 12% быстрее', en: 'Opens chests for you. Each level is 12% faster' },
+      name: 'Key Golem',
+      desc: 'Opens chests for you. Each level is 12% faster',
       fx: (L, D) => { if (L > 0) D.autoOpen = 8 * Math.pow(0.88, L - 1); } },
     { id: 'clover', icon: 'ic_clover', base: 1000, growth: 2.8, max: 20,
-      name: { ru: 'Четырёхлистник', en: 'Four-Leaf Clover' },
-      desc: { ru: '+3% удачи: сундуки лучше', en: '+3% luck: better chests' },
+      name: 'Four-Leaf Clover',
+      desc: '+3% luck: better chests',
       fx: (L, D) => { D.luck += 0.03 * L; } },
     { id: 'appraiser', icon: 'ic_scale', base: 500, growth: 2.8, max: 20,
-      name: { ru: 'Оценщик', en: 'Appraiser' },
-      desc: { ru: 'Предметы стоят на 5% дороже', en: 'Items are worth 5% more' },
+      name: 'Appraiser',
+      desc: 'Items are worth 5% more',
       fx: (L, D) => { D.itemMult *= 1 + 0.05 * L; } },
     { id: 'rhythm', icon: 'ic_note', base: 1000, growth: 4, max: 10,
-      name: { ru: 'Ритм', en: 'Rhythm' },
-      desc: { ru: 'Максимальное комбо +25', en: 'Max combo +25' },
+      name: 'Rhythm',
+      desc: 'Max combo +25',
       fx: (L, D) => { D.comboCap += 25 * L; } },
     { id: 'clockwork', icon: 'ic_gear', base: 10000, growth: 2.8, max: 20,
-      name: { ru: 'Заводная рука', en: 'Clockwork Hand' },
-      desc: { ru: '+0.5 автоклика в секунду', en: '+0.5 auto clicks per second' },
+      name: 'Clockwork Hand',
+      desc: '+0.5 auto clicks per second',
       fx: (L, D) => { D.autoCps += 0.5 * L; } },
     { id: 'prince', icon: 'ic_crown', base: 1e17, growth: 1, max: 1, secret: 1e13,
-      name: { ru: 'Корона Принца', en: "The Prince's Crown" },
-      desc: { ru: 'Всё золото ×3. Кнопка коронована.', en: 'All gold ×3. The Button is crowned.' },
+      name: "The Prince's Crown",
+      desc: 'All gold ×3. The Button is crowned.',
       fx: (L, D) => { if (L) D.goldMult *= 3; } },
   ];
 
   // ---------- Chest modifiers ----------
   G.MODIFIERS = [
-    { id: 'golden',    color: '#ffd84a', name: { ru: 'Золотой', en: 'Golden' },          desc: { ru: 'Взрыв золота при открытии', en: 'Bursts with gold' } },
-    { id: 'lightning', color: '#7fe9ff', name: { ru: 'Грозовой', en: 'Storm' },          desc: { ru: 'Молния открывает соседние сундуки', en: 'Lightning opens nearby chests' } },
-    { id: 'ghost',     color: '#d8e6ff', name: { ru: 'Призрачный', en: 'Ghost' },        desc: { ru: 'Содержимое удваивается', en: 'Loot is duplicated' } },
-    { id: 'chromatic', color: '#ff7ae6', name: { ru: 'Хроматический', en: 'Chromatic' }, desc: { ru: 'Лучший из 3 бросков редкости', en: 'Best of 3 rarity rolls' } },
-    { id: 'frozen',    color: '#9fd8ff', name: { ru: 'Ледяной', en: 'Frozen' },          desc: { ru: 'Разбей лёд (8 кликов) — 3 предмета', en: 'Crack the ice (8 clicks) for 3 items' } },
-    { id: 'blazing',   color: '#ff7a2e', name: { ru: 'Пылающий', en: 'Blazing' },        desc: { ru: 'Цена ×5, но сгорает за 6 сек', en: '×5 value, burns out in 6s' } },
-    { id: 'mimic',     color: '#d94040', name: { ru: 'Мимик', en: 'Mimic' },             desc: { ru: 'Кусается! Победи — 5 предметов', en: 'It bites! Defeat it for 5 items' } },
-    { id: 'void',      color: '#8a4dff', name: { ru: 'Бездонный', en: 'Void' },          desc: { ru: 'Эссенция ×10', en: '×10 essence' } },
+    { id: 'golden',    color: '#ffd84a', name: 'Golden',    desc: 'Bursts with gold' },
+    { id: 'lightning', color: '#7fe9ff', name: 'Storm',     desc: 'Lightning opens nearby chests' },
+    { id: 'ghost',     color: '#d8e6ff', name: 'Ghost',     desc: 'Loot is duplicated' },
+    { id: 'chromatic', color: '#ff7ae6', name: 'Chromatic', desc: 'Best of 3 rarity rolls' },
+    { id: 'frozen',    color: '#9fd8ff', name: 'Frozen',    desc: 'Crack the ice (8 clicks) for 3 items' },
+    { id: 'blazing',   color: '#ff7a2e', name: 'Blazing',   desc: '×5 value, burns out in 6s' },
+    { id: 'mimic',     color: '#d94040', name: 'Mimic',     desc: 'It bites! Defeat it for 5 items' },
+    { id: 'void',      color: '#8a4dff', name: 'Void',      desc: '×10 essence' },
   ];
   G.MOD_BY_ID = {}; G.MODIFIERS.forEach(m => G.MOD_BY_ID[m.id] = m);
 
@@ -781,83 +844,83 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   // x,y on a grid centred at 0,0. req: any one of these unlocks the node.
   const C = (id, x, y, br, req, max, cost, growth, name, desc, fx, val) => ({ id, x, y, br, req, max, cost, growth, name, desc, fx, val });
   G.NODES = [
-    C('spark', 0, 0, 'core', [], 5, 1, 1.6, { ru: 'Искра', en: 'Spark' }, { ru: 'Всё золото +10%', en: 'All gold +10%' },
+    C('spark', 0, 0, 'core', [], 5, 1, 1.6, 'Spark', 'All gold +10%',
       (L, D) => { D.goldMult *= 1 + 0.1 * L; }),
     // Click arm (up)
-    C('c_surge', 0, -1, 'click', ['spark'], 5, 2, 1.7, { ru: 'Прилив силы', en: 'Power Surge' }, { ru: 'Клик +20%', en: 'Click gold +20%' },
+    C('c_surge', 0, -1, 'click', ['spark'], 5, 2, 1.7, 'Power Surge', 'Click gold +20%',
       (L, D) => { D.clickMult *= 1 + 0.2 * L; }),
-    C('c_prec', -1, -2, 'click', ['c_surge'], 5, 4, 1.8, { ru: 'Точность', en: 'Precision' }, { ru: 'Шанс крита +1%', en: 'Crit chance +1%' },
+    C('c_prec', -1, -2, 'click', ['c_surge'], 5, 4, 1.8, 'Precision', 'Crit chance +1%',
       (L, D) => { D.crit += 0.01 * L; }),
-    C('c_brut', 1, -2, 'click', ['c_surge'], 5, 4, 1.8, { ru: 'Жестокость', en: 'Brutality' }, { ru: 'Множитель крита +1', en: 'Crit multiplier +1' },
+    C('c_brut', 1, -2, 'click', ['c_surge'], 5, 4, 1.8, 'Brutality', 'Crit multiplier +1',
       (L, D) => { D.critMult += 1 * L; }),
-    C('c_flow', 0, -3, 'click', ['c_prec', 'c_brut'], 3, 12, 2.2, { ru: 'Поток', en: 'Flow' }, { ru: 'Макс. комбо +40', en: 'Max combo +40' },
+    C('c_flow', 0, -3, 'click', ['c_prec', 'c_brut'], 3, 12, 2.2, 'Flow', 'Max combo +40',
       (L, D) => { D.comboCap += 40 * L; }),
-    C('c_echo', -1, -4, 'click', ['c_flow'], 5, 30, 2, { ru: 'Отголосок', en: 'Resonance' }, { ru: 'Клик +1% дохода героев', en: 'Clicks +1% of hero income' },
+    C('c_echo', -1, -4, 'click', ['c_flow'], 5, 30, 2, 'Resonance', 'Clicks +1% of hero income',
       (L, D) => { D.clickGpsPct += 0.01 * L; }),
-    C('c_frenzy', 1, -4, 'click', ['c_flow'], 3, 25, 2, { ru: 'Упоение', en: 'Rapture' }, { ru: 'Бафы огоньков длятся на 25% дольше', en: 'Wisp buffs last 25% longer' },
+    C('c_frenzy', 1, -4, 'click', ['c_flow'], 3, 25, 2, 'Rapture', 'Wisp buffs last 25% longer',
       (L, D) => { D.buffDur += 0.25 * L; }),
-    C('c_thunder', 0, -5, 'click', ['c_echo', 'c_frenzy'], 1, 200, 1, { ru: 'Громовая длань', en: 'Thunder Palm' }, { ru: 'Каждый 25-й клик — МЕГА-клик ×30', en: 'Every 25th click is a MEGA click ×30' },
+    C('c_thunder', 0, -5, 'click', ['c_echo', 'c_frenzy'], 1, 200, 1, 'Thunder Palm', 'Every 25th click is a MEGA click ×30',
       (L, D) => { D.mega = L > 0; }),
     // Idle arm (right)
-    C('i_guild', 1, 0, 'idle', ['spark'], 5, 2, 1.7, { ru: 'Гильдия', en: 'Guild Hall' }, { ru: 'Доход героев +15%', en: 'Hero income +15%' },
+    C('i_guild', 1, 0, 'idle', ['spark'], 5, 2, 1.7, 'Guild Hall', 'Hero income +15%',
       (L, D) => { D.gpsMult *= 1 + 0.15 * L; }),
-    C('i_vet', 2, -1, 'idle', ['i_guild'], 3, 10, 2.5, { ru: 'Ветераны', en: 'Veterans' }, { ru: 'Герои +0.5% за каждые 10 героев', en: 'Heroes +0.5% per 10 heroes owned' },
+    C('i_vet', 2, -1, 'idle', ['i_guild'], 3, 10, 2.5, 'Veterans', 'Heroes +0.5% per 10 heroes owned',
       (L, D) => { D.vet += 0.005 * L; }),
-    C('i_scout', 2, 1, 'idle', ['i_guild'], 5, 8, 2, { ru: 'Разведчики', en: 'Scouts' }, { ru: 'Герои находят 0.1 сундука/сек', en: 'Heroes find 0.1 chests/sec' },
+    C('i_scout', 2, 1, 'idle', ['i_guild'], 5, 8, 2, 'Scouts', 'Heroes find 0.1 chests/sec',
       (L, D) => { D.scout += 0.1 * L; }),
-    C('i_watch', 3, 0, 'idle', ['i_vet', 'i_scout'], 5, 12, 2, { ru: 'Ночной дозор', en: 'Night Watch' }, { ru: 'Офлайн-доход +10% и +1 ч лимита', en: 'Offline income +10% and +1h cap' },
+    C('i_watch', 3, 0, 'idle', ['i_vet', 'i_scout'], 5, 12, 2, 'Night Watch', 'Offline income +10% and +1h cap',
       (L, D) => { D.offEff += 0.1 * L; D.offCap += 3600 * L; }),
-    C('i_banner', 4, -1, 'idle', ['i_watch'], 5, 40, 2.2, { ru: 'Боевое знамя', en: 'War Banner' }, { ru: 'Доход героев +25%', en: 'Hero income +25%' },
+    C('i_banner', 4, -1, 'idle', ['i_watch'], 5, 40, 2.2, 'War Banner', 'Hero income +25%',
       (L, D) => { D.gpsMult *= 1 + 0.25 * L; }),
-    C('i_clock', 4, 1, 'idle', ['i_watch'], 5, 35, 2.2, { ru: 'Часовщик', en: 'Clockmaker' }, { ru: '+1 автоклик в секунду', en: '+1 auto click per second' },
+    C('i_clock', 4, 1, 'idle', ['i_watch'], 5, 35, 2.2, 'Clockmaker', '+1 auto click per second',
       (L, D) => { D.autoCps += L; }),
-    C('i_legion', 5, 0, 'idle', ['i_banner', 'i_clock'], 1, 200, 1, { ru: 'Легион', en: 'Legion' }, { ru: 'Каждый нанятый класс героев: всё золото +8%', en: 'Each hired hero class: all gold +8%' },
+    C('i_legion', 5, 0, 'idle', ['i_banner', 'i_clock'], 1, 200, 1, 'Legion', 'Each hired hero class: all gold +8%',
       (L, D) => { D.legion = L > 0; }),
     // Chest arm (down)
-    C('h_nose', 0, 1, 'chest', ['spark'], 5, 2, 1.7, { ru: 'Нюх', en: 'Keen Nose' }, { ru: 'Сундуки чаще на 10%', en: 'Chests 10% more often' },
+    C('h_nose', 0, 1, 'chest', ['spark'], 5, 2, 1.7, 'Keen Nose', 'Chests 10% more often',
       (L, D) => { D.chestProg += 0.1 * L; }),
-    C('h_fusion', -1, 2, 'chest', ['h_nose'], 1, 6, 1, { ru: 'Слияние', en: 'Fusion' }, { ru: 'Когда места нет — 3 одинаковых сундука сливаются в лучший', en: 'When the room is full, 3 equal chests fuse into a better one' },
+    C('h_fusion', -1, 2, 'chest', ['h_nose'], 1, 6, 1, 'Fusion', 'When the room is full, 3 equal chests fuse into a better one',
       (L, D) => { D.merge = L > 0; }),
-    C('h_gild', 1, 2, 'chest', ['h_nose'], 1, 5, 1, { ru: 'Позолота', en: 'Gilding' }, { ru: 'Открывает Золотые сундуки. Шанс модификатора +2%', en: 'Unlocks Golden chests. Modifier chance +2%' },
+    C('h_gild', 1, 2, 'chest', ['h_nose'], 1, 5, 1, 'Gilding', 'Unlocks Golden chests. Modifier chance +2%',
       (L, D) => { if (L) { D.mods.golden = 1; D.modChance += 0.02; } }),
-    C('h_double', -2, 3, 'chest', ['h_fusion'], 5, 12, 2, { ru: 'Двойное дно', en: 'False Bottom' }, { ru: '+5% шанс двойной добычи', en: '+5% chance of double loot' },
+    C('h_double', -2, 3, 'chest', ['h_fusion'], 5, 12, 2, 'False Bottom', '+5% chance of double loot',
       (L, D) => { D.double += 0.05 * L; }),
-    C('h_storm', 0, 3, 'chest', ['h_gild', 'h_fusion'], 1, 15, 1, { ru: 'Зов бури', en: 'Stormcall' }, { ru: 'Открывает Грозовые сундуки', en: 'Unlocks Storm chests' },
+    C('h_storm', 0, 3, 'chest', ['h_gild', 'h_fusion'], 1, 15, 1, 'Stormcall', 'Unlocks Storm chests',
       (L, D) => { if (L) D.mods.lightning = 1; }),
-    C('h_ghost', 2, 3, 'chest', ['h_gild'], 1, 15, 1, { ru: 'Фантазм', en: 'Phantasm' }, { ru: 'Открывает Призрачные сундуки', en: 'Unlocks Ghost chests' },
+    C('h_ghost', 2, 3, 'chest', ['h_gild'], 1, 15, 1, 'Phantasm', 'Unlocks Ghost chests',
       (L, D) => { if (L) D.mods.ghost = 1; }),
-    C('h_frost', -1, 4, 'chest', ['h_storm'], 1, 25, 1, { ru: 'Вечный лёд', en: 'Permafrost' }, { ru: 'Открывает Ледяные сундуки', en: 'Unlocks Frozen chests' },
+    C('h_frost', -1, 4, 'chest', ['h_storm'], 1, 25, 1, 'Permafrost', 'Unlocks Frozen chests',
       (L, D) => { if (L) D.mods.frozen = 1; }),
-    C('h_chroma', 1, 4, 'chest', ['h_storm', 'h_ghost'], 1, 30, 1, { ru: 'Призма', en: 'Prism' }, { ru: 'Открывает Хроматические сундуки', en: 'Unlocks Chromatic chests' },
+    C('h_chroma', 1, 4, 'chest', ['h_storm', 'h_ghost'], 1, 30, 1, 'Prism', 'Unlocks Chromatic chests',
       (L, D) => { if (L) D.mods.chromatic = 1; }),
-    C('h_rate', 2, 4, 'chest', ['h_ghost'], 5, 20, 2, { ru: 'Аномалии', en: 'Anomalies' }, { ru: 'Шанс модификатора +2%', en: 'Modifier chance +2%' },
+    C('h_rate', 2, 4, 'chest', ['h_ghost'], 5, 20, 2, 'Anomalies', 'Modifier chance +2%',
       (L, D) => { D.modChance += 0.02 * L; }),
-    C('h_blaze', -2, 5, 'chest', ['h_frost'], 1, 45, 1, { ru: 'Пекло', en: 'Inferno' }, { ru: 'Открывает Пылающие сундуки', en: 'Unlocks Blazing chests' },
+    C('h_blaze', -2, 5, 'chest', ['h_frost'], 1, 45, 1, 'Inferno', 'Unlocks Blazing chests',
       (L, D) => { if (L) D.mods.blazing = 1; }),
-    C('h_mimic', 0, 5, 'chest', ['h_frost', 'h_chroma'], 1, 50, 1, { ru: 'Зубастый', en: 'Toothy' }, { ru: 'Открывает Мимиков', en: 'Unlocks Mimics' },
+    C('h_mimic', 0, 5, 'chest', ['h_frost', 'h_chroma'], 1, 50, 1, 'Toothy', 'Unlocks Mimics',
       (L, D) => { if (L) D.mods.mimic = 1; }),
-    C('h_void', 2, 5, 'chest', ['h_chroma', 'h_rate'], 1, 60, 1, { ru: 'Бездна', en: 'Abyssal' }, { ru: 'Открывает Бездонные сундуки', en: 'Unlocks Void chests' },
+    C('h_void', 2, 5, 'chest', ['h_chroma', 'h_rate'], 1, 60, 1, 'Abyssal', 'Unlocks Void chests',
       (L, D) => { if (L) D.mods.void = 1; }),
-    C('h_hoard', 0, 6, 'chest', ['h_blaze', 'h_mimic', 'h_void'], 1, 250, 1, { ru: 'Сокровищница', en: 'Hoard' }, { ru: 'Шанс модификатора +8%, +2 места', en: 'Modifier chance +8%, +2 slots' },
+    C('h_hoard', 0, 6, 'chest', ['h_blaze', 'h_mimic', 'h_void'], 1, 250, 1, 'Hoard', 'Modifier chance +8%, +2 slots',
       (L, D) => { if (L) { D.modChance += 0.08; D.slots += 2; } }),
     // Arcane arm (left)
-    C('a_flow', -1, 0, 'arcane', ['spark'], 5, 2, 1.7, { ru: 'Ток эссенции', en: 'Essence Flow' }, { ru: 'Эссенция +20%', en: 'Essence +20%' },
+    C('a_flow', -1, 0, 'arcane', ['spark'], 5, 2, 1.7, 'Essence Flow', 'Essence +20%',
       (L, D) => { D.essMult *= 1 + 0.2 * L; }),
-    C('a_hatch', -2, -1, 'arcane', ['a_flow'], 5, 10, 2, { ru: 'Гнездо', en: 'Nesting' }, { ru: 'Яйца выпадают на 15% чаще', en: 'Eggs drop 15% more often' },
+    C('a_hatch', -2, -1, 'arcane', ['a_flow'], 5, 10, 2, 'Nesting', 'Eggs drop 15% more often',
       (L, D) => { D.eggMult *= 1 + 0.15 * L; }),
-    C('a_slayer', -2, 1, 'arcane', ['a_flow'], 5, 8, 1.9, { ru: 'Убийца боссов', en: 'Bossbane' }, { ru: 'Урон по боссам +30%', en: 'Boss damage +30%' },
+    C('a_slayer', -2, 1, 'arcane', ['a_flow'], 5, 8, 1.9, 'Bossbane', 'Boss damage +30%',
       (L, D) => { D.bossMult *= 1 + 0.3 * L; }),
-    C('a_bond', -3, -1, 'arcane', ['a_hatch'], 5, 20, 2, { ru: 'Узы', en: 'Bond' }, { ru: 'Сила питомцев +15%', en: 'Pet power +15%' },
+    C('a_bond', -3, -1, 'arcane', ['a_hatch'], 5, 20, 2, 'Bond', 'Pet power +15%',
       (L, D) => { D.petMult *= 1 + 0.15 * L; }),
-    C('a_time', -3, 1, 'arcane', ['a_slayer'], 3, 15, 2.2, { ru: 'Замедление', en: 'Time Dilation' }, { ru: 'Таймер босса +4 сек', en: 'Boss timer +4s' },
+    C('a_time', -3, 1, 'arcane', ['a_slayer'], 3, 15, 2.2, 'Time Dilation', 'Boss timer +4s',
       (L, D) => { D.bossTime += 4 * L; }),
-    C('a_wisp', -4, 0, 'arcane', ['a_bond', 'a_time'], 3, 25, 2, { ru: 'Манок', en: 'Wisp Lure' }, { ru: 'Огоньки прилетают на 20% чаще', en: 'Wisps appear 20% more often' },
+    C('a_wisp', -4, 0, 'arcane', ['a_bond', 'a_time'], 3, 25, 2, 'Wisp Lure', 'Wisps appear 20% more often',
       (L, D) => { D.wispRate *= 1 + 0.2 * L; }),
-    C('a_nest', -4, -1, 'arcane', ['a_bond'], 2, 60, 4, { ru: 'Большое гнездо', en: 'Great Nest' }, { ru: '+1 слот питомца', en: '+1 pet slot' },
+    C('a_nest', -4, -1, 'arcane', ['a_bond'], 2, 60, 4, 'Great Nest', '+1 pet slot',
       (L, D) => { D.petSlots += L; }),
-    C('a_hunt', -4, 1, 'arcane', ['a_time'], 1, 30, 1, { ru: 'Охота', en: 'The Hunt' }, { ru: 'Боссы вызываются сами, шкала босса -20%', en: 'Bosses auto-challenge, boss meter -20%' },
+    C('a_hunt', -4, 1, 'arcane', ['a_time'], 1, 30, 1, 'The Hunt', 'Bosses auto-challenge, boss meter -20%',
       (L, D) => { if (L) { D.autoBoss = true; D.bossNeed *= 0.8; } }),
-    C('a_astral', -5, 0, 'arcane', ['a_nest', 'a_hunt', 'a_wisp'], 1, 220, 1, { ru: 'Астрал', en: 'Astral' }, { ru: 'Лимит зелий +5, сила зелий +50%', en: 'Potion cap +5, potion power +50%' },
+    C('a_astral', -5, 0, 'arcane', ['a_nest', 'a_hunt', 'a_wisp'], 1, 220, 1, 'Astral', 'Potion cap +5, potion power +50%',
       (L, D) => { if (L) { D.potCap += 5; D.potPow *= 1.5; } }),
   ];
   G.NODE_BY_ID = {}; G.NODES.forEach(n => G.NODE_BY_ID[n.id] = n);
@@ -865,37 +928,37 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 
   // ---------- Stat potions (reset on ascension, like a hero's death) ----------
   G.POTIONS = [
-    { id: 'att',  short: 'ATT', color: '#e04cf0', name: { ru: 'Атака', en: 'Attack' },     desc: { ru: 'Урон героя и клик +5%', en: 'Hero damage and clicks +5%' } },
-    { id: 'def',  short: 'DEF', color: '#9a9aa6', name: { ru: 'Защита', en: 'Defense' },   desc: { ru: 'Прочность кнопки +8%', en: 'Button toughness +8%' } },
-    { id: 'spd',  short: 'SPD', color: '#41d65b', name: { ru: 'Скорость', en: 'Speed' },   desc: { ru: 'Автоклики и голем +5%', en: 'Auto clicks and golem +5%' } },
-    { id: 'dex',  short: 'DEX', color: '#ff9b2d', name: { ru: 'Ловкость', en: 'Dexterity' }, desc: { ru: 'Шанс крита +0.5%', en: 'Crit chance +0.5%' } },
-    { id: 'vit',  short: 'VIT', color: '#e0413b', name: { ru: 'Живучесть', en: 'Vitality' }, desc: { ru: 'Доход героев +5%', en: 'Hero income +5%' } },
-    { id: 'wis',  short: 'WIS', color: '#3fa0ff', name: { ru: 'Мудрость', en: 'Wisdom' },  desc: { ru: 'Эссенция +5%', en: 'Essence +5%' } },
-    { id: 'life', short: 'LIFE', color: '#ff7aa8', name: { ru: 'Жизнь', en: 'Life' },      desc: { ru: 'Всё золото +3%', en: 'All gold +3%' } },
-    { id: 'mana', short: 'MANA', color: '#6a7bff', name: { ru: 'Мана', en: 'Mana' },       desc: { ru: 'Сила питомцев +4%', en: 'Pet power +4%' } },
+    { id: 'att',  short: 'ATT', color: '#e04cf0', name: 'Attack',    desc: 'Hero damage and clicks +5%' },
+    { id: 'def',  short: 'DEF', color: '#9a9aa6', name: 'Defense',   desc: 'Button toughness +8%' },
+    { id: 'spd',  short: 'SPD', color: '#41d65b', name: 'Speed',     desc: 'Auto clicks and golem +5%' },
+    { id: 'dex',  short: 'DEX', color: '#ff9b2d', name: 'Dexterity', desc: 'Crit chance +0.5%' },
+    { id: 'vit',  short: 'VIT', color: '#e0413b', name: 'Vitality',  desc: 'Hero income +5%' },
+    { id: 'wis',  short: 'WIS', color: '#3fa0ff', name: 'Wisdom',    desc: 'Essence +5%' },
+    { id: 'life', short: 'LIFE', color: '#ff7aa8', name: 'Life',     desc: 'All gold +3%' },
+    { id: 'mana', short: 'MANA', color: '#6a7bff', name: 'Mana',     desc: 'Pet power +4%' },
   ];
 
   // ---------- Pets (gacha "cuties") ----------
   // tier: 0 common, 1 rare, 2 legendary, 3 divine. cps = auto clicks/sec at level 1.
   G.PET_TIERS = [
-    { name: { ru: 'Обычный', en: 'Common' }, color: '#c7b299', rate: 0.62 },
-    { name: { ru: 'Редкий', en: 'Rare' }, color: '#4fa8ff', rate: 0.28 },
-    { name: { ru: 'Легендарный', en: 'Legendary' }, color: '#ffa033', rate: 0.09 },
-    { name: { ru: 'Божественный', en: 'Divine' }, color: '#ffffff', rate: 0.01 },
+    { name: 'Common', color: '#c7b299', rate: 0.62 },
+    { name: 'Rare', color: '#4fa8ff', rate: 0.28 },
+    { name: 'Legendary', color: '#ffa033', rate: 0.09 },
+    { name: 'Divine', color: '#ffffff', rate: 0.01 },
   ];
   G.PETS = [
-    { id: 'slime',   tier: 0, cps: 1,   name: { ru: 'Слизик', en: 'Goop' },         desc: { ru: 'Автоклики', en: 'Auto clicks' } },
-    { id: 'bat',     tier: 0, cps: 0,   name: { ru: 'Кусь', en: 'Nibbles' },        desc: { ru: 'Шанс крита', en: 'Crit chance' },   fx: (p, D) => { D.crit += 0.004 * p; } },
-    { id: 'frog',    tier: 0, cps: 0,   name: { ru: 'Квакша', en: 'Croaky' },       desc: { ru: 'Удача', en: 'Luck' },                fx: (p, D) => { D.luck += 0.01 * p; } },
-    { id: 'beetle',  tier: 0, cps: 0,   name: { ru: 'Скарабей', en: 'Scarab' },     desc: { ru: 'Доход героев', en: 'Hero income' },  fx: (p, D) => { D.gpsMult *= 1 + 0.05 * p; } },
-    { id: 'owl',     tier: 1, cps: 0,   name: { ru: 'Совушка', en: 'Hoot' },        desc: { ru: 'Эссенция', en: 'Essence' },          fx: (p, D) => { D.essMult *= 1 + 0.04 * p; } },
-    { id: 'boo',     tier: 1, cps: 1.5, name: { ru: 'Бу', en: 'Boo' },              desc: { ru: 'Автоклики, шанс модификатора', en: 'Auto clicks, modifier chance' }, fx: (p, D) => { D.modChance += 0.003 * p; } },
-    { id: 'imp',     tier: 1, cps: 0,   name: { ru: 'Уголёк', en: 'Ember' },        desc: { ru: 'Урон по боссам', en: 'Boss damage' }, fx: (p, D) => { D.bossMult *= 1 + 0.08 * p; } },
-    { id: 'pebble',  tier: 1, cps: 0,   name: { ru: 'Камушек', en: 'Pebble' },      desc: { ru: 'Открывает сундуки', en: 'Opens chests' }, fx: (p, D) => { D.petOpen += 0.12 * p; } },
-    { id: 'phoenix', tier: 2, cps: 3,   name: { ru: 'Феникс', en: 'Phoenix' },      desc: { ru: 'Автоклики, сила крита', en: 'Auto clicks, crit power' }, fx: (p, D) => { D.critMult += 0.5 * p; } },
-    { id: 'drake',   tier: 2, cps: 0,   name: { ru: 'Дракоша', en: 'Drakey' },      desc: { ru: 'Всё золото', en: 'All gold' },       fx: (p, D) => { D.goldMult *= 1 + 0.06 * p; } },
-    { id: 'starfox', tier: 2, cps: 0,   name: { ru: 'Звёздный лис', en: 'Starfox' }, desc: { ru: 'Яйца и удача', en: 'Eggs and luck' }, fx: (p, D) => { D.eggMult *= 1 + 0.08 * p; D.luck += 0.01 * p; } },
-    { id: 'buttonling', tier: 3, cps: 4, name: { ru: 'Кнопыш', en: 'Buttonling' },  desc: { ru: 'Всё понемногу', en: 'A bit of everything' }, fx: (p, D) => { D.goldMult *= 1 + 0.1 * p; D.luck += 0.015 * p; } },
+    { id: 'slime',   tier: 0, cps: 1,   name: 'Goop',        desc: 'Auto clicks' },
+    { id: 'bat',     tier: 0, cps: 0,   name: 'Nibbles',     desc: 'Crit chance',                  fx: (p, D) => { D.crit += 0.004 * p; } },
+    { id: 'frog',    tier: 0, cps: 0,   name: 'Croaky',      desc: 'Luck',                         fx: (p, D) => { D.luck += 0.01 * p; } },
+    { id: 'beetle',  tier: 0, cps: 0,   name: 'Scarab',      desc: 'Hero income',                  fx: (p, D) => { D.gpsMult *= 1 + 0.05 * p; } },
+    { id: 'owl',     tier: 1, cps: 0,   name: 'Hoot',        desc: 'Essence',                      fx: (p, D) => { D.essMult *= 1 + 0.04 * p; } },
+    { id: 'boo',     tier: 1, cps: 1.5, name: 'Boo',         desc: 'Auto clicks, modifier chance', fx: (p, D) => { D.modChance += 0.003 * p; } },
+    { id: 'imp',     tier: 1, cps: 0,   name: 'Ember',       desc: 'Boss damage',                  fx: (p, D) => { D.bossMult *= 1 + 0.08 * p; } },
+    { id: 'pebble',  tier: 1, cps: 0,   name: 'Pebble',      desc: 'Opens chests',                 fx: (p, D) => { D.petOpen += 0.12 * p; } },
+    { id: 'phoenix', tier: 2, cps: 3,   name: 'Phoenix',     desc: 'Auto clicks, crit power',      fx: (p, D) => { D.critMult += 0.5 * p; } },
+    { id: 'drake',   tier: 2, cps: 0,   name: 'Drakey',      desc: 'All gold',                     fx: (p, D) => { D.goldMult *= 1 + 0.06 * p; } },
+    { id: 'starfox', tier: 2, cps: 0,   name: 'Starfox',     desc: 'Eggs and luck',                fx: (p, D) => { D.eggMult *= 1 + 0.08 * p; D.luck += 0.01 * p; } },
+    { id: 'buttonling', tier: 3, cps: 4, name: 'Buttonling', desc: 'A bit of everything',          fx: (p, D) => { D.goldMult *= 1 + 0.1 * p; D.luck += 0.015 * p; } },
   ];
   G.PET_BY_ID = {}; G.PETS.forEach(p => G.PET_BY_ID[p.id] = p);
   G.PET_MAX_LEVEL = 25;
@@ -904,78 +967,78 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   // ---------- Realms & bosses ----------
   G.REALM_SIZE = 5; // depths per realm; the 5th depth is the realm lord
   G.REALMS = [
-    { id: 'shore',     name: { ru: 'Берег', en: 'Shoreline' },       minion: 'b_crab',   lord: 'l_crab',
-      minionName: { ru: 'Песчаный краб', en: 'Sand Crab' },     lordName: { ru: 'Король-краб', en: 'The Crab King' } },
-    { id: 'meadow',    name: { ru: 'Луга', en: 'Meadows' },          minion: 'b_goblin', lord: 'l_goblin',
-      minionName: { ru: 'Гоблин', en: 'Goblin' },               lordName: { ru: 'Вождь гоблинов', en: 'Goblin Warchief' } },
-    { id: 'forest',    name: { ru: 'Чаща', en: 'Deepwood' },         minion: 'b_shroom', lord: 'l_tree',
-      minionName: { ru: 'Грибняк', en: 'Shroomling' },          lordName: { ru: 'Древний Ент', en: 'Elder Treant' } },
-    { id: 'highlands', name: { ru: 'Нагорье', en: 'Highlands' },     minion: 'b_golem',  lord: 'l_titan',
-      minionName: { ru: 'Каменный голем', en: 'Stone Golem' },  lordName: { ru: 'Горный титан', en: 'Mountain Titan' } },
-    { id: 'tundra',    name: { ru: 'Снега', en: 'Frostlands' },      minion: 'b_yeti',   lord: 'l_wyrm',
-      minionName: { ru: 'Йети', en: 'Yeti' },                   lordName: { ru: 'Ледяной змей', en: 'Frost Wyrm' } },
-    { id: 'godlands',  name: { ru: 'Земли богов', en: 'Godlands' },  minion: 'b_eye',    lord: 'l_eye',
-      minionName: { ru: 'Глазун', en: 'Watcher' },              lordName: { ru: 'Всевидящее Око', en: 'The All-Seeing Eye' } },
-    { id: 'abyss',     name: { ru: 'Бездна', en: 'Abyss' },          minion: 'b_imp',    lord: 'l_demon',
-      minionName: { ru: 'Бес', en: 'Fiend' },                   lordName: { ru: 'Владыка демонов', en: 'Demon Lord' } },
-    { id: 'void',      name: { ru: 'Пустота', en: 'The Void' },      minion: 'b_wraith', lord: 'l_button',
-      minionName: { ru: 'Призрак пустоты', en: 'Void Wraith' },  lordName: { ru: 'Безумная Кнопка', en: 'The Mad Button' } },
+    { id: 'shore',     name: 'Shoreline',       minion: 'b_crab',   lord: 'l_crab',
+      minionName: 'Sand Crab',     lordName: 'The Crab King' },
+    { id: 'meadow',    name: 'Meadows',          minion: 'b_goblin', lord: 'l_goblin',
+      minionName: 'Goblin',               lordName: 'Goblin Warchief' },
+    { id: 'forest',    name: 'Deepwood',         minion: 'b_shroom', lord: 'l_tree',
+      minionName: 'Shroomling',          lordName: 'Elder Treant' },
+    { id: 'highlands', name: 'Highlands',     minion: 'b_golem',  lord: 'l_titan',
+      minionName: 'Stone Golem',  lordName: 'Mountain Titan' },
+    { id: 'tundra',    name: 'Frostlands',      minion: 'b_yeti',   lord: 'l_wyrm',
+      minionName: 'Yeti',                   lordName: 'Frost Wyrm' },
+    { id: 'godlands',  name: 'Godlands',  minion: 'b_eye',    lord: 'l_eye',
+      minionName: 'Watcher',              lordName: 'The All-Seeing Eye' },
+    { id: 'abyss',     name: 'Abyss',          minion: 'b_imp',    lord: 'l_demon',
+      minionName: 'Fiend',                   lordName: 'Demon Lord' },
+    { id: 'void',      name: 'The Void',      minion: 'b_wraith', lord: 'l_button',
+      minionName: 'Void Wraith',  lordName: 'The Mad Button' },
   ];
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------
   G.LEGACY = [
-    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: { ru: 'Наследие силы', en: 'Ancestral Might' }, desc: { ru: 'Клик и урон героя +40%', en: 'Clicks and hero damage +40%' },
+    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: 'Ancestral Might', desc: 'Clicks and hero damage +40%',
       fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; D.heroMult *= 1 + 0.4 * L; } },
-    { id: 'lg_guild', base: 1, growth: 1.6, max: 25, name: { ru: 'Наследие гильдии', en: 'Ancestral Guild' }, desc: { ru: 'Доход героев +40%', en: 'Hero income +40%' },
+    { id: 'lg_guild', base: 1, growth: 1.6, max: 25, name: 'Ancestral Guild', desc: 'Hero income +40%',
       fx: (L, D) => { D.gpsMult *= 1 + 0.4 * L; } },
-    { id: 'lg_start', base: 2, growth: 2, max: 8, name: { ru: 'Фора', en: 'Head Start' }, desc: { ru: 'Старт с золотом: 100 × 10^ур.', en: 'Start with 100 × 10^lvl gold' },
+    { id: 'lg_start', base: 2, growth: 2, max: 8, name: 'Head Start', desc: 'Start with 100 × 10^lvl gold',
       fx: () => {} },
-    { id: 'lg_luck', base: 3, growth: 1.8, max: 10, name: { ru: 'Счастливая звезда', en: 'Lucky Star' }, desc: { ru: 'Удача +3%', en: 'Luck +3%' },
+    { id: 'lg_luck', base: 3, growth: 1.8, max: 10, name: 'Lucky Star', desc: 'Luck +3%',
       fx: (L, D) => { D.luck += 0.03 * L; } },
-    { id: 'lg_boss', base: 3, growth: 1.7, max: 15, name: { ru: 'Гроза боссов', en: 'Boss Slayer' }, desc: { ru: 'Урон по боссам +35%', en: 'Boss damage +35%' },
+    { id: 'lg_boss', base: 3, growth: 1.7, max: 15, name: 'Boss Slayer', desc: 'Boss damage +35%',
       fx: (L, D) => { D.bossMult *= 1 + 0.35 * L; } },
-    { id: 'lg_pot', base: 4, growth: 2, max: 10, name: { ru: 'Погреб зелий', en: 'Potion Cellar' }, desc: { ru: 'Лимит каждого зелья +3', en: 'Each potion cap +3' },
+    { id: 'lg_pot', base: 4, growth: 2, max: 10, name: 'Potion Cellar', desc: 'Each potion cap +3',
       fx: (L, D) => { D.potCap += 3 * L; } },
-    { id: 'lg_keeppot', base: 12, growth: 2.5, max: 4, name: { ru: 'Семейный сундук', en: 'Family Vault' }, desc: { ru: 'Сохранять 25% зелий при вознесении', en: 'Keep 25% of potions on ascension' },
+    { id: 'lg_keeppot', base: 12, growth: 2.5, max: 4, name: 'Family Vault', desc: 'Keep 25% of potions on ascension',
       fx: () => {} },
-    { id: 'lg_stars', base: 6, growth: 2, max: 5, name: { ru: 'Память звёзд', en: 'Star Memory' }, desc: { ru: 'Старт с 12% эссенции прошлого забега', en: 'Start with 12% of last run\'s essence' },
+    { id: 'lg_stars', base: 6, growth: 2, max: 5, name: 'Star Memory', desc: 'Start with 12% of last run\'s essence',
       fx: () => {} },
-    { id: 'lg_fusion', base: 15, growth: 1, max: 1, name: { ru: 'Вечное слияние', en: 'Eternal Fusion' }, desc: { ru: 'Слияние и Позолота открыты с начала', en: 'Fusion and Gilding unlocked from the start' },
+    { id: 'lg_fusion', base: 15, growth: 1, max: 1, name: 'Eternal Fusion', desc: 'Fusion and Gilding unlocked from the start',
       fx: (L, D) => { if (L) { D.merge = true; D.mods.golden = 1; } } },
-    { id: 'lg_deep', base: 8, growth: 2.2, max: 10, name: { ru: 'Глубокое погружение', en: 'Deep Dive' }, desc: { ru: 'Начинать на 2 глубины ниже', en: 'Start 2 depths deeper' },
+    { id: 'lg_deep', base: 8, growth: 2.2, max: 10, name: 'Deep Dive', desc: 'Start 2 depths deeper',
       fx: () => {} },
-    { id: 'lg_pet', base: 10, growth: 3, max: 2, name: { ru: 'Переноска', en: 'Pet Carrier' }, desc: { ru: '+1 слот питомца', en: '+1 pet slot' },
+    { id: 'lg_pet', base: 10, growth: 3, max: 2, name: 'Pet Carrier', desc: '+1 pet slot',
       fx: (L, D) => { D.petSlots += L; } },
-    { id: 'lg_time', base: 5, growth: 2, max: 5, name: { ru: 'Искривление времени', en: 'Time Warp' }, desc: { ru: 'Офлайн: +2 ч лимита, +10% эффективности', en: 'Offline: +2h cap, +10% efficiency' },
+    { id: 'lg_time', base: 5, growth: 2, max: 5, name: 'Time Warp', desc: 'Offline: +2h cap, +10% efficiency',
       fx: (L, D) => { D.offCap += 7200 * L; D.offEff += 0.1 * L; } },
-    { id: 'lg_fame', base: 10, growth: 2, max: 10, name: { ru: 'Громкое имя', en: 'Renown' }, desc: { ru: 'Слава +15%', en: 'Fame gain +15%' },
+    { id: 'lg_fame', base: 10, growth: 2, max: 10, name: 'Renown', desc: 'Fame gain +15%',
       fx: (L, D) => { D.fameMult *= 1 + 0.15 * L; } },
-    { id: 'lg_quest', base: 5, growth: 2, max: 4, name: { ru: 'Мастер заданий', en: 'Quest Master' }, desc: { ru: 'Награды заданий +35%', en: 'Quest rewards +35%' },
+    { id: 'lg_quest', base: 5, growth: 2, max: 4, name: 'Quest Master', desc: 'Quest rewards +35%',
       fx: (L, D) => { D.questMult *= 1 + 0.35 * L; } },
-    { id: 'lg_gold', base: 12, growth: 2.5, max: 4, name: { ru: 'Золотое касание', en: 'Golden Touch' }, desc: { ru: 'Шанс золотого питомца +2%', en: 'Golden pet chance +2%' },
+    { id: 'lg_gold', base: 12, growth: 2.5, max: 4, name: 'Golden Touch', desc: 'Golden pet chance +2%',
       fx: (L, D) => { D.goldenChance += 0.02 * L; } },
   ];
   G.LEGACY_BY_ID = {}; G.LEGACY.forEach(l => G.LEGACY_BY_ID[l.id] = l);
 
   // ---------- Button skins ----------
   G.SKINS = [
-    { id: 'classic',  base: '#e8413c', name: { ru: 'Классика', en: 'Classic' },   unlock: null },
-    { id: 'emerald',  base: '#2fc46a', name: { ru: 'Изумруд', en: 'Emerald' },    unlock: 'chests_100' },
-    { id: 'sapphire', base: '#3f7bff', name: { ru: 'Сапфир', en: 'Sapphire' },    unlock: 'depth_10' },
-    { id: 'amethyst', base: '#a048ff', name: { ru: 'Аметист', en: 'Amethyst' },   unlock: 'asc_1' },
-    { id: 'gold',     base: '#ffc629', name: { ru: 'Золото', en: 'Gold' },        unlock: 'gold_1e9' },
-    { id: 'obsidian', base: '#3a3348', name: { ru: 'Обсидиан', en: 'Obsidian' },  unlock: 'madbutton' },
-    { id: 'rainbow',  base: 'rainbow', name: { ru: 'Радуга', en: 'Rainbow' },     unlock: 'all_items' },
-    { id: 'divine',   base: '#f4f6ff', name: { ru: 'Божественная', en: 'Divine' }, unlock: 'first_divine' },
+    { id: 'classic',  base: '#e8413c', name: 'Classic',  unlock: null },
+    { id: 'emerald',  base: '#2fc46a', name: 'Emerald',  unlock: 'chests_100' },
+    { id: 'sapphire', base: '#3f7bff', name: 'Sapphire', unlock: 'depth_10' },
+    { id: 'amethyst', base: '#a048ff', name: 'Amethyst', unlock: 'asc_1' },
+    { id: 'gold',     base: '#ffc629', name: 'Gold',     unlock: 'gold_1e9' },
+    { id: 'obsidian', base: '#3a3348', name: 'Obsidian', unlock: 'madbutton' },
+    { id: 'rainbow',  base: 'rainbow', name: 'Rainbow',  unlock: 'all_items' },
+    { id: 'divine',   base: '#f4f6ff', name: 'Divine',   unlock: 'first_divine' },
   ];
 
   // ---------- Wisp buffs (golden-cookie style event) ----------
   G.WISP_EFFECTS = [
-    { id: 'frenzy', w: 40, name: { ru: 'Неистовство! Золото ×7', en: 'Frenzy! Gold ×7' }, dur: 20 },
-    { id: 'rain',   w: 24, name: { ru: 'Дождь сундуков!', en: 'Chest Rain!' } },
-    { id: 'lucky',  w: 24, name: { ru: 'Удача! Мешок золота', en: 'Lucky! A sack of gold' } },
-    { id: 'storm',  w: 10, name: { ru: 'Буря кликов! Клик ×77', en: 'Click Storm! Click ×77' }, dur: 10 },
-    { id: 'egg',    w: 2,  name: { ru: 'Яйцо питомца!', en: 'A pet egg!' } },
+    { id: 'frenzy', w: 40, name: 'Frenzy! Gold ×7', dur: 20 },
+    { id: 'rain',   w: 24, name: 'Chest Rain!' },
+    { id: 'lucky',  w: 24, name: 'Lucky! A sack of gold' },
+    { id: 'storm',  w: 10, name: 'Click Storm! Click ×77', dur: 10 },
+    { id: 'egg',    w: 2,  name: 'A pet egg!' },
   ];
 
   // ---------- Daily login rewards (7-day cycle) ----------
@@ -986,162 +1049,87 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 })(globalThis.G = globalThis.G || {});
 
 /* js/i18n.js */
-// BTTN — interface strings (RU / EN). Content names live in data.js as {ru, en}.
+// BTTN — interface strings. Content names live in data.js.
 (function (G) {
   'use strict';
   const STR = {
-    ru: {
-      tagline: 'Кликай. Лути. Возносись.',
-      tab_ladder: 'Рейтинг', rankBy: 'Сортировка', byDepth: 'По глубине', byPower: 'По силе',
-      ladderRules: 'Сила в рейтинге считается только по снаряжению, уровню и классу, одинаково у всех. Каждая запись перепроверяется у всех игроков: вещи с невозможной заточкой, аффиксами или уровнем помечаются и в рейтинг не попадают.',
-      netArtifact: 'Онлайн: общий рейтинг и облачное сохранение', netHttp: 'Онлайн: подключено к серверу', netConnecting: 'Подключаюсь…',
-      netError: 'Ошибка сети: {0}', netOff: 'Офлайн', netOffHint: 'Рейтинг и облачное сохранение работают в опубликованной версии игры или при подключении к серверу. Прогресс хранится в этом браузере.',
-      netSynced: 'Сохранено в облако {0} назад · рейтинг обновлён {1} назад', netReadOnly: 'У тебя доступ только на просмотр: рейтинг виден, но твои результаты не отправляются.',
-      noNameYet: 'У героя нет имени, в рейтинге он будет безымянным.', setName: 'Задать имя', syncNow: 'Отправить сейчас', synced: 'Отправлено',
-      loadCloud: 'Загрузить из облака', ladderEmpty: 'Пока никого нет. Твой результат появится здесь через полминуты.', ladderOffline: 'Рейтинг недоступен офлайн.',
-      anon: 'Безымянный герой', you: 'ты', unverified: 'не прошёл проверку', hiddenBad: 'Скрыто записей, не прошедших проверку: {0}', yourRank: 'Ты {0} из {1}',
-      cloudTitle: 'Облачное сохранение', cloudText: 'В облаке есть сохранение от {0}, оно новее этого браузера. Загрузить его? Текущий прогресс здесь заменится.',
-      cloudLoad: 'Загрузить', cloudKeep: 'Оставить текущее',
-      tab_hero: 'Персонаж', clearMeter: 'Зачистка {0}/{1}', buttonHp: 'Кнопка {0}/{1}', overload: 'КНОПКА ПЕРЕГРУЖЕНА', overloadHint: 'Мобы сломали кнопку. Нужна броня получше или заточка.',
-      levelUp: 'Уровень {0}!', q_kills: 'Убей {0} мобов', pickClass: 'Выбери героя', pickClassHint: 'Герой защищает кнопку от мобов и носит 4 вещи: оружие, способность, броню и кольцо. Свой тип оружия даёт +50% урона.',
-      namePh: 'Имя героя', power: 'Сила', slot_weapon: 'Оружие', slot_ability: 'Способность', slot_armor: 'Броня', slot_ring: 'Кольцо',
-      bag: 'Сумка', shards: 'осколков', autoEquip: 'Надевать лучшее само', autoCast: 'Способность сама', autoSalv: 'Разбирать хуже', off: 'Нет',
-      salvBelow: 'Разобрать сумку ниже порога', salvage: 'Разобрать', salvaged: 'Разобрано: {0} · +{1} осколков', records: 'Рекорды',
-      ladderSoon: 'Эти рекорды попадут в общий рейтинг, когда откроется ладдер.', g_weapon: '{0}: {1} урона за удар, целей: {2}', g_armor: 'Прочность кнопки {0}',
-      g_ring: 'Урон {0}', g_ability: 'Урон {0} · {1}: {2}', st_dps: 'Урон в секунду', st_hit: 'Урон за удар', st_rate: 'Атак в секунду', st_targets: 'Целей за удар',
-      st_crit: 'Крит', st_hp: 'Прочность кнопки', st_class: 'Бонус класса', classBonusOn: '+50% урона', classBonusOff: 'нужно: {0}',
-      rec_depth: 'Лучшая глубина', rec_power: 'Рекорд силы', rec_level: 'Лучший уровень', rec_mad: 'Безумная Кнопка за', rec_id: 'ID игрока',
-      tapItem: 'Нажми на вещь, чтобы увидеть её', ilvl: 'ур. предмета {0}', vsWorn: 'Против надетой', unequip: 'Снять', equip: 'Надеть', enchant: 'Заточить',
-      equipped: 'Надето', bagEmpty: 'Сумка пуста. Вещи падают из сундуков.',
-      perSec: '/сек', perClick: 'за клик',
-      gold: 'Золото', essence: 'Эссенция', eggs: 'Яйца', fame: 'Слава',
-      depth: 'Глубина', depthShort: 'Гл.',
-      tab_upg: 'Улучшения', tab_heroes: 'Гарнизон', tab_stars: 'Созвездие', tab_coll: 'Коллекция', tab_pets: 'Питомцы',
-      tab_quests: 'Задания', tab_ach: 'Достижения', tab_asc: 'Вознесение', tab_set: 'Настройки',
-      lvl: 'ур.', max: 'МАКС', buy: 'Купить', learn: 'Изучить', locked: 'Закрыто',
-      crit: 'КРИТ!', fusion: 'Слияние!', potionGot: 'Зелье!', mimic: 'МИМИК!', fled: 'Сбежал…', burned: 'Сгорел',
-      noRoom: 'Нет места', victory: 'ПОБЕДА!', bossFled: 'Босс ушёл', bossReadyTap: 'БОСС! ЖМИ',
-      bossMeter: 'Босс через {0} сунд.', bossReady: 'Босс готов!', fight: 'В бой!', retreat: 'Отступить',
-      nextChest: 'Сундук', combo: 'Комбо',
-      hire: 'Нанять', each: 'каждый', total: 'всего', toMilestone: 'до ×2: {0}', heroLocked: 'Неизвестный герой',
-      heroLockedHint: 'Накопи {0} золота, чтобы узнать',
-      statsTitle: 'Характеристики', statsHint: 'Зелья выпадают с боссов и редких сундуков. Лимит: {0}. Сбрасываются при вознесении.',
-      starsHint: 'Эссенция добывается из сундуков и боссов. Нажми на звезду, чтобы узнать о ней.',
-      nodeLocked: 'Сначала изучи соседнюю звезду', nodeMaxed: 'Изучено полностью',
-      collFound: 'Найдено {0} из {1}', collHint: 'Звёзды предмета: 1, 10, 100, 1 000 и 10 000 штук. Каждая звезда усиливает бонус.',
-      collBonuses: 'Бонусы коллекции', count: 'Количество', value: 'Цена', bonus: 'Бонус', nextStar: 'Следующая звезда: {0} шт.', allStars: 'Все звёзды собраны',
-      unknownItem: 'Ещё не найден', chestsOpened: 'Открыто сундуков', modifiers: 'Модификаторы сундуков', modLocked: 'Откроется в созвездии',
-      hatchery: 'Инкубатор', hatch1: 'Высидеть ×1', hatch10: 'Высидеть ×10', odds: 'Шансы', pityL: 'Легендарный гарантирован через {0}', pityD: 'Божественный — через {0}',
-      activePets: 'С тобой: {0}/{1}', petHint: 'Нажми на питомца, чтобы взять его с собой или оставить. Дубликаты повышают уровень.',
-      petPower: 'Сила {0}', golden: 'Золотой', newPet: 'Новый!', noEggs: 'Не хватает яиц', petUnknown: '???',
-      quests: 'Задания', claim: 'Забрать', reroll: 'Сменить', rerollIn: 'Смена через {0}', newQuestIn: 'Новое задание через {0}',
-      daily: 'Ежедневная награда', dayN: 'День {0}', collect: 'Получить', tomorrow: 'Возвращайся завтра',
-      q_clicks: 'Кликни {0} раз', q_chests: 'Открой {0} сундуков', q_rarity: 'Найди {0} предмета ранга «{1}» или выше', q_gold: 'Заработай {0} золота',
-      q_boss: 'Победи боссов: {0}', q_crit: 'Сделай {0} критов', q_combo: 'Набери комбо {0}', q_mod: 'Открой {0} сундука с модификатором', q_wisp: 'Поймай блуждающий огонёк',
-      achSummary: 'Получено {0} из {1} · +{2}% к золоту', skins: 'Облик кнопки', skinLocked: 'Откроется за достижение «{0}»', stats: 'Статистика',
-      st_clicks: 'Кликов', st_chests: 'Сундуков открыто', st_boss: 'Боссов побеждено', st_lords: 'Владык повержено', st_best: 'Рекордная глубина',
-      st_crits: 'Критов', st_combo: 'Лучшее комбо', st_wisps: 'Огоньков поймано', st_merges: 'Слияний', st_divine: 'Божественных предметов',
-      st_time: 'Время в игре', st_asc: 'Вознесений', st_goldTotal: 'Золота за всё время',
-      ascTitle: 'Вознесение', ascText: 'Герой падёт, но слава останется. Сбросятся золото, улучшения, герои, созвездие, глубина и зелья. Останутся коллекция, питомцы, достижения, облики и слава.',
-      ascGain: 'Слава за вознесение', ascNeed: 'Спустись хотя бы на глубину 5', ascEach: 'Каждая единица славы навсегда даёт +1% к золоту.',
-      ascBtn: 'Вознестись', ascConfirm: 'Точно? Нажми ещё раз', hallOfFame: 'Зал славы', hallHint: 'Вечные улучшения за славу. Не сбрасываются.',
-      ascDone: 'Ты вознёсся! +{0} славы', famePassive: 'Слава: {0} (+{1}% к золоту)',
-      language: 'Язык', sound: 'Звуки', music: 'Музыка', volume: 'Громкость', hold: 'Удерживать кнопку для клика', shake: 'Тряска экрана',
-      autoBoss: 'Боссы вызываются сами (после «Охоты»)', saveTitle: 'Сохранение', export: 'Экспорт', import: 'Импорт', copy: 'Скопировать',
-      copied: 'Скопировано', importHint: 'Вставь код сохранения и нажми «Импорт».', resetBtn: 'Стереть прогресс', resetConfirm: 'Точно? Всё удалится навсегда',
-      saved: 'Игра сохранена', badSave: 'Код сохранения не подошёл. Проверь, что он скопирован целиком.', imported: 'Сохранение загружено',
-      keysHint: 'Клавиши: Пробел — клик, E — открыть лучший сундук, Q — способность, B — вызвать босса, 1–0 — вкладки.',
-      welcomeBack: 'С возвращением!', awayFor: 'Тебя не было {0}. Пока ты отдыхал, герои:', earned: 'заработали', foundChests: 'нашли сундуков',
-      divineLoot: 'БОЖЕСТВЕННАЯ ДОБЫЧА', legendLoot: 'ЛЕГЕНДАРНАЯ ДОБЫЧА', mythicLoot: 'МИФИЧЕСКАЯ ДОБЫЧА', newLands: 'Новые земли: {0}',
-      unlocked: 'Открыто: {0}', achievement: 'Достижение', questDone: 'Задание выполнено!', potionDrink: 'Выпито зелье: {0}',
-      tut0: 'Жми на кнопку!', tut1: 'Выпал сундук — нажми на него', tut2: 'Золото можно тратить на улучшения',
-      frenzy: 'Неистовство ×7', storm: 'Буря кликов ×77', ok: 'Отлично', close: 'Закрыть',
-      pullTitle: 'Из яиц вылупились', eggOdds: 'Обычный {0}% · Редкий {1}% · Легендарный {2}% · Божественный {3}% · Золотой {4}%',
-      buyAmt: 'Покупать по', secret: 'Секрет', prince: 'Корона Принца',
-      bossTitle: 'Босс', lordTitle: 'Владыка', realm: 'Земли',
-      noSpace: 'Нет свободного места', saveNow: 'Сохранить',
-    },
-    en: {
-      tagline: 'Click. Loot. Ascend.',
-      tab_ladder: 'Ladder', rankBy: 'Sort', byDepth: 'By depth', byPower: 'By power',
-      ladderRules: 'Ladder power counts only gear, level and class, the same for everyone. Every entry is re-checked on every client: gear with impossible enchants, affixes or item levels is flagged and kept off the ladder.',
-      netArtifact: 'Online: shared ladder and cloud save', netHttp: 'Online: connected to the server', netConnecting: 'Connecting…',
-      netError: 'Network error: {0}', netOff: 'Offline', netOffHint: 'The ladder and cloud save work in the published version of the game or with a server. Progress is kept in this browser.',
-      netSynced: 'Saved to the cloud {0} ago · ladder updated {1} ago', netReadOnly: 'You have view-only access: you can see the ladder, but your results are not sent.',
-      noNameYet: 'Your hero has no name, so the ladder will show them as nameless.', setName: 'Set a name', syncNow: 'Send now', synced: 'Sent',
-      loadCloud: 'Load from the cloud', ladderEmpty: 'Nobody here yet. Your result appears within half a minute.', ladderOffline: 'The ladder is unavailable offline.',
-      anon: 'Nameless hero', you: 'you', unverified: 'failed the check', hiddenBad: 'Entries hidden for failing the check: {0}', yourRank: 'You are {0} of {1}',
-      cloudTitle: 'Cloud save', cloudText: 'The cloud has a save from {0}, newer than this browser. Load it? Current progress here will be replaced.',
-      cloudLoad: 'Load', cloudKeep: 'Keep current',
-      tab_hero: 'Character', clearMeter: 'Clear {0}/{1}', buttonHp: 'Button {0}/{1}', overload: 'BUTTON OVERLOADED', overloadHint: 'Mobs broke the Button. Get better armour or enchant it.',
-      levelUp: 'Level {0}!', q_kills: 'Slay {0} mobs', pickClass: 'Choose your hero', pickClassHint: 'Your hero guards the Button from mobs and wears 4 items: weapon, ability, armour and ring. Your class weapon type deals +50% damage.',
-      namePh: 'Hero name', power: 'Power', slot_weapon: 'Weapon', slot_ability: 'Ability', slot_armor: 'Armour', slot_ring: 'Ring',
-      bag: 'Bag', shards: 'shards', autoEquip: 'Equip upgrades automatically', autoCast: 'Cast the ability automatically', autoSalv: 'Scrap below', off: 'Off',
-      salvBelow: 'Scrap bag items below the threshold', salvage: 'Scrap', salvaged: 'Scrapped: {0} · +{1} shards', records: 'Records',
-      ladderSoon: 'These records go to the shared ranking once the ladder opens.', g_weapon: '{0}: {1} damage per hit, {2} targets', g_armor: 'Button toughness {0}',
-      g_ring: 'Damage {0}', g_ability: 'Damage {0} · {1}: {2}', st_dps: 'Damage per second', st_hit: 'Damage per hit', st_rate: 'Attacks per second', st_targets: 'Targets per hit',
-      st_crit: 'Crit', st_hp: 'Button toughness', st_class: 'Class bonus', classBonusOn: '+50% damage', classBonusOff: 'needs: {0}',
-      rec_depth: 'Best depth', rec_power: 'Best power', rec_level: 'Best level', rec_mad: 'Mad Button in', rec_id: 'Player ID',
-      tapItem: 'Tap an item to inspect it', ilvl: 'item level {0}', vsWorn: 'Versus worn', unequip: 'Unequip', equip: 'Equip', enchant: 'Enchant',
-      equipped: 'Equipped', bagEmpty: 'The bag is empty. Items drop from chests.',
-      perSec: '/s', perClick: 'per click',
-      gold: 'Gold', essence: 'Essence', eggs: 'Eggs', fame: 'Fame',
-      depth: 'Depth', depthShort: 'D',
-      tab_upg: 'Upgrades', tab_heroes: 'Garrison', tab_stars: 'Constellation', tab_coll: 'Collection', tab_pets: 'Pets',
-      tab_quests: 'Quests', tab_ach: 'Achievements', tab_asc: 'Ascension', tab_set: 'Settings',
-      lvl: 'lv', max: 'MAX', buy: 'Buy', learn: 'Learn', locked: 'Locked',
-      crit: 'CRIT!', fusion: 'Fusion!', potionGot: 'Potion!', mimic: 'MIMIC!', fled: 'Fled…', burned: 'Burned',
-      noRoom: 'No room', victory: 'VICTORY!', bossFled: 'Boss escaped', bossReadyTap: 'BOSS! TAP',
-      bossMeter: 'Boss in {0} chests', bossReady: 'Boss ready!', fight: 'Fight!', retreat: 'Retreat',
-      nextChest: 'Chest', combo: 'Combo',
-      hire: 'Hire', each: 'each', total: 'total', toMilestone: 'to ×2: {0}', heroLocked: 'Unknown hero',
-      heroLockedHint: 'Earn {0} gold to reveal',
-      statsTitle: 'Stats', statsHint: 'Potions drop from bosses and rare chests. Cap: {0}. They reset when you ascend.',
-      starsHint: 'Essence comes from chests and bosses. Tap a star to read about it.',
-      nodeLocked: 'Learn a neighbouring star first', nodeMaxed: 'Fully learned',
-      collFound: 'Found {0} of {1}', collHint: 'Item stars: 1, 10, 100, 1,000 and 10,000 copies. Each star boosts the bonus.',
-      collBonuses: 'Collection bonuses', count: 'Owned', value: 'Value', bonus: 'Bonus', nextStar: 'Next star: {0} copies', allStars: 'All stars earned',
-      unknownItem: 'Not found yet', chestsOpened: 'Chests opened', modifiers: 'Chest modifiers', modLocked: 'Unlocks in the constellation',
-      hatchery: 'Hatchery', hatch1: 'Hatch ×1', hatch10: 'Hatch ×10', odds: 'Odds', pityL: 'Legendary guaranteed in {0}', pityD: 'Divine in {0}',
-      activePets: 'With you: {0}/{1}', petHint: 'Tap a pet to bring it along or leave it. Duplicates raise its level.',
-      petPower: 'Power {0}', golden: 'Golden', newPet: 'New!', noEggs: 'Not enough eggs', petUnknown: '???',
-      quests: 'Quests', claim: 'Claim', reroll: 'Reroll', rerollIn: 'Reroll in {0}', newQuestIn: 'New quest in {0}',
-      daily: 'Daily reward', dayN: 'Day {0}', collect: 'Collect', tomorrow: 'Come back tomorrow',
-      q_clicks: 'Click {0} times', q_chests: 'Open {0} chests', q_rarity: 'Find {0} items of rank “{1}” or better', q_gold: 'Earn {0} gold',
-      q_boss: 'Defeat {0} bosses', q_crit: 'Land {0} crits', q_combo: 'Reach a {0} combo', q_mod: 'Open {0} modified chests', q_wisp: 'Catch a wisp',
-      achSummary: '{0} of {1} earned · +{2}% gold', skins: 'Button skin', skinLocked: 'Unlocked by “{0}”', stats: 'Statistics',
-      st_clicks: 'Clicks', st_chests: 'Chests opened', st_boss: 'Bosses defeated', st_lords: 'Lords slain', st_best: 'Best depth',
-      st_crits: 'Crits', st_combo: 'Best combo', st_wisps: 'Wisps caught', st_merges: 'Fusions', st_divine: 'Divine items',
-      st_time: 'Time played', st_asc: 'Ascensions', st_goldTotal: 'All-time gold',
-      ascTitle: 'Ascension', ascText: 'Your hero falls, but the fame remains. Gold, upgrades, heroes, the constellation, depth and potions reset. Your collection, pets, achievements, skins and fame stay.',
-      ascGain: 'Fame from ascending', ascNeed: 'Reach at least depth 5', ascEach: 'Each point of fame gives +1% gold forever.',
-      ascBtn: 'Ascend', ascConfirm: 'Sure? Tap again', hallOfFame: 'Hall of Fame', hallHint: 'Permanent upgrades bought with fame. They never reset.',
-      ascDone: 'You ascended! +{0} fame', famePassive: 'Fame: {0} (+{1}% gold)',
-      language: 'Language', sound: 'Sound effects', music: 'Music', volume: 'Volume', hold: 'Hold the button to click', shake: 'Screen shake',
-      autoBoss: 'Bosses start on their own (after The Hunt)', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
-      copied: 'Copied', importHint: 'Paste a save code and press Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Everything is deleted forever',
-      saved: 'Game saved', badSave: "That save code didn't load. Check that you copied all of it.", imported: 'Save loaded',
-      keysHint: 'Keys: Space — click, E — open the best chest, Q — ability, B — call the boss, 1–0 — tabs.',
-      welcomeBack: 'Welcome back!', awayFor: 'You were away for {0}. Meanwhile your heroes:', earned: 'earned', foundChests: 'found chests',
-      divineLoot: 'DIVINE LOOT', legendLoot: 'LEGENDARY LOOT', mythicLoot: 'MYTHIC LOOT', newLands: 'New lands: {0}',
-      unlocked: 'Unlocked: {0}', achievement: 'Achievement', questDone: 'Quest complete!', potionDrink: 'Potion drunk: {0}',
-      tut0: 'Click the button!', tut1: 'A chest dropped — tap it', tut2: 'Spend gold on upgrades',
-      frenzy: 'Frenzy ×7', storm: 'Click Storm ×77', ok: 'Great', close: 'Close',
-      pullTitle: 'The eggs hatched', eggOdds: 'Common {0}% · Rare {1}% · Legendary {2}% · Divine {3}% · Golden {4}%',
-      buyAmt: 'Buy', secret: 'Secret', prince: "The Prince's Crown",
-      bossTitle: 'Boss', lordTitle: 'Lord', realm: 'Lands',
-      noSpace: 'No free space', saveNow: 'Save now',
-    },
+    tagline: 'Click. Loot. Ascend.',
+    tab_ladder: 'Ladder', rankBy: 'Sort', byDepth: 'By depth', byPower: 'By power',
+    ladderRules: 'Ladder power counts only gear, level and class, the same for everyone. Every entry is re-checked on every client: gear with impossible enchants, affixes or item levels is flagged and kept off the ladder.',
+    netArtifact: 'Online: shared ladder and cloud save', netHttp: 'Online: connected to the server', netConnecting: 'Connecting…',
+    netError: 'Network error: {0}', netOff: 'Offline', netOffHint: 'The ladder and cloud save work in the published version of the game or with a server. Progress is kept in this browser.',
+    netSynced: 'Saved to the cloud {0} ago · ladder updated {1} ago', netReadOnly: 'You have view-only access: you can see the ladder, but your results are not sent.',
+    noNameYet: 'Your hero has no name, so the ladder will show them as nameless.', setName: 'Set a name', syncNow: 'Send now', synced: 'Sent',
+    loadCloud: 'Load from the cloud', ladderEmpty: 'Nobody here yet. Your result appears within half a minute.', ladderOffline: 'The ladder is unavailable offline.',
+    anon: 'Nameless hero', you: 'you', unverified: 'failed the check', hiddenBad: 'Entries hidden for failing the check: {0}', yourRank: 'You are {0} of {1}',
+    cloudTitle: 'Cloud save', cloudText: 'The cloud has a save from {0}, newer than this browser. Load it? Current progress here will be replaced.',
+    cloudLoad: 'Load', cloudKeep: 'Keep current',
+    tab_hero: 'Character', clearMeter: 'Clear {0}/{1}', buttonHp: 'Button {0}/{1}', overload: 'BUTTON OVERLOADED', overloadHint: 'Mobs broke the Button. Get better armour or enchant it.',
+    levelUp: 'Level {0}!', q_kills: 'Slay {0} mobs', pickClass: 'Choose your hero', pickClassHint: 'Your hero guards the Button from mobs and wears 4 items: weapon, ability, armour and ring. Your class weapon type deals +50% damage.',
+    namePh: 'Hero name', power: 'Power', slot_weapon: 'Weapon', slot_ability: 'Ability', slot_armor: 'Armour', slot_ring: 'Ring',
+    bag: 'Bag', shards: 'shards', autoEquip: 'Equip upgrades automatically', autoCast: 'Cast the ability automatically', autoSalv: 'Scrap below', off: 'Off',
+    salvBelow: 'Scrap bag items below the threshold', salvage: 'Scrap', salvaged: 'Scrapped: {0} · +{1} shards', records: 'Records',
+    ladderSoon: 'These records go to the shared ranking once the ladder opens.', g_weapon: '{0}: {1} damage per hit, {2} targets', g_armor: 'Button toughness {0}',
+    g_ring: 'Damage {0}', g_ability: 'Damage {0} · {1}: {2}', st_dps: 'Damage per second', st_hit: 'Damage per hit', st_rate: 'Attacks per second', st_targets: 'Targets per hit',
+    st_crit: 'Crit', st_hp: 'Button toughness', st_class: 'Class bonus', classBonusOn: '+50% damage', classBonusOff: 'needs: {0}',
+    rec_depth: 'Best depth', rec_power: 'Best power', rec_level: 'Best level', rec_mad: 'Mad Button in', rec_id: 'Player ID',
+    tapItem: 'Tap an item to inspect it', ilvl: 'item level {0}', vsWorn: 'Versus worn', unequip: 'Unequip', equip: 'Equip', enchant: 'Enchant',
+    equipped: 'Equipped', bagEmpty: 'The bag is empty. Items drop from chests.',
+    perSec: '/s', perClick: 'per click',
+    gold: 'Gold', essence: 'Essence', eggs: 'Eggs', fame: 'Fame',
+    depth: 'Depth', depthShort: 'D',
+    tab_upg: 'Upgrades', tab_heroes: 'Garrison', tab_stars: 'Constellation', tab_coll: 'Collection', tab_pets: 'Pets',
+    tab_quests: 'Quests', tab_ach: 'Achievements', tab_asc: 'Ascension', tab_set: 'Settings',
+    lvl: 'lv', max: 'MAX', buy: 'Buy', learn: 'Learn', locked: 'Locked',
+    crit: 'CRIT!', fusion: 'Fusion!', potionGot: 'Potion!', mimic: 'MIMIC!', fled: 'Fled…', burned: 'Burned',
+    noRoom: 'No room', victory: 'VICTORY!', bossFled: 'Boss escaped', bossReadyTap: 'BOSS! TAP',
+    bossMeter: 'Boss in {0} chests', bossReady: 'Boss ready!', fight: 'Fight!', retreat: 'Retreat',
+    nextChest: 'Chest', combo: 'Combo',
+    hire: 'Hire', each: 'each', total: 'total', toMilestone: 'to ×2: {0}', heroLocked: 'Unknown hero',
+    heroLockedHint: 'Earn {0} gold to reveal',
+    statsTitle: 'Stats', statsHint: 'Potions drop from bosses and rare chests. Cap: {0}. They reset when you ascend.',
+    starsHint: 'Essence comes from chests and bosses. Tap a star to read about it.',
+    nodeLocked: 'Learn a neighbouring star first', nodeMaxed: 'Fully learned',
+    collFound: 'Found {0} of {1}', collHint: 'Item stars: 1, 10, 100, 1,000 and 10,000 copies. Each star boosts the bonus.',
+    collBonuses: 'Collection bonuses', count: 'Owned', value: 'Value', bonus: 'Bonus', nextStar: 'Next star: {0} copies', allStars: 'All stars earned',
+    unknownItem: 'Not found yet', chestsOpened: 'Chests opened', modifiers: 'Chest modifiers', modLocked: 'Unlocks in the constellation',
+    hatchery: 'Hatchery', hatch1: 'Hatch ×1', hatch10: 'Hatch ×10', odds: 'Odds', pityL: 'Legendary guaranteed in {0}', pityD: 'Divine in {0}',
+    activePets: 'With you: {0}/{1}', petHint: 'Tap a pet to bring it along or leave it. Duplicates raise its level.',
+    petPower: 'Power {0}', golden: 'Golden', newPet: 'New!', noEggs: 'Not enough eggs', petUnknown: '???',
+    quests: 'Quests', claim: 'Claim', reroll: 'Reroll', rerollIn: 'Reroll in {0}', newQuestIn: 'New quest in {0}',
+    daily: 'Daily reward', dayN: 'Day {0}', collect: 'Collect', tomorrow: 'Come back tomorrow',
+    q_clicks: 'Click {0} times', q_chests: 'Open {0} chests', q_rarity: 'Find {0} items of rank “{1}” or better', q_gold: 'Earn {0} gold',
+    q_boss: 'Defeat {0} bosses', q_crit: 'Land {0} crits', q_combo: 'Reach a {0} combo', q_mod: 'Open {0} modified chests', q_wisp: 'Catch a wisp',
+    achSummary: '{0} of {1} earned · +{2}% gold', skins: 'Button skin', skinLocked: 'Unlocked by “{0}”', stats: 'Statistics',
+    st_clicks: 'Clicks', st_chests: 'Chests opened', st_boss: 'Bosses defeated', st_lords: 'Lords slain', st_best: 'Best depth',
+    st_crits: 'Crits', st_combo: 'Best combo', st_wisps: 'Wisps caught', st_merges: 'Fusions', st_divine: 'Divine items',
+    st_time: 'Time played', st_asc: 'Ascensions', st_goldTotal: 'All-time gold',
+    ascTitle: 'Ascension', ascText: 'Your hero falls, but the fame remains. Gold, upgrades, heroes, the constellation, depth and potions reset. Your collection, pets, achievements, skins and fame stay.',
+    ascGain: 'Fame from ascending', ascNeed: 'Reach at least depth 5', ascEach: 'Each point of fame gives +1% gold forever.',
+    ascBtn: 'Ascend', ascConfirm: 'Sure? Tap again', hallOfFame: 'Hall of Fame', hallHint: 'Permanent upgrades bought with fame. They never reset.',
+    ascDone: 'You ascended! +{0} fame', famePassive: 'Fame: {0} (+{1}% gold)',
+    sound: 'Sound effects', music: 'Music', volume: 'Volume', hold: 'Hold the button to click', shake: 'Screen shake',
+    autoBoss: 'Bosses start on their own (after The Hunt)', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
+    copied: 'Copied', importHint: 'Paste a save code and press Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Everything is deleted forever',
+    saved: 'Game saved', badSave: "That save code didn't load. Check that you copied all of it.", imported: 'Save loaded',
+    keysHint: 'Keys: Space — click, E — open the best chest, Q — ability, B — call the boss, 1–0 — tabs.',
+    welcomeBack: 'Welcome back!', awayFor: 'You were away for {0}. Meanwhile your heroes:', earned: 'earned', foundChests: 'found chests',
+    divineLoot: 'DIVINE LOOT', legendLoot: 'LEGENDARY LOOT', mythicLoot: 'MYTHIC LOOT', newLands: 'New lands: {0}',
+    unlocked: 'Unlocked: {0}', achievement: 'Achievement', questDone: 'Quest complete!', potionDrink: 'Potion drunk: {0}',
+    frenzy: 'Frenzy ×7', storm: 'Click Storm ×77', ok: 'Great', close: 'Close',
+    pullTitle: 'The eggs hatched', eggOdds: 'Common {0}% · Rare {1}% · Legendary {2}% · Divine {3}% · Golden {4}%',
+    buyAmt: 'Buy', secret: 'Secret', prince: "The Prince's Crown",
+    bossTitle: 'Boss', lordTitle: 'Lord', realm: 'Lands',
+    noSpace: 'No free space', saveNow: 'Save now',
   };
   G.STR = STR;
-  G.lang = function () { return (G.S && G.S.set.lang) || 'ru'; };
   G.t = function (key) {
-    const l = G.lang();
-    let s = (STR[l] && STR[l][key]) || STR.en[key] || key;
+    let s = STR[key] || key;
     for (let i = 1; i < arguments.length; i++) s = s.replace('{' + (i - 1) + '}', arguments[i]);
     return s;
   };
-  G.L = function (obj) { if (!obj) return ''; return obj[G.lang()] || obj.en || ''; };
+  // Content names are plain strings; kept as a helper so missing names render empty.
+  G.L = function (s) { return s || ''; };
 })(globalThis.G = globalThis.G || {});
 
 /* js/game.js */
@@ -1187,7 +1175,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       daily: { last: '', streak: 0 },
       st: { crits: 0, bossKills: 0, lordKills: 0, wisps: 0, mimics: 0, merges: 0, divine: 0, maxCombo: 0,
         playTime: 0, chests: 0, modded: 0, megas: 0 },
-      set: { sound: 1, music: 1, vol: 0.6, lang: '', hold: 0, shake: 1, autoBoss: 1 },
+      set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1 },
       seen: {}, tut: 0,
     };
   }
@@ -2110,45 +2098,45 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   G.slotOf = id => SLOT_OF_TYPE[G.ITEM_TYPE[id]];
   // rate = attacks/s, mult = damage per attack, targets = mobs hit per attack
   G.WEAPONS = {
-    dagger: { rate: 3.2, mult: 0.42, targets: 1, col: '#e6ebf2', name: { ru: 'Кинжал', en: 'Dagger' } },
-    sword:  { rate: 1.6, mult: 0.85, targets: 2, col: '#ffffff', name: { ru: 'Меч', en: 'Sword' } },
-    katana: { rate: 2.2, mult: 0.65, targets: 1, col: '#d4b0ff', name: { ru: 'Катана', en: 'Katana' } },
-    scythe: { rate: 1.1, mult: 1.0, targets: 4, col: '#ff4f7e', name: { ru: 'Коса', en: 'Scythe' } },
-    bow:    { rate: 1.3, mult: 0.95, targets: 3, col: '#9be15d', name: { ru: 'Лук', en: 'Bow' } },
-    staff:  { rate: 1.4, mult: 1.0, targets: 2, col: '#5ab4ff', name: { ru: 'Посох', en: 'Staff' } },
-    wand:   { rate: 2.6, mult: 0.5, targets: 1, col: '#ffe27a', name: { ru: 'Палочка', en: 'Wand' } },
+    dagger: { rate: 3.2, mult: 0.42, targets: 1, col: '#e6ebf2', name: 'Dagger' },
+    sword:  { rate: 1.6, mult: 0.85, targets: 2, col: '#ffffff', name: 'Sword' },
+    katana: { rate: 2.2, mult: 0.65, targets: 1, col: '#d4b0ff', name: 'Katana' },
+    scythe: { rate: 1.1, mult: 1.0, targets: 4, col: '#ff4f7e', name: 'Scythe' },
+    bow:    { rate: 1.3, mult: 0.95, targets: 3, col: '#9be15d', name: 'Bow' },
+    staff:  { rate: 1.4, mult: 1.0, targets: 2, col: '#5ab4ff', name: 'Staff' },
+    wand:   { rate: 2.6, mult: 0.5, targets: 1, col: '#ffe27a', name: 'Wand' },
   };
   const ARMOR_MUL = { armor: 1, boot: 0.7, shield: 1.2, helm: 0.9, cloak: 0.85 };
   G.ABILITIES = {
-    potion: { cd: 18, name: { ru: 'Лечение', en: 'Heal' }, desc: { ru: 'Чинит кнопку на 60%', en: 'Repairs the Button by 60%' } },
-    tome:   { cd: 24, name: { ru: 'Благословение', en: 'Blessing' }, desc: { ru: 'Чинит 30% и урон ×1.5 на 6 сек', en: 'Repairs 30%, damage ×1.5 for 6s' } },
-    scroll: { cd: 40, name: { ru: 'Жадность', en: 'Greed' }, desc: { ru: 'Мобы роняют сундуки втрое чаще 12 сек', en: 'Mobs drop chests 3× as often for 12s' } },
-    skull:  { cd: 16, name: { ru: 'Взрыв черепа', en: 'Skull Blast' }, desc: { ru: '8 ударов по всем врагам', en: 'Hits every enemy for 8 attacks' } },
-    orb:    { cd: 24, name: { ru: 'Стазис', en: 'Stasis' }, desc: { ru: 'Замедляет мобов, урон +30% на 6 сек', en: 'Slows mobs, +30% damage for 6s' } },
-    wing:   { cd: 30, name: { ru: 'Крылья', en: 'Wings' }, desc: { ru: 'Скорость атаки ×2 на 8 сек', en: 'Attack speed ×2 for 8s' } },
-    egg:    { cd: 30, name: { ru: 'Звездопад', en: 'Starfall' }, desc: { ru: '15 ударов по цели и 4 по всем', en: '15 hits on the target, 4 on everyone' } },
+    potion: { cd: 18, name: 'Heal', desc: 'Repairs the Button by 60%' },
+    tome:   { cd: 24, name: 'Blessing', desc: 'Repairs 30%, damage ×1.5 for 6s' },
+    scroll: { cd: 40, name: 'Greed', desc: 'Mobs drop chests 3× as often for 12s' },
+    skull:  { cd: 16, name: 'Skull Blast', desc: 'Hits every enemy for 8 attacks' },
+    orb:    { cd: 24, name: 'Stasis', desc: 'Slows mobs, +30% damage for 6s' },
+    wing:   { cd: 30, name: 'Wings', desc: 'Attack speed ×2 for 8s' },
+    egg:    { cd: 30, name: 'Starfall', desc: '15 hits on the target, 4 on everyone' },
   };
   G.CLASSES = [
     { id: 'knight', spr: 'h_knight', weapons: ['sword', 'katana', 'scythe'], starter: 'steel_sword', hp: 1.3, crit: 0, extra: 0,
-      name: { ru: 'Рыцарь', en: 'Knight' }, desc: { ru: 'Мечи, катаны и косы. Кнопка крепче на 30%.', en: 'Swords, katanas and scythes. The Button is 30% tougher.' } },
+      name: 'Knight', desc: 'Swords, katanas and scythes. The Button is 30% tougher.' },
     { id: 'archer', spr: 'h_archer', weapons: ['bow'], starter: 'short_bow', hp: 1, crit: 0, extra: 1,
-      name: { ru: 'Лучник', en: 'Archer' }, desc: { ru: 'Луки. Стрелы пробивают ещё одного врага.', en: 'Bows. Arrows pierce one more enemy.' } },
+      name: 'Archer', desc: 'Bows. Arrows pierce one more enemy.' },
     { id: 'wizard', spr: 'h_wizard', weapons: ['staff', 'wand'], starter: 'twig_staff', hp: 1, crit: 0, extra: 0, spd: 0.15,
-      name: { ru: 'Маг', en: 'Wizard' }, desc: { ru: 'Посохи и палочки. Атакует на 15% быстрее.', en: 'Staves and wands. Attacks 15% faster.' } },
+      name: 'Wizard', desc: 'Staves and wands. Attacks 15% faster.' },
     { id: 'rogue', spr: 'h_rogue', weapons: ['dagger'], starter: 'rusty_dagger', hp: 1, crit: 0.1, extra: 0,
-      name: { ru: 'Разбойник', en: 'Rogue' }, desc: { ru: 'Кинжалы. +10% шанс крита.', en: 'Daggers. +10% crit chance.' } },
+      name: 'Rogue', desc: 'Daggers. +10% crit chance.' },
   ];
   G.CLASS_BY_ID = {}; G.CLASSES.forEach(c => G.CLASS_BY_ID[c.id] = c);
   G.AFFIXES = {
-    dmg:   { v: [0.04, 0.10], name: { ru: 'Урон', en: 'Damage' } },
-    spd:   { v: [0.03, 0.08], name: { ru: 'Скорость атаки', en: 'Attack speed' } },
-    crit:  { v: [0.01, 0.03], name: { ru: 'Шанс крита', en: 'Crit chance' } },
-    critd: { v: [0.10, 0.30], name: { ru: 'Сила крита', en: 'Crit power' }, x: true },
-    hp:    { v: [0.05, 0.12], name: { ru: 'Прочность кнопки', en: 'Button toughness' } },
-    gold:  { v: [0.04, 0.12], name: { ru: 'Золото', en: 'Gold' } },
-    luck:  { v: [0.02, 0.06], name: { ru: 'Удача', en: 'Luck' } },
-    xp:    { v: [0.05, 0.15], name: { ru: 'Опыт', en: 'Experience' } },
-    shard: { v: [0.05, 0.15], name: { ru: 'Осколки', en: 'Shards' } },
+    dmg:   { v: [0.04, 0.10], name: 'Damage' },
+    spd:   { v: [0.03, 0.08], name: 'Attack speed' },
+    crit:  { v: [0.01, 0.03], name: 'Crit chance' },
+    critd: { v: [0.10, 0.30], name: 'Crit power', x: true },
+    hp:    { v: [0.05, 0.12], name: 'Button toughness' },
+    gold:  { v: [0.04, 0.12], name: 'Gold' },
+    luck:  { v: [0.02, 0.06], name: 'Luck' },
+    xp:    { v: [0.05, 0.15], name: 'Experience' },
+    shard: { v: [0.05, 0.15], name: 'Shards' },
   };
   const AFFIX_COUNT = [0, 1, 1, 2, 2, 3, 3];
   const SALVAGE = [1, 2, 4, 8, 16, 32, 64];
@@ -2609,83 +2597,83 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 })(globalThis.G = globalThis.G || {});
 
 /* js/ach.js */
-// BTTN — achievements. Each unlocked achievement gives +2% all gold.
+// BTTN — achievements. Each unlocked achievement gives +1% all gold.
 (function (G) {
   'use strict';
-  const A = (id, ru, en, dru, den, test, hidden) => ({ id, name: { ru, en }, desc: { ru: dru, en: den }, test, hidden });
+  const A = (id, name, desc, test, hidden) => ({ id, name, desc, test, hidden });
   const allRarity = (S, r) => G.ITEMS_BY_RARITY[r].every(it => (S.coll[it.id] || 0) > 0);
   const nodesMaxed = S => G.NODES.every(n => (S.nodes[n.id] || 0) >= n.max);
 
   G.ACH = [
-    A('clicks_100', 'Только начало!', 'Just the Beginning!', 'Кликни 100 раз', 'Click 100 times', S => S.clicks >= 100),
-    A('clicks_1e3', 'Входим во вкус', 'Getting the Hang of It', 'Кликни 1 000 раз', 'Click 1,000 times', S => S.clicks >= 1e3),
-    A('clicks_1e4', 'Руки горят!', 'Hands on Fire!', 'Кликни 10 000 раз', 'Click 10,000 times', S => S.clicks >= 1e4),
-    A('clicks_1e5', 'Кнопкоман', 'Buttonmancer', 'Кликни 100 000 раз', 'Click 100,000 times', S => S.clicks >= 1e5),
-    A('clicks_1e6', 'Легенда клика', 'Click Legend', 'Кликни 1 000 000 раз', 'Click 1,000,000 times', S => S.clicks >= 1e6),
+    A('clicks_100', 'Just the Beginning!', 'Click 100 times', S => S.clicks >= 100),
+    A('clicks_1e3', 'Getting the Hang of It', 'Click 1,000 times', S => S.clicks >= 1e3),
+    A('clicks_1e4', 'Hands on Fire!', 'Click 10,000 times', S => S.clicks >= 1e4),
+    A('clicks_1e5', 'Buttonmancer', 'Click 100,000 times', S => S.clicks >= 1e5),
+    A('clicks_1e6', 'Click Legend', 'Click 1,000,000 times', S => S.clicks >= 1e6),
 
-    A('gold_1e3', 'Первая тысяча', 'First Thousand', 'Заработай 1K золота', 'Earn 1K gold', S => S.goldTotal >= 1e3),
-    A('gold_1e6', 'Миллионер', 'Millionaire', 'Заработай 1M золота', 'Earn 1M gold', S => S.goldTotal >= 1e6),
-    A('gold_1e9', 'Миллиардер', 'Billionaire', 'Заработай 1B золота', 'Earn 1B gold', S => S.goldTotal >= 1e9),
-    A('gold_1e12', 'Капиталист', 'Capitalist', 'Заработай 1T золота', 'Earn 1T gold', S => S.goldTotal >= 1e12),
-    A('gold_1e15', 'Драконья казна', 'Dragon Hoard', 'Заработай 1Qa золота', 'Earn 1Qa gold', S => S.goldTotal >= 1e15),
-    A('gold_1e18', 'Экономика королевства', 'Realm Economy', 'Заработай 1Qi золота', 'Earn 1Qi gold', S => S.goldTotal >= 1e18),
+    A('gold_1e3', 'First Thousand', 'Earn 1K gold', S => S.goldTotal >= 1e3),
+    A('gold_1e6', 'Millionaire', 'Earn 1M gold', S => S.goldTotal >= 1e6),
+    A('gold_1e9', 'Billionaire', 'Earn 1B gold', S => S.goldTotal >= 1e9),
+    A('gold_1e12', 'Capitalist', 'Earn 1T gold', S => S.goldTotal >= 1e12),
+    A('gold_1e15', 'Dragon Hoard', 'Earn 1Qa gold', S => S.goldTotal >= 1e15),
+    A('gold_1e18', 'Realm Economy', 'Earn 1Qi gold', S => S.goldTotal >= 1e18),
 
-    A('chests_10', 'Кладоискатель', 'Treasure Hunter', 'Открой 10 сундуков', 'Open 10 chests', S => S.st.chests >= 10),
-    A('chests_100', 'Взломщик', 'Lockpicker', 'Открой 100 сундуков', 'Open 100 chests', S => S.st.chests >= 100),
-    A('chests_1e3', 'Расхититель', 'Raider', 'Открой 1 000 сундуков', 'Open 1,000 chests', S => S.st.chests >= 1e3),
-    A('chests_1e4', 'Гроза сокровищниц', 'Vault Breaker', 'Открой 10 000 сундуков', 'Open 10,000 chests', S => S.st.chests >= 1e4),
-    A('chests_1e5', 'Ни одного замка', 'No Lock Left', 'Открой 100 000 сундуков', 'Open 100,000 chests', S => S.st.chests >= 1e5),
+    A('chests_10', 'Treasure Hunter', 'Open 10 chests', S => S.st.chests >= 10),
+    A('chests_100', 'Lockpicker', 'Open 100 chests', S => S.st.chests >= 100),
+    A('chests_1e3', 'Raider', 'Open 1,000 chests', S => S.st.chests >= 1e3),
+    A('chests_1e4', 'Vault Breaker', 'Open 10,000 chests', S => S.st.chests >= 1e4),
+    A('chests_1e5', 'No Lock Left', 'Open 100,000 chests', S => S.st.chests >= 1e5),
 
-    A('rar_0', 'Хлам тоже ценность', 'Junk Has Value', 'Найди все обычные предметы', 'Find all Common items', S => allRarity(S, 0)),
-    A('rar_1', 'Неплохо!', 'Nice!', 'Найди все необычные предметы', 'Find all Uncommon items', S => allRarity(S, 1)),
-    A('rar_2', 'Редкий вкус', 'Rare Taste', 'Найди все редкие предметы', 'Find all Rare items', S => allRarity(S, 2)),
-    A('rar_3', 'Эпично', 'Epic', 'Найди все эпические предметы', 'Find all Epic items', S => allRarity(S, 3)),
-    A('rar_4', 'Легенды не умирают', 'Legends Never Die', 'Найди все легендарные предметы', 'Find all Legendary items', S => allRarity(S, 4)),
-    A('rar_5', 'Миф стал явью', 'Myth Made Real', 'Найди все мифические предметы', 'Find all Mythic items', S => allRarity(S, 5)),
-    A('rar_6', 'Божественный комплект', 'Divine Set', 'Найди все божественные предметы', 'Find all Divine items', S => allRarity(S, 6)),
-    A('first_divine', 'БЕЛЫЙ МЕШОК!', 'WHITE BAG!', 'Получи божественный предмет', 'Get a Divine item', S => S.st.divine >= 1),
-    A('all_items', 'Полная коллекция', 'Full Collection', 'Найди все 42 предмета', 'Find all 42 items', S => G.ITEMS.every(it => (S.coll[it.id] || 0) > 0)),
-    A('born_collector', 'Прирождённый коллекционер!', 'Born Collector!', 'Собери по 1 000 каждого предмета', 'Own 1,000 of every item', S => G.ITEMS.every(it => (S.coll[it.id] || 0) >= 1000)),
-    A('dungeon_master', 'Хозяин подземелья!', 'Dungeon Master!', 'Открой сундук каждого ранга 1 000 раз', 'Open every chest rank 1,000 times', S => S.opened.every(n => n >= 1000)),
-    A('merge_100', 'Алхимик', 'Alchemist', 'Слей 100 сундуков', 'Fuse 100 chests', S => S.st.merges >= 100),
-    A('mods_all', 'Коллекция странностей', 'Oddities', 'Встреть все 8 модификаторов', 'See all 8 chest modifiers', S => G.MODIFIERS.every(m => S.modsSeen[m.id])),
-    A('mimic_10', 'Зубы не помогли', 'Toothless', 'Победи 10 мимиков', 'Defeat 10 mimics', S => S.st.mimics >= 10),
+    A('rar_0', 'Junk Has Value', 'Find all Common items', S => allRarity(S, 0)),
+    A('rar_1', 'Nice!', 'Find all Uncommon items', S => allRarity(S, 1)),
+    A('rar_2', 'Rare Taste', 'Find all Rare items', S => allRarity(S, 2)),
+    A('rar_3', 'Epic', 'Find all Epic items', S => allRarity(S, 3)),
+    A('rar_4', 'Legends Never Die', 'Find all Legendary items', S => allRarity(S, 4)),
+    A('rar_5', 'Myth Made Real', 'Find all Mythic items', S => allRarity(S, 5)),
+    A('rar_6', 'Divine Set', 'Find all Divine items', S => allRarity(S, 6)),
+    A('first_divine', 'WHITE BAG!', 'Get a Divine item', S => S.st.divine >= 1),
+    A('all_items', 'Full Collection', 'Find all 42 items', S => G.ITEMS.every(it => (S.coll[it.id] || 0) > 0)),
+    A('born_collector', 'Born Collector!', 'Own 1,000 of every item', S => G.ITEMS.every(it => (S.coll[it.id] || 0) >= 1000)),
+    A('dungeon_master', 'Dungeon Master!', 'Open every chest rank 1,000 times', S => S.opened.every(n => n >= 1000)),
+    A('merge_100', 'Alchemist', 'Fuse 100 chests', S => S.st.merges >= 100),
+    A('mods_all', 'Oddities', 'See all 8 chest modifiers', S => G.MODIFIERS.every(m => S.modsSeen[m.id])),
+    A('mimic_10', 'Toothless', 'Defeat 10 mimics', S => S.st.mimics >= 10),
 
-    A('depth_5', 'Вглубь', 'Delving', 'Достигни глубины 5', 'Reach depth 5', S => S.bestDepth >= 5),
-    A('depth_10', 'Искатель', 'Seeker', 'Достигни глубины 10', 'Reach depth 10', S => S.bestDepth >= 10),
-    A('depth_25', 'Покоритель', 'Conqueror', 'Достигни глубины 25', 'Reach depth 25', S => S.bestDepth >= 25),
-    A('madbutton', 'Кнопка против кнопки', 'Button vs Button', 'Победи Безумную Кнопку (глубина 40)', 'Defeat The Mad Button (depth 40)', S => S.bestDepth >= 40),
-    A('depth_60', 'За гранью', 'Beyond', 'Достигни глубины 60', 'Reach depth 60', S => S.bestDepth >= 60),
-    A('depth_100', 'Бездна смотрит в тебя', 'The Abyss Stares Back', 'Достигни глубины 100', 'Reach depth 100', S => S.bestDepth >= 100),
-    A('boss_1', 'Первая кровь', 'First Blood', 'Победи босса', 'Defeat a boss', S => S.st.bossKills >= 1),
-    A('boss_25', 'Охотник', 'Hunter', 'Победи 25 боссов', 'Defeat 25 bosses', S => S.st.bossKills >= 25),
-    A('boss_100', 'Истребитель', 'Slayer', 'Победи 100 боссов', 'Defeat 100 bosses', S => S.st.bossKills >= 100),
-    A('boss_500', 'Бич королевства', 'Scourge of the Realm', 'Победи 500 боссов', 'Defeat 500 bosses', S => S.st.bossKills >= 500),
+    A('depth_5', 'Delving', 'Reach depth 5', S => S.bestDepth >= 5),
+    A('depth_10', 'Seeker', 'Reach depth 10', S => S.bestDepth >= 10),
+    A('depth_25', 'Conqueror', 'Reach depth 25', S => S.bestDepth >= 25),
+    A('madbutton', 'Button vs Button', 'Defeat The Mad Button (depth 40)', S => S.bestDepth >= 40),
+    A('depth_60', 'Beyond', 'Reach depth 60', S => S.bestDepth >= 60),
+    A('depth_100', 'The Abyss Stares Back', 'Reach depth 100', S => S.bestDepth >= 100),
+    A('boss_1', 'First Blood', 'Defeat a boss', S => S.st.bossKills >= 1),
+    A('boss_25', 'Hunter', 'Defeat 25 bosses', S => S.st.bossKills >= 25),
+    A('boss_100', 'Slayer', 'Defeat 100 bosses', S => S.st.bossKills >= 100),
+    A('boss_500', 'Scourge of the Realm', 'Defeat 500 bosses', S => S.st.bossKills >= 500),
 
-    A('pet_1', 'Друг навсегда', 'Friend Forever', 'Получи первого питомца', 'Get your first pet', S => Object.keys(S.pets).length >= 1),
-    A('pets_all', 'Какие милые!', "They're So Cute!", 'Собери всех питомцев', 'Collect every pet', S => G.PETS.every(p => S.pets[p.id])),
-    A('pets_gold', 'Наконец-то все', 'At Last, All of Them', 'Собери всех золотых питомцев', 'Collect every golden pet', S => G.PETS.every(p => S.pets[p.id] && S.pets[p.id].gold)),
-    A('pet_max', 'Лучший друг', 'Best Buddy', 'Прокачай питомца до 25 ур.', 'Raise a pet to level 25', S => Object.values(S.pets).some(p => p.lvl >= 25)),
+    A('pet_1', 'Friend Forever', 'Get your first pet', S => Object.keys(S.pets).length >= 1),
+    A('pets_all', "They're So Cute!", 'Collect every pet', S => G.PETS.every(p => S.pets[p.id])),
+    A('pets_gold', 'At Last, All of Them', 'Collect every golden pet', S => G.PETS.every(p => S.pets[p.id] && S.pets[p.id].gold)),
+    A('pet_max', 'Best Buddy', 'Raise a pet to level 25', S => Object.values(S.pets).some(p => p.lvl >= 25)),
 
-    A('combo_100', 'Ритм-машина', 'Rhythm Machine', 'Набери комбо 100', 'Reach a 100 combo', S => S.st.maxCombo >= 100),
-    A('combo_300', 'Неудержимый', 'Unstoppable', 'Набери комбо 300', 'Reach a 300 combo', S => S.st.maxCombo >= 300),
-    A('crit_100', 'Меткость', 'Sharpshooter', 'Сделай 100 критов', 'Land 100 crits', S => S.st.crits >= 100),
-    A('crit_1e4', 'Критическая масса', 'Critical Mass', 'Сделай 10 000 критов', 'Land 10,000 crits', S => S.st.crits >= 1e4),
-    A('wisp_1', 'Поймал!', 'Gotcha!', 'Поймай блуждающий огонёк', 'Catch a wisp', S => S.st.wisps >= 1),
-    A('wisp_50', 'Ловец огоньков', 'Wisp Catcher', 'Поймай 50 огоньков', 'Catch 50 wisps', S => S.st.wisps >= 50),
-    A('quest_10', 'Исполнительный', 'Dutiful', 'Выполни 10 заданий', 'Complete 10 quests', S => S.questsDone >= 10),
-    A('quest_100', 'Герой по найму', 'Hero for Hire', 'Выполни 100 заданий', 'Complete 100 quests', S => S.questsDone >= 100),
+    A('combo_100', 'Rhythm Machine', 'Reach a 100 combo', S => S.st.maxCombo >= 100),
+    A('combo_300', 'Unstoppable', 'Reach a 300 combo', S => S.st.maxCombo >= 300),
+    A('crit_100', 'Sharpshooter', 'Land 100 crits', S => S.st.crits >= 100),
+    A('crit_1e4', 'Critical Mass', 'Land 10,000 crits', S => S.st.crits >= 1e4),
+    A('wisp_1', 'Gotcha!', 'Catch a wisp', S => S.st.wisps >= 1),
+    A('wisp_50', 'Wisp Catcher', 'Catch 50 wisps', S => S.st.wisps >= 50),
+    A('quest_10', 'Dutiful', 'Complete 10 quests', S => S.questsDone >= 10),
+    A('quest_100', 'Hero for Hire', 'Complete 100 quests', S => S.questsDone >= 100),
 
-    A('hero_100', 'Армия', 'An Army', 'Найми 100 героев одного класса', 'Hire 100 heroes of one class', S => G.HEROES.some(h => (S.heroes[h.id] || 0) >= 100)),
-    A('heroes_all', 'Полный отряд', 'Full Party', 'Найми героя каждого класса', 'Hire a hero of every class', S => G.HEROES.every(h => (S.heroes[h.id] || 0) > 0)),
-    A('maxed', 'Прокачан 8/8', 'Maxed 8/8', 'Доведи все 8 зелий до лимита', 'Max all 8 potion stats', S => G.POTIONS.every(p => S.pots[p.id] >= (G.D.potCap || 10))),
-    A('constellation', 'Наше созвездие', 'Our Constellation', 'Прокачай всё созвездие', 'Max the whole constellation', nodesMaxed),
+    A('hero_100', 'An Army', 'Hire 100 heroes of one class', S => G.HEROES.some(h => (S.heroes[h.id] || 0) >= 100)),
+    A('heroes_all', 'Full Party', 'Hire a hero of every class', S => G.HEROES.every(h => (S.heroes[h.id] || 0) > 0)),
+    A('maxed', 'Maxed 8/8', 'Max all 8 potion stats', S => G.POTIONS.every(p => S.pots[p.id] >= (G.D.potCap || 10))),
+    A('constellation', 'Our Constellation', 'Max the whole constellation', nodesMaxed),
 
-    A('asc_1', 'Покойся с миром', 'Rest in Peace', 'Вознесись впервые', 'Ascend for the first time', S => S.ascensions >= 1),
-    A('asc_5', 'Вечный герой', 'Eternal Hero', 'Вознесись 5 раз', 'Ascend 5 times', S => S.ascensions >= 5),
-    A('asc_25', 'Колесо сансары', 'The Wheel Turns', 'Вознесись 25 раз', 'Ascend 25 times', S => S.ascensions >= 25),
-    A('prince', 'Принц и Кнопка', 'The Prince and the Button', 'Купи Корону Принца', "Buy the Prince's Crown", S => (S.upg.prince || 0) > 0, true),
-    A('daily_7', 'Верность', 'Loyalty', 'Заходи 7 дней подряд', 'Log in 7 days in a row', S => S.daily.streak >= 6),
+    A('asc_1', 'Rest in Peace', 'Ascend for the first time', S => S.ascensions >= 1),
+    A('asc_5', 'Eternal Hero', 'Ascend 5 times', S => S.ascensions >= 5),
+    A('asc_25', 'The Wheel Turns', 'Ascend 25 times', S => S.ascensions >= 25),
+    A('prince', 'The Prince and the Button', "Buy the Prince's Crown", S => (S.upg.prince || 0) > 0, true),
+    A('daily_7', 'Loyalty', 'Log in 7 days in a row', S => S.daily.streak >= 6),
   ];
   G.ACH_BY_ID = {}; G.ACH.forEach(a => G.ACH_BY_ID[a.id] = a);
 
@@ -3677,6 +3665,16 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     'bbbBBbbb',
     '.bbbbbb.',
   ]);
+  def('ic_arrow', { y: '#ffe27a', Y: '#ffb347', w: '#ffffff' }, [
+    '..ywyy..',
+    '..ywyy..',
+    '..yyyY..',
+    'yyyyyyYY',
+    '.yyyyYY.',
+    '..yyYY..',
+    '...YY...',
+    '........',
+  ]);
   def('ic_heart', { R: '#ff3b5c', r: '#b01a36', w: '#ffc0cc' }, T.heart);
 
   // ================= WISP / FX =================
@@ -4578,6 +4576,12 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     return v;
   }
   St.chestScreen = function (c) { const v = vis.get(c.id); return v ? { x: v.x * S, y: v.y * S } : null; };
+  // Logical stage point -> viewport pixels (for the tutorial pointer)
+  St.toScreen = function (x, y) { const r = cv.getBoundingClientRect(); return { x: r.left + x * S, y: r.top + y * S }; };
+  St.chestPoint = function (c) { const v = vis.get(c.id); return v ? St.toScreen(v.x, v.y - 12) : null; };
+  St.mobPoint = function (m) { const q = mobPos(m); return St.toScreen(q.x, q.y - 18); };
+  St.wispPoint = function () { return St._wispPos ? St.toScreen(St._wispPos.x, St._wispPos.y - 10) : null; };
+  St.buttonPoint = function () { const b = btnPos(); return St.toScreen(b.x, b.y - 24); };
 
   // ---------- Particles & text ----------
   function part(x, y, col, o) {
@@ -5468,8 +5472,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     S.seen.tabs.upg = 1; S.seen.tabs._u_upg = 1;
     UI.render();
     UI.update(true);
+    if (G.Tut) G.Tut.init();
     if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
+  UI.tab = () => tab;
 
   function buildTabs() {
     const nav = $('#tabs');
@@ -5636,12 +5642,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       + Object.keys(R.hb || {}).filter(k => R.hb[k] > 0).map(k => `<span class="buff storm">${esc(L(G.ABILITIES[k].name))} ${Math.ceil(R.hb[k])}s</span>`).join('');
     const bEl = $('#buffs');
     if (bEl._h !== bh) { bEl.innerHTML = bh; bEl._h = bh; }
-    // Tutorial hint
-    let hint = '';
-    if (S.clicks < 3 && !S.ascensions) hint = t('tut0');
-    else if (S.chests.length && S.st.chests === 0) hint = t('tut1');
-    setText($('#hint'), hint);
-    $('#hint').hidden = !hint;
+    if (G.Tut) G.Tut.update();
     $('#btnSound').classList.toggle('off', !S.set.sound);
     $('#btnMusic').classList.toggle('off', !S.set.music);
 
@@ -5676,7 +5677,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
         <span class="info"><span class="name">${esc(L(u.name))}<span class="lv" data-lv></span></span><span class="desc">${esc(L(u.desc))}</span></span>
         <span class="cost">${img('ic_coin', '', 2)}<span data-cost></span></span>
       </button>`).join('')}</div>
-      <p class="note">${esc(t('keysHint'))}</p>`;
+      <p class="note keys">${esc(t('keysHint'))}</p>`;
     refs.rows = $$('.row', body).map(el => ({ el, u: G.UPGRADES.find(x => x.id === el.dataset.u), lv: el.querySelector('[data-lv]'), cost: el.querySelector('[data-cost]') }));
     body.querySelector('.list').addEventListener('click', e => {
       const r = e.target.closest('.row'); if (!r) return;
@@ -5940,7 +5941,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     setText(refs.pity, t('pityL', Math.max(1, 25 - S.pity.l)) + ' · ' + t('pityD', Math.max(1, 120 - S.pity.d)));
     setText(refs.active, t('activePets', S.active.length, D.petSlots));
     setText($('#tabSub'), fmt(S.eggs) + ' ' + t('eggs').toLowerCase());
-    const key = JSON.stringify(S.pets) + S.active.join() + G.lang();
+    const key = JSON.stringify(S.pets) + S.active.join();
     if (key === refs.petKey) return;
     refs.petKey = key;
     for (const r of refs.pets) {
@@ -6011,7 +6012,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const S = G.S;
     if (!refs.q) return;
     const rerollLeft = Math.max(0, (S.rerollAt - Date.now()) / 1000);
-    const key = S.quests.map(q => q.k + (q.done ? 1 : 0) + (q.wait ? 'w' : '')).join('|') + (rerollLeft > 0 ? 'r' : '') + G.lang();
+    const key = S.quests.map(q => q.k + (q.done ? 1 : 0) + (q.wait ? 'w' : '')).join('|') + (rerollLeft > 0 ? 'r' : '');
     if (key !== refs.qKey) {
       refs.qKey = key;
       refs.q.innerHTML = S.quests.map((q, i) => {
@@ -6216,7 +6217,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     setText(rf.shards, fmt(h.shards));
     setText(rf.bagn, h.bag.length + '/' + G.TUNE.bagMax);
     setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
-    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, G.lang(), Math.floor(h.shards / 5)]);
+    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5)]);
     if (key === rf.key && !force) return;
     rf.key = key;
     for (const el of rf.slots) {
@@ -6267,7 +6268,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (G.S.hero.cls) return;
     // Let the cloud save answer first: a returning player on a new device gets their hero back
     const N = G.Net;
-    if (!$('#modal').hidden || (N && N.hold) || (N && N.status === 'connecting' && pickWait++ < 16)) { setTimeout(UI.pickClass, 500); return; }
+    if (!$('#modal').hidden || !$('#intro').hidden || (N && N.hold) || (N && N.status === 'connecting' && pickWait++ < 16)) { setTimeout(UI.pickClass, 500); return; }
     const html = `<p>${esc(t('pickClassHint'))}</p><div class="classGrid">${G.CLASSES.map(c => `
       <button class="clsCard" data-c="${c.id}">${img(c.spr, '', 6)}<b>${esc(L(c.name))}</b><small>${esc(L(c.desc))}</small></button>`).join('')}</div>`;
     const m = UI.modal(t('pickClass'), html, [], true);
@@ -6311,7 +6312,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       ${N.error && N.status === 'online' ? `<p style="color:var(--bad)">${esc(t('netError', N.error))}</p>` : ''}`;
     if (rf.net._h !== netHtml) { rf.net.innerHTML = netHtml; rf.net._h = netHtml; }
     const list = N.sorted(ladderBy);
-    const key = ladderBy + JSON.stringify(list.map(e => [e.uid, e.depth, e.power, e.lvl, e.name])) + G.lang();
+    const key = ladderBy + JSON.stringify(list.map(e => [e.uid, e.depth, e.power, e.lvl, e.name]));
     if (key === rf.key && !force) return;
     rf.key = key;
     const suspicious = N.entries.filter(e => !e.ok && !e.me).length;
@@ -6333,7 +6334,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const when = new Date(cloud.ts || 0).toLocaleString();
     UI.modal(t('cloudTitle'), `<p>${esc(t('cloudText', when))}</p>`, [
       { label: t('cloudLoad'), cls: 'gold', fn: () => { G.Net.hold = false; if (G.Net.loadCloud()) { UI.toast(esc(t('imported')), 'ach', 'ic_scroll'); UI.render(); } else UI.toast(esc(t('badSave')), '', 'ic_skull'); } },
-      { label: t('cloudKeep'), fn: () => { G.Net.hold = false; G.Net.pushNow(); } },
+      { label: t('cloudKeep'), fn: () => { G.Net.hold = false; G.Net.pushNow(); if (G.Tut) G.Tut.maybeIntro(); } },
     ]);
   }
 
@@ -6343,7 +6344,6 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const tg = (k, label) => `<div class="setRow"><span>${esc(label)}</span><button class="toggle ${s[k] ? 'on' : ''}" data-t="${k}" aria-pressed="${s[k] ? 'true' : 'false'}" aria-label="${esc(label)}"></button></div>`;
     body.innerHTML = `
       <div class="setList">
-        <div class="setRow"><span>${esc(t('language'))}</span><span class="seg" data-lang><button data-l="ru" class="${G.lang() === 'ru' ? 'on' : ''}">RU</button><button data-l="en" class="${G.lang() === 'en' ? 'on' : ''}">EN</button></span></div>
         ${tg('sound', t('sound'))}${tg('music', t('music'))}
         <div class="setRow"><span>${esc(t('volume'))}</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${s.vol}"></div>
         ${tg('hold', t('hold'))}${tg('shake', t('shake'))}${tg('autoBoss', t('autoBoss'))}
@@ -6364,8 +6364,6 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     body.addEventListener('click', e => {
       const tgB = e.target.closest('[data-t]');
       if (tgB) { const k = tgB.dataset.t; s[k] = s[k] ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.render(); return; }
-      const lb = e.target.closest('[data-l]');
-      if (lb) { s.lang = lb.dataset.l; buildTabs(); document.documentElement.lang = s.lang; UI.render(); return; }
       if (e.target.closest('[data-exp]')) { $('#saveBox').value = G.exportSave(); return; }
       if (e.target.closest('[data-copy]')) {
         const v = $('#saveBox').value || G.exportSave(); $('#saveBox').value = v;
@@ -6441,6 +6439,310 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   };
 })(globalThis.G = globalThis.G || {});
 
+/* js/tutorial.js */
+// BTTN — onboarding: a short intro, a guided first session with a pointer
+// and a guide (Buttonling), one-time tips when a new mechanic shows up, and
+// a "How to play" sheet behind the ? button.
+(function (G) {
+  'use strict';
+  const Tut = G.Tut = {};
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const t = (...a) => G.t(...a);
+  const img = (id, sc, o) => `<img src="${G.SPR.url(id, sc || 4, o)}" alt="" draggable="false">`;
+
+  Object.assign(G.STR, {
+    in_1: 'Somewhere deep in the Realm stands a Button.', in_1b: 'Nobody remembers who put it there. Everyone knows it must be pressed.',
+    in_2: 'Every press makes chests spill out of it.', in_2b: 'Gold, weapons, armour, and loot the bards sing about.',
+    in_3: 'The treasure draws the mobs.', in_3b: 'They come from every side to break the Button.',
+    in_4: 'Choose a hero and defend it.', in_4b: 'Gear them up with loot, dive deeper and become the strongest.',
+    in_next: 'Next', in_skip: 'Skip', in_play: 'Choose a hero',
+    tu_guide: 'Buttonling', tu_step: 'Tutorial {0}/{1}', tu_skip: 'Skip the tutorial', tu_ok: 'Got it', tu_reward: 'Done! Reward: {0}',
+    tu_click: "Hi, I'm Buttonling! Press the big button. Every click gives gold and fills the chest bar below.",
+    tu_chestWait: 'Almost! When the green Chest bar fills up, a chest drops nearby.',
+    tu_chest: 'A chest! Tap it to open. Inside are gold and gear for your hero.',
+    tu_gear: "The chest had an item. Open the Character tab and let's look at your hero.",
+    tu_doll: 'This is your hero with 4 slots: weapon, ability, armour and ring. Better items are equipped automatically. Scrap spares into shards and enchant your gear with them.',
+    tu_upgWait: "Click up 15 gold and we'll buy the first upgrade.",
+    tu_upg: 'You have the gold! In Upgrades, buy Iron Finger to make clicks stronger.',
+    tu_mobs: 'Mobs are coming for the button! Your hero shoots on their own, and each of your clicks fires another volley. Tap a mob to focus it.',
+    tu_garrisonWait: "Great! Save 50 gold and we'll hire the first fighter for the garrison.",
+    tu_garrison: 'In Garrison, hire a Rogue. The garrison earns gold even when you are not clicking.',
+    tu_boss: 'The orange bar is the area clear. Slay 25 mobs and a boss arrives.',
+    tu_bossReady: 'The boss is ready! Press ⚔ or the skull above the button. You have 30 seconds, click like mad.',
+    tu_bossFight: "Hit the boss! Clicks are your hero's volleys. Too slow and it leaves, but it comes back.",
+    tu_pets: 'The boss dropped an egg! Hatch it in Pets: pets help in battle.',
+    tu_final: 'You know it all! Next: dive deeper, fill the collection, grow the constellation and ascend for fame. The Ladder tab ranks you against others. Press ? any time.',
+    tip_wisp: 'A wisp! Catch it before it flies off: it gives a buff or gold.',
+    tip_mod: 'Special chest — {0}: {1}.',
+    tip_bossReady: 'The boss is ready. Press ⚔ when you are.',
+    tip_ess: 'You have essence! Spend it in the Constellation on bonuses for this run.',
+    tip_ability: 'Your hero has an ability. It casts itself, or press the button on the right or Q.',
+    tip_asc: "You can ascend! The run restarts, but you earn fame: a permanent bonus to gold and damage. Gear and pets stay.",
+    tip_shards: 'Shards piled up. In Character, tap a worn item and enchant it.',
+    tip_break: 'Mobs broke the button and the clear bar dropped. Get tougher armour or enchant your weapon.',
+    tip_potion: 'A potion! It raises a stat until you ascend. See them in the Garrison tab.',
+    help_title: 'How to play', help_intro: 'Show the intro', help_tut: 'Replay the tutorial',
+    help_1: 'The Button', help_1t: 'A click gives gold and fills the chest bar. Fast clicks build a combo multiplier.',
+    help_2: 'Chests and gear', help_2t: 'Open chests for gold, essence and items of 7 rarities. Special chests (storm, frozen, mimics…) each work their own way.',
+    help_3: 'Hero', help_3t: '4 slots: weapon, ability, armour, ring. Your class weapon type deals +50%. Scrap spares into shards and enchant gear up to +20.',
+    help_4: 'Mobs and bosses', help_4t: 'Mobs march on the button. Slay 25 and a boss comes. Winning opens the next depth: tougher mobs, better loot.',
+    help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
+    help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
+    help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and the collection stay.',
+    help_8: 'Ladder', help_8t: 'Name your hero in Character and compare depth and power with others.',
+  });
+
+  // ---------- Pointer targets ----------
+  const P = {
+    button: () => G.Stage.buttonPoint(),
+    chest: () => { const cs = G.S.chests; if (!cs.length) return null; const c = cs.reduce((a, b) => (b.tier > a.tier ? b : a), cs[0]); return G.Stage.chestPoint(c); },
+    mob: () => { const ms = (G.R.mobs || []).slice().sort((a, b) => b.p - a.p); return ms.length ? G.Stage.mobPoint(ms[0]) : null; },
+    wisp: () => G.Stage.wispPoint(),
+    el: sel => { const e = typeof sel === 'string' ? $(sel) : sel; if (!e || !e.offsetParent) return null; const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top - 2, el: e }; },
+    tab: id => P.el(`.tab[data-tab="${id}"]`),
+    inTab: (id, sel) => (G.UI.tab() === id ? P.el(sel) : P.tab(id)),
+  };
+  const val = (f, S) => (typeof f === 'function' ? f(S) : f);
+
+  // ---------- Guided steps ----------
+  const STEPS = [
+    { id: 'click', text: 'tu_click', point: P.button, done: S => S.clicks >= 12 },
+    { id: 'chest', text: S => (S.chests.length ? 'tu_chest' : 'tu_chestWait'), point: S => (S.chests.length ? P.chest() : P.button()), done: S => S.st.chests >= 1 },
+    { id: 'gear', text: 'tu_gear', point: () => P.tab('hero'), done: () => G.UI.tab() === 'hero' },
+    { id: 'doll', text: 'tu_doll', point: () => P.inTab('hero', '.doll'), manual: true },
+    { id: 'upg', text: S => (S.gold >= 15 || S.upg.finger ? 'tu_upg' : 'tu_upgWait'), point: S => (S.gold >= 15 ? P.inTab('upg', '.row[data-u="finger"]') : P.button()), done: S => (S.upg.finger || 0) >= 1 },
+    { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), done: S => S.hero.kills >= 8 },
+    { id: 'garrison', text: S => (S.gold >= 50 ? 'tu_garrison' : 'tu_garrisonWait'), point: S => (S.gold >= 50 ? P.inTab('heroes', '.row[data-h="rogue"]') : P.button()), done: S => (S.heroes.rogue || 0) >= 1 },
+    { id: 'boss', text: () => (G.R.boss ? 'tu_bossFight' : G.R.bossReady ? 'tu_bossReady' : 'tu_boss'),
+      point: () => (G.R.boss ? P.button() : G.R.bossReady ? (P.el('#btnFight') || P.button()) : P.el('#bossRow')), done: S => S.st.bossKills >= 1 },
+    { id: 'pets', text: 'tu_pets', point: () => P.inTab('pets', '[data-pull="1"]'), done: S => Object.keys(S.pets).length >= 1,
+      skip: S => S.eggs < 1 && !Object.keys(S.pets).length },
+    { id: 'final', text: 'tu_final', point: () => P.tab('ladder'), manual: true },
+  ];
+
+  // ---------- One-time tips (after the tutorial) ----------
+  const TIPS = [
+    { id: 'wisp', when: () => G.R.wisp, point: P.wisp, text: 'tip_wisp', until: () => !G.R.wisp },
+    { id: 'mod', when: S => S.chests.some(c => c.mod), point: () => { const c = G.S.chests.find(x => x.mod); return c && G.Stage.chestPoint(c); },
+      text: () => { const c = G.S.chests.find(x => x.mod); const m = c && G.MOD_BY_ID[c.mod]; return m ? t('tip_mod', G.L(m.name), G.L(m.desc)) : ''; }, raw: true, until: S => !S.chests.some(c => c.mod) },
+    { id: 'bossReady', when: () => G.R.bossReady && !G.R.boss, point: () => P.el('#btnFight'), text: 'tip_bossReady', until: () => !G.R.bossReady },
+    { id: 'ess', when: S => S.essence >= 1, point: () => P.tab('stars'), text: 'tip_ess', until: () => G.UI.tab() === 'stars' },
+    { id: 'ability', when: S => S.hero.eq.ability, point: () => P.el('#btnAbil'), text: 'tip_ability' },
+    { id: 'shards', when: S => S.hero.shards >= 40, point: () => P.tab('hero'), text: 'tip_shards', until: () => G.UI.tab() === 'hero' },
+    { id: 'asc', when: () => G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_asc', until: () => G.UI.tab() === 'asc' },
+  ];
+
+  let tip = null, tipT = 0, lastHl = null;
+
+  function seen() { const S = G.S; S.seen = S.seen || {}; S.seen.tips = S.seen.tips || {}; return S.seen; }
+  const veteran = S => S.clicks > 60 || S.ascensions > 0 || S.st.bossKills > 0 || S.maxDepth > 0 || S.goldTotal > 5000;
+  function active() { return typeof G.S.tut === 'number' && G.S.tut >= 0 && G.S.tut < STEPS.length; }
+
+  Tut.init = function () {
+    const S = G.S;
+    // Players who were already playing before onboarding existed skip the intro and tutorial
+    if (S.tut === 0 && veteran(S)) S.tut = -1;
+    $('#btnHelp').addEventListener('click', Tut.help);
+    $('#coach').addEventListener('click', e => {
+      if (e.target.closest('[data-skip]')) { G.S.tut = -1; hide(); return; }
+      if (e.target.closest('[data-ok]')) {
+        if (tip) { finishTip(); return; }
+        if (active() && STEPS[S.tut] && STEPS[G.S.tut].manual) complete();
+      }
+    });
+    G.on('buttonBreak', () => { if (!active()) showTip({ id: 'break', text: 'tip_break' }); });
+    G.on('potion', () => { if (!active() && !seen().tips.potion) showTip({ id: 'potion', text: 'tip_potion' }); });
+    window.addEventListener('resize', () => place());
+    Tut.maybeIntro();
+    // A returning player on a new device: the cloud prompt goes first, the intro only if they keep this fresh save
+    G.on('cloudNewer', () => { if (closeIntro) closeIntro(true); });
+  };
+  let closeIntro = null;
+  Tut.maybeIntro = function () {
+    const S = G.S;
+    if (!seen().intro && !veteran(S) && !closeIntro) Tut.intro();
+  };
+
+  function complete() {
+    const S = G.S, i = S.tut;
+    const paid = seen().tutPaid = seen().tutPaid || {};
+    const first = !paid[STEPS[i].id];
+    paid[STEPS[i].id] = 1;
+    const reward = i === STEPS.length - 1 ? null : Math.max(25, Math.round(G.D.incomeRef * 20));
+    if (!first) { /* replaying the tutorial pays nothing */ }
+    else if (reward) { G.addGold(reward, 'tutorial'); G.UI.toast(esc(t('tu_reward', G.fmt(reward) + ' ' + t('gold').toLowerCase())), 'ach', 'ic_coin'); }
+    else { G.S.eggs += 1; G.UI.toast(esc(t('tu_reward', '1 ' + t('eggs').toLowerCase())), 'ach', 'ic_egg'); }
+    S.tut = i + 1;
+    while (active() && STEPS[S.tut].skip && STEPS[S.tut].skip(S)) S.tut++;
+    if (!active()) S.tut = -1;
+    if (G.Audio) G.Audio.achievement();
+  }
+
+  // Called ~8 times a second from UI.update
+  Tut.update = function () {
+    const S = G.S;
+    if (!S || !$('#coach') || !$('#intro').hidden || !$('#modal').hidden) { hidePointer(); if (!$('#modal').hidden || !$('#intro').hidden) $('#coach').hidden = true; return; }
+    if (!S.hero || !S.hero.cls) { hide(); return; }
+    if (active()) {
+      const st = STEPS[S.tut];
+      if (st.skip && st.skip(S)) { S.tut++; if (!active()) S.tut = -1; return; }
+      if (!st.manual && st.done(S)) { complete(); return; }
+      render(st.id, t(val(st.text, S)), t('tu_step', S.tut + 1, STEPS.length), st.manual);
+      point(val(st.point, S));
+      return;
+    }
+    // tips
+    if (tip) {
+      tipT -= 0.12;
+      if (tipT <= 0 || (tip.until && tip.until(S))) { finishTip(); return; }
+      point(tip.point ? tip.point() : null);
+      return;
+    }
+    for (const tp of TIPS) {
+      if (seen().tips[tp.id]) continue;
+      if (tp.when(S)) { showTip(tp); return; }
+    }
+    hide();
+  };
+
+  function showTip(tp) {
+    tip = tp; tipT = 9;
+    const text = tp.raw ? tp.text() : t(val(tp.text, G.S));
+    if (!text) { finishTip(); return; }
+    render('tip:' + tp.id, text, '', true);
+    point(tp.point ? tp.point() : null);
+  }
+  function finishTip() { if (tip) seen().tips[tip.id] = 1; tip = null; hide(); }
+
+  // ---------- Coach bubble & pointer ----------
+  let lastKey = '';
+  function render(key, text, step, manual) {
+    const c = $('#coach');
+    const k = key + text + step + manual;
+    if (k !== lastKey) {
+      lastKey = k;
+      c.innerHTML = `<div class="guide">${img('p_buttonling', 5)}</div>
+        <div class="say"><b>${esc(t('tu_guide'))}</b>${step ? `<small>${esc(step)}</small>` : ''}<p>${esc(text)}</p>
+          <div class="acts">${manual ? `<button class="btn gold" data-ok>${esc(t('tu_ok'))}</button>` : ''}${active() ? `<button class="linkBtn" data-skip>${esc(t('tu_skip'))}</button>` : ''}</div></div>`;
+      c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
+    }
+    c.hidden = false;
+    place();
+  }
+  // The bubble sits above the meters by default and moves out of the way when
+  // the pointer's target would be underneath it (small screens, top-of-stage targets).
+  let aim = null, placedY = null;
+  function place() {
+    const c = $('#coach'), w = $('#stageWrap');
+    if (!c || c.hidden || !w) return;
+    const r = w.getBoundingClientRect();
+    const width = Math.min(r.width - 20, 460);
+    c.style.width = width + 'px';
+    c.style.left = (r.left + (r.width - width) / 2) + 'px';
+    const meters = document.querySelector('.hud.bottom');
+    const bottom = meters ? meters.getBoundingClientRect().top : r.bottom;
+    const h = c.offsetHeight;
+    const spots = [Math.max(r.top + 50, bottom - h - 10), r.top + 50, window.innerHeight - h - 10];
+    const clear = y => !aim || y >= aim.bottom || y + h <= aim.top;
+    let y = placedY !== null && spots.includes(placedY) && clear(placedY) ? placedY : spots.find(clear);
+    if (y === undefined) y = spots[0];
+    placedY = y;
+    c.style.top = y + 'px';
+  }
+  function point(p) {
+    const el = $('#pointer');
+    if (lastHl && (!p || p.el !== lastHl)) { lastHl.classList.remove('tut-hl'); lastHl = null; }
+    if (!p) { el.hidden = true; aim = null; place(); return; }
+    if (p.el && !lastHl) {
+      lastHl = p.el; lastHl.classList.add('tut-hl');
+      const body = p.el.closest('.tabBody');
+      if (body) { const br = body.getBoundingClientRect(), er = p.el.getBoundingClientRect(); if (er.top < br.top || er.bottom > br.bottom) p.el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    }
+    if (!el.firstChild) el.innerHTML = img('ic_arrow', 5);
+    el.hidden = false;
+    el.style.transform = `translate(${Math.round(p.x - 25)}px, ${Math.round(p.y - 50)}px)`;
+    // Arrow plus the thing it points at
+    aim = { top: p.y - 58, bottom: p.y + 44 };
+    if (p.el) { const er = p.el.getBoundingClientRect(); aim.top = Math.min(aim.top, er.top); aim.bottom = Math.max(aim.bottom, er.bottom); }
+    place();
+  }
+  function hidePointer() { const el = $('#pointer'); if (el) el.hidden = true; if (lastHl) { lastHl.classList.remove('tut-hl'); lastHl = null; } }
+  function hide() { const c = $('#coach'); if (c) c.hidden = true; lastKey = ''; placedY = null; aim = null; hidePointer(); }
+
+  // ---------- Intro ----------
+  Tut.intro = function () {
+    const box = $('#intro');
+    const skins = ['#e8413c'];
+    const btn = G.SPR.url(G.SPR.button(skins[0], false, 0), 6);
+    const slides = [
+      { a: 'in_1', b: 'in_1b', art: `<div class="introTitle">${'BTTN'.split('').map((ch, i) => `<span style="animation-delay:${0.15 * i}s">${ch}</span>`).join('')}</div><img class="dropBtn" src="${btn}" alt="">` },
+      { a: 'in_2', b: 'in_2b', art: `<div class="row3">${[0, 2, 4, 6].map((tr, i) => `<span class="popIn" style="animation-delay:${0.25 * i}s">${img('chest_' + tr, 6)}</span>`).join('')}</div>
+          <div class="row3 small">${['it_steel_sword', 'it_sapphire_amulet', 'it_golden_plate', 'it_halo'].map((id, i) => `<span class="popIn" style="animation-delay:${0.9 + 0.2 * i}s">${img(id, 5)}</span>`).join('')}</div>` },
+      { a: 'in_3', b: 'in_3b', art: `<div class="march"><span class="mL">${img('b_goblin', 4)}${img('b_crab', 4)}</span><img class="midBtn" src="${G.SPR.url(G.SPR.button('#e8413c', false, 0), 4)}" alt=""><span class="mR">${img('b_imp', 4)}${img('b_eye', 4)}</span></div>` },
+      { a: 'in_4', b: 'in_4b', art: `<div class="row3">${G.CLASSES.map((c, i) => `<span class="popIn" style="animation-delay:${0.2 * i}s">${img(c.spr, 8)}</span>`).join('')}</div>`, last: true },
+    ];
+    let i = 0, timer = null;
+    const show = () => {
+      const s = slides[i];
+      box.innerHTML = `<div class="introInner">
+        <div class="art">${s.art}</div>
+        <h2 class="type" data-full="${esc(t(s.a))}"></h2>
+        <p class="fadeIn">${esc(t(s.b))}</p>
+        <div class="dots">${slides.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>
+        <div class="acts"><button class="linkBtn" data-skip>${esc(t('in_skip'))}</button><button class="btn gold" data-next>${esc(t(s.last ? 'in_play' : 'in_next'))}</button></div>
+      </div>`;
+      typeText(box.querySelector('.type'));
+      if (G.Audio) G.Audio.coin && G.Audio.coin();
+    };
+    // `quiet` closes the intro without marking it seen (the cloud-save prompt took over)
+    const end = quiet => {
+      clearTimeout(timer);
+      closeIntro = null;
+      box.classList.add('out');
+      setTimeout(() => { box.hidden = true; box.classList.remove('out'); box.innerHTML = ''; }, 450);
+      if (quiet) return;
+      seen().intro = 1;
+      G.save && G.save();
+      setTimeout(() => G.UI.pickClass(), 500);
+    };
+    closeIntro = end;
+    const next = () => { G.Audio && G.Audio.unlock(); if (i < slides.length - 1) { i++; show(); } else end(false); };
+    box.onclick = e => {
+      if (e.target.closest('[data-skip]')) { end(false); return; }
+      if (e.target.closest('[data-next]')) { next(); return; }
+      const h = box.querySelector('.type');
+      if (h && h.dataset.done !== '1') { h.textContent = h.dataset.full; h.dataset.done = '1'; } else next();
+    };
+    box.hidden = false;
+    show();
+  };
+  function typeText(h) {
+    if (!h) return;
+    const full = h.dataset.full;
+    let n = 0;
+    const step = () => {
+      if (!h.isConnected || h.dataset.done === '1') return;
+      n += 2;
+      h.textContent = full.slice(0, n);
+      if (n < full.length) setTimeout(step, 28); else h.dataset.done = '1';
+    };
+    step();
+  }
+
+  // ---------- Help ----------
+  Tut.help = function () {
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['ic_skull', 4], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8]];
+    const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
+      <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
+    G.UI.modal(t('help_title'), html, [
+      { label: t('help_intro'), fn: () => Tut.intro() },
+      { label: t('help_tut'), fn: () => { G.S.tut = 0; } },
+      { label: t('close'), cls: 'gold' },
+    ]);
+  };
+})(globalThis.G = globalThis.G || {});
+
 /* js/main.js */
 // BTTN — boot, main loop, saving, offline progress and live-reload snapshots.
 (function (G) {
@@ -6455,16 +6757,13 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     try {
       let json = code.trim();
       if (json[0] !== '{') json = decodeURIComponent(escape(atob(json)));
-      const lang = G.S.set.lang;
       G.deserialize(json);
-      if (!G.S.set.lang) G.S.set.lang = lang;
       G.fillQuests(); G.save(); G.emit('ascend', 0);
       return true;
     } catch (e) { return false; }
   };
   G.hardReset = function () {
-    const lang = G.S.set.lang;
-    G.S = G.newState(); G.S.set.lang = lang;
+    G.S = G.newState();
     G.R.boss = null; G.R.bossReady = false; G.R.combo = 0; G.R.wisp = null;
     G.recalc(); G.fillQuests(); G.save();
     G.emit('ascend', 0);
@@ -6497,8 +6796,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     let loaded = false;
     const raw = (data && data.save) || get();
     if (raw) { try { G.deserialize(raw); loaded = true; } catch (e) { G.S = G.newState(); } }
-    if (!G.S.set.lang) G.S.set.lang = /^ru|^uk|^be|^kk/i.test(navigator.language || 'ru') ? 'ru' : 'en';
-    document.documentElement.lang = G.S.set.lang;
+    delete G.S.set.lang; // older saves carried a language choice
     G.recalc();
     G.fillQuests();
     let offline = null;

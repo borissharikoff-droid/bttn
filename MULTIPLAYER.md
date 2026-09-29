@@ -1,152 +1,152 @@
-# Мультиплеер и ладдер: как делать
+# Multiplayer and the ladder: how to build it
 
-Цель: игроки качают персонажа и соревнуются, кто круче. Для этого нужны честный рейтинг и поводы возвращаться каждый день. Ниже описано, что делать, в каком порядке и почему именно так.
+The goal: players level their heroes and compete over who is strongest. That takes a fair ladder and reasons to come back every day. Below is what to build, in what order, and why.
 
-## Главная проблема: в кликере легко читерить
+## The core problem: clickers are easy to cheat
 
-Вся игра считается в браузере. Любой может открыть консоль и написать `G.S.gold = 1e100` или поправить сохранение. Поэтому рейтинг нельзя строить на цифрах, которые присылает клиент («у меня сила 5 млрд»). Их обязательно подделают в первый же день.
+The whole game runs in the browser. Anyone can open the console and type `G.S.gold = 1e100` or edit their save. So the ladder can't be built on numbers the client sends ("my power is 5 billion"). They will be faked on day one.
 
-Решение: в рейтинг попадает только то, что **сервер пересчитал сам**.
+The fix: only what the **server has recomputed itself** goes on the ladder.
 
-Код к этому уже готов:
+The code for this is already in place:
 
-- Логика (`js/game.js`, `js/hero.js`) не зависит от браузера. Её же гоняет `tools/sim.js` в Node. Сервер на JavaScript запустит тот же код без изменений.
-- Вся игровая случайность идёт через `G.rng`, а `G.useSeed(seed)` делает её воспроизводимой. Проверено: одинаковый сид и одинаковые действия дают одинаковый результат до последней монеты (`SEED=42 node tools/sim.js 8`).
-- `G.ladderSnapshot()` отдаёт компактное описание персонажа: класс, уровень, 4 вещи с уровнями, заточкой и аффиксами. Сервер считает по нему силу той же функцией `G.heroCombat()` и не верит числу от клиента.
-- У игрока уже есть `profile.id`, имя и рекорды (глубина, сила, уровень, время до Безумной Кнопки).
+- The logic (`js/game.js`, `js/hero.js`) doesn't depend on the browser. `tools/sim.js` already runs it in Node, and a JavaScript server runs the same code unchanged.
+- All game randomness goes through `G.rng`, and `G.useSeed(seed)` makes it reproducible. Verified: the same seed and the same actions give the same result down to the last coin (`SEED=42 node tools/sim.js 8`).
+- `G.ladderSnapshot()` returns a compact description of the hero: class, level, and the 4 items with their levels, enchants and affixes. The server computes power from it with the same `G.heroCombat()` function and doesn't trust the client's number.
+- Each player already has a `profile.id`, a name and records (depth, power, level, time to the Mad Button).
 
-## Режимы, которые удерживают игроков
+## Modes that keep players around
 
-Все они асинхронные, живые комнаты не нужны. Это дёшево, хорошо масштабируется и честно проверяется.
+All of them are asynchronous; no live rooms are needed. That's cheap, scales well and is easy to verify.
 
-### 1. Испытание дня (основа ладдера)
+### 1. Daily Trial (the core of the ladder)
 
-Каждый день у всех один и тот же сид: одинаковые волны мобов, одинаковые боссы, 3 минуты. Персонаж берётся свой. Очки — глубина и время зачистки. Попыток 3 в день, в зачёт идёт лучшая.
+Every day everyone gets the same seed: the same mob waves, the same bosses, 3 minutes. Each player brings their own hero. The score is depth and clear time. 3 attempts a day, the best one counts.
 
-Почему это главный режим:
+Why this is the main mode:
 
-- **Честно.** Клиент отправляет не результат, а журнал действий: время каждого клика, тапы по мобам, способности. Сервер прогоняет забег с тем же сидом и персонажем и сам получает очки. Подделать результат, не подделав сам забег, нельзя.
-- **Ежедневный повод зайти.** Новое испытание каждый день и таблица «кто сегодня лучший».
-- **Навык тоже важен.** Когда жать способность и какого моба бить первым — решает игрок, а не только сила.
+- **It's fair.** The client sends an action log, not a result: the time of every click, taps on mobs, ability uses. The server replays the run with the same seed and hero and computes the score itself. You can't fake the result without faking the run.
+- **A daily reason to log in.** A new trial every day and a "today's best" table.
+- **Skill matters too.** When to use the ability and which mob to hit first is the player's call, not just raw power.
 
-### 2. Сезоны и лиги
+### 2. Seasons and leagues
 
-- Сезон длится 4–6 недель. На сезон создаётся **сезонный персонаж с нуля**, у всех равный старт.
-- Лиги по рейтингу испытаний: Бронза → Серебро → Золото → Платина → Алмаз → Топ-100. Раз в неделю повышение и понижение.
-- Награды только косметические: облики кнопки, рамки профиля, титулы («Покоритель 3-го сезона»), золотой ник. Сила персонажа за деньги или награды не растёт, иначе рейтинг теряет смысл.
-- После сезона персонаж и вещи переезжают в «вечный» мир, как сезонные персонажи в Diablo.
+- A season lasts 4–6 weeks. Each season starts a **fresh seasonal hero**, so everyone starts equal.
+- Leagues by trial rating: Bronze → Silver → Gold → Platinum → Diamond → Top 100. Promotion and relegation once a week.
+- Rewards are cosmetic only: button skins, profile frames, titles ("Season 3 Conqueror"), a golden name. Hero power never grows from money or rewards, or the ladder loses its meaning.
+- After the season, the hero and gear move to the "eternal" world, like seasonal characters in Diablo.
 
-Зачем сброс: даже если кто-то нашёл дыру, он испортит один сезон, а не всю игру навсегда. И у новичков каждый сезон есть шанс на топ.
+Why reset: even if someone finds an exploit, they ruin one season, not the whole game forever. And every season gives newcomers a shot at the top.
 
-### 3. Мировой босс (выходные)
+### 3. World boss (weekends)
 
-Один огромный босс на всех игроков (HP в триллионах). Каждый бьёт его своим героем, урон складывается в общую шкалу.
+One huge boss for all players (HP in the trillions). Everyone hits it with their own hero, and the damage adds up on a shared bar.
 
-- Личные награды по вкладу (топ-10%, топ-50%, «участник») и общая награда всем, если босс убит.
-- Техника: клиент раз в 10 секунд отправляет пачку урона. Сервер ограничивает её сверху: не больше, чем проверенная сила × прошедшее время × запас. Нужен только общий счётчик, синхронизация в реальном времени не нужна.
-- Отлично подходит для чатов и соцсетей: «добиваем босса, осталось 3%».
+- Personal rewards by contribution (top 10%, top 50%, "participant") and a shared reward for everyone if the boss dies.
+- Technically: the client sends a batch of damage every 10 seconds. The server caps it: no more than verified power × elapsed time × a margin. All it needs is a shared counter, with no real-time sync.
+- Great for chats and social media: "let's finish the boss, 3% left".
 
-### 4. Арена (асинхронный PvP)
+### 4. Arena (asynchronous PvP)
 
-Ты против слепка другого игрока. Оба защищают свою кнопку от **одинаковых** волн с одним сидом, у кого глубже и быстрее — тот победил. Рейтинг Эло, 5 боёв в день. Второй игрок в этот момент может быть офлайн: сервер считает бой по двум слепкам.
+You against another player's snapshot. Both defend their button against the **same** waves from one seed; whoever gets deeper and faster wins. Elo rating, 5 fights a day. The other player can be offline: the server resolves the fight from the two snapshots.
 
-### 5. Гильдии
+### 5. Guilds
 
-- До 30 человек, общая цель недели (например, убить 1 млн мобов вместе), гильдейский сундук с наградами.
-- Гильдейский рейтинг по сумме испытаний участников.
-- Чат гильдии можно добавить позже, сначала хватит ленты событий («Вася выбил божественный Нимб»).
+- Up to 30 members, a shared weekly goal (for example, kill 1 million mobs together), a guild chest with rewards.
+- A guild ladder from the sum of its members' trials.
+- Guild chat can come later; an event feed is enough at first ("Sam found a Divine Halo").
 
-### 6. Живой кооп как в RotMG (потом и только если пойдёт)
+### 6. Live co-op like RotMG (later, and only if it takes off)
 
-4–8 игроков в одной локе защищают общую большую кнопку. Это самое дорогое: WebSocket-комнаты, синхронизация, серверная симуляция в реальном времени. Делать только после того, как асинхронные режимы соберут аудиторию.
+4–8 players in one land defending a shared big button. This is the most expensive part: WebSocket rooms, sync, real-time server simulation. Only build it after the asynchronous modes have gathered an audience.
 
-## Архитектура
+## Architecture
 
 ```
-Браузер (игра)  ──HTTPS──▶  API (Cloudflare Workers)  ──▶  БД (D1 / Postgres)
+Browser (game)  ──HTTPS──▶  API (Cloudflare Workers)  ──▶  DB (D1 / Postgres)
       │                            │
-      │                            ├─ проверка забегов: тот же js/game.js + js/hero.js
-      │                            └─ счётчик мирового босса (Durable Object)
-      └─ облачное сохранение и офлайн-режим как сейчас
+      │                            ├─ run verification: the same js/game.js + js/hero.js
+      │                            └─ world boss counter (Durable Object)
+      └─ cloud save and offline mode as today
 ```
 
-Почему Cloudflare Workers: это JavaScript, поэтому игровой код запускается на сервере как есть. Бесплатный тариф щедрый, серверов администрировать не надо, D1 (SQLite) хватит на первые сотни тысяч игроков. Альтернатива — Supabase (Postgres + авторизация) с Edge Functions на Deno, это тоже JavaScript.
+Why Cloudflare Workers: it's JavaScript, so the game code runs on the server as is. The free tier is generous, there are no servers to manage, and D1 (SQLite) is enough for the first few hundred thousand players. An alternative is Supabase (Postgres + auth) with Edge Functions on Deno, which is JavaScript too.
 
-### Вход
+### Sign-in
 
-- Сначала анонимный аккаунт на устройство: игрок сразу играет и попадает в рейтинг.
-- Потом привязка, чтобы не потерять прогресс: Telegram, Google или вход по ссылке на почту.
+- First, an anonymous account per device: the player starts playing and lands on the ladder right away.
+- Then account linking so progress isn't lost: Telegram, Google or a sign-in link by email.
 
-### Сохранения
+### Saves
 
-- Облачное сохранение раз в минуту и при выходе. Сервер хранит последнюю версию и проверяет правдоподобие: золото не может вырасти в 1000 раз за 5 минут, глубина не может прыгнуть на 20 уровней без убитых боссов, офлайн-доход не может превышать лимит.
-- Нарушение не блокирует сразу, а ставит флаг: такой игрок исчезает из публичных рейтингов до проверки.
+- Cloud save once a minute and on exit. The server keeps the latest version and checks it for plausibility: gold can't grow 1000× in 5 minutes, depth can't jump 20 levels without boss kills, offline income can't exceed the cap.
+- A violation doesn't ban right away; it sets a flag, and that player disappears from public ladders until reviewed.
 
-### Лут, который нельзя нарисовать (второй этап защиты)
+### Loot that can't be forged (the second layer of protection)
 
-Сейчас вещи создаются на клиенте. Для полной защиты сервер раз в сессию выдаёт «сид лута» и счётчик. Каждая вещь получается из `seed + номер броска`, поэтому сервер может пересчитать, могла ли такая вещь выпасть. Слепок с выдуманным мечом +20 не пройдёт проверку.
+Right now items are created on the client. For full protection, the server issues a "loot seed" and a counter once per session. Each item comes from `seed + roll number`, so the server can recompute whether that item could have dropped. A snapshot with a made-up +20 sword won't pass the check.
 
-### Таблицы
+### Tables
 
-| Таблица | Поля |
+| Table | Fields |
 |---|---|
-| `players` | id, имя, способ входа, дата создания, флаги |
-| `saves` | player_id, данные сохранения, версия, updated_at |
-| `snapshots` | player_id, слепок персонажа, пересчитанная сила, updated_at |
-| `trials` | дата, сид, правила |
-| `trial_runs` | player_id, дата, журнал действий, очки после пересчёта, статус проверки |
-| `seasons` | id, начало, конец |
-| `ladder` | season_id, player_id, рейтинг, лига |
-| `world_boss` | event_id, HP, вклад игроков |
-| `guilds`, `guild_members` | состав, недельный прогресс |
+| `players` | id, name, sign-in method, created date, flags |
+| `saves` | player_id, save data, version, updated_at |
+| `snapshots` | player_id, hero snapshot, recomputed power, updated_at |
+| `trials` | date, seed, rules |
+| `trial_runs` | player_id, date, action log, score after recompute, verification status |
+| `seasons` | id, start, end |
+| `ladder` | season_id, player_id, rating, league |
+| `world_boss` | event_id, HP, player contributions |
+| `guilds`, `guild_members` | membership, weekly progress |
 
 ### API
 
 ```
-POST /auth/anon                  → токен
-PUT  /save                       → облачное сохранение (с проверкой правдоподобия)
-PUT  /snapshot                   → слепок персонажа, сервер сам считает силу
-GET  /trial/today                → сид и правила испытания
-POST /trial/run                  → журнал действий; сервер переигрывает и возвращает очки
-GET  /ladder?mode=trial&season=3 → таблица рейтинга (топ и соседи игрока)
-POST /boss/damage                → пачка урона мировому боссу (с ограничением)
-GET  /boss                       → HP и твой вклад
+POST /auth/anon                  → token
+PUT  /save                       → cloud save (with plausibility check)
+PUT  /snapshot                   → hero snapshot; the server computes power itself
+GET  /trial/today                → trial seed and rules
+POST /trial/run                  → action log; the server replays it and returns the score
+GET  /ladder?mode=trial&season=3 → ladder table (the top and the player's neighbours)
+POST /boss/damage                → a batch of damage to the world boss (capped)
+GET  /boss                       → HP and your contribution
 ```
 
-## Где запускать, чтобы быстро получить игроков
+## Where to launch to get players fast
 
-- **Яндекс Игры.** Встроенные лидерборды, облачные сохранения и авторизация через SDK, большая русскоязычная аудитория HTML5-игр. Минимум серверной работы для первого рейтинга.
-- **Telegram Mini App.** Кликеры там сейчас популярны. Авторизация бесплатно через подпись `initData`, а друзья и гильдии органично ложатся на чаты.
-- **Свой сайт + itch.io**: полный контроль, но трафик надо приводить самому.
+- **Yandex Games.** Built-in leaderboards, cloud saves and auth through the SDK, and a large HTML5-games audience. The least server work for a first ladder.
+- **Telegram Mini App.** Clickers are popular there right now. Auth comes free by checking the `initData` signature, and friends and guilds map naturally onto chats.
+- **Your own site + itch.io**: full control, but you have to bring the traffic yourself.
 
-Хороший план: запуститься на Яндекс Играх или в Telegram с их лидербордами, а собственный сервер с испытаниями добавить, когда появятся игроки.
+A good plan: launch on Yandex Games or Telegram with their leaderboards, and add your own trial server once there are players.
 
-## Что уже работает (этап 1)
+## What already works (stage 1)
 
-- `js/net.js` — слой синхронизации с двумя взаимозаменяемыми хранилищами:
-  - **база опубликованной страницы** на claude.ai: личное облачное сохранение в `data/users/<id>/save` (его видит только сам игрок) и общий рейтинг в `ladder/<id>`, где каждый пишет только свою строку;
-  - **свой сервер** (`server/`): Cloudflare Worker + D1. Включается адресом в `localStorage['bttn-api']` или `window.BTTN_API`.
-- Сила в рейтинге считается функцией `G.ladderPower()` только по снаряжению, уровню и классу, одинаково у всех. `G.verifySnapshot()` отсеивает невозможные вещи: заточку выше +20, аффиксы вне диапазона редкости, уровень вещи выше глубины, чужой слот, неверную силу. Сервер отклоняет такие слепки с кодом 422 и сам пересчитывает силу, а в варианте на claude.ai каждый клиент перепроверяет все записи и скрывает подозрительные.
-- Облачное сохранение предлагается, когда в облаке прогресса больше, чем в этом браузере. До ответа игрока ничего не отправляется, поэтому новое устройство не затрёт настоящее сохранение.
-- Проверки: `node tools/test-server.js` (15 сценариев), `node tools/dev-server.js` поднимает сервер локально.
+- `js/net.js` is a sync layer with two interchangeable backends:
+  - **the published page's database** on claude.ai: a private cloud save at `data/users/<id>/save` (only the player can see it) and a shared ladder at `ladder/<id>`, where each player writes only their own row;
+  - **your own server** (`server/`): Cloudflare Worker + D1. Turned on by an address in `localStorage['bttn-api']` or `window.BTTN_API`.
+- Ladder power is computed by `G.ladderPower()` from gear, level and class only, the same for everyone. `G.verifySnapshot()` weeds out impossible items: enchants above +20, affixes outside their rarity's range, item levels above depth, items in the wrong slot, a wrong power value. The server rejects such snapshots with a 422 and recomputes power itself; in the claude.ai version every client re-checks every entry and hides suspicious ones.
+- The cloud save is offered when the cloud has more progress than this browser. Nothing is uploaded until the player answers, so a new device never overwrites a real save.
+- Checks: `node tools/test-server.js` (15 cases); `node tools/dev-server.js` runs the server locally.
 
-Ограничение этапа 1: слепок из правдоподобных, но выдуманных вещей всё ещё пройдёт. Закрывают это этапы 2 (испытание с пересчётом забега) и серверный «сид лута».
+The stage 1 limitation: a snapshot made of plausible but invented items still passes. Stage 2 (a trial with server-side replay) and the server "loot seed" close that gap.
 
-## Порядок работ
+## Roadmap
 
-| Этап | Что | Статус |
+| Stage | What | Status |
 |---|---|---|
-| 0 | Персонаж: класс, уровни, 4 слота, вещи с уровнем, аффиксами и заточкой, мобы, сила. Слепок для ладдера, профиль, воспроизводимая случайность | **готово** |
-| 1 | Анонимный вход, облачное сохранение, рейтинг по глубине и силе с проверкой слепков | **готово**: в опубликованной игре (база страницы) и сервер `server/` на Cloudflare Workers |
-| 2 | Испытание дня с пересчётом забега на сервере — честный ладдер | следующий |
-| 3 | Сезоны, лиги, косметические награды, мировой босс по выходным | |
-| 4 | Арена с Эло, гильдии и их недельные цели | |
-| 5 | Живой кооп (если будет аудитория) | |
+| 0 | Hero: class, levels, 4 slots, items with level, affixes and enchant, mobs, power. Ladder snapshot, profile, reproducible randomness | **done** |
+| 1 | Anonymous sign-in, cloud save, ladder by depth and power with snapshot checks | **done**: in the published game (page database) and the `server/` server on Cloudflare Workers |
+| 2 | Daily Trial with server-side run replay: a fair ladder | next |
+| 3 | Seasons, leagues, cosmetic rewards, weekend world boss | |
+| 4 | Arena with Elo, guilds and their weekly goals | |
+| 5 | Live co-op (if there's an audience) | |
 
-## Что ещё добавить в саму игру для удержания
+## What else to add to the game itself for retention
 
-- **Комплекты вещей** (4 предмета одной темы дают особый эффект) — следующее по важности после аффиксов.
-- **Ключи от данжей**: редкий портал с мобов открывает забег на время с гарантированным редким мешком.
-- **Хранилище** с ограниченным местом, как в RotMG: заставляет выбирать, что оставить.
-- **Кормление питомцев вещами** вместо разбора.
-- **Сезонный пропуск без доната**: 30 уровней наград за ежедневные задания и испытания.
+- **Gear sets** (4 items of one theme grant a special effect): the next most important thing after affixes.
+- **Dungeon keys**: a rare portal dropped by mobs opens a timed run with a guaranteed rare bag.
+- **A vault** with limited space, as in RotMG: it forces choices about what to keep.
+- **Feeding pets with items** instead of scrapping them.
+- **A season pass without payments**: 30 reward tiers for daily quests and trials.

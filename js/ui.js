@@ -47,8 +47,10 @@
     S.seen.tabs.upg = 1; S.seen.tabs._u_upg = 1;
     UI.render();
     UI.update(true);
+    if (G.Tut) G.Tut.init();
     if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
+  UI.tab = () => tab;
 
   function buildTabs() {
     const nav = $('#tabs');
@@ -215,12 +217,7 @@
       + Object.keys(R.hb || {}).filter(k => R.hb[k] > 0).map(k => `<span class="buff storm">${esc(L(G.ABILITIES[k].name))} ${Math.ceil(R.hb[k])}s</span>`).join('');
     const bEl = $('#buffs');
     if (bEl._h !== bh) { bEl.innerHTML = bh; bEl._h = bh; }
-    // Tutorial hint
-    let hint = '';
-    if (S.clicks < 3 && !S.ascensions) hint = t('tut0');
-    else if (S.chests.length && S.st.chests === 0) hint = t('tut1');
-    setText($('#hint'), hint);
-    $('#hint').hidden = !hint;
+    if (G.Tut) G.Tut.update();
     $('#btnSound').classList.toggle('off', !S.set.sound);
     $('#btnMusic').classList.toggle('off', !S.set.music);
 
@@ -255,7 +252,7 @@
         <span class="info"><span class="name">${esc(L(u.name))}<span class="lv" data-lv></span></span><span class="desc">${esc(L(u.desc))}</span></span>
         <span class="cost">${img('ic_coin', '', 2)}<span data-cost></span></span>
       </button>`).join('')}</div>
-      <p class="note">${esc(t('keysHint'))}</p>`;
+      <p class="note keys">${esc(t('keysHint'))}</p>`;
     refs.rows = $$('.row', body).map(el => ({ el, u: G.UPGRADES.find(x => x.id === el.dataset.u), lv: el.querySelector('[data-lv]'), cost: el.querySelector('[data-cost]') }));
     body.querySelector('.list').addEventListener('click', e => {
       const r = e.target.closest('.row'); if (!r) return;
@@ -519,7 +516,7 @@
     setText(refs.pity, t('pityL', Math.max(1, 25 - S.pity.l)) + ' · ' + t('pityD', Math.max(1, 120 - S.pity.d)));
     setText(refs.active, t('activePets', S.active.length, D.petSlots));
     setText($('#tabSub'), fmt(S.eggs) + ' ' + t('eggs').toLowerCase());
-    const key = JSON.stringify(S.pets) + S.active.join() + G.lang();
+    const key = JSON.stringify(S.pets) + S.active.join();
     if (key === refs.petKey) return;
     refs.petKey = key;
     for (const r of refs.pets) {
@@ -590,7 +587,7 @@
     const S = G.S;
     if (!refs.q) return;
     const rerollLeft = Math.max(0, (S.rerollAt - Date.now()) / 1000);
-    const key = S.quests.map(q => q.k + (q.done ? 1 : 0) + (q.wait ? 'w' : '')).join('|') + (rerollLeft > 0 ? 'r' : '') + G.lang();
+    const key = S.quests.map(q => q.k + (q.done ? 1 : 0) + (q.wait ? 'w' : '')).join('|') + (rerollLeft > 0 ? 'r' : '');
     if (key !== refs.qKey) {
       refs.qKey = key;
       refs.q.innerHTML = S.quests.map((q, i) => {
@@ -795,7 +792,7 @@
     setText(rf.shards, fmt(h.shards));
     setText(rf.bagn, h.bag.length + '/' + G.TUNE.bagMax);
     setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
-    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, G.lang(), Math.floor(h.shards / 5)]);
+    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5)]);
     if (key === rf.key && !force) return;
     rf.key = key;
     for (const el of rf.slots) {
@@ -846,7 +843,7 @@
     if (G.S.hero.cls) return;
     // Let the cloud save answer first: a returning player on a new device gets their hero back
     const N = G.Net;
-    if (!$('#modal').hidden || (N && N.hold) || (N && N.status === 'connecting' && pickWait++ < 16)) { setTimeout(UI.pickClass, 500); return; }
+    if (!$('#modal').hidden || !$('#intro').hidden || (N && N.hold) || (N && N.status === 'connecting' && pickWait++ < 16)) { setTimeout(UI.pickClass, 500); return; }
     const html = `<p>${esc(t('pickClassHint'))}</p><div class="classGrid">${G.CLASSES.map(c => `
       <button class="clsCard" data-c="${c.id}">${img(c.spr, '', 6)}<b>${esc(L(c.name))}</b><small>${esc(L(c.desc))}</small></button>`).join('')}</div>`;
     const m = UI.modal(t('pickClass'), html, [], true);
@@ -890,7 +887,7 @@
       ${N.error && N.status === 'online' ? `<p style="color:var(--bad)">${esc(t('netError', N.error))}</p>` : ''}`;
     if (rf.net._h !== netHtml) { rf.net.innerHTML = netHtml; rf.net._h = netHtml; }
     const list = N.sorted(ladderBy);
-    const key = ladderBy + JSON.stringify(list.map(e => [e.uid, e.depth, e.power, e.lvl, e.name])) + G.lang();
+    const key = ladderBy + JSON.stringify(list.map(e => [e.uid, e.depth, e.power, e.lvl, e.name]));
     if (key === rf.key && !force) return;
     rf.key = key;
     const suspicious = N.entries.filter(e => !e.ok && !e.me).length;
@@ -912,7 +909,7 @@
     const when = new Date(cloud.ts || 0).toLocaleString();
     UI.modal(t('cloudTitle'), `<p>${esc(t('cloudText', when))}</p>`, [
       { label: t('cloudLoad'), cls: 'gold', fn: () => { G.Net.hold = false; if (G.Net.loadCloud()) { UI.toast(esc(t('imported')), 'ach', 'ic_scroll'); UI.render(); } else UI.toast(esc(t('badSave')), '', 'ic_skull'); } },
-      { label: t('cloudKeep'), fn: () => { G.Net.hold = false; G.Net.pushNow(); } },
+      { label: t('cloudKeep'), fn: () => { G.Net.hold = false; G.Net.pushNow(); if (G.Tut) G.Tut.maybeIntro(); } },
     ]);
   }
 
@@ -922,7 +919,6 @@
     const tg = (k, label) => `<div class="setRow"><span>${esc(label)}</span><button class="toggle ${s[k] ? 'on' : ''}" data-t="${k}" aria-pressed="${s[k] ? 'true' : 'false'}" aria-label="${esc(label)}"></button></div>`;
     body.innerHTML = `
       <div class="setList">
-        <div class="setRow"><span>${esc(t('language'))}</span><span class="seg" data-lang><button data-l="ru" class="${G.lang() === 'ru' ? 'on' : ''}">RU</button><button data-l="en" class="${G.lang() === 'en' ? 'on' : ''}">EN</button></span></div>
         ${tg('sound', t('sound'))}${tg('music', t('music'))}
         <div class="setRow"><span>${esc(t('volume'))}</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${s.vol}"></div>
         ${tg('hold', t('hold'))}${tg('shake', t('shake'))}${tg('autoBoss', t('autoBoss'))}
@@ -943,8 +939,6 @@
     body.addEventListener('click', e => {
       const tgB = e.target.closest('[data-t]');
       if (tgB) { const k = tgB.dataset.t; s[k] = s[k] ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.render(); return; }
-      const lb = e.target.closest('[data-l]');
-      if (lb) { s.lang = lb.dataset.l; buildTabs(); document.documentElement.lang = s.lang; UI.render(); return; }
       if (e.target.closest('[data-exp]')) { $('#saveBox').value = G.exportSave(); return; }
       if (e.target.closest('[data-copy]')) {
         const v = $('#saveBox').value || G.exportSave(); $('#saveBox').value = v;

@@ -40,7 +40,7 @@
       daily: { last: '', streak: 0 },
       st: { crits: 0, bossKills: 0, lordKills: 0, wisps: 0, mimics: 0, merges: 0, divine: 0, maxCombo: 0,
         playTime: 0, chests: 0, modded: 0, megas: 0 },
-      set: { sound: 1, music: 1, vol: 0.6, lang: '', hold: 0, shake: 1, autoBoss: 1 },
+      set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1 },
       seen: {}, tut: 0,
     };
   }

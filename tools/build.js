@@ -25,7 +25,7 @@ const title = (html.match(/<title>([^<]*)<\/title>/) || [, 'BTTN'])[1];
 const desc = (html.match(/<meta name="description" content="([^"]*)">/) || [, ''])[1];
 
 const standalone = `<!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

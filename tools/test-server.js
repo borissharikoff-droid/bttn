@@ -48,7 +48,7 @@ check('save download matches', back.body.save && back.body.save.data === saveStr
 check('rejects junk save', (await call('PUT', '/api/save', { data: '{"nope":1}' }, tok)).status === 400);
 
 const snap = G.ladderSnapshot();
-snap.name = 'Лучница';
+snap.name = 'Archeress';
 let r = await call('PUT', '/api/ladder', snap, tok);
 check('honest snapshot accepted', r.status === 200 && r.body.power === snap.power, r.body);
 
@@ -66,7 +66,7 @@ r = await call('PUT', '/api/ladder', snap, tok);
 check('too frequent update throttled', r.status === 429);
 
 const c = (await call('POST', '/api/auth')).body.token;
-const deep = JSON.parse(JSON.stringify(snap)); deep.depth = 12; deep.lvl = 20; deep.name = 'Рыцарь'; deep.power = G.ladderPower(deep);
+const deep = JSON.parse(JSON.stringify(snap)); deep.depth = 12; deep.lvl = 20; deep.name = 'Sir Clicks'; deep.power = G.ladderPower(deep);
 check('second player accepted', (await call('PUT', '/api/ladder', deep, c)).status === 200);
 const lad = await call('GET', '/api/ladder?limit=10');
 check('ladder sorted by depth', lad.body.entries.length === 2 && lad.body.entries[0].depth === 12, lad.body.entries.map(e => [e.name, e.depth, e.power]));

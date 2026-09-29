@@ -1,119 +1,132 @@
 # BTTN
 
-Пиксельный инкрементал про кнопку, из которой сыплются сундуки. Кликаешь — выпадают сундуки, из сундуков — предметы и золото, на золото нанимаешь героев, которые стреляют по кнопке за тебя. Дальше в игре есть боссы и глубины, питомцы из инкубатора, созвездие навыков и вознесение ради славы.
+A pixel-art incremental about a button that spills chests. You click, chests drop out, and they hold gear and gold. Gold hires a garrison that shoots the button for you. Meanwhile your hero guards the button from mobs, and the game goes on to bosses and depths, pets from an incubator, a skill constellation, and ascension for fame.
 
-Вдохновлено игрой [Click the Button](https://store.steampowered.com/app/3946950/Click_the_Button/) (LoopCap, 2026). Визуальный стиль — коренастый пиксель-арт 8×8 с тёмной обводкой в духе Realm of the Mad God. Весь арт нарисован с нуля в коде (`js/sprites.js`), чужих ассетов в проекте нет.
+Inspired by [Click the Button](https://store.steampowered.com/app/3946950/Click_the_Button/) (LoopCap, 2026). The art style is chunky 8×8 pixel art with a dark outline, in the spirit of Realm of the Mad God. All art is drawn from scratch in code (`js/sprites.js`); the project uses no third-party assets.
 
-## Как запустить
+## Running it
 
-- Открыть `index.html` в браузере. Сервер и сборка не нужны.
-- Или открыть `dist/bttn.html`: это один файл, в который уже встроены шрифты и скрипты. Его можно выложить на любой хостинг (GitHub Pages, itch.io) или просто переслать.
-- Для GitHub Pages: Settings → Pages → Deploy from branch, корень репозитория.
+- Open `index.html` in a browser. No server or build step is needed.
+- Or open `dist/bttn.html`: a single file with the fonts and scripts already inlined. You can host it anywhere (GitHub Pages, itch.io) or just send it to someone.
+- For GitHub Pages: Settings → Pages → Deploy from branch, repository root.
 
-Прогресс сохраняется в `localStorage` каждые 15 секунд и при закрытии вкладки. В настройках есть экспорт и импорт сохранения кодом.
+Progress is saved to `localStorage` every 15 seconds and when the tab closes. Settings has save export and import as a code.
 
-## Управление
+## First session
 
-| Действие | Мышь / тач | Клавиатура |
+New players get a short onboarding:
+
+1. **Intro.** Four slides with a typewriter effect: the Button, the chests, the mobs, the four heroes. It can be skipped, and it ends with picking a class.
+2. **Guided tutorial.** Buttonling, the guide, walks through 10 steps: click the button, open a chest, check the hero and their 4 slots, buy an upgrade, clear mobs, hire the garrison, beat the first boss, hatch a pet, and a closing look at the ladder. A gold arrow points at whatever needs pressing, whether that's on the stage (button, chest, mob, wisp) or in the panel (tab, upgrade row). The bubble moves out of the arrow's way on small screens. Each step pays a small reward the first time, and the tutorial can be skipped at any point.
+3. **One-time tips.** After the tutorial, a short tip shows the first time a new mechanic appears: a wisp, a modified chest, a boss ready to fight, essence, an ability, enough shards to enchant, the first chance to ascend, a broken button, a stat potion.
+4. **The ? button** (top right) opens "How to play": a summary of every system, plus buttons to replay the intro or the tutorial.
+
+Existing saves skip the intro and tutorial automatically. On a new device, the "load cloud save?" prompt comes before the intro.
+
+## Controls
+
+| Action | Mouse / touch | Keyboard |
 |---|---|---|
-| Клик по кнопке | нажать на кнопку (можно несколькими пальцами) | Пробел / Enter |
-| Открыть сундук | нажать на сундук | E — открыть самый ценный |
-| Вызвать босса | черепок над кнопкой или кнопка ⚔ | B |
-| Способность героя | кнопка справа над шкалами | Q |
-| Сфокусировать моба | нажать на моба | — |
-| Вкладки | иконки справа | 1–0 |
+| Click the button | tap the button (multi-touch works) | Space / Enter |
+| Open a chest | tap the chest | E opens the most valuable one |
+| Call the boss | the skull above the button, or the ⚔ button | B |
+| Hero ability | the button to the right above the meters | Q |
+| Focus a mob | tap the mob | — |
+| Tabs | icons on the right | 1–0 |
+| How to play | ? at the top right | — |
 
-В настройках можно включить «удерживать для клика», чтобы не бить по мышке.
+Settings has "hold the button to click" to spare your mouse.
 
-## Что было в оригинале и что изменено
+## What the original has and what changed
 
-Перед разработкой я разобрал оригинал по странице Steam, вики [clickthebutton.wiki](https://clickthebutton.wiki/), гайдам с полным прохождением и отзывам игроков. Каркас оригинала:
+Before building, I went through the original's Steam page, the [clickthebutton.wiki](https://clickthebutton.wiki/), full-playthrough guides and player reviews. The original's structure:
 
-1. Кнопка → клик даёт деньги и заполняет шкалу сундука.
-2. Сундуки → предметы 6 редкостей (Broken … Extraterrestrial), по 5 предметов в каждой, у всех одинаковая цена.
-3. Деньги → улучшения и дерево навыков (клик-ветка, idle-ветка), улучшение «слияние» против лагов.
-4. Гача-машина с «кьютями» (обычные и золотые) — чисто коллекция.
-5. 4 модификатора сундуков (Chromatic, Ghost, Lightning, Void), перерождение с небольшим числом постоянных улучшений.
-6. 15 достижений, 100% за 70–120 минут.
+1. Button → a click gives money and fills the chest meter.
+2. Chests → items in 6 rarities (Broken … Extraterrestrial), 5 items per rarity, all at the same value.
+3. Money → upgrades and a skill tree (click branch, idle branch), plus a "merge" upgrade against lag.
+4. A gacha machine with "cuties" (normal and golden), purely a collection.
+5. 4 chest modifiers (Chromatic, Ghost, Lightning, Void), and a rebirth with a handful of permanent upgrades.
+6. 15 achievements, 100% in 70–120 minutes.
 
-Главные претензии в отзывах: игра проходится за полтора-два часа; модификаторы — это «один и тот же скучный множитель»; все предметы одной редкости стоят одинаково; постоянных улучшений мало; к концу игра «кидает в тебя всё сразу, пока ПК не начнёт лагать».
+The main complaints in reviews: the game is over in an hour and a half to two hours; modifiers are "the same boring multiplier"; every item of a rarity is worth the same; there are few permanent upgrades; and near the end the game "throws everything at you until your PC starts lagging".
 
-Что сделано в BTTN, чтобы ответить на каждую претензию:
+How BTTN answers each complaint:
 
-| Проблема оригинала | Решение в BTTN |
+| Problem in the original | What BTTN does |
 |---|---|
-| Короткая игра | Боссы и бесконечные глубины (8 земель по 5 глубин, у каждой свой владыка), вознесение со славой и «Залом славы», 61 достижение. По симуляции быстрому игроку нужен примерно час до Безумной Кнопки на 40-й глубине, живому — несколько часов, дальше длинный хвост. |
-| Модификаторы — один множитель | 8 модификаторов с разной механикой: Золотой (взрыв золота), Грозовой (молния открывает соседние сундуки), Призрачный (двойная добыча), Хроматический (лучший из трёх бросков), Ледяной (надо разбить за 8 кликов, внутри 3 предмета), Пылающий (×5, но сгорает за 6 секунд), Мимик (кусается, надо победить), Бездонный (×10 эссенции). |
-| У предметов одинаковая цена | 7 редкостей × 6 предметов. У каждого своя частота выпадения и цена, а ещё свой бонус коллекции: звёзды за 1, 10, 100, 1 000 и 10 000 копий. Дубликаты всегда полезны. |
-| Мало постоянных улучшений | 15 вечных улучшений за славу, коллекция и питомцы не сбрасываются, каждое достижение даёт +1% к золоту навсегда. |
-| Лаги в конце | Сундуков на поле ограниченное число, лишние сливаются 3 → 1 в сундук рангом выше или продаются нераспечатанными. Частицы, пули и герои на сцене тоже с лимитом, автоклики считаются пачкой. |
-| Кьюти ничего не дают | Питомцы бегают вокруг кнопки и реально помогают: автоклики, удача, урон по боссам, открытие сундуков. Дубликаты повышают уровень (до 25), есть золотые версии и гарант легендарного каждые 25 яиц. |
+| Short game | Bosses and endless depths (8 lands of 5 depths each, each land with its own lord), ascension with fame and a Hall of Fame, 61 achievements. In simulation a fast player reaches the Mad Button at depth 40 in about two hours; a real player takes several hours, with a long tail after that. |
+| Modifiers are one multiplier | 8 modifiers with different mechanics: Golden (gold burst), Storm (lightning opens nearby chests), Ghost (double loot), Chromatic (best of three rolls), Frozen (crack it in 8 clicks, 3 items inside), Blazing (×5, but burns out in 6 seconds), Mimic (it bites; defeat it), Void (×10 essence). |
+| Items of a rarity are all worth the same | 7 rarities × 6 items. Each has its own drop rate and value, plus a collection bonus with stars at 1, 10, 100, 1,000 and 10,000 copies. Duplicates are always useful. |
+| Few permanent upgrades | 15 permanent upgrades bought with fame; the collection and pets never reset; each achievement gives +1% gold forever. |
+| Late-game lag | The field holds a limited number of chests. Extras merge 3 → 1 into a higher-tier chest or are sold unopened. Particles, projectiles and heroes on the stage are capped too, and auto-clicks are counted in batches. |
+| Cuties do nothing | Pets run around the button and actually help: auto-clicks, luck, boss damage, opening chests. Duplicates level them up (to 25), there are golden versions, and a legendary is guaranteed every 25 eggs. |
 
-Новые системы, которых в оригинале не было:
+New systems the original didn't have:
 
-- **Персонаж.** Один из 4 классов (рыцарь, лучник, маг, разбойник) защищает кнопку от мобов, которые идут со всех сторон. Уровни за убийства, 4 слота: оружие, способность, броня, кольцо. Тип оружия задаёт стрельбу: лук пробивает насквозь, посох бьёт двумя снарядами, коса — по четырём целям. Свой тип оружия даёт +50% урона. Способность жмётся кнопкой (или сама) с перезарядкой: взрыв черепа, лечение, стазис, крылья, звездопад.
-- **Вещи как в лутер-играх.** У каждой вещи уровень (от глубины, где выпала), редкость и 0–3 случайных аффикса: урон, скорость атаки, крит, прочность кнопки, золото, удача, опыт, осколки. Лишнее разбирается на осколки, осколки и золото уходят на заточку до +20. Одно число «Сила» показывает, насколько персонаж крут. Вещи переживают вознесение, поэтому каждый новый забег начинается сильнее.
-- **Зачистка локи.** Босс приходит после 25 убитых мобов. Если мобы доберутся до кнопки и сломают её, прогресс зачистки падает вдвое.
-- **Герои** — 12 классов на найм (разбойник, лучник, маг, жрица … призыватель). Они стоят на сцене и стреляют по кнопке, а каждые 10/25/50/100… штук доход класса удваивается.
-- **Боссы и глубины** — босс приходит каждые 25 открытых сундуков, на него 30 секунд, он пускает кольца пуль. Победа открывает следующую глубину (+8% ко всему золоту), даёт сундуки, эссенцию, зелья и яйца. Каждый 5-й босс — владыка земли.
-- **Зелья характеристик** — 8 статов (ATT, DEF, SPD, DEX, VIT, WIS, LIFE, MANA) с лимитом, падают с боссов. Как и в RotMG, сбрасываются при «смерти» героя (вознесении).
-- **Комбо, криты и МЕГА-клики** — быстрые клики копят комбо до ×3+, криты и каждый 25-й МЕГА-клик после узла «Громовая длань».
-- **Блуждающие огоньки** — раз в 1–2 минуты пролетает огонёк: Неистовство (золото ×7), Дождь сундуков, Мешок золота, Буря кликов (×77) или яйцо.
-- **Задания и ежедневная награда** — три задания с таймером обновления и недельная серия входов.
-- **Офлайн-доход** — герои работают, пока тебя нет (по умолчанию 50% дохода, до 2 часов, расширяется).
-- **8 обликов кнопки** за достижения и секретная Корона Принца — отсылка к достижению «The Prince and the Button».
-- **RU / EN**, клавиатура, раскладка для телефона, синтезированный чиптюн (свой мотив для каждой земли).
+- **The hero.** One of 4 classes (knight, archer, wizard, rogue) guards the button from mobs that come from every side. Levels come from kills. There are 4 slots: weapon, ability, armour, ring. The weapon type sets how the hero fires: a bow pierces through, a staff fires two bolts, a scythe hits four targets. Your class weapon type deals +50% damage. The ability is triggered with a button (or on its own) and has a cooldown: skull blast, heal, stasis, wings, starfall.
+- **Loot-game gear.** Every item has a level (from the depth where it dropped), a rarity and 0–3 random affixes: damage, attack speed, crit, button toughness, gold, luck, XP, shards. Spares are scrapped into shards, and shards plus gold enchant gear up to +20. A single Power number shows how strong the hero is. Gear survives ascension, so each new run starts stronger.
+- **Clearing the land.** A boss arrives after 25 slain mobs. If mobs reach the button and break it, clearing progress drops by half.
+- **The garrison.** 12 classes to hire (rogue, archer, wizard, priestess … summoner). They stand on the stage and shoot the button; every 10/25/50/100… of a class doubles its income.
+- **Bosses and depths.** A boss has 30 seconds and fires bullet rings. A win opens the next depth (+8% to all gold) and drops chests, essence, potions and eggs. Every 5th boss is a land's lord.
+- **Stat potions.** 8 stats (ATT, DEF, SPD, DEX, VIT, WIS, LIFE, MANA) with a cap, dropped by bosses. As in RotMG, they're lost when the hero "dies" (on ascension).
+- **Combo, crits and MEGA clicks.** Fast clicking builds a combo up to ×3+, with crits, and every 25th click is a MEGA click once the Thunder Palm node is learned.
+- **Wandering wisps.** Every 1–2 minutes a wisp flies by: Frenzy (gold ×7), Chest Rain, a sack of gold, Click Storm (×77) or a pet egg.
+- **Quests and daily reward.** Three quests with a refresh timer, and a weekly login streak.
+- **Offline income.** Heroes keep working while you're away (50% of income by default, up to 2 hours; both can be raised).
+- **8 button skins** from achievements, and a secret Prince's Crown, a nod to the original's "The Prince and the Button" achievement.
+- Keyboard controls, a phone layout, and synthesized chiptune (each land has its own theme).
 
-## Устройство проекта
-
-```
-index.html          разметка страницы
-css/style.css       интерфейс в стиле тёмных каменных панелей и слотов инвентаря
-fonts/              Press Start 2P и Tiny5 (латиница + кириллица), лицензия OFL
-js/util.js          форматирование чисел, случайность, шина событий
-js/data.js          весь контент: редкости, предметы, герои, улучшения, созвездие, питомцы, земли, слава
-js/i18n.js          строки интерфейса RU / EN
-js/game.js          логика без DOM: клики, сундуки, боссы, гача, задания, вознесение, офлайн, сохранения
-js/hero.js          персонаж: классы, вещи, аффиксы, заточка, мобы, бой, сила, слепок для ладдера
-js/net.js           облачное сохранение и общий рейтинг (база страницы claude.ai или свой сервер)
-server/             сервер рейтинга: Cloudflare Worker + D1, та же проверка слепков
-js/ach.js           достижения
-js/sprites.js       пиксель-арт: спрайты строками + процедурные кнопка, сундуки, земля
-js/audio.js         звуки и музыка на WebAudio
-js/stage.js         сцена на canvas: низкое разрешение × целый масштаб, частицы, текст поверх
-js/ui.js            панели, списки, модалки и тосты
-js/main.js          запуск, игровой цикл, сохранение
-tools/sim.js        бот-симулятор баланса
-tools/build.js      сборка однофайловых версий в dist/ и игровой логики для сервера
-tools/test-server.js  проверка сервера на встроенном SQLite
-tools/dev-server.js   локальный сервер рейтинга для разработки
-tools/sprites.html  лист всех спрайтов для проверки арта
-```
-
-`js/game.js` не трогает DOM, поэтому та же логика запускается в Node для симуляции баланса.
-
-## Баланс
+## Project layout
 
 ```
-node tools/sim.js 180 6 -q    # 180 минут игры ботом, 6 кликов в секунду
+index.html          page markup
+css/style.css       UI in the style of dark stone panels and inventory slots
+fonts/              Press Start 2P and Tiny5, OFL licence (the Cyrillic subsets are kept so player names on the ladder render)
+js/util.js          number formatting, randomness, event bus
+js/data.js          all content: rarities, items, garrison, upgrades, constellation, pets, lands, fame
+js/i18n.js          interface strings
+js/game.js          DOM-free logic: clicks, chests, bosses, gacha, quests, ascension, offline, saves
+js/hero.js          the hero: classes, gear, affixes, enchanting, mobs, combat, power, ladder snapshot
+js/ach.js           achievements
+js/net.js           cloud save and shared ladder (claude.ai page database or your own server)
+js/sprites.js       pixel art: sprites as strings plus the procedural button, chests and ground
+js/audio.js         sound and music on WebAudio
+js/stage.js         the canvas scene: low resolution × integer scale, particles, text on top
+js/ui.js            panels, lists, modals and toasts
+js/tutorial.js      onboarding: intro, guided tutorial, one-time tips, the How to play sheet
+js/main.js          startup, game loop, saving
+server/             ladder server: Cloudflare Worker + D1, same snapshot checks
+tools/sim.js        balance-simulation bot
+tools/build.js      builds the single-file versions in dist/ and the game logic for the server
+tools/test-server.js  server tests on Node's built-in SQLite
+tools/dev-server.js   local ladder server for development
+tools/sprites.html  sheet of every sprite for checking the art
 ```
 
-Бот покупает то, что быстрее всего окупается, открывает сундуки, дерётся с боссами, высиживает яйца и возносится, когда застрял. Скрипт печатает хронологию: золото, доход, глубину, славу и первые события. Так я поймал и убрал несколько разгонов экономики: награды заданий кормили сами себя, питомцы давали неограниченную удачу, а боссы отставали от роста дохода.
+`js/game.js` and `js/hero.js` don't touch the DOM, so the same logic runs in Node for balance simulation and on the server.
 
-## Сборка
+## Balance
+
+```
+node tools/sim.js 180 6 -q    # 180 minutes of play by the bot, 6 clicks per second
+```
+
+The bot buys whatever pays back fastest, opens chests, fights bosses, hatches eggs and ascends when it gets stuck. The script prints a timeline of gold, income, depth, fame and first-time events. That's how I caught and removed several economy runaways: quest rewards feeding themselves, pets giving unbounded luck, and bosses falling behind income growth.
+
+## Build
 
 ```
 node tools/build.js
 ```
 
-Собирает `dist/bttn.html` (самодостаточная страница со встроенными шрифтами) и `dist/artifact.html` (то же без обёртки `<html>`/`<body>`).
+Builds `dist/bttn.html` (a self-contained page with fonts inlined), `dist/artifact.html` (the same without the `<html>`/`<body>` wrapper) and `server/src/game.js`.
 
-## Мультиплеер и ладдер
+## Multiplayer and the ladder
 
-Вкладка «Рейтинг» показывает общую таблицу по глубине и по силе, а прогресс сохраняется в облако. В опубликованной на claude.ai версии это работает сразу для всех, с кем поделились игрой; для своего сайта есть сервер в `server/` (инструкция в `server/README.md`).
+The Ladder tab shows a shared table by depth and by power, and progress is saved to the cloud. In the version published on claude.ai this works right away for everyone the game is shared with; for your own site there's a server in `server/` (instructions in `server/README.md`).
 
-План честного рейтинга, сезонов, мирового босса, арены и гильдий описан в [MULTIPLAYER.md](MULTIPLAYER.md). Код к нему уже подготовлен: логика запускается без браузера, случайность воспроизводится по сиду (`SEED=42 node tools/sim.js 8` каждый раз даёт одно и то же), а `G.ladderSnapshot()` отдаёт слепок персонажа.
+The plan for a fair ladder, seasons, a world boss, an arena and guilds is in [MULTIPLAYER.md](MULTIPLAYER.md). The code is already prepared for it: the logic runs without a browser, randomness is reproducible from a seed (`SEED=42 node tools/sim.js 8` gives the same result every time), and `G.ladderSnapshot()` returns a snapshot of the hero.
 
-## Лицензии шрифтов
+## Font licences
 
-Press Start 2P (CodeMan38) и Tiny5 (Stefan Schmidt) распространяются по SIL Open Font License 1.1, текст лицензии лежит в `fonts/OFL.txt`.
+Press Start 2P (CodeMan38) and Tiny5 (Stefan Schmidt) are distributed under the SIL Open Font License 1.1; the licence text is in `fonts/OFL.txt`.

@@ -35,45 +35,45 @@
   G.slotOf = id => SLOT_OF_TYPE[G.ITEM_TYPE[id]];
   // rate = attacks/s, mult = damage per attack, targets = mobs hit per attack
   G.WEAPONS = {
-    dagger: { rate: 3.2, mult: 0.42, targets: 1, col: '#e6ebf2', name: { ru: 'Кинжал', en: 'Dagger' } },
-    sword:  { rate: 1.6, mult: 0.85, targets: 2, col: '#ffffff', name: { ru: 'Меч', en: 'Sword' } },
-    katana: { rate: 2.2, mult: 0.65, targets: 1, col: '#d4b0ff', name: { ru: 'Катана', en: 'Katana' } },
-    scythe: { rate: 1.1, mult: 1.0, targets: 4, col: '#ff4f7e', name: { ru: 'Коса', en: 'Scythe' } },
-    bow:    { rate: 1.3, mult: 0.95, targets: 3, col: '#9be15d', name: { ru: 'Лук', en: 'Bow' } },
-    staff:  { rate: 1.4, mult: 1.0, targets: 2, col: '#5ab4ff', name: { ru: 'Посох', en: 'Staff' } },
-    wand:   { rate: 2.6, mult: 0.5, targets: 1, col: '#ffe27a', name: { ru: 'Палочка', en: 'Wand' } },
+    dagger: { rate: 3.2, mult: 0.42, targets: 1, col: '#e6ebf2', name: 'Dagger' },
+    sword:  { rate: 1.6, mult: 0.85, targets: 2, col: '#ffffff', name: 'Sword' },
+    katana: { rate: 2.2, mult: 0.65, targets: 1, col: '#d4b0ff', name: 'Katana' },
+    scythe: { rate: 1.1, mult: 1.0, targets: 4, col: '#ff4f7e', name: 'Scythe' },
+    bow:    { rate: 1.3, mult: 0.95, targets: 3, col: '#9be15d', name: 'Bow' },
+    staff:  { rate: 1.4, mult: 1.0, targets: 2, col: '#5ab4ff', name: 'Staff' },
+    wand:   { rate: 2.6, mult: 0.5, targets: 1, col: '#ffe27a', name: 'Wand' },
   };
   const ARMOR_MUL = { armor: 1, boot: 0.7, shield: 1.2, helm: 0.9, cloak: 0.85 };
   G.ABILITIES = {
-    potion: { cd: 18, name: { ru: 'Лечение', en: 'Heal' }, desc: { ru: 'Чинит кнопку на 60%', en: 'Repairs the Button by 60%' } },
-    tome:   { cd: 24, name: { ru: 'Благословение', en: 'Blessing' }, desc: { ru: 'Чинит 30% и урон ×1.5 на 6 сек', en: 'Repairs 30%, damage ×1.5 for 6s' } },
-    scroll: { cd: 40, name: { ru: 'Жадность', en: 'Greed' }, desc: { ru: 'Мобы роняют сундуки втрое чаще 12 сек', en: 'Mobs drop chests 3× as often for 12s' } },
-    skull:  { cd: 16, name: { ru: 'Взрыв черепа', en: 'Skull Blast' }, desc: { ru: '8 ударов по всем врагам', en: 'Hits every enemy for 8 attacks' } },
-    orb:    { cd: 24, name: { ru: 'Стазис', en: 'Stasis' }, desc: { ru: 'Замедляет мобов, урон +30% на 6 сек', en: 'Slows mobs, +30% damage for 6s' } },
-    wing:   { cd: 30, name: { ru: 'Крылья', en: 'Wings' }, desc: { ru: 'Скорость атаки ×2 на 8 сек', en: 'Attack speed ×2 for 8s' } },
-    egg:    { cd: 30, name: { ru: 'Звездопад', en: 'Starfall' }, desc: { ru: '15 ударов по цели и 4 по всем', en: '15 hits on the target, 4 on everyone' } },
+    potion: { cd: 18, name: 'Heal', desc: 'Repairs the Button by 60%' },
+    tome:   { cd: 24, name: 'Blessing', desc: 'Repairs 30%, damage ×1.5 for 6s' },
+    scroll: { cd: 40, name: 'Greed', desc: 'Mobs drop chests 3× as often for 12s' },
+    skull:  { cd: 16, name: 'Skull Blast', desc: 'Hits every enemy for 8 attacks' },
+    orb:    { cd: 24, name: 'Stasis', desc: 'Slows mobs, +30% damage for 6s' },
+    wing:   { cd: 30, name: 'Wings', desc: 'Attack speed ×2 for 8s' },
+    egg:    { cd: 30, name: 'Starfall', desc: '15 hits on the target, 4 on everyone' },
   };
   G.CLASSES = [
     { id: 'knight', spr: 'h_knight', weapons: ['sword', 'katana', 'scythe'], starter: 'steel_sword', hp: 1.3, crit: 0, extra: 0,
-      name: { ru: 'Рыцарь', en: 'Knight' }, desc: { ru: 'Мечи, катаны и косы. Кнопка крепче на 30%.', en: 'Swords, katanas and scythes. The Button is 30% tougher.' } },
+      name: 'Knight', desc: 'Swords, katanas and scythes. The Button is 30% tougher.' },
     { id: 'archer', spr: 'h_archer', weapons: ['bow'], starter: 'short_bow', hp: 1, crit: 0, extra: 1,
-      name: { ru: 'Лучник', en: 'Archer' }, desc: { ru: 'Луки. Стрелы пробивают ещё одного врага.', en: 'Bows. Arrows pierce one more enemy.' } },
+      name: 'Archer', desc: 'Bows. Arrows pierce one more enemy.' },
     { id: 'wizard', spr: 'h_wizard', weapons: ['staff', 'wand'], starter: 'twig_staff', hp: 1, crit: 0, extra: 0, spd: 0.15,
-      name: { ru: 'Маг', en: 'Wizard' }, desc: { ru: 'Посохи и палочки. Атакует на 15% быстрее.', en: 'Staves and wands. Attacks 15% faster.' } },
+      name: 'Wizard', desc: 'Staves and wands. Attacks 15% faster.' },
     { id: 'rogue', spr: 'h_rogue', weapons: ['dagger'], starter: 'rusty_dagger', hp: 1, crit: 0.1, extra: 0,
-      name: { ru: 'Разбойник', en: 'Rogue' }, desc: { ru: 'Кинжалы. +10% шанс крита.', en: 'Daggers. +10% crit chance.' } },
+      name: 'Rogue', desc: 'Daggers. +10% crit chance.' },
   ];
   G.CLASS_BY_ID = {}; G.CLASSES.forEach(c => G.CLASS_BY_ID[c.id] = c);
   G.AFFIXES = {
-    dmg:   { v: [0.04, 0.10], name: { ru: 'Урон', en: 'Damage' } },
-    spd:   { v: [0.03, 0.08], name: { ru: 'Скорость атаки', en: 'Attack speed' } },
-    crit:  { v: [0.01, 0.03], name: { ru: 'Шанс крита', en: 'Crit chance' } },
-    critd: { v: [0.10, 0.30], name: { ru: 'Сила крита', en: 'Crit power' }, x: true },
-    hp:    { v: [0.05, 0.12], name: { ru: 'Прочность кнопки', en: 'Button toughness' } },
-    gold:  { v: [0.04, 0.12], name: { ru: 'Золото', en: 'Gold' } },
-    luck:  { v: [0.02, 0.06], name: { ru: 'Удача', en: 'Luck' } },
-    xp:    { v: [0.05, 0.15], name: { ru: 'Опыт', en: 'Experience' } },
-    shard: { v: [0.05, 0.15], name: { ru: 'Осколки', en: 'Shards' } },
+    dmg:   { v: [0.04, 0.10], name: 'Damage' },
+    spd:   { v: [0.03, 0.08], name: 'Attack speed' },
+    crit:  { v: [0.01, 0.03], name: 'Crit chance' },
+    critd: { v: [0.10, 0.30], name: 'Crit power', x: true },
+    hp:    { v: [0.05, 0.12], name: 'Button toughness' },
+    gold:  { v: [0.04, 0.12], name: 'Gold' },
+    luck:  { v: [0.02, 0.06], name: 'Luck' },
+    xp:    { v: [0.05, 0.15], name: 'Experience' },
+    shard: { v: [0.05, 0.15], name: 'Shards' },
   };
   const AFFIX_COUNT = [0, 1, 1, 2, 2, 3, 3];
   const SALVAGE = [1, 2, 4, 8, 16, 32, 64];

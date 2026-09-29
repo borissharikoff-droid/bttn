@@ -11,16 +11,13 @@
     try {
       let json = code.trim();
       if (json[0] !== '{') json = decodeURIComponent(escape(atob(json)));
-      const lang = G.S.set.lang;
       G.deserialize(json);
-      if (!G.S.set.lang) G.S.set.lang = lang;
       G.fillQuests(); G.save(); G.emit('ascend', 0);
       return true;
     } catch (e) { return false; }
   };
   G.hardReset = function () {
-    const lang = G.S.set.lang;
-    G.S = G.newState(); G.S.set.lang = lang;
+    G.S = G.newState();
     G.R.boss = null; G.R.bossReady = false; G.R.combo = 0; G.R.wisp = null;
     G.recalc(); G.fillQuests(); G.save();
     G.emit('ascend', 0);
@@ -53,8 +50,7 @@
     let loaded = false;
     const raw = (data && data.save) || get();
     if (raw) { try { G.deserialize(raw); loaded = true; } catch (e) { G.S = G.newState(); } }
-    if (!G.S.set.lang) G.S.set.lang = /^ru|^uk|^be|^kk/i.test(navigator.language || 'ru') ? 'ru' : 'en';
-    document.documentElement.lang = G.S.set.lang;
+    delete G.S.set.lang; // older saves carried a language choice
     G.recalc();
     G.fillQuests();
     let offline = null;

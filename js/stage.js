@@ -77,6 +77,12 @@
     return v;
   }
   St.chestScreen = function (c) { const v = vis.get(c.id); return v ? { x: v.x * S, y: v.y * S } : null; };
+  // Logical stage point -> viewport pixels (for the tutorial pointer)
+  St.toScreen = function (x, y) { const r = cv.getBoundingClientRect(); return { x: r.left + x * S, y: r.top + y * S }; };
+  St.chestPoint = function (c) { const v = vis.get(c.id); return v ? St.toScreen(v.x, v.y - 12) : null; };
+  St.mobPoint = function (m) { const q = mobPos(m); return St.toScreen(q.x, q.y - 18); };
+  St.wispPoint = function () { return St._wispPos ? St.toScreen(St._wispPos.x, St._wispPos.y - 10) : null; };
+  St.buttonPoint = function () { const b = btnPos(); return St.toScreen(b.x, b.y - 24); };
 
   // ---------- Particles & text ----------
   function part(x, y, col, o) {

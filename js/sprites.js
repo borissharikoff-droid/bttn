@@ -787,6 +787,16 @@
     'bbbBBbbb',
     '.bbbbbb.',
   ]);
+  def('ic_arrow', { y: '#ffe27a', Y: '#ffb347', w: '#ffffff' }, [
+    '..ywyy..',
+    '..ywyy..',
+    '..yyyY..',
+    'yyyyyyYY',
+    '.yyyyYY.',
+    '..yyYY..',
+    '...YY...',
+    '........',
+  ]);
   def('ic_heart', { R: '#ff3b5c', r: '#b01a36', w: '#ffc0cc' }, T.heart);
 
   // ================= WISP / FX =================
