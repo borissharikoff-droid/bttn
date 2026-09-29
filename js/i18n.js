@@ -70,6 +70,11 @@
     buyAmt: 'Buy', secret: 'Secret', prince: "The Prince's Crown",
     bossTitle: 'Boss', lordTitle: 'Lord', realm: 'Lands',
     noSpace: 'No free space', saveNow: 'Save now',
+    lvUp: 'LEVEL UP! Pick a perk', perkAuto: 'Auto-pick in {0}s', perkHint: 'Perks shape this run and reset when you ascend. Gear stays.', perkLv: 'Lv {0}', perkNew: 'New',
+    perksTitle: 'Perks this run', perksNone: 'Level up to pick your first perk. Slay the Horde for XP.', autoPerk: 'Pick perks for me if I wait',
+    roleTitle: 'What your Warden does', roleHint: 'Your Warden is the engine: their kills fill the clear bar, drop loot and gold, and every boss dies by their hand. Your clicks during a fight are their strikes.',
+    roleHorde: 'Horde size', roleBossClick: 'Boss damage per click', roleBossSec: 'Boss damage per second', roleBoss: 'This depth\'s boss', roleBossTime: '~{0}s alone (limit {1}s)',
+    roleWeak: 'Too weak for this boss yet: level up, equip better gear, enchant, or ascend for fame.', hordeX: 'Horde ×{0}', hordeWeak: 'Warden weak here',
     surge: 'THE HORDE SURGES', rareComing: 'A rare monster approaches', slain: '{0} slain', streak: '{0} KILLS',
     sk_25: 'KILLING SPREE', sk_50: 'RAMPAGE', sk_100: 'MASSACRE', sk_200: 'CARNAGE', sk_400: 'ANNIHILATION', sk_800: 'APOCALYPSE',
   };

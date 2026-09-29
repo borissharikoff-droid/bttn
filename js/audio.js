@@ -130,6 +130,7 @@
     if (tier >= 3) [0, 7, 12].forEach((s, i) => tone(note(24 + s + tier), 0.14, 'triangle', 0.05, i * 0.04));
     if (tier >= 5) [0, 4, 7, 12, 16].forEach((s, i) => tone(note(31 + s), 0.3, 'sine', 0.06, 0.12 + i * 0.05));
   };
+  A.levelUp = function () { [0, 4, 7, 12, 16].forEach((s, i) => tone(note(19 + s), 0.14, 'square', 0.06, i * 0.05)); tone(note(43), 0.35, 'triangle', 0.05, 0.25); };
   A.zap = function () { if (!throttle('zap', 45)) return; noise(0.05, 0.05, 0, 3500); tone(1400 + Math.random() * 400, 0.06, 'sawtooth', 0.025, 0, 300); };
   A.horn = function () { tone(110, 0.9, 'sawtooth', 0.09, 0, 98); tone(165, 0.9, 'sawtooth', 0.06, 0.05, 147); noise(0.5, 0.03, 0, 200); };
   A.ascend = function () { [0, 4, 7, 12, 16, 19, 24, 28, 31].forEach((s, i) => tone(note(7 + s), 0.5, 'sine', 0.07, i * 0.1)); };

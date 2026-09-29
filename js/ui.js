@@ -47,6 +47,7 @@
     S.seen.tabs.upg = 1; S.seen.tabs._u_upg = 1;
     UI.render();
     UI.update(true);
+    $('#perks').addEventListener('click', e => { const c = e.target.closest('[data-perk]'); if (c && G.pickPerk(c.dataset.perk)) { G.Audio && G.Audio.buy(); UI.update(true); } });
     if (G.Tut) G.Tut.init();
     if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
@@ -123,13 +124,31 @@
     G.on('net', () => { if (tab === 'ladder') updaters.ladder(); });
     G.on('cloudNewer', c => { const ask = () => { if ($('#modal').hidden) askCloud(c); else setTimeout(ask, 1500); }; setTimeout(ask, 1200); });
     G.on('gear', (g, equipped) => { if (equipped && g.r >= 2) UI.toast(`<span>${esc(t('equipped'))}: <b style="color:${G.RARITIES[g.r].color}">${esc(L(G.ITEM_BY_ID[g.id].name))}</b></span>`, '', 'it_' + g.id); });
-    G.on('levelUp', lvl => { if (lvl % 5 === 0) UI.toast(`<b>${esc(t('levelUp', lvl))}</b>`, 'ach', 'ic_star'); });
+    G.on('levelUp', () => { const xb = $('#xpBar'); xb.classList.remove('up'); void xb.offsetWidth; xb.classList.add('up'); });
     G.on('buttonBreak', () => UI.toast(`<b>${esc(t('overload'))}</b> ${esc(t('overloadHint'))}`, '', 'ic_skull'));
   }
   const dirty = {};
   function dirtyTab(id) { dirty[id] = true; }
 
   // ---------- Update loop ----------
+  let perkKey = '';
+  function updatePerks() {
+    const h = G.S.hero, box = $('#perks');
+    const offer = h && h.cls ? h.offer : null;
+    const key = offer ? offer.join() + '|' + JSON.stringify(h.perks) : '';
+    if (key !== perkKey) {
+      perkKey = key;
+      if (!offer) { box.hidden = true; box.innerHTML = ''; }
+      else {
+        box.innerHTML = `<h3>${esc(t('lvUp'))}</h3><div class="cards">${offer.map((id, i) => {
+          const P = G.PERKS[id], lv = h.perks[id] || 0;
+          return `<button class="card" data-perk="${id}" style="animation-delay:${i * 0.07}s">${img(P.icon, '', 4)}<b>${esc(P.name)}</b><span class="lv">${esc(lv ? t('perkLv', lv + ' → ' + (lv + 1)) : t('perkNew'))}</span><small>${esc(P.desc)}</small></button>`;
+        }).join('')}</div><p class="auto" data-auto></p>`;
+        box.hidden = false;
+      }
+    }
+    if (offer) setText(box.querySelector('[data-auto]'), (h.autoPerk ? t('perkAuto', Math.max(0, Math.ceil(12 - (h.offerT || 0)))) + ' · ' : '') + t('perkHint'));
+  }
   UI.update = function (force) {
     const S = G.S, D = G.D, R = G.R;
     setText($('#goldNum'), fmt(S.gold));
@@ -190,12 +209,21 @@
         setClass($('#bossWrap'), 'hp', false);
         const need = D.bossNeed;
         $('#bossMeter').style.width = Math.min(100, S.bossMeter / need * 100) + '%';
-        setText($('#bossText'), R.bossReady ? t('bossReady') : t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)));
+        const hs = G.hordeScale(), weak = hs <= 0.45;
+        setText($('#bossText'), R.bossReady ? t('bossReady') : t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
+        setClass($('#bossWrap'), 'weak', weak && !R.bossReady);
         $('#btnFight').hidden = !R.bossReady; $('#btnRetreat').hidden = true;
       }
     }
     // Button HP and ability
     const h = S.hero;
+    // XP bar and level-up choices
+    $('#xpBar').hidden = !(h && h.cls);
+    if (h && h.cls) {
+      $('#xpFill').style.width = Math.min(100, h.xp / G.xpNeed(h.lvl) * 100) + '%';
+      setText($('#xpText'), t('lvl') + ' ' + h.lvl);
+    }
+    updatePerks();
     $('#hpRow').hidden = !(h && h.cls);
     if (h && h.cls) {
       const k = Math.max(0, h.hp / (D.heroHp || 1));
@@ -735,6 +763,11 @@
           <div class="power"><small>${esc(t('power'))}</small><b data-pow></b></div>
         </div>
       </div>
+      <div class="sect">${esc(t('roleTitle'))}</div>
+      <p class="note">${esc(t('roleHint'))}</p>
+      <div class="statList" data-role></div>
+      <div class="sect">${esc(t('perksTitle'))}</div>
+      <div class="perkList" data-perks></div>
       <div class="doll">${G.SLOTS.map(s => `<div class="dslot" data-slot="${s}"><span class="lbl">${esc(t('slot_' + s))}</span><div data-in></div></div>`).join('')}</div>
       <div class="detail" data-gd></div>
       <div class="statList heroStats" data-stats></div>
@@ -742,6 +775,7 @@
       <div class="bag" data-bag></div>
       <div class="setList" style="margin-top:8px">
         <div class="setRow"><span>${esc(t('autoEquip'))}</span><button class="toggle ${h.auto ? 'on' : ''}" data-ht="auto" aria-label="${esc(t('autoEquip'))}"></button></div>
+        <div class="setRow"><span>${esc(t('autoPerk'))}</span><button class="toggle ${h.autoPerk ? 'on' : ''}" data-ht="autoPerk" aria-label="${esc(t('autoPerk'))}"></button></div>
         <div class="setRow"><span>${esc(t('autoCast'))}</span><button class="toggle ${h.cast ? 'on' : ''}" data-ht="cast" aria-label="${esc(t('autoCast'))}"></button></div>
         <div class="setRow"><span>${esc(t('autoSalv'))}</span><span class="seg" data-salv>${salvOpts.map(r => `<button data-r="${r}" class="${h.salv === r ? 'on' : ''}">${r === 0 ? esc(t('off')) : esc(L(G.RARITIES[r].name)).slice(0, 5) + '.'}</button>`).join('')}</span></div>
         <div class="setRow"><span>${esc(t('salvBelow'))}</span><button class="btn" data-salvall>${esc(t('salvage'))}</button></div>
@@ -753,6 +787,7 @@
       lvl: body.querySelector('[data-lvl]'), xp: body.querySelector('[data-xp]'), xpt: body.querySelector('[data-xpt]'), pow: body.querySelector('[data-pow]'),
       slots: $$('.dslot', body), gd: body.querySelector('[data-gd]'), stats: body.querySelector('[data-stats]'), bag: body.querySelector('[data-bag]'),
       bagn: body.querySelector('[data-bagn]'), shards: body.querySelector('[data-shards]'), rec: body.querySelector('[data-rec]'), key: '',
+      role: body.querySelector('[data-role]'), perks: body.querySelector('[data-perks]'),
     };
     $('#heroName', body).addEventListener('change', e => { S.profile.name = e.target.value.trim().slice(0, 16); });
     body.addEventListener('click', e => {
@@ -792,8 +827,22 @@
     setText(rf.shards, fmt(h.shards));
     setText(rf.bagn, h.bag.length + '/' + G.TUNE.bagMax);
     setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
-    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5)]);
+    // what the Warden is doing for you right now
+    const c0 = D.hero, critEV = 1 + c0.crit * (c0.critMult - 1);
+    const bossSec = D.heroDps * D.bossMult, bossHp = G.bossHp(S.depth), limit = D.bossTime + (G.isLord(S.depth) ? 15 : 0);
+    const alone = bossHp / Math.max(1e-9, bossSec);
+    const role = [
+      ['roleHorde', '×' + G.hordeScale().toFixed(1)],
+      ['roleBossClick', fmt(D.heroHit * G.TUNE.clickVolley * D.bossMult * critEV, true)],
+      ['roleBossSec', fmt(bossSec, true)],
+      ['roleBoss', fmt(bossHp) + ' · ' + t('roleBossTime', alone > 999 ? '999+' : Math.ceil(alone), limit)],
+    ];
+    const roleHtml = role.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('') + (alone > limit * 2 ? `<p class="note warn">${esc(t('roleWeak'))}</p>` : '');
+    if (rf.role.innerHTML !== roleHtml) rf.role.innerHTML = roleHtml;
+    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks]);
     if (key === rf.key && !force) return;
+    const pk = Object.keys(h.perks || {}).filter(k => h.perks[k] > 0);
+    rf.perks.innerHTML = pk.length ? pk.map(k => { const P = G.PERKS[k]; return `<div class="perkChip" title="${esc(P.desc)}">${img(P.icon, '', 3)}<b>${esc(P.name)}</b><small>${h.perks[k]}/${P.max}</small></div>`; }).join('') : `<p class="note">${esc(t('perksNone'))}</p>`;
     rf.key = key;
     const dk = JSON.stringify(h.eq);
     if (dk !== rf.dollKey) { rf.dollKey = dk; const im = document.querySelector('.portrait img[data-doll]'); if (im) im.src = G.Doll.portrait(h, 4); }

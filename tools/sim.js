@@ -105,7 +105,9 @@ function buyLegacy() {
 const dt = 0.2;
 let clickAcc = 0, nextLog = 0, bossFails = 0, bossTries = 0;
 G.on('bossFail', () => bossFails++);
-G.on('bossStart', () => bossTries++);
+G.on('bossStart', () => { bossTries++; bossT0 = simNow; });
+let bossT0 = 0, bossDur = [];
+G.on('bossWin', () => { bossDur.push(simNow - bossT0); });
 let lastAscend = 0, lastDepth = 0, lastDepthT = 0;
 for (let t = 0; t < MIN * 60; t += dt) {
   simNow = t;
@@ -119,6 +121,11 @@ for (let t = 0; t < MIN * 60; t += dt) {
     if (G.R.wisp && botRnd() < 0.2) G.catchWisp();
   }
   G.tick(dt);
+  // level-up perks: an active player picks right away, by a simple priority
+  if (G.S.hero.offer && process.env.PERKS !== 'auto') {
+    const pr = ['might', 'frenzy', 'nova', 'blades', 'multi', 'aura', 'chain', 'cleave', 'thunder', 'bulwark', 'greed', 'reach', 'leech', 'loot'];
+    G.pickPerk(G.S.hero.offer.slice().sort((a, b) => pr.indexOf(a) - pr.indexOf(b))[0]);
+  }
   if (G.R.bossReady && !G.R.boss) G.startBoss();
   if (Math.round(t * 5) % 5 === 0) { enchantAll(); let k = 0; while (tryBuy() && k++ < 30); buyNodes(); }
   if (G.S.eggs >= 1) G.pull(G.S.eggs >= 9 ? 10 : 1);
@@ -134,9 +141,10 @@ for (let t = 0; t < MIN * 60; t += dt) {
     nextLog += (t < 1800 ? 60 : 600);
     const S = G.S, D = G.D;
     const heroes = G.HEROES.map(h => S.heroes[h.id] || 0).filter(Boolean).join('/');
+    if (process.env.DBG) { const w = S.hero.eq.weapon, c = D.hero; log.push(`   DBG d${S.depth} lv${S.hero.lvl} w ${w ? w.id + ' r' + w.r + ' il' + w.il + ' +' + w.e : '-'} main ${w ? G.fmt(G.mainStat(w)) : '-'} heroMult ${G.fmt(D.heroMult)} fame ${S.fameTotal} hit ${G.fmt(D.heroHit)} rate ${D.heroRate.toFixed(2)} crit ${c.crit.toFixed(2)}x${c.critMult.toFixed(1)} dps ${G.fmt(D.heroDps)} mobHp ${G.fmt(G.mobHp(S.depth))} bossHp ${G.fmt(G.bossHp(S.depth))} bossMult ${G.fmt(D.bossMult)} fight ${bossDur.length ? (bossDur.slice(-8).reduce((a, b) => a + b, 0) / Math.min(8, bossDur.length)).toFixed(1) + 's' : '-'} hs ${G.hordeScale().toFixed(2)}`); }
     log.push(`${String((t / 60).toFixed(0)).padStart(4)}m gold ${G.fmt(S.gold).padStart(8)} run ${G.fmt(S.goldRun).padStart(8)} gps ${G.fmt(D.gps).padStart(8)} click ${G.fmt(D.click).padStart(7)} ` +
       `d${S.depth} (best ${S.bestDepth}) chests ${S.st.chests} ess ${G.fmt(S.essence, 1)} nodes ${Object.values(S.nodes).reduce((a, b) => a + b, 0)} ` +
-      `lv ${S.hero.lvl} pow ${G.fmt(D.power)} eq ${G.SLOTS.map(s=>{const g=S.hero.eq[s];return g?g.r+'/'+g.il+'+'+g.e:'-'}).join(' ')} sh ${G.fmt(S.hero.shards)} pets ${Object.keys(S.pets).length} eggs ${S.eggs} fame ${G.fmt(G.fameGain())}/${S.fameTotal} ach ${Object.keys(S.ach).length} heroes ${heroes} boss ${bossTries - bossFails}/${bossTries}`);
+      `lv ${S.hero.lvl} pow ${G.fmt(D.power)} eq ${G.SLOTS.map(s=>{const g=S.hero.eq[s];return g?g.r+'/'+g.il+'+'+g.e:'-'}).join(' ')} sh ${G.fmt(S.hero.shards)} pets ${Object.keys(S.pets).length} eggs ${S.eggs} fame ${G.fmt(G.fameGain())}/${S.fameTotal} ach ${Object.keys(S.ach).length} heroes ${heroes} boss ${bossTries - bossFails}/${bossTries} cap ${(D.heroDps / G.mobHp(S.depth)).toFixed(1)} kills ${S.hero.kills}`);
   }
 }
 console.log(log.join('\n'));

@@ -44,7 +44,7 @@
     help_title: 'How to play', help_intro: 'Show the intro', help_tut: 'Replay the tutorial',
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
     help_2: 'Loot', help_2t: 'Mobs drop bags where they fall and the Button spills chests: gold, essence and gear of 7 rarities. Special chests (storm, frozen, mimics…) each work their own way.',
-    help_3: 'Your Warden', help_3t: '4 slots: weapon, ability, armour, ring. Your class weapon type deals +50%. Scrap spares into shards and enchant gear up to +20.',
+    help_3: 'Your Warden', help_3t: 'The Horde drops XP crystals; every level you pick one of three perks (they last until you ascend). 4 gear slots: weapon, ability, armour, ring; your class weapon type deals +50%. A stronger Warden faces a bigger Horde and clears lands faster.',
     help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, brutes, blue champions and named yellow rares with a modifier, and it surges every half minute. Fill the clear bar and the land's boss comes; beat it to go deeper.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
@@ -141,7 +141,8 @@
   // Called ~8 times a second from UI.update
   Tut.update = function () {
     const S = G.S;
-    if (!S || !$('#coach') || !$('#intro').hidden || !$('#modal').hidden) { hidePointer(); if (!$('#modal').hidden || !$('#intro').hidden) $('#coach').hidden = true; return; }
+    const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
+    if (!S || !$('#coach') || busy) { hidePointer(); if (busy) $('#coach').hidden = true; return; }
     if (!S.hero || !S.hero.cls) { hide(); return; }
     if (active()) {
       const st = STEPS[S.tut];

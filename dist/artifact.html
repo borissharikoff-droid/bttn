@@ -54,7 +54,7 @@ button { font: inherit; color: inherit; }
 #stageWrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--ink); }
 #stage { display: block; position: absolute; inset: 0; touch-action: none; }
 .hud { position: absolute; left: 0; right: 0; pointer-events: none; display: flex; gap: 8px; padding: 10px 12px; align-items: flex-start; }
-.hud.top { top: 0; justify-content: space-between; }
+.hud.top { top: 10px; justify-content: space-between; }
 .hud.bottom { bottom: 0; flex-direction: column; align-items: stretch; gap: 6px; }
 .hud .pill { pointer-events: auto; }
 .realm { font: 8px/1.6 var(--font-display); letter-spacing: 0.04em; text-shadow: 2px 2px 0 var(--ink); }
@@ -322,6 +322,29 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 .abil i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(10,9,16,.7); z-index: 2; }
 .abil.ready { box-shadow: inset 0 0 0 2px var(--gold), 0 3px 0 var(--ink); animation: pulse 1.1s ease-in-out infinite; }
 .charCard { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px; background: linear-gradient(180deg, #2a2438, #1d1a28); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line-hi); }
+#xpBar { position: absolute; left: 0; right: 0; top: 0; height: 10px; background: #0c0b12; z-index: 4; pointer-events: none; }
+#xpBar i { position: absolute; left: 0; top: 0; bottom: 2px; width: 0; background: linear-gradient(#a8dcff, #4f8cff 55%, #2c5ac8); box-shadow: 0 0 6px #4f8cff; transition: width .25s ease-out; }
+#xpBar span { position: absolute; right: 8px; top: 1px; font: 8px/8px var(--font-display); color: #ffffff; text-shadow: 1px 1px 0 #0c0b12; }
+#xpBar.up i { animation: xpUp .6s ease-out; }
+@keyframes xpUp { 0% { background: #ffffff; } }
+#perks { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); z-index: 12; width: min(94%, 480px); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+#perks h3 { margin: 0; font: 16px/1.2 var(--font-display); color: #a8dcff; text-shadow: 2px 2px 0 var(--ink); text-align: center; animation: popIn .35s cubic-bezier(.3,1.7,.5,1) both; }
+#perks .cards { display: flex; gap: 8px; width: 100%; }
+#perks .card { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px 10px; background: var(--panel); border: 3px solid var(--ink); box-shadow: inset 0 0 0 2px #4f8cff, 0 4px 0 var(--ink); color: var(--text); cursor: pointer; animation: cardIn .35s cubic-bezier(.3,1.6,.5,1) both; }
+#perks .card:hover, #perks .card:focus-visible { transform: translateY(-3px); box-shadow: inset 0 0 0 2px #ffe27a, 0 7px 0 var(--ink); }
+#perks .card img { width: 40px; height: 40px; image-rendering: pixelated; }
+#perks .card b { font: 8px/1.5 var(--font-display); color: #ffe27a; text-align: center; }
+#perks .card .lv { font: 8px/1.4 var(--font-display); color: #a8dcff; }
+#perks .card small { font-size: 15px; line-height: 1.15; color: var(--dim); text-align: center; }
+#perks .auto { margin: 0; font-size: 15px; color: #d8dce8; text-shadow: 1px 1px 0 var(--ink); text-align: center; }
+@keyframes cardIn { from { transform: translateY(30px) scale(.8); opacity: 0; } }
+.perkList { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.perkChip { display: flex; align-items: center; gap: 6px; padding: 3px 8px 3px 4px; background: var(--slot); border: 2px solid var(--ink); }
+.perkChip img { width: 24px; height: 24px; }
+.perkChip b { font: 8px/1 var(--font-display); color: #ffe27a; }
+.perkChip small { color: #a8dcff; }
+.note.warn { color: #ff8a7a; grid-column: 1 / -1; margin: 4px 0 0; }
+.meter.boss.weak { box-shadow: inset 0 0 0 2px #e84a4a; }
 .portrait { width: 100px; height: 88px; display: grid; place-items: center; background: var(--slot); border: 2px solid var(--ink); overflow: hidden; }
 .portrait img { width: 114px; height: auto; image-rendering: pixelated; }
 .lrow img.ldoll { width: 52px; height: 50px; image-rendering: pixelated; margin: -6px 0; }
@@ -436,6 +459,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 
 /* ---------- Phones ---------- */
 @media (max-width: 860px) {
+  #perks { bottom: 104px; }
+  #perks .card { padding: 6px 3px 8px; }
+  #perks .card img { width: 32px; height: 32px; }
   body { overflow: hidden; }
   #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(250px, 46%) minmax(0, 1fr); }
   #panel { border-left: 0; border-top: 3px solid var(--ink); box-shadow: inset 0 2px 0 var(--line); }
@@ -480,6 +506,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 <div id="app">
   <section id="stageWrap">
     <canvas id="stage" aria-label="BTTN"></canvas>
+    <div id="xpBar" hidden><i id="xpFill"></i><span id="xpText"></span></div>
+    <div id="perks" hidden></div>
     <div class="hud top">
       <div class="realm"><b id="realmName"></b> · <span data-depth-label>Depth</span> <span id="depthNum">1</span><small id="realmSub"></small></div>
       <div class="hudBtns">
@@ -1133,6 +1161,11 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     buyAmt: 'Buy', secret: 'Secret', prince: "The Prince's Crown",
     bossTitle: 'Boss', lordTitle: 'Lord', realm: 'Lands',
     noSpace: 'No free space', saveNow: 'Save now',
+    lvUp: 'LEVEL UP! Pick a perk', perkAuto: 'Auto-pick in {0}s', perkHint: 'Perks shape this run and reset when you ascend. Gear stays.', perkLv: 'Lv {0}', perkNew: 'New',
+    perksTitle: 'Perks this run', perksNone: 'Level up to pick your first perk. Slay the Horde for XP.', autoPerk: 'Pick perks for me if I wait',
+    roleTitle: 'What your Warden does', roleHint: 'Your Warden is the engine: their kills fill the clear bar, drop loot and gold, and every boss dies by their hand. Your clicks during a fight are their strikes.',
+    roleHorde: 'Horde size', roleBossClick: 'Boss damage per click', roleBossSec: 'Boss damage per second', roleBoss: 'This depth\'s boss', roleBossTime: '~{0}s alone (limit {1}s)',
+    roleWeak: 'Too weak for this boss yet: level up, equip better gear, enchant, or ascend for fame.', hordeX: 'Horde ×{0}', hordeWeak: 'Warden weak here',
     surge: 'THE HORDE SURGES', rareComing: 'A rare monster approaches', slain: '{0} slain', streak: '{0} KILLS',
     sk_25: 'KILLING SPREE', sk_50: 'RAMPAGE', sk_100: 'MASSACRE', sk_200: 'CARNAGE', sk_400: 'ANNIHILATION', sk_800: 'APOCALYPSE',
   };
@@ -2086,9 +2119,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   const { chance, pick, rand, randInt, emit } = G;
   const TUNE = G.TUNE;
   Object.assign(TUNE, {
-    mobBase: 10, mobGrowth: 1.24, mobAtkBase: 4, mobAtkGrowth: 1.2,
-    mobWalk: 9, hordeRate: 0.6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
-    bossHpMobs: 25, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
+    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 4, mobAtkGrowth: 1.2,
+    mobWalk: 9, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
+    bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
   });
 
@@ -2161,10 +2194,32 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   const SALVAGE = [1, 2, 4, 8, 16, 32, 64];
   G.ENCHANT_MAX = 20;
 
+  // Level-up perks, Vampire Survivors style: each level the Warden picks one
+  // of three. They build this run's Warden and reset on ascension (gear stays).
+  G.PERKS = {
+    might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses included' },
+    frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
+    multi:   { max: 3, icon: 'it_short_bow', name: 'Multistrike', desc: 'Each attack hits one more target' },
+    cleave:  { max: 4, icon: 'it_blood_scythe', name: 'Cleave', desc: '+30% splash radius' },
+    reach:   { max: 3, icon: 'it_hunter_bow', name: 'Long Reach', desc: '+20% attack range' },
+    blades:  { max: 5, icon: 'it_steel_sword', name: 'Orbiting Blades', desc: 'One more blade circles the Button, cutting what it touches' },
+    aura:    { max: 5, icon: 'ic_star', name: 'Holy Ground', desc: 'Burns everything close to the Button, harder each level' },
+    chain:   { max: 4, icon: 'ic_bolt', name: 'Chain Lightning', desc: '+15% chance a hit arcs to 3 more mobs' },
+    nova:    { max: 4, icon: 'it_arcane_orb', name: 'Nova', desc: 'A blast around the Button, sooner each level; hurts bosses' },
+    thunder: { max: 3, icon: 'ic_finger', name: 'Heavy Hand', desc: 'Each click calls one more bolt' },
+    bulwark: { max: 5, icon: 'it_knight_shield', name: 'Bulwark', desc: '+20% Button toughness' },
+    leech:   { max: 3, icon: 'ic_heart', name: 'Leech', desc: 'Every kill repairs the Button a little' },
+    greed:   { max: 5, icon: 'ic_coin', name: 'Greed', desc: '+20% gold from the Horde' },
+    loot:    { max: 3, icon: 'ic_bag', name: 'Scavenger', desc: '+25% loot bag drops' },
+  };
+  const perk = id => (G.S.hero && G.S.hero.perks && G.S.hero.perks[id]) || 0;
+  G.perk = perk;
+
   // ---------- State ----------
   function newHero() {
     return { cls: null, lvl: 1, xp: 0, eq: { weapon: null, ability: null, armor: null, ring: null }, bag: [], gu: 0,
-      shards: 0, hp: TUNE.baseHp, auto: 1, salv: 1, cast: 1, kills: 0, elites: 0, fresh: 0 };
+      shards: 0, hp: TUNE.baseHp, auto: 1, salv: 1, cast: 1, kills: 0, elites: 0, fresh: 0,
+      perks: {}, perkPts: 0, offer: null, offerT: 0, autoPerk: 1 };
   }
   G.newHero = newHero;
   function ensureHero(S) {
@@ -2366,12 +2421,13 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const c = combat(h.eq, d);
     const buffDmg = (R.hb.tome > 0 ? 1.5 : 1) * (R.hb.orb > 0 ? 1.3 : 1);
     d.hero = c;
-    d.heroHit = c.hit * buffDmg;
-    d.heroRate = c.rate * (R.hb.wing > 0 ? 2 : 1);
-    d.heroHp = c.hp;
-    d.heroDps = c.dps * buffDmg;
+    const might = 1 + 0.12 * perk('might'), frenzy = 1 + 0.12 * perk('frenzy');
+    d.heroHit = c.hit * buffDmg * might;
+    d.heroRate = c.rate * (R.hb.wing > 0 ? 2 : 1) * frenzy;
+    d.heroHp = c.hp * (1 + 0.2 * perk('bulwark'));
+    d.heroDps = c.dps * buffDmg * might * frenzy;
     d.power = c.power;
-    if (h.hp > c.hp) h.hp = c.hp;
+    if (h.hp > d.heroHp) h.hp = d.heroHp;
     if (c.power > S.rec.maxPower) S.rec.maxPower = c.power;
   };
 
@@ -2383,8 +2439,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   function mobHp(d) { return TUNE.mobBase * Math.pow(TUNE.mobGrowth, d); }
   function mobAtk(d) { return TUNE.mobAtkBase * Math.pow(TUNE.mobAtkGrowth, d); }
   G.mobHp = mobHp; G.mobAtk = mobAtk;
-  G.bossHp = d => mobHp(d) * TUNE.bossHpMobs * (G.isLord(d) ? TUNE.lordHp : 1);
-  function xpNeed(l) { return Math.floor(15 * Math.pow(1.2, l - 1) + 10 * l); }
+  // Bosses are worth a few dozen mobs at first and grow into real walls by
+  // the second land: from then on a boss needs a Warden strong for this depth.
+  G.bossHp = d => mobHp(d) * Math.min(TUNE.bossHpMobs, 40 + 30 * d) * (G.isLord(d) ? TUNE.lordHp : 1);
+  function xpNeed(l) { return Math.floor(10 * Math.pow(1.2, l - 1) + 6 * l); }
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {
@@ -2415,10 +2473,18 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   }
   G.mobXY = mobXY;
 
+  // How hard the Warden hits this depth: standard mobs they could kill per second
+  const mightRatio = () => (G.D.heroDps || 0) / mobHp(G.S.depth);
+  G.mightRatio = mightRatio;
+  // The Horde answers strength: a Warden who kills faster faces a bigger, heavier
+  // flow, so a stronger Warden clears lands (and earns gold and XP) faster
+  const hordeScale = () => G.clamp(mightRatio() / TUNE.hordeRef, 0.4, TUNE.hordeMax);
+  G.hordeScale = hordeScale;
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
-    const hp = mobHp(G.S.depth) * K.w;
-    const m = { id: ++R.mobUid, kind, w: K.w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
+    const w = K.w * (add ? 1 : Math.max(1, (R.hs || 1) / 1.5));
+    const hp = mobHp(G.S.depth) * w;
+    const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
       m.name = pick(RARE_A) + ' ' + pick(RARE_B);
@@ -2481,19 +2547,20 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const i = R.mobs.indexOf(m);
     if (i >= 0) R.mobs.splice(i, 1);
     const K = G.MOB_KINDS[m.kind];
-    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1);
+    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1) * (1 + 0.2 * perk('greed'));
     G.addGold(gold, 'mob');
-    gainXp(2 * (1 + S.depth) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (D.xpMult || 1));
+    gainXp(2.5 * (1 + S.depth) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (D.xpMult || 1));
     h.kills++;
     if (m.kind === 'magic' || m.kind === 'rare') h.elites++;
     let chest = null;
     if (!m.add) {
       S.bossMeter += m.w;
-      const greed = R.hb.scroll > 0 ? 3 : 1;
+      const greed = (R.hb.scroll > 0 ? 3 : 1) * (1 + 0.25 * perk('loot'));
       const p = m.kind === 'rare' ? 1 : m.kind === 'magic' ? 0.4 * greed : TUNE.mobChest * m.w * greed;
       if (chance(p)) chest = dropBag(m);
       if (m.kind === 'rare' && chance(0.5)) dropBag(m);
     }
+    if (perk('leech')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.003 * perk('leech') * (m.kind === 'fodder' ? 1 : 4));
     G.questProgress('kills', 1);
     emit('mobDie', m, gold, chest, src);
     if (m.mod === 'splitter') for (let k = 0; k < 6; k++) makeMob('fodder', m.a + rand(-0.03, 0.03), m.p - rand(0, 0.06), m.add);
@@ -2508,17 +2575,42 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   }
   function gainXp(x) {
     const S = G.S, h = S.hero;
+    const before = h.lvl;
     h.xp += x;
     let up = false;
     while (h.xp >= xpNeed(h.lvl)) { h.xp -= xpNeed(h.lvl); h.lvl++; up = true; }
     if (up) {
       if (h.lvl > S.rec.maxLevel) S.rec.maxLevel = h.lvl;
+      h.perkPts = (h.perkPts || 0) + (h.lvl - before);
+      if (!h.offer) offerPerks();
       G.dirty(); G.recalc();
       h.hp = G.D.heroHp;
       emit('levelUp', h.lvl);
     }
   }
   G.gainXp = gainXp;
+
+  function offerPerks() {
+    const h = G.S.hero;
+    const open = Object.keys(G.PERKS).filter(k => perk(k) < G.PERKS[k].max);
+    if (!open.length || !(h.perkPts > 0)) { h.offer = null; h.perkPts = 0; return; }
+    const pickN = [];
+    while (pickN.length < Math.min(3, open.length)) { const k = pick(open); if (!pickN.includes(k)) pickN.push(k); }
+    h.offer = pickN; h.offerT = 0;
+    emit('perkOffer', pickN);
+  }
+  G.pickPerk = function (id) {
+    const h = G.S.hero;
+    if (!h.offer || !h.offer.includes(id)) return false;
+    h.perks = h.perks || {};
+    h.perks[id] = (h.perks[id] || 0) + 1;
+    h.perkPts = Math.max(0, (h.perkPts || 1) - 1);
+    h.offer = null;
+    G.dirty(); G.recalc();
+    emit('perk', id, h.perks[id]);
+    if (h.perkPts > 0) offerPerks();
+    return true;
+  };
 
   // One attack of the hero's weapon. k scales it: clicks (the Hand's smite)
   // and pets fire partial volleys. Against a boss the hit lands on the boss
@@ -2530,7 +2622,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     let ts, aoe = wt.aoe, sp = wt.sp;
     if (src === 'click') { const t = R.mobs.length ? smiteTarget() : null; ts = t ? [t] : []; aoe = TUNE.smiteR; sp = 0.5; }
     else if (src === 'pet') { ts = targets(1, 0.7); aoe = 0.05; sp = 1; }
-    else ts = targets(D.hero.targets, wt.reach);
+    else { ts = targets(D.hero.targets + perk('multi'), Math.min(1, wt.reach * (1 + 0.2 * perk('reach')))); aoe = wt.aoe * (1 + 0.3 * perk('cleave')); }
     // nothing in reach: the hero holds the swing for when something walks in
     if (!R.boss && !ts.length) return false;
     const crit = chance(D.hero.crit);
@@ -2545,6 +2637,24 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (src === 'click') for (const m of ts.concat(splash)) m.p = Math.max(-0.05, m.p - 0.05 / Math.sqrt(m.w));
     for (const m of ts) dealHit(m, dmg, src, crit);
     for (const m of splash) dealHit(m, dmg * sp, src, crit);
+    // Chain Lightning arcs from the first target to three more
+    if (src === 'auto' && perk('chain') && chance(0.15 * perk('chain'))) {
+      const from = ts[0], near = around([from], 0.4).filter(m => !m.dead).slice(0, 3);
+      if (near.length) { emit('chain', from, near); for (const m of near) dealHit(m, dmg * 0.6, 'chain', false); }
+    }
+    // Heavy Hand: more bolts per click, each on a different pack
+    if (src === 'click' && perk('thunder') && !attack.inThunder) {
+      attack.inThunder = true;
+      for (let i = 0; i < perk('thunder'); i++) {
+        const hitSet = new Set(ts.concat(splash));
+        const cand = targets(8, TUNE.smiteReach).filter(m => !hitSet.has(m) && !m.dead);
+        if (!cand.length) break;
+        const t = cand[Math.floor(G.rng() * cand.length)], sp2 = around([t], TUNE.smiteR);
+        emit('heroAttack', { ids: [t.id], splash: sp2.map(m => m.id), aoe: TUNE.smiteR, crit, src, dmg, extra: true });
+        dealHit(t, dmg, src, crit); for (const m of sp2) dealHit(m, dmg * 0.5, src, crit);
+      }
+      attack.inThunder = false;
+    }
     return true;
   }
   G.heroVolley = attack;
@@ -2616,8 +2726,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
         if (R.surge > 0) R.surge -= dt;
         else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen; emit('surge'); }
         const surging = R.surge > 0;
-        R.hordeAcc = Math.min(4, R.hordeAcc + dt * TUNE.hordeRate * (surging ? TUNE.surgeMul : 1));
-        const cap = hordeCap(S.depth) * (surging ? 1.5 : 1);
+        R.hs = hordeScale();
+        R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * (surging ? TUNE.surgeMul : 1));
+        const cap = hordeCap(S.depth) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1);
         if (R.hordeAcc >= 1 && aliveWeight(false) < cap) {
           const w0 = aliveWeight(false);
           spawnPack(false);
@@ -2640,6 +2751,33 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       R.bossAtkT -= dt;
       if (R.bossAtkT <= 0) { R.bossAtkT = 2; hurtButton(atk * (R.boss.lord ? 5 : 3)); }
     }
+    // perks that work on their own
+    const hit = D.heroHit;
+    if (perk('blades') && (R.bladeT = (R.bladeT || 0) - dt) <= 0) {
+      R.bladeT = 0.45;
+      const band = R.mobs.filter(m => { const r = 1 - 0.88 * m.p; return r > 0.12 && r < 0.36; });
+      for (let i = 0; i < perk('blades'); i++) {
+        if (R.boss && i === 0) G.hitBoss(hit * 0.25 * D.bossMult);
+        const m = band.length ? band[Math.floor(G.rng() * band.length)] : null;
+        if (m && !m.dead) { emit('bladeHit', m); dealHit(m, hit * 0.6, 'blade', false); }
+      }
+    }
+    if (perk('aura') && (R.auraT = (R.auraT || 0) - dt) <= 0) {
+      R.auraT = 0.5;
+      const burn = hit * 0.18 * perk('aura');
+      const near = R.mobs.filter(m => 1 - 0.88 * m.p < 0.3);
+      if (near.length) emit('auraTick', near);
+      for (const m of near) dealHit(m, burn, 'aura', false);
+    }
+    if (perk('nova') && (R.novaT = (R.novaT == null ? 6 : R.novaT) - dt) <= 0) {
+      R.novaT = 7.5 - perk('nova');
+      const near = R.mobs.filter(m => 1 - 0.88 * m.p < 0.5);
+      emit('nova');
+      for (const m of near) dealHit(m, hit * 2.5, 'nova', false);
+      if (R.boss) G.hitBoss(hit * 2.5 * D.bossMult);
+    }
+    // a pending level-up choice is made for the player if they leave it
+    if (h.offer && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[0]);
     // hero attacks
     R.heroAcc += dt * D.heroRate;
     let guard = 0;
@@ -2672,6 +2810,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   G.heroReset = function (keepClass) {
     const h = G.S.hero;
     h.lvl = 1; h.xp = 0;
+    h.perks = {}; h.perkPts = 0; h.offer = null;
     if (!keepClass) h.cls = null;
     R.mobs.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20;
     G.S.rec.runStart = Date.now();
@@ -5012,6 +5151,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (tier >= 3) [0, 7, 12].forEach((s, i) => tone(note(24 + s + tier), 0.14, 'triangle', 0.05, i * 0.04));
     if (tier >= 5) [0, 4, 7, 12, 16].forEach((s, i) => tone(note(31 + s), 0.3, 'sine', 0.06, 0.12 + i * 0.05));
   };
+  A.levelUp = function () { [0, 4, 7, 12, 16].forEach((s, i) => tone(note(19 + s), 0.14, 'square', 0.06, i * 0.05)); tone(note(43), 0.35, 'triangle', 0.05, 0.25); };
   A.zap = function () { if (!throttle('zap', 45)) return; noise(0.05, 0.05, 0, 3500); tone(1400 + Math.random() * 400, 0.06, 'sawtooth', 0.025, 0, 300); };
   A.horn = function () { tone(110, 0.9, 'sawtooth', 0.09, 0, 98); tone(165, 0.9, 'sawtooth', 0.06, 0.05, 147); noise(0.5, 0.03, 0, 200); };
   A.ascend = function () { [0, 4, 7, 12, 16, 19, 24, 28, 31].forEach((s, i) => tone(note(7 + s), 0.5, 'sine', 0.07, i * 0.1)); };
@@ -5090,7 +5230,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   let cv, ctx, low, lctx, W = 200, H = 150, S = 3, DPR = 1;
   let groundCanvas = null, groundKey = '';
   const parts = [], texts = [], shots = [], beams = [], bolts = [], bullets = [], opening = [], flyers = [];
-  const gibs = [], decals = [], rings = [], coins = [];
+  const gibs = [], decals = [], rings = [], coins = [], gems = [];
   const vis = new Map(); // chest id -> visual state
   let slots = [];
   let heroVis = [], heroKey = '';
@@ -5309,8 +5449,33 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     });
     G.on('levelUp', lvl => {
       const hp = heroPos();
-      burst(hp.x, hp.y - 12, ['#ffe27a', '#ffffff', '#56d45a'], 26, 70);
-      text(hp.x, hp.y - 28, G.t('levelUp', lvl), '#ffe27a', 4, { life: 1.6, max: 1.6, vy: -14 });
+      burst(hp.x, hp.y - 12, ['#a8dcff', '#ffffff', '#4f8cff', '#ffe27a'], 34, 80);
+      ring(hp.x, hp.y - 4, 26, 12, '#a8dcff', 0.5); ring(hp.x, hp.y - 4, 16, 8, '#ffffff', 0.35);
+      beams.push({ x: hp.x, y: hp.y, col: '#a8dcff', life: 0.9, max: 0.9, w: 9 });
+      text(hp.x, hp.y - 32, G.t('levelUp', lvl), '#a8dcff', 5, { life: 1.6, max: 1.6, vy: -14, big: true });
+      St.flash(0.18, '#a8dcff');
+      if (G.Audio && G.Audio.levelUp) G.Audio.levelUp();
+    });
+    G.on('perk', id => {
+      const hp = heroPos();
+      burst(hp.x, hp.y - 12, ['#ffe27a', '#ffffff'], 20, 60);
+      text(hp.x, hp.y - 32, G.PERKS[id].name, '#ffe27a', 4, { life: 1.4, max: 1.4, vy: -12 });
+    });
+    G.on('bladeHit', m => { const q = mobPos(m); mobVisOf(m).hit = 0.08; burst(q.x, q.y - 5, ['#e6ebf2', '#ffffff'], 3, 40, { life: 0.2 }); });
+    G.on('auraTick', list => { for (const m of list) mobVisOf(m).hit = Math.max(mobVisOf(m).hit, 0.04); if (list.length) { const m = list[Math.floor(Math.random() * list.length)], q = mobPos(m); part(q.x + rand(-3, 3), q.y - 4, pick(['#ffe27a', '#fff3a0']), { vx: 0, vy: -20, grav: 0, life: 0.4 }); } });
+    G.on('nova', () => {
+      const b = btnPos(), r = aoePx(0.5);
+      ring(b.x, b.y - 4, r.rx, r.ry, '#fff3a0', 0.45); ring(b.x, b.y - 4, r.rx * 0.7, r.ry * 0.7, '#ffffff', 0.3);
+      St.shake(2); St.flash(0.12, '#fff3a0');
+    });
+    G.on('chain', (from, list) => {
+      const a = mobPos(from);
+      for (const m of list) {
+        const q = mobPos(m), pts = [[a.x, a.y - 6]];
+        for (let i = 1; i < 4; i++) pts.push([a.x + (q.x - a.x) * i / 4 + rand(-4, 4), a.y - 6 + (q.y - a.y) * i / 4 + rand(-4, 4)]);
+        pts.push([q.x, q.y - 6]);
+        bolts.push({ pts, life: 0.15 });
+      }
     });
     G.on('ability', type => {
       hero.cast = 0.35;
@@ -5358,6 +5523,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       St.flash(0.25, '#fff3a0');
     });
     G.on('realm', () => { groundKey = ''; St.flash(0.3, '#000000'); });
+    G.on('ascend', () => { gems.length = 0; });
     G.on('ascend', () => { groundKey = ''; vis.clear(); mobVis.clear(); decals.length = 0; gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
     G.on('buy', (kind) => { if (kind === 'hero') heroKey = ''; });
   }
@@ -5614,9 +5780,12 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (hero.moving && Math.random() < 0.3) part(hp.x + rand(-3, 3), hp.y, pick(['#c8b89a', '#8a7a60']), { vx: -hero.face * rand(5, 15), vy: rand(-10, -2), grav: 20, life: 0.3 });
   }
   const MELEE = { dagger: 1, sword: 1, katana: 1, scythe: 1 };
+  // The Warden's hits on a boss add up into floating numbers a few times a second
+  const bossDmg = { acc: 0, t: 0, crit: false };
   function onHeroAttack(ev) {
     const h = G.S.hero;
     if (!h || !h.cls) return;
+    if (ev.boss) { bossDmg.acc += ev.dmg * (G.D.bossMult || 1); bossDmg.crit = bossDmg.crit || ev.crit; }
     const D = G.D, wt = D.hero ? D.hero.wtype : 'dagger';
     const col = G.WEAPONS[wt].col;
     const find = id => { const m = G.R.mobs.find(q => q.id === id); return m ? Object.assign(mobPos(m), { m }) : null; };
@@ -5778,6 +5947,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       text(c, q.y - 26, G.t('slain', m.name), '#ffd84a', 4, { life: 1.6, max: 1.6, vy: -12 });
       beams.push({ x: c, y: q.y, col: '#ffd84a', life: 1, max: 1, w: 5 });
     }
+    // XP crystals: blue for the small fry, green for brutes, red for champions and rares
+    const ng = m.kind === 'rare' ? 6 : m.kind === 'magic' ? 3 : m.kind === 'brute' ? 1 : Math.random() < 0.5 ? 1 : 0;
+    const gc = m.kind === 'fodder' ? '#6fb4ff' : m.kind === 'brute' ? '#56d45a' : '#ff5a7a';
+    for (let i = 0; i < ng && gems.length < 260; i++) gems.push({ x: c + rand(-3, 3), y: q.y - 4, vx: rand(-30, 30), vy: rand(-70, -30), floor: q.y + rand(-2, 3), t: rand(0.3, 0.6), fly: 0, col: gc, big: m.kind !== 'fodder' });
     const nc = m.kind === 'rare' ? 10 : m.kind === 'magic' ? 4 : m.kind === 'brute' ? 2 : Math.random() < 0.12 ? 1 : 0;
     for (let i = 0; i < nc && coins.length < 220; i++) coins.push({ x: c, y: q.y - 6, vx: rand(-40, 40), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.45, 0.8), fly: 0 });
     if (gold && !fod && !m.add) text(c, q.y - 16, '+' + G.fmt(gold), m.kind === 'brute' ? '#e8d890' : '#ffd84a', m.kind === 'brute' ? 3 : 4, { life: 0.8, max: 0.8 });
@@ -5841,6 +6014,52 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       lctx.fillStyle = '#c98f10'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y), 3, 1);
       lctx.fillStyle = '#ffd84a'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y) - 2, 3, 2);
       lctx.fillStyle = '#fff3a0'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y) - 2, 1, 1);
+    }
+  }
+  // XP crystals bounce out and get pulled into the Warden
+  function stepGems(dt) {
+    const hp = heroPos(), tx = hp.x, ty = hp.y - 10;
+    for (let i = gems.length - 1; i >= 0; i--) {
+      const k = gems[i];
+      if (k.t > 0) {
+        k.t -= dt;
+        k.vy += 300 * dt; k.x += k.vx * dt; k.y += k.vy * dt;
+        if (k.y >= k.floor && k.vy > 0) { k.y = k.floor; k.vy *= -0.4; k.vx *= 0.6; }
+      } else {
+        k.fly += dt;
+        const dx = tx - k.x, dy = ty - k.y, d = Math.hypot(dx, dy), sp = 70 + k.fly * 600;
+        if (d < 4) { gems.splice(i, 1); part(tx + rand(-4, 4), ty + rand(-4, 4), k.col, { vx: 0, vy: -15, grav: 0, life: 0.25 }); continue; }
+        k.x += dx / d * Math.min(d, sp * dt); k.y += dy / d * Math.min(d, sp * dt);
+      }
+      const x = Math.round(k.x), y = Math.round(k.y);
+      lctx.fillStyle = '#0c0b12'; lctx.fillRect(x - 1, y - 2, 3, 5); lctx.fillRect(x - 2, y - 1, 5, 3);
+      lctx.fillStyle = k.col; lctx.fillRect(x, y - 1, 1, 3); lctx.fillRect(x - 1, y, 3, 1);
+      lctx.fillStyle = '#ffffff'; lctx.fillRect(x, y - 1, 1, 1);
+    }
+  }
+  // Perks that live around the Button: Holy Ground and the Orbiting Blades
+  function drawPerkFx() {
+    const P = G.S.hero && G.S.hero.perks;
+    if (!P) return;
+    const b = btnPos();
+    if (P.aura) {
+      const r = aoePx(0.3), pulse = 0.5 + 0.5 * Math.sin(time * 4);
+      lctx.globalAlpha = 0.1 + 0.03 * P.aura + 0.04 * pulse;
+      lctx.fillStyle = '#ffe27a';
+      for (let dy = -Math.round(r.ry); dy <= r.ry; dy++) { const w = Math.round(r.rx * Math.sqrt(Math.max(0, 1 - (dy / r.ry) * (dy / r.ry)))); lctx.fillRect(b.x - w, b.y - 2 + dy, w * 2, 1); }
+      lctx.globalAlpha = 0.85;
+      const n = 56;
+      for (let j = 0; j < n; j++) { if ((j + Math.floor(time * 8)) % 3) continue; const a = j / n * Math.PI * 2; lctx.fillRect(Math.round(b.x + Math.cos(a) * r.rx), Math.round(b.y - 2 + Math.sin(a) * r.ry), 1, 1); }
+      lctx.globalAlpha = 1;
+    }
+    if (P.blades) {
+      const r = aoePx(0.24), spr = SPR.get('ic_sword');
+      for (let i = 0; i < P.blades; i++) {
+        const a = time * 2.6 + i * Math.PI * 2 / P.blades;
+        const x = b.x + Math.cos(a) * r.rx, y = b.y - 6 + Math.sin(a) * r.ry;
+        lctx.save(); lctx.translate(Math.round(x), Math.round(y)); lctx.rotate(Math.round((a + Math.PI * 0.75) / (Math.PI / 4)) * (Math.PI / 4));
+        lctx.drawImage(spr, -5, -5); lctx.restore();
+      }
     }
   }
   function drawRings(dt) {
@@ -5920,6 +6139,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     drawDecals(dt);
     stepGibs(vdt);
     drawGibs(true);
+    drawPerkFx();
 
     // Collect drawables sorted by y
     const list = [];
@@ -5975,6 +6195,12 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (G.S.hero && G.S.hero.cls) { const hp = heroPos(); list.push({ y: hp.y, draw: () => drawHero(hp) }); }
     if (mobVis.size > (R.mobs || []).length + 20) { const ids = new Set((R.mobs || []).map(m => m.id)); for (const k of [...mobVis.keys()]) if (!ids.has(k)) mobVis.delete(k); }
     // Button or boss
+    if (bossVis && bossDmg.acc > 0 && (bossDmg.t -= dt) <= 0) {
+      const bp = bossPos();
+      text(bp.x + rand(-18, 18), bp.y - 26 - rand(0, 10), '-' + G.fmt(bossDmg.acc), bossDmg.crit ? '#ff7a2e' : '#ffffff', bossDmg.crit ? 5 : 4, { life: 0.7, max: 0.7, vy: -26 });
+      bossDmg.acc = 0; bossDmg.crit = false; bossDmg.t = 0.16;
+    }
+    if (!bossVis) bossDmg.acc = 0;
     if (bossVis) {
       bossVis.t += dt;
       if (bossVis.enter > 0) bossVis.enter = Math.max(0, bossVis.enter - dt * 2.5);
@@ -6011,6 +6237,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     for (const d of list) d.draw();
     drawRings(vdt);
     stepCoins(vdt);
+    stepGems(vdt);
 
     // Opening chests animation
     for (let i = opening.length - 1; i >= 0; i--) {
@@ -6444,6 +6671,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     S.seen.tabs.upg = 1; S.seen.tabs._u_upg = 1;
     UI.render();
     UI.update(true);
+    $('#perks').addEventListener('click', e => { const c = e.target.closest('[data-perk]'); if (c && G.pickPerk(c.dataset.perk)) { G.Audio && G.Audio.buy(); UI.update(true); } });
     if (G.Tut) G.Tut.init();
     if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
@@ -6520,13 +6748,31 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     G.on('net', () => { if (tab === 'ladder') updaters.ladder(); });
     G.on('cloudNewer', c => { const ask = () => { if ($('#modal').hidden) askCloud(c); else setTimeout(ask, 1500); }; setTimeout(ask, 1200); });
     G.on('gear', (g, equipped) => { if (equipped && g.r >= 2) UI.toast(`<span>${esc(t('equipped'))}: <b style="color:${G.RARITIES[g.r].color}">${esc(L(G.ITEM_BY_ID[g.id].name))}</b></span>`, '', 'it_' + g.id); });
-    G.on('levelUp', lvl => { if (lvl % 5 === 0) UI.toast(`<b>${esc(t('levelUp', lvl))}</b>`, 'ach', 'ic_star'); });
+    G.on('levelUp', () => { const xb = $('#xpBar'); xb.classList.remove('up'); void xb.offsetWidth; xb.classList.add('up'); });
     G.on('buttonBreak', () => UI.toast(`<b>${esc(t('overload'))}</b> ${esc(t('overloadHint'))}`, '', 'ic_skull'));
   }
   const dirty = {};
   function dirtyTab(id) { dirty[id] = true; }
 
   // ---------- Update loop ----------
+  let perkKey = '';
+  function updatePerks() {
+    const h = G.S.hero, box = $('#perks');
+    const offer = h && h.cls ? h.offer : null;
+    const key = offer ? offer.join() + '|' + JSON.stringify(h.perks) : '';
+    if (key !== perkKey) {
+      perkKey = key;
+      if (!offer) { box.hidden = true; box.innerHTML = ''; }
+      else {
+        box.innerHTML = `<h3>${esc(t('lvUp'))}</h3><div class="cards">${offer.map((id, i) => {
+          const P = G.PERKS[id], lv = h.perks[id] || 0;
+          return `<button class="card" data-perk="${id}" style="animation-delay:${i * 0.07}s">${img(P.icon, '', 4)}<b>${esc(P.name)}</b><span class="lv">${esc(lv ? t('perkLv', lv + ' → ' + (lv + 1)) : t('perkNew'))}</span><small>${esc(P.desc)}</small></button>`;
+        }).join('')}</div><p class="auto" data-auto></p>`;
+        box.hidden = false;
+      }
+    }
+    if (offer) setText(box.querySelector('[data-auto]'), (h.autoPerk ? t('perkAuto', Math.max(0, Math.ceil(12 - (h.offerT || 0)))) + ' · ' : '') + t('perkHint'));
+  }
   UI.update = function (force) {
     const S = G.S, D = G.D, R = G.R;
     setText($('#goldNum'), fmt(S.gold));
@@ -6587,12 +6833,21 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
         setClass($('#bossWrap'), 'hp', false);
         const need = D.bossNeed;
         $('#bossMeter').style.width = Math.min(100, S.bossMeter / need * 100) + '%';
-        setText($('#bossText'), R.bossReady ? t('bossReady') : t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)));
+        const hs = G.hordeScale(), weak = hs <= 0.45;
+        setText($('#bossText'), R.bossReady ? t('bossReady') : t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
+        setClass($('#bossWrap'), 'weak', weak && !R.bossReady);
         $('#btnFight').hidden = !R.bossReady; $('#btnRetreat').hidden = true;
       }
     }
     // Button HP and ability
     const h = S.hero;
+    // XP bar and level-up choices
+    $('#xpBar').hidden = !(h && h.cls);
+    if (h && h.cls) {
+      $('#xpFill').style.width = Math.min(100, h.xp / G.xpNeed(h.lvl) * 100) + '%';
+      setText($('#xpText'), t('lvl') + ' ' + h.lvl);
+    }
+    updatePerks();
     $('#hpRow').hidden = !(h && h.cls);
     if (h && h.cls) {
       const k = Math.max(0, h.hp / (D.heroHp || 1));
@@ -7132,6 +7387,11 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
           <div class="power"><small>${esc(t('power'))}</small><b data-pow></b></div>
         </div>
       </div>
+      <div class="sect">${esc(t('roleTitle'))}</div>
+      <p class="note">${esc(t('roleHint'))}</p>
+      <div class="statList" data-role></div>
+      <div class="sect">${esc(t('perksTitle'))}</div>
+      <div class="perkList" data-perks></div>
       <div class="doll">${G.SLOTS.map(s => `<div class="dslot" data-slot="${s}"><span class="lbl">${esc(t('slot_' + s))}</span><div data-in></div></div>`).join('')}</div>
       <div class="detail" data-gd></div>
       <div class="statList heroStats" data-stats></div>
@@ -7139,6 +7399,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       <div class="bag" data-bag></div>
       <div class="setList" style="margin-top:8px">
         <div class="setRow"><span>${esc(t('autoEquip'))}</span><button class="toggle ${h.auto ? 'on' : ''}" data-ht="auto" aria-label="${esc(t('autoEquip'))}"></button></div>
+        <div class="setRow"><span>${esc(t('autoPerk'))}</span><button class="toggle ${h.autoPerk ? 'on' : ''}" data-ht="autoPerk" aria-label="${esc(t('autoPerk'))}"></button></div>
         <div class="setRow"><span>${esc(t('autoCast'))}</span><button class="toggle ${h.cast ? 'on' : ''}" data-ht="cast" aria-label="${esc(t('autoCast'))}"></button></div>
         <div class="setRow"><span>${esc(t('autoSalv'))}</span><span class="seg" data-salv>${salvOpts.map(r => `<button data-r="${r}" class="${h.salv === r ? 'on' : ''}">${r === 0 ? esc(t('off')) : esc(L(G.RARITIES[r].name)).slice(0, 5) + '.'}</button>`).join('')}</span></div>
         <div class="setRow"><span>${esc(t('salvBelow'))}</span><button class="btn" data-salvall>${esc(t('salvage'))}</button></div>
@@ -7150,6 +7411,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       lvl: body.querySelector('[data-lvl]'), xp: body.querySelector('[data-xp]'), xpt: body.querySelector('[data-xpt]'), pow: body.querySelector('[data-pow]'),
       slots: $$('.dslot', body), gd: body.querySelector('[data-gd]'), stats: body.querySelector('[data-stats]'), bag: body.querySelector('[data-bag]'),
       bagn: body.querySelector('[data-bagn]'), shards: body.querySelector('[data-shards]'), rec: body.querySelector('[data-rec]'), key: '',
+      role: body.querySelector('[data-role]'), perks: body.querySelector('[data-perks]'),
     };
     $('#heroName', body).addEventListener('change', e => { S.profile.name = e.target.value.trim().slice(0, 16); });
     body.addEventListener('click', e => {
@@ -7189,8 +7451,22 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     setText(rf.shards, fmt(h.shards));
     setText(rf.bagn, h.bag.length + '/' + G.TUNE.bagMax);
     setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
-    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5)]);
+    // what the Warden is doing for you right now
+    const c0 = D.hero, critEV = 1 + c0.crit * (c0.critMult - 1);
+    const bossSec = D.heroDps * D.bossMult, bossHp = G.bossHp(S.depth), limit = D.bossTime + (G.isLord(S.depth) ? 15 : 0);
+    const alone = bossHp / Math.max(1e-9, bossSec);
+    const role = [
+      ['roleHorde', '×' + G.hordeScale().toFixed(1)],
+      ['roleBossClick', fmt(D.heroHit * G.TUNE.clickVolley * D.bossMult * critEV, true)],
+      ['roleBossSec', fmt(bossSec, true)],
+      ['roleBoss', fmt(bossHp) + ' · ' + t('roleBossTime', alone > 999 ? '999+' : Math.ceil(alone), limit)],
+    ];
+    const roleHtml = role.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('') + (alone > limit * 2 ? `<p class="note warn">${esc(t('roleWeak'))}</p>` : '');
+    if (rf.role.innerHTML !== roleHtml) rf.role.innerHTML = roleHtml;
+    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks]);
     if (key === rf.key && !force) return;
+    const pk = Object.keys(h.perks || {}).filter(k => h.perks[k] > 0);
+    rf.perks.innerHTML = pk.length ? pk.map(k => { const P = G.PERKS[k]; return `<div class="perkChip" title="${esc(P.desc)}">${img(P.icon, '', 3)}<b>${esc(P.name)}</b><small>${h.perks[k]}/${P.max}</small></div>`; }).join('') : `<p class="note">${esc(t('perksNone'))}</p>`;
     rf.key = key;
     const dk = JSON.stringify(h.eq);
     if (dk !== rf.dollKey) { rf.dollKey = dk; const im = document.querySelector('.portrait img[data-doll]'); if (im) im.src = G.Doll.portrait(h, 4); }
@@ -7460,7 +7736,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     help_title: 'How to play', help_intro: 'Show the intro', help_tut: 'Replay the tutorial',
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
     help_2: 'Loot', help_2t: 'Mobs drop bags where they fall and the Button spills chests: gold, essence and gear of 7 rarities. Special chests (storm, frozen, mimics…) each work their own way.',
-    help_3: 'Your Warden', help_3t: '4 slots: weapon, ability, armour, ring. Your class weapon type deals +50%. Scrap spares into shards and enchant gear up to +20.',
+    help_3: 'Your Warden', help_3t: 'The Horde drops XP crystals; every level you pick one of three perks (they last until you ascend). 4 gear slots: weapon, ability, armour, ring; your class weapon type deals +50%. A stronger Warden faces a bigger Horde and clears lands faster.',
     help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, brutes, blue champions and named yellow rares with a modifier, and it surges every half minute. Fill the clear bar and the land's boss comes; beat it to go deeper.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
@@ -7557,7 +7833,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   // Called ~8 times a second from UI.update
   Tut.update = function () {
     const S = G.S;
-    if (!S || !$('#coach') || !$('#intro').hidden || !$('#modal').hidden) { hidePointer(); if (!$('#modal').hidden || !$('#intro').hidden) $('#coach').hidden = true; return; }
+    const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
+    if (!S || !$('#coach') || busy) { hidePointer(); if (busy) $('#coach').hidden = true; return; }
     if (!S.hero || !S.hero.cls) { hide(); return; }
     if (active()) {
       const st = STEPS[S.tut];

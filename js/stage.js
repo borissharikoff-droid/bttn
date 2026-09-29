@@ -8,7 +8,7 @@
   let cv, ctx, low, lctx, W = 200, H = 150, S = 3, DPR = 1;
   let groundCanvas = null, groundKey = '';
   const parts = [], texts = [], shots = [], beams = [], bolts = [], bullets = [], opening = [], flyers = [];
-  const gibs = [], decals = [], rings = [], coins = [];
+  const gibs = [], decals = [], rings = [], coins = [], gems = [];
   const vis = new Map(); // chest id -> visual state
   let slots = [];
   let heroVis = [], heroKey = '';
@@ -227,8 +227,33 @@
     });
     G.on('levelUp', lvl => {
       const hp = heroPos();
-      burst(hp.x, hp.y - 12, ['#ffe27a', '#ffffff', '#56d45a'], 26, 70);
-      text(hp.x, hp.y - 28, G.t('levelUp', lvl), '#ffe27a', 4, { life: 1.6, max: 1.6, vy: -14 });
+      burst(hp.x, hp.y - 12, ['#a8dcff', '#ffffff', '#4f8cff', '#ffe27a'], 34, 80);
+      ring(hp.x, hp.y - 4, 26, 12, '#a8dcff', 0.5); ring(hp.x, hp.y - 4, 16, 8, '#ffffff', 0.35);
+      beams.push({ x: hp.x, y: hp.y, col: '#a8dcff', life: 0.9, max: 0.9, w: 9 });
+      text(hp.x, hp.y - 32, G.t('levelUp', lvl), '#a8dcff', 5, { life: 1.6, max: 1.6, vy: -14, big: true });
+      St.flash(0.18, '#a8dcff');
+      if (G.Audio && G.Audio.levelUp) G.Audio.levelUp();
+    });
+    G.on('perk', id => {
+      const hp = heroPos();
+      burst(hp.x, hp.y - 12, ['#ffe27a', '#ffffff'], 20, 60);
+      text(hp.x, hp.y - 32, G.PERKS[id].name, '#ffe27a', 4, { life: 1.4, max: 1.4, vy: -12 });
+    });
+    G.on('bladeHit', m => { const q = mobPos(m); mobVisOf(m).hit = 0.08; burst(q.x, q.y - 5, ['#e6ebf2', '#ffffff'], 3, 40, { life: 0.2 }); });
+    G.on('auraTick', list => { for (const m of list) mobVisOf(m).hit = Math.max(mobVisOf(m).hit, 0.04); if (list.length) { const m = list[Math.floor(Math.random() * list.length)], q = mobPos(m); part(q.x + rand(-3, 3), q.y - 4, pick(['#ffe27a', '#fff3a0']), { vx: 0, vy: -20, grav: 0, life: 0.4 }); } });
+    G.on('nova', () => {
+      const b = btnPos(), r = aoePx(0.5);
+      ring(b.x, b.y - 4, r.rx, r.ry, '#fff3a0', 0.45); ring(b.x, b.y - 4, r.rx * 0.7, r.ry * 0.7, '#ffffff', 0.3);
+      St.shake(2); St.flash(0.12, '#fff3a0');
+    });
+    G.on('chain', (from, list) => {
+      const a = mobPos(from);
+      for (const m of list) {
+        const q = mobPos(m), pts = [[a.x, a.y - 6]];
+        for (let i = 1; i < 4; i++) pts.push([a.x + (q.x - a.x) * i / 4 + rand(-4, 4), a.y - 6 + (q.y - a.y) * i / 4 + rand(-4, 4)]);
+        pts.push([q.x, q.y - 6]);
+        bolts.push({ pts, life: 0.15 });
+      }
     });
     G.on('ability', type => {
       hero.cast = 0.35;
@@ -276,6 +301,7 @@
       St.flash(0.25, '#fff3a0');
     });
     G.on('realm', () => { groundKey = ''; St.flash(0.3, '#000000'); });
+    G.on('ascend', () => { gems.length = 0; });
     G.on('ascend', () => { groundKey = ''; vis.clear(); mobVis.clear(); decals.length = 0; gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
     G.on('buy', (kind) => { if (kind === 'hero') heroKey = ''; });
   }
@@ -532,9 +558,12 @@
     if (hero.moving && Math.random() < 0.3) part(hp.x + rand(-3, 3), hp.y, pick(['#c8b89a', '#8a7a60']), { vx: -hero.face * rand(5, 15), vy: rand(-10, -2), grav: 20, life: 0.3 });
   }
   const MELEE = { dagger: 1, sword: 1, katana: 1, scythe: 1 };
+  // The Warden's hits on a boss add up into floating numbers a few times a second
+  const bossDmg = { acc: 0, t: 0, crit: false };
   function onHeroAttack(ev) {
     const h = G.S.hero;
     if (!h || !h.cls) return;
+    if (ev.boss) { bossDmg.acc += ev.dmg * (G.D.bossMult || 1); bossDmg.crit = bossDmg.crit || ev.crit; }
     const D = G.D, wt = D.hero ? D.hero.wtype : 'dagger';
     const col = G.WEAPONS[wt].col;
     const find = id => { const m = G.R.mobs.find(q => q.id === id); return m ? Object.assign(mobPos(m), { m }) : null; };
@@ -696,6 +725,10 @@
       text(c, q.y - 26, G.t('slain', m.name), '#ffd84a', 4, { life: 1.6, max: 1.6, vy: -12 });
       beams.push({ x: c, y: q.y, col: '#ffd84a', life: 1, max: 1, w: 5 });
     }
+    // XP crystals: blue for the small fry, green for brutes, red for champions and rares
+    const ng = m.kind === 'rare' ? 6 : m.kind === 'magic' ? 3 : m.kind === 'brute' ? 1 : Math.random() < 0.5 ? 1 : 0;
+    const gc = m.kind === 'fodder' ? '#6fb4ff' : m.kind === 'brute' ? '#56d45a' : '#ff5a7a';
+    for (let i = 0; i < ng && gems.length < 260; i++) gems.push({ x: c + rand(-3, 3), y: q.y - 4, vx: rand(-30, 30), vy: rand(-70, -30), floor: q.y + rand(-2, 3), t: rand(0.3, 0.6), fly: 0, col: gc, big: m.kind !== 'fodder' });
     const nc = m.kind === 'rare' ? 10 : m.kind === 'magic' ? 4 : m.kind === 'brute' ? 2 : Math.random() < 0.12 ? 1 : 0;
     for (let i = 0; i < nc && coins.length < 220; i++) coins.push({ x: c, y: q.y - 6, vx: rand(-40, 40), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.45, 0.8), fly: 0 });
     if (gold && !fod && !m.add) text(c, q.y - 16, '+' + G.fmt(gold), m.kind === 'brute' ? '#e8d890' : '#ffd84a', m.kind === 'brute' ? 3 : 4, { life: 0.8, max: 0.8 });
@@ -759,6 +792,52 @@
       lctx.fillStyle = '#c98f10'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y), 3, 1);
       lctx.fillStyle = '#ffd84a'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y) - 2, 3, 2);
       lctx.fillStyle = '#fff3a0'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y) - 2, 1, 1);
+    }
+  }
+  // XP crystals bounce out and get pulled into the Warden
+  function stepGems(dt) {
+    const hp = heroPos(), tx = hp.x, ty = hp.y - 10;
+    for (let i = gems.length - 1; i >= 0; i--) {
+      const k = gems[i];
+      if (k.t > 0) {
+        k.t -= dt;
+        k.vy += 300 * dt; k.x += k.vx * dt; k.y += k.vy * dt;
+        if (k.y >= k.floor && k.vy > 0) { k.y = k.floor; k.vy *= -0.4; k.vx *= 0.6; }
+      } else {
+        k.fly += dt;
+        const dx = tx - k.x, dy = ty - k.y, d = Math.hypot(dx, dy), sp = 70 + k.fly * 600;
+        if (d < 4) { gems.splice(i, 1); part(tx + rand(-4, 4), ty + rand(-4, 4), k.col, { vx: 0, vy: -15, grav: 0, life: 0.25 }); continue; }
+        k.x += dx / d * Math.min(d, sp * dt); k.y += dy / d * Math.min(d, sp * dt);
+      }
+      const x = Math.round(k.x), y = Math.round(k.y);
+      lctx.fillStyle = '#0c0b12'; lctx.fillRect(x - 1, y - 2, 3, 5); lctx.fillRect(x - 2, y - 1, 5, 3);
+      lctx.fillStyle = k.col; lctx.fillRect(x, y - 1, 1, 3); lctx.fillRect(x - 1, y, 3, 1);
+      lctx.fillStyle = '#ffffff'; lctx.fillRect(x, y - 1, 1, 1);
+    }
+  }
+  // Perks that live around the Button: Holy Ground and the Orbiting Blades
+  function drawPerkFx() {
+    const P = G.S.hero && G.S.hero.perks;
+    if (!P) return;
+    const b = btnPos();
+    if (P.aura) {
+      const r = aoePx(0.3), pulse = 0.5 + 0.5 * Math.sin(time * 4);
+      lctx.globalAlpha = 0.1 + 0.03 * P.aura + 0.04 * pulse;
+      lctx.fillStyle = '#ffe27a';
+      for (let dy = -Math.round(r.ry); dy <= r.ry; dy++) { const w = Math.round(r.rx * Math.sqrt(Math.max(0, 1 - (dy / r.ry) * (dy / r.ry)))); lctx.fillRect(b.x - w, b.y - 2 + dy, w * 2, 1); }
+      lctx.globalAlpha = 0.85;
+      const n = 56;
+      for (let j = 0; j < n; j++) { if ((j + Math.floor(time * 8)) % 3) continue; const a = j / n * Math.PI * 2; lctx.fillRect(Math.round(b.x + Math.cos(a) * r.rx), Math.round(b.y - 2 + Math.sin(a) * r.ry), 1, 1); }
+      lctx.globalAlpha = 1;
+    }
+    if (P.blades) {
+      const r = aoePx(0.24), spr = SPR.get('ic_sword');
+      for (let i = 0; i < P.blades; i++) {
+        const a = time * 2.6 + i * Math.PI * 2 / P.blades;
+        const x = b.x + Math.cos(a) * r.rx, y = b.y - 6 + Math.sin(a) * r.ry;
+        lctx.save(); lctx.translate(Math.round(x), Math.round(y)); lctx.rotate(Math.round((a + Math.PI * 0.75) / (Math.PI / 4)) * (Math.PI / 4));
+        lctx.drawImage(spr, -5, -5); lctx.restore();
+      }
     }
   }
   function drawRings(dt) {
@@ -838,6 +917,7 @@
     drawDecals(dt);
     stepGibs(vdt);
     drawGibs(true);
+    drawPerkFx();
 
     // Collect drawables sorted by y
     const list = [];
@@ -893,6 +973,12 @@
     if (G.S.hero && G.S.hero.cls) { const hp = heroPos(); list.push({ y: hp.y, draw: () => drawHero(hp) }); }
     if (mobVis.size > (R.mobs || []).length + 20) { const ids = new Set((R.mobs || []).map(m => m.id)); for (const k of [...mobVis.keys()]) if (!ids.has(k)) mobVis.delete(k); }
     // Button or boss
+    if (bossVis && bossDmg.acc > 0 && (bossDmg.t -= dt) <= 0) {
+      const bp = bossPos();
+      text(bp.x + rand(-18, 18), bp.y - 26 - rand(0, 10), '-' + G.fmt(bossDmg.acc), bossDmg.crit ? '#ff7a2e' : '#ffffff', bossDmg.crit ? 5 : 4, { life: 0.7, max: 0.7, vy: -26 });
+      bossDmg.acc = 0; bossDmg.crit = false; bossDmg.t = 0.16;
+    }
+    if (!bossVis) bossDmg.acc = 0;
     if (bossVis) {
       bossVis.t += dt;
       if (bossVis.enter > 0) bossVis.enter = Math.max(0, bossVis.enter - dt * 2.5);
@@ -929,6 +1015,7 @@
     for (const d of list) d.draw();
     drawRings(vdt);
     stepCoins(vdt);
+    stepGems(vdt);
 
     // Opening chests animation
     for (let i = opening.length - 1; i >= 0; i--) {

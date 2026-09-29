@@ -52,7 +52,7 @@ button { font: inherit; color: inherit; }
 #stageWrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--ink); }
 #stage { display: block; position: absolute; inset: 0; touch-action: none; }
 .hud { position: absolute; left: 0; right: 0; pointer-events: none; display: flex; gap: 8px; padding: 10px 12px; align-items: flex-start; }
-.hud.top { top: 0; justify-content: space-between; }
+.hud.top { top: 10px; justify-content: space-between; }
 .hud.bottom { bottom: 0; flex-direction: column; align-items: stretch; gap: 6px; }
 .hud .pill { pointer-events: auto; }
 .realm { font: 8px/1.6 var(--font-display); letter-spacing: 0.04em; text-shadow: 2px 2px 0 var(--ink); }
@@ -320,6 +320,29 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 .abil i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(10,9,16,.7); z-index: 2; }
 .abil.ready { box-shadow: inset 0 0 0 2px var(--gold), 0 3px 0 var(--ink); animation: pulse 1.1s ease-in-out infinite; }
 .charCard { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px; background: linear-gradient(180deg, #2a2438, #1d1a28); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line-hi); }
+#xpBar { position: absolute; left: 0; right: 0; top: 0; height: 10px; background: #0c0b12; z-index: 4; pointer-events: none; }
+#xpBar i { position: absolute; left: 0; top: 0; bottom: 2px; width: 0; background: linear-gradient(#a8dcff, #4f8cff 55%, #2c5ac8); box-shadow: 0 0 6px #4f8cff; transition: width .25s ease-out; }
+#xpBar span { position: absolute; right: 8px; top: 1px; font: 8px/8px var(--font-display); color: #ffffff; text-shadow: 1px 1px 0 #0c0b12; }
+#xpBar.up i { animation: xpUp .6s ease-out; }
+@keyframes xpUp { 0% { background: #ffffff; } }
+#perks { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); z-index: 12; width: min(94%, 480px); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+#perks h3 { margin: 0; font: 16px/1.2 var(--font-display); color: #a8dcff; text-shadow: 2px 2px 0 var(--ink); text-align: center; animation: popIn .35s cubic-bezier(.3,1.7,.5,1) both; }
+#perks .cards { display: flex; gap: 8px; width: 100%; }
+#perks .card { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px 10px; background: var(--panel); border: 3px solid var(--ink); box-shadow: inset 0 0 0 2px #4f8cff, 0 4px 0 var(--ink); color: var(--text); cursor: pointer; animation: cardIn .35s cubic-bezier(.3,1.6,.5,1) both; }
+#perks .card:hover, #perks .card:focus-visible { transform: translateY(-3px); box-shadow: inset 0 0 0 2px #ffe27a, 0 7px 0 var(--ink); }
+#perks .card img { width: 40px; height: 40px; image-rendering: pixelated; }
+#perks .card b { font: 8px/1.5 var(--font-display); color: #ffe27a; text-align: center; }
+#perks .card .lv { font: 8px/1.4 var(--font-display); color: #a8dcff; }
+#perks .card small { font-size: 15px; line-height: 1.15; color: var(--dim); text-align: center; }
+#perks .auto { margin: 0; font-size: 15px; color: #d8dce8; text-shadow: 1px 1px 0 var(--ink); text-align: center; }
+@keyframes cardIn { from { transform: translateY(30px) scale(.8); opacity: 0; } }
+.perkList { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.perkChip { display: flex; align-items: center; gap: 6px; padding: 3px 8px 3px 4px; background: var(--slot); border: 2px solid var(--ink); }
+.perkChip img { width: 24px; height: 24px; }
+.perkChip b { font: 8px/1 var(--font-display); color: #ffe27a; }
+.perkChip small { color: #a8dcff; }
+.note.warn { color: #ff8a7a; grid-column: 1 / -1; margin: 4px 0 0; }
+.meter.boss.weak { box-shadow: inset 0 0 0 2px #e84a4a; }
 .portrait { width: 100px; height: 88px; display: grid; place-items: center; background: var(--slot); border: 2px solid var(--ink); overflow: hidden; }
 .portrait img { width: 114px; height: auto; image-rendering: pixelated; }
 .lrow img.ldoll { width: 52px; height: 50px; image-rendering: pixelated; margin: -6px 0; }
@@ -434,6 +457,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 
 /* ---------- Phones ---------- */
 @media (max-width: 860px) {
+  #perks { bottom: 104px; }
+  #perks .card { padding: 6px 3px 8px; }
+  #perks .card img { width: 32px; height: 32px; }
   body { overflow: hidden; }
   #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(250px, 46%) minmax(0, 1fr); }
   #panel { border-left: 0; border-top: 3px solid var(--ink); box-shadow: inset 0 2px 0 var(--line); }
