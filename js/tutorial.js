@@ -40,6 +40,8 @@
     tip_asc: "You can ascend! The run restarts, but you earn fame: a permanent bonus to gold and damage. Gear and pets stay.",
     tip_shards: 'Shards piled up. In Character, tap a worn item and enchant it.',
     tip_break: 'Mobs broke the button and the clear bar dropped. Get tougher armour or enchant your weapon.',
+    tip_wall: 'This lord is a wall for now. Ascend: you earn fame, a permanent bonus, and come back much stronger. Gear and pets stay.',
+    tip_evo: 'Evolution ready! A maxed perk plus the right gear turns into something much stronger. Look for the golden card.',
     tip_potion: 'A potion! It raises a stat until you ascend. See them in the Garrison tab.',
     help_title: 'How to play', help_intro: 'Show the intro', help_tut: 'Replay the tutorial',
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
@@ -90,6 +92,7 @@
     { id: 'ability', when: S => S.hero.eq.ability, point: () => P.el('#btnAbil'), text: 'tip_ability' },
     { id: 'shards', when: S => S.hero.shards >= 40, point: () => P.tab('hero'), text: 'tip_shards', until: () => G.UI.tab() === 'hero' },
     { id: 'asc', when: () => G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_asc', until: () => G.UI.tab() === 'asc' },
+    { id: 'wall', when: S => S.scar && S.scar.n >= 3 && G.isLord(S.scar.d) && G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_wall', until: () => G.UI.tab() === 'asc' },
   ];
 
   let tip = null, tipT = 0, lastHl = null;

@@ -58,6 +58,12 @@ button { font: inherit; color: inherit; }
 .realm { font: 8px/1.6 var(--font-display); letter-spacing: 0.04em; text-shadow: 2px 2px 0 var(--ink); }
 .realm b { color: var(--gold); font-weight: normal; }
 .realm small { display: block; font: 15px/1.2 var(--font-body); color: var(--dim); letter-spacing: 0; }
+#omenLine { color: #c8b4ff; }
+.goalBox { margin-top: 6px; max-width: 300px; padding: 4px 8px 6px; background: rgba(12,11,18,.72); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px #ffd84a55; font: 15px/1.2 var(--font-body); letter-spacing: 0; color: var(--text); }
+.goalBox b { font: 8px/1 var(--font-display); color: #ffd84a; margin-right: 4px; }
+.goalBox em { font-style: normal; color: #a8dcff; float: right; margin-left: 8px; }
+.goalBox i { display: block; height: 3px; margin-top: 4px; background: #2a2838; }
+.goalBox u { display: block; height: 100%; width: 0; background: #ffd84a; transition: width .3s; }
 .hudBtns { display: flex; gap: 6px; pointer-events: auto; }
 .iconBtn {
   width: 34px; height: 34px; padding: 0; display: grid; place-items: center; cursor: pointer;
@@ -336,6 +342,18 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 #perks .card small { font-size: 15px; line-height: 1.15; color: var(--dim); text-align: center; }
 #perks .auto { margin: 0; font-size: 15px; color: #d8dce8; text-shadow: 1px 1px 0 var(--ink); text-align: center; }
 @keyframes cardIn { from { transform: translateY(30px) scale(.8); opacity: 0; } }
+#perks .card.evo { box-shadow: inset 0 0 0 2px #ffd84a, 0 4px 0 var(--ink), 0 0 18px #ffd84a88; background: linear-gradient(#3a2e14, var(--panel)); }
+#perks .card.evo .lv { color: #ffd84a; }
+.perkChip.evo { box-shadow: inset 0 0 0 1px #ffd84a; }
+.evoBook { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; margin-bottom: 8px; }
+.evoRow { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; background: var(--slot); border: 2px solid var(--ink); }
+.evoRow img { width: 30px; height: 30px; flex: none; }
+.evoRow b { display: block; font: 8px/1.5 var(--font-display); color: #ffd84a; }
+.evoRow small { display: block; color: var(--dim); }
+.evoRow small.d { color: var(--text); }
+.evoRow.off b { color: var(--dim); }
+.quest.omen { box-shadow: inset 0 0 0 2px #8a6bd8; }
+.quest.journey { box-shadow: inset 0 0 0 2px #ffd84a66; }
 .perkList { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .perkChip { display: flex; align-items: center; gap: 6px; padding: 3px 8px 3px 4px; background: var(--slot); border: 2px solid var(--ink); }
 .perkChip img { width: 24px; height: 24px; }
@@ -457,6 +475,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 
 /* ---------- Phones ---------- */
 @media (max-width: 860px) {
+  .goalBox { max-width: 58vw; }
   #perks { bottom: 104px; }
   #perks .card { padding: 6px 3px 8px; }
   #perks .card img { width: 32px; height: 32px; }

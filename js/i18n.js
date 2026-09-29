@@ -75,6 +75,12 @@
     roleTitle: 'What your Warden does', roleHint: 'Your Warden is the engine: their kills fill the clear bar, drop loot and gold, and every boss dies by their hand. Your clicks during a fight are their strikes.',
     roleHorde: 'Horde size', roleBossClick: 'Boss damage per click', roleBossSec: 'Boss damage per second', roleBoss: 'This depth\'s boss', roleBossTime: '~{0}s alone (limit {1}s)',
     roleWeak: 'Too weak for this boss yet: level up, equip better gear, enchant, or ascend for fame.', hordeX: 'Horde ×{0}', hordeWeak: 'Warden weak here',
+    goal: 'Goal', journey: 'Journey', journeyHint: 'An endless road of goals. Each step gives a reward and +2% Warden damage for good.', journeyStep: 'Step {0}',
+    journeyDone: 'Journey step done', journeyNext: 'Next', omen: 'Omen of the day', omenLine: 'Omen: {0}',
+    bounty: 'Daily bounty', bountyText: 'Slay {0} of today\u2019s Horde for 3 eggs and a chest', bountyDone: 'Bounty complete! Come back tomorrow for a new one.',
+    evoCard: 'EVOLUTION', evoBook: 'Evolutions', evoFound: '{0} of {1} discovered', evoHint: 'Max {0} while wearing {1}', evoUnknown: 'Undiscovered',
+    evoTitle: 'EVOLUTION!', wounded: 'Wounded −{0}%', wardenAway: 'Your Warden kept fighting:', offKills: 'slew {0} mobs', offLevels: '+{0} levels',
+    offPerks: '{0} perks waiting for you to choose', offShards: '+{0} shards',
     surge: 'THE HORDE SURGES', rareComing: 'A rare monster approaches', slain: '{0} slain', streak: '{0} KILLS',
     sk_25: 'KILLING SPREE', sk_50: 'RAMPAGE', sk_100: 'MASSACRE', sk_200: 'CARNAGE', sk_400: 'ANNIHILATION', sk_800: 'APOCALYPSE',
   };

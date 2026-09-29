@@ -239,10 +239,18 @@
       burst(hp.x, hp.y - 12, ['#ffe27a', '#ffffff'], 20, 60);
       text(hp.x, hp.y - 32, G.PERKS[id].name, '#ffe27a', 4, { life: 1.4, max: 1.4, vy: -12 });
     });
+    G.on('evolve', () => {
+      const hp = heroPos();
+      burst(hp.x, hp.y - 12, ['#ffd84a', '#ffffff', '#ff7a2e'], 60, 110);
+      ring(hp.x, hp.y - 4, 40, 20, '#ffd84a', 0.7); ring(hp.x, hp.y - 4, 26, 13, '#ffffff', 0.5);
+      beams.push({ x: hp.x, y: hp.y, col: '#ffd84a', life: 1.6, max: 1.6, w: 11 });
+      St.shake(5); St.flash(0.35, '#ffd84a'); slowmo = 0.5;
+    });
+    G.on('journey', () => { const hp = heroPos(); burst(hp.x, hp.y - 20, ['#ffd84a', '#fff3a0'], 24, 70); });
     G.on('bladeHit', m => { const q = mobPos(m); mobVisOf(m).hit = 0.08; burst(q.x, q.y - 5, ['#e6ebf2', '#ffffff'], 3, 40, { life: 0.2 }); });
     G.on('auraTick', list => { for (const m of list) mobVisOf(m).hit = Math.max(mobVisOf(m).hit, 0.04); if (list.length) { const m = list[Math.floor(Math.random() * list.length)], q = mobPos(m); part(q.x + rand(-3, 3), q.y - 4, pick(['#ffe27a', '#fff3a0']), { vx: 0, vy: -20, grav: 0, life: 0.4 }); } });
-    G.on('nova', () => {
-      const b = btnPos(), r = aoePx(0.5);
+    G.on('nova', rad => {
+      const b = btnPos(), r = aoePx(rad || 0.5);
       ring(b.x, b.y - 4, r.rx, r.ry, '#fff3a0', 0.45); ring(b.x, b.y - 4, r.rx * 0.7, r.ry * 0.7, '#ffffff', 0.3);
       St.shake(2); St.flash(0.12, '#fff3a0');
     });
@@ -821,7 +829,7 @@
     if (!P) return;
     const b = btnPos();
     if (P.aura) {
-      const r = aoePx(0.3), pulse = 0.5 + 0.5 * Math.sin(time * 4);
+      const sanct = P.evo_sanctuary, r = aoePx(sanct ? 0.4 : 0.3), pulse = 0.5 + 0.5 * Math.sin(time * 4);
       lctx.globalAlpha = 0.1 + 0.03 * P.aura + 0.04 * pulse;
       lctx.fillStyle = '#ffe27a';
       for (let dy = -Math.round(r.ry); dy <= r.ry; dy++) { const w = Math.round(r.rx * Math.sqrt(Math.max(0, 1 - (dy / r.ry) * (dy / r.ry)))); lctx.fillRect(b.x - w, b.y - 2 + dy, w * 2, 1); }
@@ -831,9 +839,9 @@
       lctx.globalAlpha = 1;
     }
     if (P.blades) {
-      const r = aoePx(0.24), spr = SPR.get('ic_sword');
-      for (let i = 0; i < P.blades; i++) {
-        const a = time * 2.6 + i * Math.PI * 2 / P.blades;
+      const n = G.bladeCount(), r = aoePx(P.evo_bladestorm ? 0.3 : 0.24), spr = SPR.get(P.evo_bladestorm ? 'it_eternity_blade' : 'ic_sword');
+      for (let i = 0; i < n; i++) {
+        const a = time * (P.evo_bladestorm ? 3.4 : 2.6) + i * Math.PI * 2 / n;
         const x = b.x + Math.cos(a) * r.rx, y = b.y - 6 + Math.sin(a) * r.ry;
         lctx.save(); lctx.translate(Math.round(x), Math.round(y)); lctx.rotate(Math.round((a + Math.PI * 0.75) / (Math.PI / 4)) * (Math.PI / 4));
         lctx.drawImage(spr, -5, -5); lctx.restore();
@@ -1363,6 +1371,7 @@
     ctx.strokeText(name, x, y + 8); ctx.fillStyle = b.lord ? '#ff9ab4' : '#ffffff'; ctx.fillText(name, x, y + 8);
     ctx.textAlign = 'right';
     const tt = Math.ceil(b.t) + 's';
+    if (b.scar < 1) { ctx.textAlign = 'center'; ctx.strokeText(G.t('wounded', Math.round((1 - b.scar) * 100)), x + w / 2, y + 8); ctx.fillStyle = '#ff9a7a'; ctx.fillText(G.t('wounded', Math.round((1 - b.scar) * 100)), x + w / 2, y + 8); ctx.textAlign = 'right'; }
     ctx.strokeText(tt, x + w, y + 8); ctx.fillStyle = b.t < 6 ? '#ff4f4f' : '#ffe27a'; ctx.fillText(tt, x + w, y + 8);
     const hpT = G.fmt(Math.max(0, b.hp)) + ' / ' + G.fmt(b.max);
     ctx.textAlign = 'center'; ctx.font = crisp(3) + 'px ' + FONT;

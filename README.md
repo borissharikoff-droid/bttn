@@ -77,14 +77,17 @@ New systems the original didn't have:
 - **Loot-game gear.** Every item has a level (from the depth where it dropped), a rarity and 0–3 random affixes: damage, attack speed, crit, button toughness, gold, luck, XP, shards. Spares are scrapped into shards, and shards plus gold enchant gear up to +20. A single Power number shows how strong the hero is. Gear survives ascension, so each new run starts stronger.
 - **Why the Warden matters.** The Warden is the engine of a run. Their kills fill the clear bar and drop loot, gold and XP, and every boss dies by their hand: clicks during a fight are the Warden's strikes. The Horde answers the Warden's strength: the flow of mobs scales with how fast the Warden can kill at this depth (shown as "Horde ×N" on the clear bar), so a stronger Warden faces a bigger Horde and clears lands, earns gold and levels up faster, while a weak one gets a trickle and "Warden weak here". From the second land on, bosses are real walls that need a Warden strong enough for the depth. The Character tab spells it out: Horde size, boss damage per click and per second, and how long this depth's boss would take.
 - **Levels and perks.** The Horde drops XP crystals that fly into the Warden, and a blue XP bar runs along the top of the stage. Every level offers three perks to choose from, Vampire Survivors style: Might, Frenzy, Multistrike, Cleave, Long Reach, Orbiting Blades, Holy Ground, Chain Lightning, Nova, Heavy Hand, Bulwark, Leech, Greed and Scavenger, each with several ranks and a visible effect. Perks build this run's Warden and reset on ascension; gear, fame and pets carry over. If you leave the choice alone it is made for you after 12 seconds (can be turned off). In simulation, picking perks well instead of taking whatever comes first saves about a fifth of the time to depth 40.
+- **Perk evolutions.** A perk at its top rank plus the right gear worn turns into a golden card at the next level-up, as in Vampire Survivors: Blade Storm, Sanctuary, Supernova, Thunderstorm, Arrow Rain, Wrath of the Hand, Blood Pact, Midas Touch, Berserk, Titan and Bastion. Discoveries are permanent and fill a recipe book in the Collection, with a hint for each.
+- **The Journey.** An ordered road of goals, always one on screen under the land name with a progress bar and a reward: 44 written steps, then it keeps going ten depths at a time. Each step gives +2% Warden damage for good. The Quests tab shows the current step and the next three.
+- **Omen of the day and the daily bounty.** Every day the Horde gets a twist, the same for everyone (Blood Moon, Gold Rush, The Swarm, Champions' Day, Storm Day, Night of Giants, Fortune), and a bounty pays eggs and a chest for slaying 3,000 of today's Horde. A missed day pauses the daily login streak instead of resetting it.
 - **Clearing the land.** Slain mobs fill the clear bar by their weight, and when it is full the land's boss arrives. If mobs reach the Button and break it, clearing progress drops by half.
 - **The garrison.** 12 classes to hire (rogue, archer, wizard, priestess … summoner). They stand on the stage and shoot the button; every 10/25/50/100… of a class doubles its income.
-- **Bosses and depths.** A boss has 30 seconds, fires bullet rings and brings its own swarm. A win opens the next depth (+8% to all gold) and drops chests, essence, potions and eggs. Every 5th boss is a land's lord.
+- **Bosses and depths.** A boss has 30 seconds, fires bullet rings and brings its own swarm. A boss that gets away keeps 70% of the damage it took ("Wounded −N%") for the next attempt, and after three failures at a lord a tip explains the wall and points to ascension. A win opens the next depth (+8% to all gold) and drops chests, essence, potions and eggs. Every 5th boss is a land's lord.
 - **Stat potions.** 8 stats (ATT, DEF, SPD, DEX, VIT, WIS, LIFE, MANA) with a cap, dropped by bosses. As in RotMG, they're lost when the hero "dies" (on ascension).
 - **Combo, crits and MEGA clicks.** Fast clicking builds a combo up to ×3+, with crits, and every 25th click is a MEGA click once the Thunder Palm node is learned.
 - **Wandering wisps.** Every 1–2 minutes a wisp flies by: Frenzy (gold ×7), Chest Rain, a sack of gold, Click Storm (×77) or a pet egg.
 - **Quests and daily reward.** Three quests with a refresh timer, and a weekly login streak.
-- **Offline income.** Heroes keep working while you're away (50% of income by default, up to 2 hours; both can be raised).
+- **Offline progress.** The garrison keeps earning while you're away (50% of income by default, up to 4 hours; both can be raised), and the Warden keeps fighting: XP at a quarter of the active rate (up to 5 levels per return, with their perk picks waiting for you) and shards.
 - **8 button skins** from achievements, and a secret Prince's Crown, a nod to the original's "The Prince and the Button" achievement.
 - Keyboard controls, a phone layout, and synthesized chiptune (each land has its own theme).
 
@@ -100,6 +103,7 @@ js/i18n.js          interface strings
 js/game.js          DOM-free logic: clicks, chests, bosses, gacha, quests, ascension, offline, saves
 js/hero.js          the hero: classes, gear, affixes, enchanting, mobs, combat, power, ladder snapshot
 js/ach.js           achievements
+js/journey.js       the Journey road of goals, the Omen of the day, the daily bounty
 js/net.js           cloud save and shared ladder (claude.ai page database or your own server)
 js/sprites.js       pixel art: sprites as strings plus the procedural button, chests and ground
 js/doll.js          the Warden's paper doll: layered body, worn gear, poses for the animations
@@ -110,6 +114,8 @@ js/tutorial.js      onboarding: intro, guided tutorial, one-time tips, the How t
 js/main.js          startup, game loop, saving
 server/             ladder server: Cloudflare Worker + D1, same snapshot checks
 tools/sim.js        balance-simulation bot
+tools/playtest.js   persona playtests: active, casual, idle and returning bots, engagement report (see RETENTION.md)
+tools/bot.js        shared sandbox loader and shopping brain for the playtests
 tools/build.js      builds the single-file versions in dist/ and the game logic for the server
 tools/test-server.js  server tests on Node's built-in SQLite
 tools/dev-server.js   local ladder server for development
@@ -125,6 +131,12 @@ node tools/sim.js 180 6 -q    # 180 minutes of play by the bot, 6 clicks per sec
 ```
 
 The bot buys whatever pays back fastest, opens chests, fights bosses, hatches eggs and ascends when it gets stuck. The script prints a timeline of gold, income, depth, fame and first-time events. That's how I caught and removed several economy runaways: quest rewards feeding themselves, pets giving unbounded luck, and bosses falling behind income growth.
+
+```
+node tools/playtest.js all 4 120   # 4 player types × 4 seeds, 2 hours each (the returner plays a week)
+```
+
+The playtests measure engagement rather than economy: big moments per minute, the longest dry spells, first-time events, stalls and lost bosses for an active clicker, a casual player, an idle player and someone who comes back twice a day. Findings, competitor research and before/after numbers are in [RETENTION.md](RETENTION.md).
 
 ## Build
 

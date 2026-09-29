@@ -42,6 +42,7 @@
         playTime: 0, chests: 0, modded: 0, megas: 0 },
       set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1 },
       seen: {}, tut: 0,
+      journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -62,7 +63,7 @@
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 7200, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 25,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 25,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -132,6 +133,7 @@
       if (pet.cps) d.petCps += petCps(pet, st) * Math.sqrt(d.petMult);
     }
     d.crit = Math.min(0.9, d.crit);
+    if (G.omen) d.wispRate *= G.omen().wisp;
     d.petCps *= d.spdMult; d.autoCps *= d.spdMult; d.petOpen *= d.spdMult;
     if (d.autoOpen) d.autoOpen /= d.spdMult;
     d.comboCap = Math.floor(d.comboCap);
@@ -372,6 +374,8 @@
     return loot;
   }
   G.openChest = openChest;
+  G.makeChest = makeChest;
+  G.addEggs = n => addEggs(n);
 
   // Player tapped a chest on the field.
   function clickChest(c) {
@@ -443,9 +447,12 @@
     if (R.boss || !R.bossReady) return false;
     const d = S.depth;
     const lord = isLord(d);
-    const hp = G.bossHp(d);
+    const max = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
+    // a boss that got away comes back with the wounds it took
+    const scar = S.scar && S.scar.d === d ? S.scar.k : 1;
+    const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
-    R.boss = { d, lord, hp, max: hp, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0),
+    R.boss = { d, lord, hp, max, scar, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0),
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
     R.bossReady = false;
     emit('bossStart', R.boss);
@@ -469,7 +476,8 @@
     if (d === 39 && S.rec && !S.rec.madTime) S.rec.madTime = S.st.playTime;
     S.st.bossKills++;
     if (b.lord) S.st.lordKills++;
-    const rew = { gold: D.incomeRef * (b.lord ? 40 : 10), ess: (2 + d * 0.3) * (b.lord ? 3 : 1) * D.essMult,
+    const om = G.omen ? G.omen().bossRew : 1;
+    const rew = { gold: D.incomeRef * (b.lord ? 40 : 10) * om, ess: (2 + d * 0.3) * (b.lord ? 3 : 1) * D.essMult * om,
       eggs: 0, pots: [], chests: [], lord: b.lord, d };
     addGold(rew.gold, 'boss');
     addEssence(rew.ess, 'boss');
@@ -478,8 +486,9 @@
     const pots = b.lord ? 1 : (chance(0.15) ? 1 : 0);
     for (let i = 0; i < pots; i++) { const p = givePotion(); if (p) rew.pots.push(p); }
     const tier = b.lord ? Math.min(6, 1 + Math.floor(d / 8)) : Math.min(5, Math.floor(d / 8));
-    const count = b.lord ? 2 : 1;
+    const count = (b.lord ? 2 : 1) * om;
     if (G.heroBossEnd) G.heroBossEnd(true); // its swarm dies with it, still in this land
+    S.scar = null;
     S.depth++;
     if (S.depth > S.maxDepth) S.maxDepth = S.depth;
     if (S.depth > S.bestDepth) S.bestDepth = S.depth;
@@ -496,6 +505,10 @@
   function bossFail() {
     const S = G.S, b = R.boss;
     R.boss = null;
+    // it keeps 70% of the damage it took, and never comes back weaker than 25%
+    const left = Math.max(0, b.hp / b.max);
+    S.scar = { d: b.d, k: Math.max(0.25, left + (1 - left) * 0.3), n: (S.scar && S.scar.d === b.d ? S.scar.n || 0 : 0) + 1 };
+    b.wound = 1 - S.scar.k;
     if (G.heroBossEnd) G.heroBossEnd(false);
     S.bossMeter = Math.floor(D.bossNeed * 0.5);
     emit('bossFail', b);
@@ -738,8 +751,8 @@
   function claimDaily() {
     const S = G.S;
     if (!dailyAvailable()) return null;
-    const y = new Date(); y.setDate(y.getDate() - 1);
-    S.daily.streak = S.daily.last === G.todayKey(y) ? S.daily.streak + 1 : 0;
+    // a missed day pauses the streak instead of wiping it
+    S.daily.streak = S.daily.last ? S.daily.streak + 1 : 0;
     S.daily.last = G.todayKey();
     const r = dailyReward(S.daily.streak);
     if (r.kind === 'gold') addGold(r.v);
@@ -772,7 +785,7 @@
     S.lastRunEss = S.essRun;
     const fresh = newState();
     const runKeys = ['gold', 'goldRun', 'clicksRun', 'upg', 'heroes', 'nodes', 'essence', 'essRun', 'depth', 'maxDepth',
-      'pots', 'chests', 'chestMeter', 'bossMeter', 'buffs', 'quests'];
+      'pots', 'chests', 'chestMeter', 'bossMeter', 'buffs', 'quests', 'scar'];
     runKeys.forEach(k => S[k] = fresh[k]);
     S.pots = Object.assign(potZero(), keep);
     const L = S.legacy;
@@ -803,7 +816,8 @@
       const l = openChest(makeChest(rollTier(), null), 'offline');
       items += l.items.length; ess += l.ess; extraGold += l.gold;
     }
-    return { sec, t, gold: gold + extraGold, chests: n, items, ess };
+    const warden = G.heroOffline ? G.heroOffline(t) : null;
+    return { sec, t, gold: gold + extraGold, chests: n, items, ess, warden };
   }
   G.applyOffline = applyOffline;
 
@@ -838,6 +852,7 @@
     if (D.scout) S.chestMeter += D.scout * D.chestNeed * dt;
     spawnFromMeter();
     if (G.heroTick) G.heroTick(dt);
+    if (G.journeyTick) G.journeyTick(dt);
     // Boss
     if (R.boss) {
       const b = R.boss;
@@ -915,6 +930,7 @@
     S.pots = Object.assign(potZero(), data.pots || {});
     S.pity = Object.assign({ l: 0, d: 0 }, data.pity || {});
     S.daily = Object.assign({ last: '', streak: 0 }, data.daily || {});
+    S.bounty = Object.assign({ day: '', n: 0, done: false }, data.bounty || {});
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
     G.S = S;

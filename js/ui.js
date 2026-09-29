@@ -119,6 +119,16 @@
     G.on('quests', () => dirtyTab('quests'));
     G.on('questClaim', () => { if (tab === 'quests') UI.render(); });
     G.on('daily', () => { if (tab === 'quests') UI.render(); });
+    G.on('journey', (st, got) => { UI.toast(`<span><b>${esc(t('journeyDone'))}</b> · ${esc(st.text)}</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_trophy'); G.Audio && G.Audio.achievement(); if (tab === 'quests') UI.render(); });
+    G.on('bounty', got => { UI.toast(`<span><b>${esc(t('bounty'))}</b> ✓</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_skull'); if (tab === 'quests') UI.render(); });
+    G.on('evolve', id => {
+      const E = G.EVOS[id], el = $('#banner');
+      el.innerHTML = `<div class="inner" style="color:#ffd84a"><h2>${esc(t('evoTitle'))}</h2><img class="ico" src="${ic(E.icon, 10)}" alt=""><p>${esc(E.name)}</p><p style="font-size:15px;color:#d8dce8">${esc(E.desc)}</p></div>`;
+      el.hidden = false; el.classList.remove('out');
+      clearTimeout(bannerT);
+      bannerT = setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; }, 400); }, 2600);
+      G.Audio && G.Audio.achievement();
+    });
     G.on('pets', () => { if (tab === 'pets') UI.render(); });
     G.on('ladder', () => { if (tab === 'ladder') updaters.ladder(); });
     G.on('net', () => { if (tab === 'ladder') updaters.ladder(); });
@@ -131,6 +141,23 @@
   function dirtyTab(id) { dirty[id] = true; }
 
   // ---------- Update loop ----------
+  let goalKey = '';
+  function updateGoal() {
+    const S = G.S, box = $('#goal');
+    const on = !!(S.hero && S.hero.cls);
+    box.hidden = !on;
+    setText($('#omenLine'), on ? t('omenLine', G.omen().name) : '');
+    if (!on) return;
+    const p = G.Journey.progress();
+    const key = (S.journey || 0) + '|' + p.st.text;
+    if (key !== goalKey) {
+      goalKey = key;
+      box.innerHTML = `<b>${esc(t('goal'))}</b> <span>${esc(p.st.text)}</span> <em data-gp></em><i><u data-gb></u></i>`;
+    }
+    setText(box.querySelector('[data-gp]'), fmt(p.cur) + '/' + fmt(p.need));
+    box.querySelector('[data-gb]').style.width = Math.min(100, p.cur / p.need * 100) + '%';
+  }
+  const rewIcons = got => got.map(([icon, n]) => `${img(icon, 'inl', 2)}${n > 1 ? fmt(n) : ''}`).join(' ');
   let perkKey = '';
   function updatePerks() {
     const h = G.S.hero, box = $('#perks');
@@ -141,6 +168,10 @@
       if (!offer) { box.hidden = true; box.innerHTML = ''; }
       else {
         box.innerHTML = `<h3>${esc(t('lvUp'))}</h3><div class="cards">${offer.map((id, i) => {
+          if (id.startsWith('evo_')) {
+            const E = G.EVOS[id.slice(4)];
+            return `<button class="card evo" data-perk="${id}" style="animation-delay:${i * 0.07}s">${img(E.icon, '', 4)}<b>${esc(E.name)}</b><span class="lv">${esc(t('evoCard'))}</span><small>${esc(E.desc)}</small></button>`;
+          }
           const P = G.PERKS[id], lv = h.perks[id] || 0;
           return `<button class="card" data-perk="${id}" style="animation-delay:${i * 0.07}s">${img(P.icon, '', 4)}<b>${esc(P.name)}</b><span class="lv">${esc(lv ? t('perkLv', lv + ' → ' + (lv + 1)) : t('perkNew'))}</span><small>${esc(P.desc)}</small></button>`;
         }).join('')}</div><p class="auto" data-auto></p>`;
@@ -217,6 +248,8 @@
     }
     // Button HP and ability
     const h = S.hero;
+    // Journey goal and today's omen
+    updateGoal();
     // XP bar and level-up choices
     $('#xpBar').hidden = !(h && h.cls);
     if (h && h.cls) {
@@ -459,6 +492,11 @@
       ${G.RARITIES.map((r, ri) => `
         <div class="rarLabel" style="color:${r.color}"><span>${esc(L(r.name))}</span><span style="color:var(--dim)">${G.ITEMS_BY_RARITY[ri].filter(it => S.coll[it.id]).length}/6</span></div>
         <div class="rarRow">${G.ITEMS_BY_RARITY[ri].map(it => `<button class="slot r${ri}" data-i="${it.id}" aria-label="${esc(L(it.name))}">${img('it_' + it.id, '', 4)}<span class="stars"></span><span class="n"></span></button>`).join('')}</div>`).join('')}
+      <div class="sect">${esc(t('evoBook'))} <small style="color:var(--dim)">${esc(t('evoFound', Object.keys(S.rec.evos || {}).length, Object.keys(G.EVOS).length))}</small></div>
+      <div class="evoBook">${Object.keys(G.EVOS).map(id => {
+        const E = G.EVOS[id], got = S.rec.evos && S.rec.evos[id];
+        return `<div class="evoRow ${got ? '' : 'off'}">${img(E.icon, '', 3, got ? null : { dark: true })}<div><b>${esc(got ? E.name : t('evoUnknown'))}</b><small>${esc(t('evoHint', G.PERKS[E.from].name, E.need))}</small>${got ? `<small class="d">${esc(E.desc)}</small>` : ''}</div></div>`;
+      }).join('')}</div>
       <div class="sect">${esc(t('collBonuses'))}</div>
       <div class="bonusList">${bonusRows || `<span>—</span>`}</div>
       <div class="sect">${esc(t('chestsOpened'))}</div>
@@ -576,9 +614,19 @@
   renderers.quests = function (body) {
     const S = G.S;
     const avail = G.dailyAvailable();
-    const streak = avail ? (() => { const y = new Date(); y.setDate(y.getDate() - 1); return S.daily.last === G.todayKey(y) ? S.daily.streak + 1 : 0; })() : S.daily.streak;
+    const streak = avail ? (S.daily.last ? S.daily.streak + 1 : 0) : S.daily.streak; // a missed day pauses the streak
     const dayIcon = d => { const r = G.DAILY[d % 7]; return r.kind === 'gold' ? 'ic_coin' : r.kind === 'eggs' ? 'ic_egg' : r.kind === 'ess' ? 'ic_ess' : 'chest_6'; };
+    const om = G.omen(), B = S.bounty && S.bounty.day === G.todayKey() ? S.bounty : { n: 0, done: false };
+    const jp = G.Journey.progress();
+    const nextSteps = [1, 2, 3].map(k => G.Journey.step((S.journey || 0) + k).text);
     body.innerHTML = `
+      <div class="quest omen"><div class="top"><b>${esc(t('omen'))}: ${esc(om.name)}</b></div><p class="note">${esc(om.desc)}</p></div>
+      <div class="quest ${B.done ? 'claimed' : ''}"><div class="top"><b>${esc(t('bounty'))}</b><small style="color:var(--dim)">${fmt(Math.min(B.n, G.Journey.BOUNTY))}/${fmt(G.Journey.BOUNTY)}</small></div>
+        <p class="note">${esc(B.done ? t('bountyDone') : t('bountyText', fmt(G.Journey.BOUNTY)))}</p><div class="pbar"><i style="width:${Math.min(100, B.n / G.Journey.BOUNTY * 100)}%"></i></div></div>
+      <div class="quest journey"><div class="top"><b>${esc(t('journey'))} · ${esc(t('journeyStep', (S.journey || 0) + 1))}</b><small style="color:var(--dim)">${fmt(jp.cur)}/${fmt(jp.need)}</small></div>
+        <p>${esc(jp.st.text)}</p>${jp.st.hint ? `<p class="note">${esc(jp.st.hint)}</p>` : ''}
+        <div class="pbar"><i style="width:${Math.min(100, jp.cur / jp.need * 100)}%"></i></div>
+        <p class="note">${esc(t('journeyNext'))}: ${nextSteps.map(esc).join(' · ')}</p><p class="note">${esc(t('journeyHint'))}</p></div>
       <div class="quest ${avail ? 'done' : ''}">
         <div class="top"><b>${esc(t('daily'))}</b>${avail ? `<button class="btn gold" data-daily>${esc(t('collect'))}</button>` : `<small style="color:var(--dim)">${esc(t('tomorrow'))}</small>`}</div>
         <div class="dailyDays">${G.DAILY.map((d, i) => `<div class="${i < streak % 7 ? 'past' : ''} ${i === streak % 7 && avail ? 'now' : ''}">${esc(t('dayN', i + 1))}${img(dayIcon(i), '', 2)}</div>`).join('')}</div>
@@ -842,7 +890,10 @@
     const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks]);
     if (key === rf.key && !force) return;
     const pk = Object.keys(h.perks || {}).filter(k => h.perks[k] > 0);
-    rf.perks.innerHTML = pk.length ? pk.map(k => { const P = G.PERKS[k]; return `<div class="perkChip" title="${esc(P.desc)}">${img(P.icon, '', 3)}<b>${esc(P.name)}</b><small>${h.perks[k]}/${P.max}</small></div>`; }).join('') : `<p class="note">${esc(t('perksNone'))}</p>`;
+    rf.perks.innerHTML = pk.length ? pk.map(k => {
+      if (k.startsWith('evo_')) { const E = G.EVOS[k.slice(4)]; return `<div class="perkChip evo" title="${esc(E.desc)}">${img(E.icon, '', 3)}<b>${esc(E.name)}</b><small>★</small></div>`; }
+      const P = G.PERKS[k]; return `<div class="perkChip" title="${esc(P.desc)}">${img(P.icon, '', 3)}<b>${esc(P.name)}</b><small>${h.perks[k]}/${P.max}</small></div>`;
+    }).join('') : `<p class="note">${esc(t('perksNone'))}</p>`;
     rf.key = key;
     const dk = JSON.stringify(h.eq);
     if (dk !== rf.dollKey) { rf.dollKey = dk; const im = document.querySelector('.portrait img[data-doll]'); if (im) im.src = G.Doll.portrait(h, 4); }
@@ -1060,7 +1111,13 @@
         <div>${img('ic_coin', '', 3)}<span style="color:var(--gold)">+${fmt(r.gold)}</span></div>
         ${r.chests ? `<div>${img('ic_chest', '', 3)}<span>${esc(t('foundChests'))}: ${fmt(r.chests)}</span></div>` : ''}
         ${r.ess >= 0.1 ? `<div>${img('ic_ess', '', 3)}<span style="color:var(--ess)">+${fmt(r.ess, true)}</span></div>` : ''}
-      </div>`;
+      </div>
+      ${r.warden && r.warden.kills ? `<p>${esc(t('wardenAway'))}</p><div class="sumList">
+        <div>${img('ic_sword', '', 3)}<span>${esc(t('offKills', fmt(r.warden.kills)))}</span></div>
+        ${r.warden.levels ? `<div>${img('ic_star', '', 3)}<span style="color:#a8dcff">${esc(t('offLevels', r.warden.levels))}</span></div>` : ''}
+        ${r.warden.perks ? `<div>${img('ic_bolt', '', 3)}<span style="color:#ffe27a">${esc(t('offPerks', r.warden.perks))}</span></div>` : ''}
+        ${r.warden.shards ? `<div>${img('ic_ess', '', 3)}<span>${esc(t('offShards', fmt(r.warden.shards)))}</span></div>` : ''}
+      </div>` : ''}`;
     UI.modal(t('welcomeBack'), html, [{ label: t('collect'), cls: 'gold' }]);
   };
 })(globalThis.G = globalThis.G || {});

@@ -577,6 +577,7 @@
         playTime: 0, chests: 0, modded: 0, megas: 0 },
       set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1 },
       seen: {}, tut: 0,
+      journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -597,7 +598,7 @@
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 7200, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 25,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 25,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -667,6 +668,7 @@
       if (pet.cps) d.petCps += petCps(pet, st) * Math.sqrt(d.petMult);
     }
     d.crit = Math.min(0.9, d.crit);
+    if (G.omen) d.wispRate *= G.omen().wisp;
     d.petCps *= d.spdMult; d.autoCps *= d.spdMult; d.petOpen *= d.spdMult;
     if (d.autoOpen) d.autoOpen /= d.spdMult;
     d.comboCap = Math.floor(d.comboCap);
@@ -907,6 +909,8 @@
     return loot;
   }
   G.openChest = openChest;
+  G.makeChest = makeChest;
+  G.addEggs = n => addEggs(n);
 
   // Player tapped a chest on the field.
   function clickChest(c) {
@@ -978,9 +982,12 @@
     if (R.boss || !R.bossReady) return false;
     const d = S.depth;
     const lord = isLord(d);
-    const hp = G.bossHp(d);
+    const max = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
+    // a boss that got away comes back with the wounds it took
+    const scar = S.scar && S.scar.d === d ? S.scar.k : 1;
+    const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
-    R.boss = { d, lord, hp, max: hp, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0),
+    R.boss = { d, lord, hp, max, scar, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0),
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
     R.bossReady = false;
     emit('bossStart', R.boss);
@@ -1004,7 +1011,8 @@
     if (d === 39 && S.rec && !S.rec.madTime) S.rec.madTime = S.st.playTime;
     S.st.bossKills++;
     if (b.lord) S.st.lordKills++;
-    const rew = { gold: D.incomeRef * (b.lord ? 40 : 10), ess: (2 + d * 0.3) * (b.lord ? 3 : 1) * D.essMult,
+    const om = G.omen ? G.omen().bossRew : 1;
+    const rew = { gold: D.incomeRef * (b.lord ? 40 : 10) * om, ess: (2 + d * 0.3) * (b.lord ? 3 : 1) * D.essMult * om,
       eggs: 0, pots: [], chests: [], lord: b.lord, d };
     addGold(rew.gold, 'boss');
     addEssence(rew.ess, 'boss');
@@ -1013,8 +1021,9 @@
     const pots = b.lord ? 1 : (chance(0.15) ? 1 : 0);
     for (let i = 0; i < pots; i++) { const p = givePotion(); if (p) rew.pots.push(p); }
     const tier = b.lord ? Math.min(6, 1 + Math.floor(d / 8)) : Math.min(5, Math.floor(d / 8));
-    const count = b.lord ? 2 : 1;
+    const count = (b.lord ? 2 : 1) * om;
     if (G.heroBossEnd) G.heroBossEnd(true); // its swarm dies with it, still in this land
+    S.scar = null;
     S.depth++;
     if (S.depth > S.maxDepth) S.maxDepth = S.depth;
     if (S.depth > S.bestDepth) S.bestDepth = S.depth;
@@ -1031,6 +1040,10 @@
   function bossFail() {
     const S = G.S, b = R.boss;
     R.boss = null;
+    // it keeps 70% of the damage it took, and never comes back weaker than 25%
+    const left = Math.max(0, b.hp / b.max);
+    S.scar = { d: b.d, k: Math.max(0.25, left + (1 - left) * 0.3), n: (S.scar && S.scar.d === b.d ? S.scar.n || 0 : 0) + 1 };
+    b.wound = 1 - S.scar.k;
     if (G.heroBossEnd) G.heroBossEnd(false);
     S.bossMeter = Math.floor(D.bossNeed * 0.5);
     emit('bossFail', b);
@@ -1273,8 +1286,8 @@
   function claimDaily() {
     const S = G.S;
     if (!dailyAvailable()) return null;
-    const y = new Date(); y.setDate(y.getDate() - 1);
-    S.daily.streak = S.daily.last === G.todayKey(y) ? S.daily.streak + 1 : 0;
+    // a missed day pauses the streak instead of wiping it
+    S.daily.streak = S.daily.last ? S.daily.streak + 1 : 0;
     S.daily.last = G.todayKey();
     const r = dailyReward(S.daily.streak);
     if (r.kind === 'gold') addGold(r.v);
@@ -1307,7 +1320,7 @@
     S.lastRunEss = S.essRun;
     const fresh = newState();
     const runKeys = ['gold', 'goldRun', 'clicksRun', 'upg', 'heroes', 'nodes', 'essence', 'essRun', 'depth', 'maxDepth',
-      'pots', 'chests', 'chestMeter', 'bossMeter', 'buffs', 'quests'];
+      'pots', 'chests', 'chestMeter', 'bossMeter', 'buffs', 'quests', 'scar'];
     runKeys.forEach(k => S[k] = fresh[k]);
     S.pots = Object.assign(potZero(), keep);
     const L = S.legacy;
@@ -1338,7 +1351,8 @@
       const l = openChest(makeChest(rollTier(), null), 'offline');
       items += l.items.length; ess += l.ess; extraGold += l.gold;
     }
-    return { sec, t, gold: gold + extraGold, chests: n, items, ess };
+    const warden = G.heroOffline ? G.heroOffline(t) : null;
+    return { sec, t, gold: gold + extraGold, chests: n, items, ess, warden };
   }
   G.applyOffline = applyOffline;
 
@@ -1373,6 +1387,7 @@
     if (D.scout) S.chestMeter += D.scout * D.chestNeed * dt;
     spawnFromMeter();
     if (G.heroTick) G.heroTick(dt);
+    if (G.journeyTick) G.journeyTick(dt);
     // Boss
     if (R.boss) {
       const b = R.boss;
@@ -1450,6 +1465,7 @@
     S.pots = Object.assign(potZero(), data.pots || {});
     S.pity = Object.assign({ l: 0, d: 0 }, data.pity || {});
     S.daily = Object.assign({ last: '', streak: 0 }, data.daily || {});
+    S.bounty = Object.assign({ day: '', n: 0, done: false }, data.bounty || {});
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
     G.S = S;
@@ -1566,7 +1582,39 @@
     loot:    { max: 3, icon: 'ic_bag', name: 'Scavenger', desc: '+25% loot bag drops' },
   };
   const perk = id => (G.S.hero && G.S.hero.perks && G.S.hero.perks[id]) || 0;
+  // Today's omen (js/journey.js); neutral where that file isn't loaded, e.g. on the ladder server
+  const NO_OMEN = { xp: 1, mobHp: 1, gold: 1, horde: 1, champ: 1, loot: 1, thunder: 0, luck: 0 };
+  const om = () => (G.omen ? G.omen() : NO_OMEN);
   G.perk = perk;
+
+  // Evolutions, Vampire Survivors style: a perk at its top rank plus the right
+  // gear worn turns the next level-up into a golden card. Discoveries are kept
+  // forever and fill a recipe book in the Collection.
+  G.EVOS = {
+    bladestorm: { from: 'blades', slot: 'weapon', types: ['sword', 'katana', 'dagger'], need: 'a blade', icon: 'it_eternity_blade', name: 'Blade Storm', desc: 'Twice the blades, wider and deadlier' },
+    sanctuary:  { from: 'aura', slot: 'ring', types: ['halo', 'crown'], need: 'a halo or crown', icon: 'it_halo', name: 'Sanctuary', desc: 'Holy Ground doubles, reaches further and repairs the Button' },
+    supernova:  { from: 'nova', slot: 'ability', types: ['orb', 'egg'], need: 'an orb or cosmic egg', icon: 'it_moon_orb', name: 'Supernova', desc: 'A bigger, stronger Nova every 3 seconds' },
+    storm:      { from: 'chain', slot: 'weapon', types: ['wand', 'staff'], need: 'a wand or staff', icon: 'it_chaos_wand', name: 'Thunderstorm', desc: 'Every hit chains to 5 mobs' },
+    rain:       { from: 'multi', slot: 'weapon', types: ['bow'], need: 'a bow', icon: 'it_phoenix_bow', name: 'Arrow Rain', desc: '3 more targets and 50% wider splash' },
+    wrath:      { from: 'thunder', slot: 'ability', types: ['tome', 'scroll'], need: 'a tome or scroll', icon: 'it_star_codex', name: 'Wrath of the Hand', desc: 'Each click calls 3 more bolts' },
+    bloodpact:  { from: 'leech', slot: 'ring', types: ['heart', 'amulet'], need: 'a heart or amulet', icon: 'it_realm_heart', name: 'Blood Pact', desc: 'Kills repair 4× as much, +25% damage' },
+    midas:      { from: 'greed', slot: 'ring', types: ['button', 'ring'], need: 'a ring', icon: 'it_golden_button', name: 'Midas Touch', desc: 'Horde gold ×2, loot bags +50%' },
+    berserk:    { from: 'frenzy', slot: 'armor', types: ['helm'], need: 'a helm', icon: 'it_demon_helm', name: 'Berserk', desc: '+50% attack speed' },
+    titan:      { from: 'might', slot: 'armor', types: ['armor'], need: 'body armour', icon: 'it_golden_plate', name: 'Titan', desc: '+50% damage' },
+    bastion:    { from: 'bulwark', slot: 'armor', types: ['shield'], need: 'a shield', icon: 'it_knight_shield', name: 'Bastion', desc: 'Button toughness ×2, bites hurt 30% less' },
+  };
+  const evo = id => perk('evo_' + id);
+  G.evo = evo;
+  // Evolutions the Warden qualifies for right now
+  function evoReady() {
+    const h = G.S.hero;
+    return Object.keys(G.EVOS).filter(id => {
+      const e = G.EVOS[id], g = h.eq[e.slot];
+      return !evo(id) && perk(e.from) >= G.PERKS[e.from].max && g && e.types.includes(G.ITEM_TYPE[g.id]);
+    });
+  }
+  G.evoReady = evoReady;
+  G.bladeCount = () => perk('blades') * (evo('bladestorm') ? 2 : 1);
 
   // ---------- State ----------
   function newHero() {
@@ -1581,6 +1629,7 @@
     if (!Array.isArray(S.hero.bag)) S.hero.bag = [];
     if (!S.profile) S.profile = { id: Math.random().toString(36).slice(2, 10), name: '' };
     S.rec = Object.assign({ maxPower: 0, maxLevel: 1, madTime: 0, runStart: Date.now() }, S.rec || {});
+    S.rec.evos = S.rec.evos || {};
   }
   G.ensureHero = ensureHero;
 
@@ -1763,21 +1812,22 @@
     const aff = {};
     for (const slot of G.SLOTS) { const g = h.eq[slot]; if (g) for (const [k, v] of g.a) aff[k] = (aff[k] || 0) + v; }
     d.goldMult *= 1 + (aff.gold || 0);
-    d.luck += aff.luck || 0;
-    d.xpMult = 1 + (aff.xp || 0);
+    d.luck += (aff.luck || 0) + om().luck;
+    d.xpMult = (1 + (aff.xp || 0)) * om().xp;
     d.shardMult = 1 + (aff.shard || 0);
   };
   G.heroFinish = function (d) {
     const S = G.S, h = S.hero;
     if (!h) return;
-    d.heroMult = (d.heroMult || 1) * (1 + 0.005 * S.fameTotal) * (1 + 0.02 * (d.heroClasses || 0));
+    d.heroMult = (d.heroMult || 1) * (1 + 0.005 * S.fameTotal) * (1 + 0.02 * (d.heroClasses || 0)) * (G.Journey ? G.Journey.bonus() : 1);
     const c = combat(h.eq, d);
     const buffDmg = (R.hb.tome > 0 ? 1.5 : 1) * (R.hb.orb > 0 ? 1.3 : 1);
     d.hero = c;
-    const might = 1 + 0.12 * perk('might'), frenzy = 1 + 0.12 * perk('frenzy');
+    const might = (1 + 0.12 * perk('might')) * (evo('titan') ? 1.5 : 1) * (evo('bloodpact') ? 1.25 : 1);
+    const frenzy = (1 + 0.12 * perk('frenzy')) * (evo('berserk') ? 1.5 : 1);
     d.heroHit = c.hit * buffDmg * might;
     d.heroRate = c.rate * (R.hb.wing > 0 ? 2 : 1) * frenzy;
-    d.heroHp = c.hp * (1 + 0.2 * perk('bulwark'));
+    d.heroHp = c.hp * (1 + 0.2 * perk('bulwark')) * (evo('bastion') ? 2 : 1);
     d.heroDps = c.dps * buffDmg * might * frenzy;
     d.power = c.power;
     if (h.hp > d.heroHp) h.hp = d.heroHp;
@@ -1836,7 +1886,7 @@
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
     const w = K.w * (add ? 1 : Math.max(1, (R.hs || 1) / 1.5));
-    const hp = mobHp(G.S.depth) * w;
+    const hp = mobHp(G.S.depth) * w * om().mobHp;
     const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
@@ -1852,8 +1902,9 @@
     const d = G.S.depth, a = G.rng(), roll = G.rng();
     const fodder = (n, spread) => { for (let i = 0; i < n; i++) makeMob('fodder', a + rand(-spread, spread), -rand(0, 0.1), add); };
     if (add) { fodder(randInt(10, 16), 0.07); return; }
-    if (d >= 1 && roll < 0.03) { makeMob('rare', a, 0); fodder(16, 0.07); emit('rareSpawn'); }
-    else if (roll < 0.1) { makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); fodder(10, 0.06); }
+    const rc = 0.03 * om().champ, mc = rc + 0.07 * om().champ;
+    if (d >= 1 && roll < rc) { makeMob('rare', a, 0); fodder(16, 0.07); emit('rareSpawn'); }
+    else if (roll < mc) { makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); fodder(10, 0.06); }
     else if (roll < 0.35) { makeMob('brute', a, 0); fodder(8, 0.06); }
     else fodder(randInt(14, 26), 0.08);
   }
@@ -1900,21 +1951,23 @@
     const i = R.mobs.indexOf(m);
     if (i >= 0) R.mobs.splice(i, 1);
     const K = G.MOB_KINDS[m.kind];
-    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1) * (1 + 0.2 * perk('greed'));
+    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1) * (1 + 0.2 * perk('greed')) * (evo('midas') ? 2 : 1) * om().gold;
     G.addGold(gold, 'mob');
     gainXp(2.5 * (1 + S.depth) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (D.xpMult || 1));
     h.kills++;
     if (m.kind === 'magic' || m.kind === 'rare') h.elites++;
+    if (m.kind === 'rare') S.st.rares = (S.st.rares || 0) + 1;
     let chest = null;
     if (!m.add) {
       S.bossMeter += m.w;
-      const greed = (R.hb.scroll > 0 ? 3 : 1) * (1 + 0.25 * perk('loot'));
+      const greed = (R.hb.scroll > 0 ? 3 : 1) * (1 + 0.25 * perk('loot')) * (evo('midas') ? 1.5 : 1) * om().loot;
       const p = m.kind === 'rare' ? 1 : m.kind === 'magic' ? 0.4 * greed : TUNE.mobChest * m.w * greed;
       if (chance(p)) chest = dropBag(m);
       if (m.kind === 'rare' && chance(0.5)) dropBag(m);
     }
-    if (perk('leech')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.003 * perk('leech') * (m.kind === 'fodder' ? 1 : 4));
+    if (perk('leech')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.003 * perk('leech') * (m.kind === 'fodder' ? 1 : 4) * (evo('bloodpact') ? 4 : 1));
     G.questProgress('kills', 1);
+    if (G.Journey) G.Journey.bountyKill();
     emit('mobDie', m, gold, chest, src);
     if (m.mod === 'splitter') for (let k = 0; k < 6; k++) makeMob('fodder', m.a + rand(-0.03, 0.03), m.p - rand(0, 0.06), m.add);
   }
@@ -1946,9 +1999,11 @@
   function offerPerks() {
     const h = G.S.hero;
     const open = Object.keys(G.PERKS).filter(k => perk(k) < G.PERKS[k].max);
-    if (!open.length || !(h.perkPts > 0)) { h.offer = null; h.perkPts = 0; return; }
-    const pickN = [];
-    while (pickN.length < Math.min(3, open.length)) { const k = pick(open); if (!pickN.includes(k)) pickN.push(k); }
+    const evos = evoReady().map(id => 'evo_' + id);
+    if ((!open.length && !evos.length) || !(h.perkPts > 0)) { h.offer = null; h.perkPts = 0; return; }
+    const pickN = evos.slice(0, 1);
+    const want = Math.min(3, open.length + pickN.length);
+    while (pickN.length < want) { const k = pick(open); if (!pickN.includes(k)) pickN.push(k); }
     h.offer = pickN; h.offerT = 0;
     emit('perkOffer', pickN);
   }
@@ -1960,7 +2015,11 @@
     h.perkPts = Math.max(0, (h.perkPts || 1) - 1);
     h.offer = null;
     G.dirty(); G.recalc();
-    emit('perk', id, h.perks[id]);
+    if (id.startsWith('evo_')) {
+      const first = !G.S.rec.evos[id.slice(4)];
+      G.S.rec.evos[id.slice(4)] = 1;
+      emit('evolve', id.slice(4), first);
+    } else emit('perk', id, h.perks[id]);
     if (h.perkPts > 0) offerPerks();
     return true;
   };
@@ -1975,7 +2034,7 @@
     let ts, aoe = wt.aoe, sp = wt.sp;
     if (src === 'click') { const t = R.mobs.length ? smiteTarget() : null; ts = t ? [t] : []; aoe = TUNE.smiteR; sp = 0.5; }
     else if (src === 'pet') { ts = targets(1, 0.7); aoe = 0.05; sp = 1; }
-    else { ts = targets(D.hero.targets + perk('multi'), Math.min(1, wt.reach * (1 + 0.2 * perk('reach')))); aoe = wt.aoe * (1 + 0.3 * perk('cleave')); }
+    else { ts = targets(D.hero.targets + perk('multi') + (evo('rain') ? 3 : 0), Math.min(1, wt.reach * (1 + 0.2 * perk('reach')))); aoe = wt.aoe * (1 + 0.3 * perk('cleave')) * (evo('rain') ? 1.5 : 1); }
     // nothing in reach: the hero holds the swing for when something walks in
     if (!R.boss && !ts.length) return false;
     const crit = chance(D.hero.crit);
@@ -1991,14 +2050,14 @@
     for (const m of ts) dealHit(m, dmg, src, crit);
     for (const m of splash) dealHit(m, dmg * sp, src, crit);
     // Chain Lightning arcs from the first target to three more
-    if (src === 'auto' && perk('chain') && chance(0.15 * perk('chain'))) {
-      const from = ts[0], near = around([from], 0.4).filter(m => !m.dead).slice(0, 3);
+    if (src === 'auto' && perk('chain') && (evo('storm') || chance(0.15 * perk('chain')))) {
+      const from = ts[0], near = around([from], 0.4).filter(m => !m.dead).slice(0, evo('storm') ? 5 : 3);
       if (near.length) { emit('chain', from, near); for (const m of near) dealHit(m, dmg * 0.6, 'chain', false); }
     }
     // Heavy Hand: more bolts per click, each on a different pack
-    if (src === 'click' && perk('thunder') && !attack.inThunder) {
+    if (src === 'click' && (perk('thunder') || om().thunder) && !attack.inThunder) {
       attack.inThunder = true;
-      for (let i = 0; i < perk('thunder'); i++) {
+      for (let i = 0; i < perk('thunder') + (evo('wrath') ? 3 : 0) + om().thunder; i++) {
         const hitSet = new Set(ts.concat(splash));
         const cand = targets(8, TUNE.smiteReach).filter(m => !hitSet.has(m) && !m.dead);
         if (!cand.length) break;
@@ -2080,7 +2139,7 @@
         else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen; emit('surge'); }
         const surging = R.surge > 0;
         R.hs = hordeScale();
-        R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * (surging ? TUNE.surgeMul : 1));
+        R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * om().horde * (surging ? TUNE.surgeMul : 1));
         const cap = hordeCap(S.depth) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1);
         if (R.hordeAcc >= 1 && aliveWeight(false) < cap) {
           const w0 = aliveWeight(false);
@@ -2096,7 +2155,7 @@
       if (m.p < 1) m.p = Math.min(1, m.p + m.sp * dt * slow);
       else {
         m.atkT -= dt;
-        if (m.atkT <= 0) { m.atkT = 1; hurtButton(atk * m.w * (m.mod === 'frenzied' ? 2 : 1)); emit('mobBite', m); if (R.stun > 0) break; }
+        if (m.atkT <= 0) { m.atkT = 1; hurtButton(atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1)); emit('mobBite', m); if (R.stun > 0) break; }
       }
     }
     // the boss hits the button too
@@ -2108,26 +2167,31 @@
     const hit = D.heroHit;
     if (perk('blades') && (R.bladeT = (R.bladeT || 0) - dt) <= 0) {
       R.bladeT = 0.45;
-      const band = R.mobs.filter(m => { const r = 1 - 0.88 * m.p; return r > 0.12 && r < 0.36; });
-      for (let i = 0; i < perk('blades'); i++) {
-        if (R.boss && i === 0) G.hitBoss(hit * 0.25 * D.bossMult);
+      const storm = evo('bladestorm'), outer = storm ? 0.46 : 0.36;
+      const band = R.mobs.filter(m => { const r = 1 - 0.88 * m.p; return r > 0.1 && r < outer; });
+      for (let i = 0; i < G.bladeCount(); i++) {
+        if (R.boss && i === 0) G.hitBoss(hit * (storm ? 0.5 : 0.25) * D.bossMult);
         const m = band.length ? band[Math.floor(G.rng() * band.length)] : null;
-        if (m && !m.dead) { emit('bladeHit', m); dealHit(m, hit * 0.6, 'blade', false); }
+        if (m && !m.dead) { emit('bladeHit', m); dealHit(m, hit * (storm ? 0.9 : 0.6), 'blade', false); }
       }
     }
     if (perk('aura') && (R.auraT = (R.auraT || 0) - dt) <= 0) {
       R.auraT = 0.5;
-      const burn = hit * 0.18 * perk('aura');
-      const near = R.mobs.filter(m => 1 - 0.88 * m.p < 0.3);
+      const sanct = evo('sanctuary');
+      const burn = hit * 0.18 * perk('aura') * (sanct ? 2 : 1);
+      const near = R.mobs.filter(m => 1 - 0.88 * m.p < (sanct ? 0.4 : 0.3));
+      if (sanct) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.01);
       if (near.length) emit('auraTick', near);
       for (const m of near) dealHit(m, burn, 'aura', false);
     }
     if (perk('nova') && (R.novaT = (R.novaT == null ? 6 : R.novaT) - dt) <= 0) {
-      R.novaT = 7.5 - perk('nova');
-      const near = R.mobs.filter(m => 1 - 0.88 * m.p < 0.5);
-      emit('nova');
-      for (const m of near) dealHit(m, hit * 2.5, 'nova', false);
-      if (R.boss) G.hitBoss(hit * 2.5 * D.bossMult);
+      const sn = evo('supernova');
+      R.novaT = sn ? 3 : 7.5 - perk('nova');
+      const rad = sn ? 0.65 : 0.5, pow = sn ? 4 : 2.5;
+      const near = R.mobs.filter(m => 1 - 0.88 * m.p < rad);
+      emit('nova', rad);
+      for (const m of near) dealHit(m, hit * pow, 'nova', false);
+      if (R.boss) G.hitBoss(hit * pow * D.bossMult);
     }
     // a pending level-up choice is made for the player if they leave it
     if (h.offer && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[0]);
@@ -2148,6 +2212,23 @@
     }
   };
   G.aliveWeight = () => aliveWeight(false);
+
+  // Away from the screen the Warden keeps fighting at the offline pace: XP and
+  // levels (the perk picks wait for the player's return) and some shards.
+  G.heroOffline = function (t) {
+    const S = G.S, h = S.hero, D = G.D;
+    if (!h || !h.cls) return null;
+    const w = t * TUNE.hordeRate * hordeScale() * (D.offEff || 0.5);
+    const lvl0 = h.lvl;
+    // a quarter of the active XP rate, and no more than 5 levels per return
+    let room = -h.xp;
+    for (let l = h.lvl; l < h.lvl + 5; l++) room += xpNeed(l);
+    gainXp(Math.min(room - 1, 2.5 * (1 + S.depth) * w * 0.25 * (D.xpMult || 1)));
+    const shards = Math.floor(w * 0.4 * (D.shardMult || 1));
+    const kills = Math.round(w / 0.06);
+    h.shards += shards; // the report counts kills, but only real fights count toward goals
+    return { kills, levels: h.lvl - lvl0, perks: h.perkPts || 0, shards };
+  };
 
   G.heroBossStart = function () {
     for (const m of R.mobs) emit('mobFlee', m);
