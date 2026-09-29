@@ -1,6 +1,12 @@
 # BTTN
 
-A pixel-art incremental about a button that spills chests. You click, chests drop out, and they hold gear and gold. Gold hires a garrison that shoots the button for you. Meanwhile your hero guards the button from mobs, and the game goes on to bosses and depths, pets from an incubator, a skill constellation, and ascension for fame.
+A pixel-art incremental about a Button, the Horde that wants it broken, and you. Your Warden cuts through swarms of mobs in the style of Vampire Survivors, while you click the Button: every click spills gold and loot and calls lightning down on the Horde. Mobs burst into pieces and drop loot bags where they fall, and the game goes on to bosses and depths, pets from an incubator, a skill constellation, and ascension for fame.
+
+## The setting
+
+First, there was the Button. Nobody knows who put it in the Realm, but its glow can be seen from every land. Then the Horde came for its light: crabs from the shore, goblins from the meadows, spores, golems, yetis, watchers, fiends and void wraiths, crawling in from every side to break it. So the Button called a **Warden**, a hero to hold the line, dressed in whatever the Button spills out.
+
+And then it called you. You sit on the other side of the glass. You are **the Hand**: every click spills gold and chests from the Button and brings lightning down on the mobs that got too close. Your Warden fights on their own; you are the help they get from outside the world.
 
 Inspired by [Click the Button](https://store.steampowered.com/app/3946950/Click_the_Button/) (LoopCap, 2026). The art style is chunky 8×8 pixel art with a dark outline, in the spirit of Realm of the Mad God. All art is drawn from scratch in code (`js/sprites.js`); the project uses no third-party assets.
 
@@ -16,7 +22,7 @@ Progress is saved to `localStorage` every 15 seconds and when the tab closes. Se
 
 New players get a short onboarding:
 
-1. **Intro.** Four slides with a typewriter effect: the Button, the chests, the mobs, the four heroes. It can be skipped, and it ends with picking a class.
+1. **Intro.** Four slides with a typewriter effect that tell the setting: the Button, the Horde, the Warden, the Hand. It can be skipped, and it ends with picking a class.
 2. **Guided tutorial.** Buttonling, the guide, walks through 10 steps: click the button, open a chest, check the hero and their 4 slots, buy an upgrade, clear mobs, hire the garrison, beat the first boss, hatch a pet, and a closing look at the ladder. A gold arrow points at whatever needs pressing, whether that's on the stage (button, chest, mob, wisp) or in the panel (tab, upgrade row). The bubble moves out of the arrow's way on small screens. Each step pays a small reward the first time, and the tutorial can be skipped at any point.
 3. **One-time tips.** After the tutorial, a short tip shows the first time a new mechanic appears: a wisp, a modified chest, a boss ready to fight, essence, an ability, enough shards to enchant, the first chance to ascend, a broken button, a stat potion.
 4. **The ? button** (top right) opens "How to play": a summary of every system, plus buttons to replay the intro or the tutorial.
@@ -63,11 +69,15 @@ How BTTN answers each complaint:
 
 New systems the original didn't have:
 
-- **The hero.** One of 4 classes (knight, archer, wizard, rogue) guards the button from mobs that come from every side. Levels come from kills. There are 4 slots: weapon, ability, armour, ring. The weapon type sets how the hero fires: a bow pierces through, a staff fires two bolts, a scythe hits four targets. Your class weapon type deals +50% damage. The ability is triggered with a button (or on its own) and has a cooldown: skull blast, heal, stasis, wings, starfall.
+- **The Horde.** Mobs come in packs from every side, up to a couple of hundred on screen, and every half minute the Horde surges. Packs mix small fodder (a swarm sprite for each of the 8 lands), brutes, pairs of blue champions and named yellow rares with a modifier (Hasted, Stoneskin, Splitting, Frenzied), as in Path of Exile. Each kind has a weight, its share of a standard mob's HP, bite and rewards, so a swarm of fodder is worth as much as a few brutes and the economy stays balanced.
+- **The crunch.** Every death breaks the mob's own sprite into pieces that fly, bounce and settle, and leaves a stain. Each land dies its own way: ice and stone shatter, fiends scatter embers, spores drift up, void wraiths dissolve. Champions and rares get hit-stop, a shockwave and screen shake; a slain boss explodes in slow motion and takes its swarm with it. Kill streaks call out Killing Spree, Rampage, Massacre and higher, and every death has a crunch sound, heavier for a pile.
+- **Loot drops.** Mobs drop loot bags, coloured by rarity as in RotMG, that fly out of the body in an arc and land where it fell, with a beam and a name tag for the good ones. Coins bounce out of the dead and get pulled into the Button. Chests still spill from the Button itself.
+- **The Hand.** A click calls lightning on the thickest part of the Horde near the Button, knocking it back.
+- **The Warden.** One of 4 classes (knight, archer, wizard, rogue) guards the Button from the Horde. Levels come from kills. There are 4 slots: weapon, ability, armour, ring. The weapon type sets how the Warden fights: melee weapons wait for the Horde to come close and cleave the pack, bows and staves reach further, a staff explodes, a scythe sweeps four targets. Your class weapon type deals +50% damage. The ability is triggered with a button (or on its own) and has a cooldown: skull blast, heal, stasis, wings, starfall.
 - **Loot-game gear.** Every item has a level (from the depth where it dropped), a rarity and 0–3 random affixes: damage, attack speed, crit, button toughness, gold, luck, XP, shards. Spares are scrapped into shards, and shards plus gold enchant gear up to +20. A single Power number shows how strong the hero is. Gear survives ascension, so each new run starts stronger.
-- **Clearing the land.** A boss arrives after 25 slain mobs. If mobs reach the button and break it, clearing progress drops by half.
+- **Clearing the land.** Slain mobs fill the clear bar by their weight, and when it is full the land's boss arrives. If mobs reach the Button and break it, clearing progress drops by half.
 - **The garrison.** 12 classes to hire (rogue, archer, wizard, priestess … summoner). They stand on the stage and shoot the button; every 10/25/50/100… of a class doubles its income.
-- **Bosses and depths.** A boss has 30 seconds and fires bullet rings. A win opens the next depth (+8% to all gold) and drops chests, essence, potions and eggs. Every 5th boss is a land's lord.
+- **Bosses and depths.** A boss has 30 seconds, fires bullet rings and brings its own swarm. A win opens the next depth (+8% to all gold) and drops chests, essence, potions and eggs. Every 5th boss is a land's lord.
 - **Stat potions.** 8 stats (ATT, DEF, SPD, DEX, VIT, WIS, LIFE, MANA) with a cap, dropped by bosses. As in RotMG, they're lost when the hero "dies" (on ascension).
 - **Combo, crits and MEGA clicks.** Fast clicking builds a combo up to ×3+, with crits, and every 25th click is a MEGA click once the Thunder Palm node is learned.
 - **Wandering wisps.** Every 1–2 minutes a wisp flies by: Frenzy (gold ×7), Chest Rain, a sack of gold, Click Storm (×77) or a pet egg.

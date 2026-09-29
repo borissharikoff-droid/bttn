@@ -190,7 +190,7 @@
         setClass($('#bossWrap'), 'hp', false);
         const need = D.bossNeed;
         $('#bossMeter').style.width = Math.min(100, S.bossMeter / need * 100) + '%';
-        setText($('#bossText'), R.bossReady ? t('bossReady') : t('clearMeter', Math.min(S.bossMeter, Math.ceil(need)), Math.ceil(need)));
+        setText($('#bossText'), R.bossReady ? t('bossReady') : t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)));
         $('#btnFight').hidden = !R.bossReady; $('#btnRetreat').hidden = true;
       }
     }

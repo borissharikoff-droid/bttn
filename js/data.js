@@ -323,22 +323,22 @@
   // ---------- Realms & bosses ----------
   G.REALM_SIZE = 5; // depths per realm; the 5th depth is the realm lord
   G.REALMS = [
-    { id: 'shore',     name: 'Shoreline',       minion: 'b_crab',   lord: 'l_crab',
-      minionName: 'Sand Crab',     lordName: 'The Crab King' },
-    { id: 'meadow',    name: 'Meadows',          minion: 'b_goblin', lord: 'l_goblin',
-      minionName: 'Goblin',               lordName: 'Goblin Warchief' },
-    { id: 'forest',    name: 'Deepwood',         minion: 'b_shroom', lord: 'l_tree',
-      minionName: 'Shroomling',          lordName: 'Elder Treant' },
-    { id: 'highlands', name: 'Highlands',     minion: 'b_golem',  lord: 'l_titan',
-      minionName: 'Stone Golem',  lordName: 'Mountain Titan' },
-    { id: 'tundra',    name: 'Frostlands',      minion: 'b_yeti',   lord: 'l_wyrm',
-      minionName: 'Yeti',                   lordName: 'Frost Wyrm' },
-    { id: 'godlands',  name: 'Godlands',  minion: 'b_eye',    lord: 'l_eye',
-      minionName: 'Watcher',              lordName: 'The All-Seeing Eye' },
-    { id: 'abyss',     name: 'Abyss',          minion: 'b_imp',    lord: 'l_demon',
-      minionName: 'Fiend',                   lordName: 'Demon Lord' },
-    { id: 'void',      name: 'The Void',      minion: 'b_wraith', lord: 'l_button',
-      minionName: 'Void Wraith',  lordName: 'The Mad Button' },
+    { id: 'shore',     name: 'Shoreline',  minion: 'b_crab',   lord: 'l_crab',   fodder: 'f_crab',
+      minionName: 'Sand Crab', lordName: 'The Crab King' },
+    { id: 'meadow',    name: 'Meadows',    minion: 'b_goblin', lord: 'l_goblin', fodder: 'f_goblin',
+      minionName: 'Goblin', lordName: 'Goblin Warchief' },
+    { id: 'forest',    name: 'Deepwood',   minion: 'b_shroom', lord: 'l_tree',   fodder: 'f_spore',
+      minionName: 'Shroomling', lordName: 'Elder Treant' },
+    { id: 'highlands', name: 'Highlands',  minion: 'b_golem',  lord: 'l_titan',  fodder: 'f_pebble',
+      minionName: 'Stone Golem', lordName: 'Mountain Titan' },
+    { id: 'tundra',    name: 'Frostlands', minion: 'b_yeti',   lord: 'l_wyrm',   fodder: 'f_snow',
+      minionName: 'Yeti', lordName: 'Frost Wyrm' },
+    { id: 'godlands',  name: 'Godlands',   minion: 'b_eye',    lord: 'l_eye',    fodder: 'f_eye',
+      minionName: 'Watcher', lordName: 'The All-Seeing Eye' },
+    { id: 'abyss',     name: 'Abyss',      minion: 'b_imp',    lord: 'l_demon',  fodder: 'f_bat',
+      minionName: 'Fiend', lordName: 'Demon Lord' },
+    { id: 'void',      name: 'The Void',   minion: 'b_wraith', lord: 'l_button', fodder: 'f_shade',
+      minionName: 'Void Wraith', lordName: 'The Mad Button' },
   ];
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------

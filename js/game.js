@@ -479,6 +479,7 @@
     for (let i = 0; i < pots; i++) { const p = givePotion(); if (p) rew.pots.push(p); }
     const tier = b.lord ? Math.min(6, 1 + Math.floor(d / 8)) : Math.min(5, Math.floor(d / 8));
     const count = b.lord ? 2 : 1;
+    if (G.heroBossEnd) G.heroBossEnd(true); // its swarm dies with it, still in this land
     S.depth++;
     if (S.depth > S.maxDepth) S.maxDepth = S.depth;
     if (S.depth > S.bestDepth) S.bestDepth = S.depth;
@@ -495,6 +496,7 @@
   function bossFail() {
     const S = G.S, b = R.boss;
     R.boss = null;
+    if (G.heroBossEnd) G.heroBossEnd(false);
     S.bossMeter = Math.floor(D.bossNeed * 0.5);
     emit('bossFail', b);
   }
@@ -668,7 +670,7 @@
       case 'combo': q.n = Math.min(D.comboCap, Math.round(45 + lv * 8)); break;
       case 'mod': q.n = 3; break;
       case 'wisp': q.n = 1; break;
-      case 'kills': q.n = Math.round((40 + lv * 6) / 5) * 5; break;
+      case 'kills': q.n = Math.round((40 + lv * 6) * 5 / 25) * 25; break;
     }
     const roll = G.rng();
     if (roll < 0.15) { q.rw = 'eggs'; q.rn = 1 + (lv > 30 ? 1 : 0); }

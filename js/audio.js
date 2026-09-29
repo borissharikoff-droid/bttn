@@ -46,13 +46,15 @@
     o.start(t); o.stop(t + dur + 0.02);
   }
   let noiseBuf = null;
+  function ensureNoise() {
+    if (noiseBuf) return;
+    noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
   function noise(dur, vol, when, hp) {
     if (!ac) return;
-    if (!noiseBuf) {
-      noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
-      const d = noiseBuf.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    }
+    ensureNoise();
     const t = ac.currentTime + (when || 0);
     const s = ac.createBufferSource(); s.buffer = noiseBuf;
     const f = ac.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = hp || 800;
@@ -60,6 +62,19 @@
     g.gain.setValueAtTime(vol || 0.15, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     s.connect(f); f.connect(g); g.connect(sfxBus);
     s.start(t); s.stop(t + dur + 0.02);
+  }
+  // Low-passed noise: the body of a crunch
+  function thud(dur, vol, when, lp) {
+    if (!ac) return;
+    ensureNoise();
+    const t = ac.currentTime + (when || 0);
+    const s = ac.createBufferSource(); s.buffer = noiseBuf;
+    s.playbackRate.value = 0.6 + Math.random() * 0.5;
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp || 1800;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(sfxBus);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.02);
   }
   const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
   const note = n => 440 * Math.pow(2, (n - 9) / 12); // n: semitones from C4
@@ -92,6 +107,31 @@
   A.achievement = function () { [0, 7, 12, 16].forEach((s, i) => tone(note(19 + s), 0.2, 'square', 0.07, i * 0.09)); };
   A.lightning = function () { noise(0.25, 0.1, 0, 1500); tone(1800, 0.2, 'sawtooth', 0.03, 0, 300); };
   A.pull = function (tier) { [0, 5, 7, 12].forEach((s, i) => tone(note(17 + s + tier * 2), 0.12, 'triangle', 0.07, i * 0.06)); };
+  // Deaths in the same instant share one crunch that gets heavier with the pile
+  let crunchN = 0, crunchW = 0, crunchT = null;
+  A.crunch = function (kind) {
+    if (!ac) return;
+    crunchN++; crunchW = Math.max(crunchW, kind === 'rare' ? 3 : kind === 'magic' ? 2 : kind === 'brute' ? 1 : 0);
+    if (crunchT) return;
+    crunchT = setTimeout(() => {
+      const n = crunchN, w = crunchW;
+      crunchT = null; crunchN = 0; crunchW = 0;
+      const v = Math.min(0.22, 0.07 + 0.012 * n + 0.04 * w);
+      thud(0.06 + 0.02 * w, v, 0, 1400 + Math.random() * 1400);
+      noise(0.03, v * 0.5, 0, 2500 + Math.random() * 2000);
+      if (w >= 1 || n >= 6) tone(95 + Math.random() * 30, 0.1 + 0.05 * w, 'square', 0.05 + 0.02 * w, 0, 45);
+      if (w >= 3) { tone(60, 0.35, 'sawtooth', 0.09, 0.02, 30); noise(0.25, 0.08, 0.02, 300); }
+    }, 16);
+  };
+  // A drop hitting the ground; the rare ones ring out like a divine orb in PoE
+  A.drop = function (tier) {
+    if (!throttle('drop', 60)) return;
+    thud(0.05, 0.08, 0, 900);
+    if (tier >= 3) [0, 7, 12].forEach((s, i) => tone(note(24 + s + tier), 0.14, 'triangle', 0.05, i * 0.04));
+    if (tier >= 5) [0, 4, 7, 12, 16].forEach((s, i) => tone(note(31 + s), 0.3, 'sine', 0.06, 0.12 + i * 0.05));
+  };
+  A.zap = function () { if (!throttle('zap', 45)) return; noise(0.05, 0.05, 0, 3500); tone(1400 + Math.random() * 400, 0.06, 'sawtooth', 0.025, 0, 300); };
+  A.horn = function () { tone(110, 0.9, 'sawtooth', 0.09, 0, 98); tone(165, 0.9, 'sawtooth', 0.06, 0.05, 147); noise(0.5, 0.03, 0, 200); };
   A.ascend = function () { [0, 4, 7, 12, 16, 19, 24, 28, 31].forEach((s, i) => tone(note(7 + s), 0.5, 'sine', 0.07, i * 0.1)); };
 
   // ---------- Music: 16-step loop, mood per realm ----------
@@ -151,4 +191,8 @@
   G.on('lightning', () => A.lightning());
   G.on('chestHit', () => A.bossHit());
   G.on('ascend', () => A.ascend());
+  G.on('mobDie', m => A.crunch(m.kind));
+  G.on('heroAttack', ev => { if (ev.src === 'click' && !ev.boss) A.zap(); });
+  G.on('surge', () => A.horn());
+  G.on('rareSpawn', () => tone(note(7), 0.4, 'triangle', 0.06, 0, note(0)));
 })(globalThis.G = globalThis.G || {});

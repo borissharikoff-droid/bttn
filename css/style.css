@@ -414,6 +414,14 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 .march .mR { display: flex; gap: 6px; animation: marchR 2.4s ease-in-out infinite alternate; }
 @keyframes marchL { from { transform: translateX(-60px); } to { transform: translateX(6px); } }
 @keyframes marchR { from { transform: translateX(60px); } to { transform: translateX(-6px); } }
+.handArt { position: relative; display: inline-block; padding-top: 70px; }
+.handArt .btn2 { width: 180px; display: block; }
+.handArt .finger { position: absolute; left: 50%; top: 0; width: 72px; margin-left: -36px; transform: scaleY(-1); animation: tapF .8s ease-in-out infinite; }
+@keyframes tapF { 45%, 55% { transform: translateY(26px) scaleY(-1); } }
+.march img.sm { width: 40px; }
+.handArt .zap { position: absolute; top: 40px; width: 44px; animation: zapF .8s steps(1) infinite; }
+.handArt .zap.l { left: -58px; } .handArt .zap.r { right: -58px; animation-delay: .4s; }
+@keyframes zapF { 50% { opacity: 0; } }
 .dots { display: flex; gap: 6px; }
 .dots i { width: 10px; height: 10px; background: var(--line); }
 .dots i.on { background: var(--gold); }
@@ -455,8 +463,11 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   .note.keys { display: none; }
   .introTitle { font-size: 32px; }
   .row3 img { width: 60px; }
-  .march img { width: 48px; }
+  .march img { width: 40px; }
+  .march img.sm { width: 24px; }
   .march .midBtn { width: 110px; }
+  .handArt .btn2 { width: 130px; }
+  .handArt .finger { width: 56px; margin-left: -28px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }

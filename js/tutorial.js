@@ -8,27 +8,28 @@
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const t = (...a) => G.t(...a);
   const img = (id, sc, o) => `<img src="${G.SPR.url(id, sc || 4, o)}" alt="" draggable="false">`;
+  const sm = id => `<img class="sm" src="${G.SPR.url(id, 4)}" alt="" draggable="false">`;
 
   Object.assign(G.STR, {
-    in_1: 'Somewhere deep in the Realm stands a Button.', in_1b: 'Nobody remembers who put it there. Everyone knows it must be pressed.',
-    in_2: 'Every press makes chests spill out of it.', in_2b: 'Gold, weapons, armour, and loot the bards sing about.',
-    in_3: 'The treasure draws the mobs.', in_3b: 'They come from every side to break the Button.',
-    in_4: 'Choose a hero and defend it.', in_4b: 'Gear them up with loot, dive deeper and become the strongest.',
-    in_next: 'Next', in_skip: 'Skip', in_play: 'Choose a hero',
+    in_1: 'First, there was the Button.', in_1b: 'Nobody knows who put it in the Realm. Its glow can be seen from every land.',
+    in_2: 'Then the Horde came for its light.', in_2b: 'Crawling, swarming, shrieking, from every side at once. They want it broken.',
+    in_3: 'So the Button called a Warden.', in_3b: 'A hero to hold the line, dressed in whatever the Button spills out.',
+    in_4: 'And then it called you.', in_4b: 'You sit on the other side of the glass. Every click spills gold and calls lightning down on the Horde. You are the Hand.',
+    in_next: 'Next', in_skip: 'Skip', in_play: 'Choose your Warden',
     tu_guide: 'Buttonling', tu_step: 'Tutorial {0}/{1}', tu_skip: 'Skip the tutorial', tu_ok: 'Got it', tu_reward: 'Done! Reward: {0}',
-    tu_click: "Hi, I'm Buttonling! Press the big button. Every click gives gold and fills the chest bar below.",
+    tu_click: "I'm Buttonling, the Button's voice. You're the Hand now: press the Button! Every click spills gold and fills the chest bar below.",
     tu_chestWait: 'Almost! When the green Chest bar fills up, a chest drops nearby.',
-    tu_chest: 'A chest! Tap it to open. Inside are gold and gear for your hero.',
-    tu_gear: "The chest had an item. Open the Character tab and let's look at your hero.",
-    tu_doll: 'This is your hero with 4 slots: weapon, ability, armour and ring. Better items are equipped automatically. Scrap spares into shards and enchant your gear with them.',
+    tu_chest: 'Loot! Tap it to open. The Button spills chests, and mobs drop bags where they fall.',
+    tu_gear: "There was gear inside. Open the Character tab and meet your Warden.",
+    tu_doll: 'This is your Warden with 4 slots: weapon, ability, armour and ring. Better items are equipped automatically. Scrap spares into shards and enchant your gear with them.',
     tu_upgWait: "Click up 15 gold and we'll buy the first upgrade.",
     tu_upg: 'You have the gold! In Upgrades, buy Iron Finger to make clicks stronger.',
-    tu_mobs: 'Mobs are coming for the button! Your hero shoots on their own, and each of your clicks fires another volley. Tap a mob to focus it.',
+    tu_mobs: 'The Horde is here! Your Warden fights on their own, and each click calls lightning on the mobs closest to the Button. Tap a mob to focus it.',
     tu_garrisonWait: "Great! Save 50 gold and we'll hire the first fighter for the garrison.",
     tu_garrison: 'In Garrison, hire a Rogue. The garrison earns gold even when you are not clicking.',
-    tu_boss: 'The orange bar is the area clear. Slay 25 mobs and a boss arrives.',
+    tu_boss: "The orange bar is the clear. Cut down the Horde to fill it, and the land's boss comes.",
     tu_bossReady: 'The boss is ready! Press ⚔ or the skull above the button. You have 30 seconds, click like mad.',
-    tu_bossFight: "Hit the boss! Clicks are your hero's volleys. Too slow and it leaves, but it comes back.",
+    tu_bossFight: 'Hit the boss! Your clicks strike it too. It brings its own swarm, and if you are too slow it leaves, but it comes back.',
     tu_pets: 'The boss dropped an egg! Hatch it in Pets: pets help in battle.',
     tu_final: 'You know it all! Next: dive deeper, fill the collection, grow the constellation and ascend for fame. The Ladder tab ranks you against others. Press ? any time.',
     tip_wisp: 'A wisp! Catch it before it flies off: it gives a buff or gold.',
@@ -41,10 +42,10 @@
     tip_break: 'Mobs broke the button and the clear bar dropped. Get tougher armour or enchant your weapon.',
     tip_potion: 'A potion! It raises a stat until you ascend. See them in the Garrison tab.',
     help_title: 'How to play', help_intro: 'Show the intro', help_tut: 'Replay the tutorial',
-    help_1: 'The Button', help_1t: 'A click gives gold and fills the chest bar. Fast clicks build a combo multiplier.',
-    help_2: 'Chests and gear', help_2t: 'Open chests for gold, essence and items of 7 rarities. Special chests (storm, frozen, mimics…) each work their own way.',
-    help_3: 'Hero', help_3t: '4 slots: weapon, ability, armour, ring. Your class weapon type deals +50%. Scrap spares into shards and enchant gear up to +20.',
-    help_4: 'Mobs and bosses', help_4t: 'Mobs march on the button. Slay 25 and a boss comes. Winning opens the next depth: tougher mobs, better loot.',
+    help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
+    help_2: 'Loot', help_2t: 'Mobs drop bags where they fall and the Button spills chests: gold, essence and gear of 7 rarities. Special chests (storm, frozen, mimics…) each work their own way.',
+    help_3: 'Your Warden', help_3t: '4 slots: weapon, ability, armour, ring. Your class weapon type deals +50%. Scrap spares into shards and enchant gear up to +20.',
+    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, brutes, blue champions and named yellow rares with a modifier, and it surges every half minute. Fill the clear bar and the land's boss comes; beat it to go deeper.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and the collection stay.',
@@ -70,7 +71,7 @@
     { id: 'gear', text: 'tu_gear', point: () => P.tab('hero'), done: () => G.UI.tab() === 'hero' },
     { id: 'doll', text: 'tu_doll', point: () => P.inTab('hero', '.doll'), manual: true },
     { id: 'upg', text: S => (S.gold >= 15 || S.upg.finger ? 'tu_upg' : 'tu_upgWait'), point: S => (S.gold >= 15 ? P.inTab('upg', '.row[data-u="finger"]') : P.button()), done: S => (S.upg.finger || 0) >= 1 },
-    { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), done: S => S.hero.kills >= 8 },
+    { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), done: S => S.hero.kills >= 40 },
     { id: 'garrison', text: S => (S.gold >= 50 ? 'tu_garrison' : 'tu_garrisonWait'), point: S => (S.gold >= 50 ? P.inTab('heroes', '.row[data-h="rogue"]') : P.button()), done: S => (S.heroes.rogue || 0) >= 1 },
     { id: 'boss', text: () => (G.R.boss ? 'tu_bossFight' : G.R.bossReady ? 'tu_bossReady' : 'tu_boss'),
       point: () => (G.R.boss ? P.button() : G.R.bossReady ? (P.el('#btnFight') || P.button()) : P.el('#bossRow')), done: S => S.st.bossKills >= 1 },
@@ -235,10 +236,10 @@
     const btn = G.SPR.url(G.SPR.button(skins[0], false, 0), 6);
     const slides = [
       { a: 'in_1', b: 'in_1b', art: `<div class="introTitle">${'BTTN'.split('').map((ch, i) => `<span style="animation-delay:${0.15 * i}s">${ch}</span>`).join('')}</div><img class="dropBtn" src="${btn}" alt="">` },
-      { a: 'in_2', b: 'in_2b', art: `<div class="row3">${[0, 2, 4, 6].map((tr, i) => `<span class="popIn" style="animation-delay:${0.25 * i}s">${img('chest_' + tr, 6)}</span>`).join('')}</div>
-          <div class="row3 small">${['it_steel_sword', 'it_sapphire_amulet', 'it_golden_plate', 'it_halo'].map((id, i) => `<span class="popIn" style="animation-delay:${0.9 + 0.2 * i}s">${img(id, 5)}</span>`).join('')}</div>` },
-      { a: 'in_3', b: 'in_3b', art: `<div class="march"><span class="mL">${img('b_goblin', 4)}${img('b_crab', 4)}</span><img class="midBtn" src="${G.SPR.url(G.SPR.button('#e8413c', false, 0), 4)}" alt=""><span class="mR">${img('b_imp', 4)}${img('b_eye', 4)}</span></div>` },
-      { a: 'in_4', b: 'in_4b', art: `<div class="row3">${G.CLASSES.map((c, i) => `<span class="popIn" style="animation-delay:${0.2 * i}s">${img(c.spr, 8)}</span>`).join('')}</div>`, last: true },
+      { a: 'in_2', b: 'in_2b', art: `<div class="march"><span class="mL">${sm('f_crab')}${img('b_goblin', 4)}${sm('f_goblin')}</span><img class="midBtn" src="${G.SPR.url(G.SPR.button('#e8413c', false, 0), 4)}" alt=""><span class="mR">${sm('f_bat')}${img('b_imp', 4)}${sm('f_eye')}</span></div>` },
+      { a: 'in_3', b: 'in_3b', art: `<div class="row3">${G.CLASSES.map((c, i) => `<span class="popIn" style="animation-delay:${0.2 * i}s">${img(c.spr, 8)}</span>`).join('')}</div>
+          <div class="row3 small">${['bag_3', 'it_steel_sword', 'chest_4', 'it_golden_plate', 'bag_6'].map((id, i) => `<span class="popIn" style="animation-delay:${0.9 + 0.15 * i}s">${img(id, 5)}</span>`).join('')}</div>` },
+      { a: 'in_4', b: 'in_4b', art: `<div class="handArt"><img class="zap l" src="${G.SPR.url('ic_bolt', 5)}" alt=""><img class="finger" src="${G.SPR.url('ic_finger', 8)}" alt=""><img class="btn2" src="${btn}" alt=""><img class="zap r" src="${G.SPR.url('ic_bolt', 5)}" alt=""></div>`, last: true },
     ];
     let i = 0, timer = null;
     const show = () => {

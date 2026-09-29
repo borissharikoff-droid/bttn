@@ -979,6 +979,79 @@
     '........',
   ]);
 
+  // ================= FODDER (8px swarm mobs, one per land) =================
+  def('f_crab', { r: '#ff7a45', R: '#c9481c', k: '#1a1a22', y: '#ffc06b', w: '#ffffff' }, [
+    'r......r',
+    'Rr....rR',
+    '.rwkkwr.',
+    'rrrrrrrr',
+    '.rRyyRr.',
+    '.RRRRRR.',
+    'r.r..r.r',
+  ]);
+  def('f_goblin', { g: '#7ac84a', G: '#4f8f2e', k: '#1a1a22', b: '#7a5230', B: '#5a3a22', w: '#e6ebf2' }, [
+    'g......g',
+    'gg.gg.gg',
+    '.gggggg.',
+    '.gkggkg.',
+    '..gwwg..',
+    '.bbbbbbw',
+    '..bBBb.w',
+    '..G..G..',
+  ]);
+  def('f_spore', { r: '#c84ae8', R: '#8a2aa8', w: '#ffffff', s: '#f4ecd8', S: '#c8bca0', k: '#1a1a22' }, [
+    '..rrrr..',
+    '.rwrrwr.',
+    'rrrrrrrr',
+    'RRRRRRRR',
+    '..kssk..',
+    '..ssss..',
+    '.S....S.',
+  ]);
+  def('f_pebble', { g: '#9a9aa8', G: '#6e6e7c', w: '#c8c8d4', c: '#7fe9ff' }, [
+    '..gwwg..',
+    '.gwgggg.',
+    'ggcggcgg',
+    'gGgggggG',
+    '.GGGGGG.',
+    '.G....G.',
+  ]);
+  def('f_snow', { w: '#f4f8fc', W: '#bfd0e0', b: '#7fc4ff', k: '#1a1a22', B: '#4f8ad0' }, [
+    '..wwww..',
+    '.wwwwww.',
+    'wbkbbkbw',
+    '.wbbbbw.',
+    'wwwwwwww',
+    '.wWwwWw.',
+    '.BB..BB.',
+  ]);
+  def('f_eye', { w: '#ffffff', W: '#d8d0e8', r: '#ff4f7e', k: '#1a1a22', p: '#8a3fd6' }, [
+    'p......p',
+    'pp.WW.pp',
+    '.pwwwwp.',
+    '.wrkkrw.',
+    '.Wwrrww.',
+    '..WwwW..',
+    '...pp...',
+  ]);
+  def('f_bat', { r: '#e03a3a', R: '#9e2424', y: '#ffe27a', k: '#1a1a22', o: '#ff6a2e' }, [
+    'R......R',
+    'RR.rr.RR',
+    'RryrryrR',
+    'RRrrrrRR',
+    'R.rrrr.R',
+    '...oo...',
+  ]);
+  def('f_shade', { p: '#6b3fc0', P: '#3a2266', c: '#7fe9ff' }, [
+    '..pppp..',
+    '.pPPPPp.',
+    '.pcPPcp.',
+    '.pPPPPp.',
+    'pPPPPPPp',
+    '.pPppPp.',
+    'p..p..p.',
+  ]);
+
   // ================= MONSTERS (16x16) =================
   def('b_crab', { r: '#ff7a45', R: '#c9481c', w: '#ffffff', k: '#1a1a22', y: '#ffc06b' }, [
     '................',
@@ -1280,6 +1353,20 @@
     '.MMMMMMMMMM.',
   ];
   CHEST_PAL.forEach((pal, i) => def('chesto_' + i, pal, CHEST_OPEN_PX));
+  // Loot bags, as in RotMG: what mobs drop, coloured by rarity like the chests
+  const BAG_PX = [
+    '...MMMM...',
+    '....KK....',
+    '...dLLd...',
+    '..LllllL..',
+    '.LlwlllLL.',
+    'LlwllllLLd',
+    'LlllllLLdd',
+    'LLlllLLddD',
+    '.LLLLLddD.',
+    '..DDDDDD..',
+  ];
+  CHEST_PAL.forEach((pal, i) => def('bag_' + i, pal, BAG_PX));
   // Mimic: chest with teeth and eyes
   def('mimic', { L: '#b07a45', l: '#d09a5c', D: '#7a4a24', d: '#9a6434', M: '#6e7080', w: '#ffffff', r: '#c81e3a', y: '#ffe27a', k: '#1a1a22' }, [
     '..LLLLLLLL..',

@@ -8,8 +8,8 @@
   const TUNE = G.TUNE;
   Object.assign(TUNE, {
     mobBase: 10, mobGrowth: 1.24, mobAtkBase: 4, mobAtkGrowth: 1.2,
-    mobWalk: 9, spawnEvery: 1.3, eliteChance: 0.06,
-    bossHpMobs: 25, bagMax: 30, clickVolley: 0.6, petVolley: 0.25,
+    mobWalk: 9, hordeRate: 0.6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
+    bossHpMobs: 25, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
   });
 
@@ -33,15 +33,18 @@
     ring: 'ring', amulet: 'ring', crown: 'ring', heart: 'ring', halo: 'ring', button: 'ring',
   };
   G.slotOf = id => SLOT_OF_TYPE[G.ITEM_TYPE[id]];
-  // rate = attacks/s, mult = damage per attack, targets = mobs hit per attack
+  // rate = attacks/s, mult = damage per attack, targets = mobs hit per attack.
+  // In arena units (the spawn ring is radius 1): reach = how far from the
+  // Button the hero can hit, aoe/sp = splash radius around each target and
+  // the share of damage it deals. They shape horde clearing, not ladder power.
   G.WEAPONS = {
-    dagger: { rate: 3.2, mult: 0.42, targets: 1, col: '#e6ebf2', name: 'Dagger' },
-    sword:  { rate: 1.6, mult: 0.85, targets: 2, col: '#ffffff', name: 'Sword' },
-    katana: { rate: 2.2, mult: 0.65, targets: 1, col: '#d4b0ff', name: 'Katana' },
-    scythe: { rate: 1.1, mult: 1.0, targets: 4, col: '#ff4f7e', name: 'Scythe' },
-    bow:    { rate: 1.3, mult: 0.95, targets: 3, col: '#9be15d', name: 'Bow' },
-    staff:  { rate: 1.4, mult: 1.0, targets: 2, col: '#5ab4ff', name: 'Staff' },
-    wand:   { rate: 2.6, mult: 0.5, targets: 1, col: '#ffe27a', name: 'Wand' },
+    dagger: { rate: 3.2, mult: 0.42, targets: 1, reach: 0.42, aoe: 0.08, sp: 0.6, col: '#e6ebf2', name: 'Dagger' },
+    sword:  { rate: 1.6, mult: 0.85, targets: 2, reach: 0.45, aoe: 0.16, sp: 1, col: '#ffffff', name: 'Sword' },
+    katana: { rate: 2.2, mult: 0.65, targets: 1, reach: 0.45, aoe: 0.12, sp: 0.8, col: '#d4b0ff', name: 'Katana' },
+    scythe: { rate: 1.1, mult: 1.0, targets: 4, reach: 0.5, aoe: 0.2, sp: 1, col: '#ff4f7e', name: 'Scythe' },
+    bow:    { rate: 1.3, mult: 0.95, targets: 3, reach: 0.9, aoe: 0.09, sp: 0.8, col: '#9be15d', name: 'Bow' },
+    staff:  { rate: 1.4, mult: 1.0, targets: 2, reach: 0.75, aoe: 0.19, sp: 0.7, col: '#5ab4ff', name: 'Staff' },
+    wand:   { rate: 2.6, mult: 0.5, targets: 1, reach: 0.75, aoe: 0.12, sp: 0.7, col: '#ffe27a', name: 'Wand' },
   };
   const ARMOR_MUL = { armor: 1, boot: 0.7, shield: 1.2, helm: 0.9, cloak: 0.85 };
   G.ABILITIES = {
@@ -96,7 +99,7 @@
 
   const R = G.R;
   ensureHero(G.S);
-  Object.assign(R, { mobs: [], mobUid: 0, spawnT: 2, heroAcc: 0, abilCd: 0, hb: {}, stun: 0, bossAtkT: 2 });
+  Object.assign(R, { mobs: [], mobUid: 0, hordeAcc: 0, surgeT: 20, surge: 0, heroAcc: 0, abilCd: 0, hb: {}, stun: 0, bossAtkT: 2 });
 
   // ---------- Gear ----------
   function rollAffixes(r) {
@@ -293,50 +296,136 @@
     if (c.power > S.rec.maxPower) S.rec.maxPower = c.power;
   };
 
-  // ---------- Mobs & combat ----------
+  // ---------- The Horde ----------
+  // Mobs walk from the edge of the arena (p = 0) to the Button (p = 1). Each
+  // kind has a weight: its share of a standard mob's HP, bite, rewards and
+  // clearing progress. A swarm of fodder is worth the same as a few brutes,
+  // it just dies in a much bigger heap.
   function mobHp(d) { return TUNE.mobBase * Math.pow(TUNE.mobGrowth, d); }
   function mobAtk(d) { return TUNE.mobAtkBase * Math.pow(TUNE.mobAtkGrowth, d); }
   G.mobHp = mobHp; G.mobAtk = mobAtk;
   G.bossHp = d => mobHp(d) * TUNE.bossHpMobs * (G.isLord(d) ? TUNE.lordHp : 1);
-  const maxAlive = d => 6 + Math.min(6, Math.floor(d / 5));
   function xpNeed(l) { return Math.floor(15 * Math.pow(1.2, l - 1) + 10 * l); }
   G.xpNeed = xpNeed;
 
-  function spawnMob() {
-    const S = G.S;
-    const elite = chance(TUNE.eliteChance);
-    const hp = mobHp(S.depth) * (elite ? 4 : 1);
-    const m = { id: ++R.mobUid, hp, max: hp, p: 0, sp: 1 / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, elite, a: G.rng() };
+  G.MOB_KINDS = {
+    fodder: { w: 0.03, spd: 1.3, gold: 1 },
+    brute:  { w: 1, spd: 1, gold: 1 },
+    magic:  { w: 2, spd: 1.05, gold: 1.25 }, // blue champions, they come in pairs
+    rare:   { w: 6, spd: 0.9, gold: 1.5 },   // yellow, named, one modifier, a pack of minions
+  };
+  G.RARE_MODS = {
+    hasted:   { name: 'Hasted' },    // walks 70% faster
+    stone:    { name: 'Stoneskin' }, // takes half damage
+    splitter: { name: 'Splitting' }, // bursts into fodder when it dies
+    frenzied: { name: 'Frenzied' },  // bites twice as hard
+  };
+  const RARE_A = ['Gloom', 'Rot', 'Blight', 'Grim', 'Dread', 'Hollow', 'Ash', 'Bile', 'Doom', 'Rust', 'Wretch', 'Vile'];
+  const RARE_B = ['Maw', 'Fang', 'Gnaw', 'Howl', 'Spawn', 'Husk', 'Claw', 'Rend', 'Brood', 'Shriek', 'Grin', 'Hunger'];
+
+  const hordeCap = d => TUNE.hordeCap + Math.min(10, d / 4);
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  function aliveWeight(adds) { let w = 0; for (const m of R.mobs) if (!!m.add === adds) w += m.w; return w; }
+
+  // Arena position, the same angle mapping the stage draws with (the top,
+  // under the HUD, stays clear). The spawn ring is radius 1.
+  function mobXY(m) {
+    const th = -Math.PI / 2 + 0.55 + m.a * (Math.PI * 2 - 1.1);
+    const r = 1 - 0.88 * m.p;
+    return [Math.cos(th) * r, Math.sin(th) * r];
+  }
+  G.mobXY = mobXY;
+
+  function makeMob(kind, a, p, add) {
+    const K = G.MOB_KINDS[kind];
+    const hp = mobHp(G.S.depth) * K.w;
+    const m = { id: ++R.mobUid, kind, w: K.w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
+    if (kind === 'rare') {
+      m.mod = pick(Object.keys(G.RARE_MODS));
+      m.name = pick(RARE_A) + ' ' + pick(RARE_B);
+      if (m.mod === 'hasted') m.sp *= 1.7;
+    }
     R.mobs.push(m);
     emit('mobSpawn', m);
+    return m;
   }
-  function targets(n) {
-    if (R.boss) return [];
-    const list = R.mobs.slice().sort((a, b) => b.p - a.p);
+  // One pack, all from one direction
+  function spawnPack(add) {
+    const d = G.S.depth, a = G.rng(), roll = G.rng();
+    const fodder = (n, spread) => { for (let i = 0; i < n; i++) makeMob('fodder', a + rand(-spread, spread), -rand(0, 0.1), add); };
+    if (add) { fodder(randInt(10, 16), 0.07); return; }
+    if (d >= 1 && roll < 0.03) { makeMob('rare', a, 0); fodder(16, 0.07); emit('rareSpawn'); }
+    else if (roll < 0.1) { makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); fodder(10, 0.06); }
+    else if (roll < 0.35) { makeMob('brute', a, 0); fodder(8, 0.06); }
+    else fodder(randInt(14, 26), 0.08);
+  }
+
+  // Frontmost mobs first (they're about to bite), the tapped one before all.
+  // reach limits how far from the Button the hero can strike.
+  function targets(n, reach) {
+    const minP = reach ? (1 - reach) / 0.88 : -1;
+    const list = R.mobs.filter(m => m.p >= minP).sort((a, b) => b.p - a.p);
     const fi = R.focus ? list.findIndex(m => m.id === R.focus) : -1;
     if (fi > 0) list.unshift(list.splice(fi, 1)[0]);
     else if (fi < 0) R.focus = null;
     return list.slice(0, n);
   }
-  function dealHit(m, dmg) {
-    m.hp -= dmg;
-    if (m.hp <= 0 && !m.dead) killMob(m);
+  // Everything within r of any of the targets, except the targets themselves
+  function around(ts, r) {
+    if (!(r > 0) || !ts.length) return [];
+    const cs = ts.map(mobXY), out = [], r2 = r * r;
+    for (const m of R.mobs) {
+      if (ts.includes(m)) continue;
+      const [x, y] = mobXY(m);
+      for (const c of cs) { const dx = x - c[0], dy = y - c[1]; if (dx * dx + dy * dy <= r2) { out.push(m); break; } }
+    }
+    return out;
   }
-  function killMob(m) {
+  // The Hand guards the Button: it strikes where the horde is thickest among
+  // the mobs that got close
+  function smiteTarget() {
+    const front = targets(6, TUNE.smiteReach);
+    if (R.focus && front[0] && front[0].id === R.focus) return front[0];
+    let best = front[0], bn = -1;
+    for (const m of front) { const n = around([m], TUNE.smiteR).length; if (n > bn) { bn = n; best = m; } }
+    return best;
+  }
+
+  function dealHit(m, dmg, src, crit) {
+    if (m.dead) return;
+    m.hp -= m.mod === 'stone' ? dmg * 0.5 : dmg;
+    if (m.hp <= 0) { m.over = -m.hp / m.max; m.crit = crit; killMob(m, src); }
+  }
+  function killMob(m, src) {
     const S = G.S, D = G.D, h = S.hero;
     m.dead = true;
-    R.mobs.splice(R.mobs.indexOf(m), 1);
-    const k = m.elite ? 3 : 1;
-    const gold = D.incomeRef * TUNE.mobGold * k;
+    const i = R.mobs.indexOf(m);
+    if (i >= 0) R.mobs.splice(i, 1);
+    const K = G.MOB_KINDS[m.kind];
+    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1);
     G.addGold(gold, 'mob');
-    gainXp((1 + S.depth) * k * (D.xpMult || 1));
-    h.kills++; if (m.elite) h.elites++;
-    S.bossMeter++;
+    gainXp(2 * (1 + S.depth) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (D.xpMult || 1));
+    h.kills++;
+    if (m.kind === 'magic' || m.kind === 'rare') h.elites++;
     let chest = null;
-    const p = m.elite ? 1 : TUNE.mobChest * (R.hb.scroll > 0 ? 3 : 1);
-    if (chance(p)) chest = G.spawnChest();
+    if (!m.add) {
+      S.bossMeter += m.w;
+      const greed = R.hb.scroll > 0 ? 3 : 1;
+      const p = m.kind === 'rare' ? 1 : m.kind === 'magic' ? 0.4 * greed : TUNE.mobChest * m.w * greed;
+      if (chance(p)) chest = dropBag(m);
+      if (m.kind === 'rare' && chance(0.5)) dropBag(m);
+    }
     G.questProgress('kills', 1);
-    emit('mobDie', m, gold, chest);
+    emit('mobDie', m, gold, chest, src);
+    if (m.mod === 'splitter') for (let k = 0; k < 6; k++) makeMob('fodder', m.a + rand(-0.03, 0.03), m.p - rand(0, 0.06), m.add);
+  }
+  // Mobs drop loot bags where they fall (the stage reads R.dropAt to know where)
+  function dropBag(m) {
+    R.dropAt = m;
+    const c = G.spawnChest();
+    R.dropAt = null;
+    if (c) c.bag = 1;
+    return c;
   }
   function gainXp(x) {
     const S = G.S, h = S.hero;
@@ -352,21 +441,32 @@
   }
   G.gainXp = gainXp;
 
-  // One attack of the hero's weapon (k scales it: clicks and pets fire partial volleys)
+  // One attack of the hero's weapon. k scales it: clicks (the Hand's smite)
+  // and pets fire partial volleys. Against a boss the hit lands on the boss
+  // and the same swing cuts through its adds.
   function attack(k, src) {
     const D = G.D;
     if (!G.S.hero.cls) return;
+    const wt = D.hero.wt;
+    let ts, aoe = wt.aoe, sp = wt.sp;
+    if (src === 'click') { const t = R.mobs.length ? smiteTarget() : null; ts = t ? [t] : []; aoe = TUNE.smiteR; sp = 0.5; }
+    else if (src === 'pet') { ts = targets(1, 0.7); aoe = 0.05; sp = 1; }
+    else ts = targets(D.hero.targets, wt.reach);
+    // nothing in reach: the hero holds the swing for when something walks in
+    if (!R.boss && !ts.length) return false;
     const crit = chance(D.hero.crit);
     const dmg = D.heroHit * k * (crit ? D.hero.critMult : 1);
     if (R.boss) {
       G.hitBoss(dmg * D.bossMult);
       emit('heroAttack', { boss: true, crit, src, dmg });
-      return;
     }
-    const ts = targets(D.hero.targets);
-    if (!ts.length) return;
-    emit('heroAttack', { ids: ts.map(m => m.id), crit, src, dmg });
-    for (const m of ts) dealHit(m, dmg);
+    if (!ts.length) return true;
+    const splash = around(ts, aoe);
+    emit('heroAttack', { ids: ts.map(m => m.id), splash: splash.map(m => m.id), aoe, crit, src, dmg });
+    if (src === 'click') for (const m of ts.concat(splash)) m.p = Math.max(-0.05, m.p - 0.05 / Math.sqrt(m.w));
+    for (const m of ts) dealHit(m, dmg, src, crit);
+    for (const m of splash) dealHit(m, dmg * sp, src, crit);
+    return true;
   }
   G.heroVolley = attack;
 
@@ -403,12 +503,12 @@
       case 'wing': R.hb.wing = 8; break;
       case 'skull':
         if (R.boss) G.hitBoss(hit * 8 * D.bossMult);
-        for (const m of R.mobs.slice()) dealHit(m, hit * 8);
+        for (const m of R.mobs.slice()) dealHit(m, hit * 8, 'ability');
         break;
       case 'egg':
         if (R.boss) G.hitBoss(hit * 15 * D.bossMult);
-        else { const t = targets(1)[0]; if (t) dealHit(t, hit * 11); }
-        for (const m of R.mobs.slice()) dealHit(m, hit * 4);
+        else { const t = targets(1)[0]; if (t) dealHit(t, hit * 11, 'ability'); }
+        for (const m of R.mobs.slice()) dealHit(m, hit * 4, 'ability');
         break;
     }
     G.dirty(); G.recalc();
@@ -428,19 +528,35 @@
     if (R.stun > 0) R.stun -= dt;
     // regen
     h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.03 * dt);
-    // spawn
-    if (!R.boss && R.stun <= 0 && R.mobs.length < maxAlive(S.depth)) {
-      R.spawnT -= dt;
-      if (R.spawnT <= 0) { R.spawnT = TUNE.spawnEvery * rand(0.7, 1.3); spawnMob(); }
+    // the horde: a steady flow of packs, with a surge every half a minute
+    if (R.stun <= 0) {
+      if (R.boss) {
+        R.hordeAcc = Math.min(3, R.hordeAcc + dt * TUNE.hordeRate * TUNE.addRate * (R.boss.lord ? 1.6 : 1));
+        if (R.hordeAcc >= 1 && aliveWeight(true) < 2) { R.hordeAcc -= 0.5; spawnPack(true); }
+      } else {
+        if (R.surge > 0) R.surge -= dt;
+        else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen; emit('surge'); }
+        const surging = R.surge > 0;
+        R.hordeAcc = Math.min(4, R.hordeAcc + dt * TUNE.hordeRate * (surging ? TUNE.surgeMul : 1));
+        const cap = hordeCap(S.depth) * (surging ? 1.5 : 1);
+        if (R.hordeAcc >= 1 && aliveWeight(false) < cap) {
+          const w0 = aliveWeight(false);
+          spawnPack(false);
+          R.hordeAcc -= Math.max(0.5, aliveWeight(false) - w0);
+        }
+      }
     }
     // walk & bite
     const slow = R.hb.orb > 0 ? 0.4 : 1;
     const atk = mobAtk(S.depth);
     for (const m of R.mobs.slice()) {
       if (m.p < 1) m.p = Math.min(1, m.p + m.sp * dt * slow);
-      else { m.atkT -= dt; if (m.atkT <= 0) { m.atkT = 1; hurtButton(atk * (m.elite ? 2 : 1)); emit('mobBite', m); } }
+      else {
+        m.atkT -= dt;
+        if (m.atkT <= 0) { m.atkT = 1; hurtButton(atk * m.w * (m.mod === 'frenzied' ? 2 : 1)); emit('mobBite', m); if (R.stun > 0) break; }
+      }
     }
-    // boss hits the button too
+    // the boss hits the button too
     if (R.boss) {
       R.bossAtkT -= dt;
       if (R.bossAtkT <= 0) { R.bossAtkT = 2; hurtButton(atk * (R.boss.lord ? 5 : 3)); }
@@ -448,28 +564,37 @@
     // hero attacks
     R.heroAcc += dt * D.heroRate;
     let guard = 0;
-    while (R.heroAcc >= 1 && guard++ < 30) { R.heroAcc -= 1; attack(1, 'auto'); }
-    if (R.heroAcc > 5) R.heroAcc = 0;
+    while (R.heroAcc >= 1 && guard++ < 30) {
+      if (!attack(1, 'auto')) { R.heroAcc = 1; break; }
+      R.heroAcc -= 1;
+    }
     // autocast
     if (h.cast && R.abilCd <= 0 && h.eq.ability) {
       const type = G.ITEM_TYPE[h.eq.ability.id];
       const want = type === 'potion' ? h.hp < D.heroHp * 0.5
         : type === 'tome' ? (h.hp < D.heroHp * 0.7 || R.boss)
-        : R.boss || R.mobs.length >= 3;
+        : R.boss || aliveWeight(false) >= 3;
       if (want) castAbility();
     }
   };
+  G.aliveWeight = () => aliveWeight(false);
 
   G.heroBossStart = function () {
     for (const m of R.mobs) emit('mobFlee', m);
     R.mobs.length = 0;
-    R.bossAtkT = 2;
+    R.bossAtkT = 2; R.hordeAcc = 0.5; R.surge = 0;
+  };
+  // A slain boss takes its adds with it; a boss that leaves takes them away
+  G.heroBossEnd = function (win) {
+    for (const m of R.mobs) { m.dead = true; if (win) { m.over = 2; emit('mobDie', m, 0, null, 'boss'); } else emit('mobFlee', m); }
+    R.mobs.length = 0;
+    R.hordeAcc = 0; R.surgeT = Math.max(R.surgeT, 12);
   };
   G.heroReset = function (keepClass) {
     const h = G.S.hero;
     h.lvl = 1; h.xp = 0;
     if (!keepClass) h.cls = null;
-    R.mobs.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0;
+    R.mobs.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20;
     G.S.rec.runStart = Date.now();
     G.dirty(); G.recalc();
     h.hp = G.D.heroHp || TUNE.baseHp;

@@ -14,7 +14,7 @@
     cloudTitle: 'Cloud save', cloudText: 'The cloud has a save from {0}, newer than this browser. Load it? Current progress here will be replaced.',
     cloudLoad: 'Load', cloudKeep: 'Keep current',
     tab_hero: 'Character', clearMeter: 'Clear {0}/{1}', buttonHp: 'Button {0}/{1}', overload: 'BUTTON OVERLOADED', overloadHint: 'Mobs broke the Button. Get better armour or enchant it.',
-    levelUp: 'Level {0}!', q_kills: 'Slay {0} mobs', pickClass: 'Choose your hero', pickClassHint: 'Your hero guards the Button from mobs and wears 4 items: weapon, ability, armour and ring. Your class weapon type deals +50% damage.',
+    levelUp: 'Level {0}!', q_kills: 'Slay {0} mobs', pickClass: 'Choose your Warden', pickClassHint: 'Your Warden holds the line against the Horde and wears 4 items: weapon, ability, armour and ring. Their own weapon type deals +50% damage.',
     namePh: 'Hero name', power: 'Power', slot_weapon: 'Weapon', slot_ability: 'Ability', slot_armor: 'Armour', slot_ring: 'Ring',
     bag: 'Bag', shards: 'shards', autoEquip: 'Equip upgrades automatically', autoCast: 'Cast the ability automatically', autoSalv: 'Scrap below', off: 'Off',
     salvBelow: 'Scrap bag items below the threshold', salvage: 'Scrap', salvaged: 'Scrapped: {0} · +{1} shards', records: 'Records',
@@ -70,6 +70,8 @@
     buyAmt: 'Buy', secret: 'Secret', prince: "The Prince's Crown",
     bossTitle: 'Boss', lordTitle: 'Lord', realm: 'Lands',
     noSpace: 'No free space', saveNow: 'Save now',
+    surge: 'THE HORDE SURGES', rareComing: 'A rare monster approaches', slain: '{0} slain', streak: '{0} KILLS',
+    sk_25: 'KILLING SPREE', sk_50: 'RAMPAGE', sk_100: 'MASSACRE', sk_200: 'CARNAGE', sk_400: 'ANNIHILATION', sk_800: 'APOCALYPSE',
   };
   G.STR = STR;
   G.t = function (key) {

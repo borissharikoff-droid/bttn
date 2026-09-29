@@ -8,6 +8,7 @@
   let cv, ctx, low, lctx, W = 200, H = 150, S = 3, DPR = 1;
   let groundCanvas = null, groundKey = '';
   const parts = [], texts = [], shots = [], beams = [], bolts = [], bullets = [], opening = [], flyers = [];
+  const gibs = [], decals = [], rings = [], coins = [];
   const vis = new Map(); // chest id -> visual state
   let slots = [];
   let heroVis = [], heroKey = '';
@@ -15,7 +16,8 @@
   let bossVis = null, bossHitT = 0, bossBulletT = 0;
   let hoverChest = null, pointer = { x: -99, y: -99, over: false };
   let holdTimer = 0, holding = false;
-  const MAXP = 700;
+  let hitstop = 0, slowmo = 0;
+  const MAXP = 700, MAXG = 650, MAXD = 170;
 
   St.init = function (canvas) {
     cv = canvas; ctx = cv.getContext('2d');
@@ -58,8 +60,10 @@
     // Keep slots on-screen and clear of the top HUD strip
     slots.forEach(s => { s.x = clamp(s.x, 10, W - 10); s.y = clamp(s.y, 22, H - 10); });
     // Re-seat existing chests
-    for (const [, v] of vis) { const s = slots[v.slot]; if (s) { v.x = s.x; v.y = s.y; } }
+    for (const [, v] of vis) { const s = slots[v.slot]; if (s) { v.x = s.x; v.y = s.y; } else if (v.slot < 0) Object.assign(v, onField(v.x, v.y)); }
   }
+  // Keep ground loot clear of the HUD strips
+  function onField(x, y) { return { x: Math.round(clamp(x, 10, W - 10)), y: Math.round(clamp(y, 26, H - Math.ceil(66 / S))) }; }
   function freeSlot() {
     const used = new Set(); for (const [, v] of vis) used.add(v.slot);
     const n = Math.min(slots.length, G.D.slots || 6);
@@ -135,6 +139,14 @@
       }
     });
     G.on('chestSpawn', (c, fromBoss) => {
+      // Loot from a mob pops out of its body in an arc and lands where it fell
+      const src = G.R.dropAt;
+      if (src) {
+        const q = mobPos(src);
+        const land = onField(q.x + rand(-10, 10), q.y + rand(-2, 6));
+        vis.set(c.id, { slot: -1, x: land.x, y: land.y, t: 0, drop: 0, hit: 0, arc: { sx: q.x, sy: q.y - 8, t: 0, dur: 0.5 } });
+        return;
+      }
       const v = visFor(c);
       v.drop = 1; v.t = 0;
       if (c.tier >= 3) beams.push({ x: v.x, y: v.y, col: rarityCol(c.tier), life: 0.8, max: 0.8, w: 3 });
@@ -158,7 +170,7 @@
       else if (loot.source === 'boss' && bossVis) { const b = bossPos(); x = b.x + rand(-20, 20); y = b.y + rand(-4, 10); }
       else { const b = btnPos(); x = b.x + rand(-30, 30); y = b.y + rand(10, 25); }
       if (loot.source === 'offline') return;
-      opening.push({ x, y, tier: c.tier, t: 0, dur: 0.35 });
+      opening.push({ x, y, tier: c.tier, t: 0, dur: 0.35, bag: c.bag });
       const top = loot.items.reduce((a, b) => (b.it.r > a.it.r ? b : a), loot.items[0]);
       const r = top.it.r;
       burst(x, y - 5, [rarityCol(r), '#ffffff', rarityCol(c.tier)], 8 + r * 4, 55 + r * 10);
@@ -196,15 +208,17 @@
       shots.push({ x: b.x, y: b.y + 14, sx: b.x, sy: b.y + 14, tx: v.x, ty: v.y - 4, t: 0, dur: 0.18, col: '#ffd84a', key: true });
     });
     G.on('heroAttack', onHeroAttack);
-    G.on('mobDie', (m, gold) => {
-      const q = mobPos(m);
-      const realm = G.REALMS[G.realmIndex(G.S.depth)];
-      burst(q.x, q.y - 7, m.elite ? ['#ffd84a', '#ffffff', '#ff7a2e'] : ['#ffffff', '#c8c8d4', '#6e6e7c'], m.elite ? 24 : 9, m.elite ? 80 : 50);
-      if (m.elite) { text(q.x, q.y - 16, '+' + G.fmt(gold), '#ffd84a', 4); St.shake(2); }
-      mobVis.delete(m.id);
-    });
+    G.on('mobDie', gore);
     G.on('mobFlee', m => { const q = mobPos(m); burst(q.x, q.y - 6, '#6e6e7c', 6, 30); mobVis.delete(m.id); });
-    G.on('mobBite', m => { btnHurtT = 0.15; const b = btnPos(); burst(b.x + rand(-12, 12), b.y - 4, ['#ff4f4f', '#ffffff'], 3, 40); });
+    G.on('mobBite', m => {
+      btnHurtT = 0.15; mobVisOf(m).lunge = 0.12;
+      const b = btnPos(); burst(b.x + rand(-14, 14), b.y - 4, ['#ff4f4f', '#ffffff'], m.kind === 'fodder' ? 1 : 3, 40);
+    });
+    G.on('surge', () => {
+      text(W / 2, H * 0.3, G.t('surge'), '#ff4f4f', 7, { life: 2, max: 2, vy: -4, big: true });
+      St.shake(3); St.flash(0.18, '#ff3b3b');
+    });
+    G.on('rareSpawn', () => text(W / 2, H * 0.3 + 12, G.t('rareComing'), '#ffd84a', 4, { life: 1.8, max: 1.8, vy: -4 }));
     G.on('buttonBreak', () => {
       const b = btnPos();
       St.shake(6); St.flash(0.5, '#ff3b3b');
@@ -233,10 +247,15 @@
       St.shake(4); St.flash(0.3, b.lord ? '#ff3b3b' : '#ffffff');
       const p = btnPos();
       burst(p.x, p.y, ['#3a3a44', '#6e6e7c', '#ffffff'], 30, 90);
+      ring(p.x, p.y - 4, 60, 34, '#ffffff', 0.5);
       bossBulletT = 1.2;
     });
     G.on('bossWin', (rew, b) => {
       const p = bossPos();
+      if (bossVis) explodeSprite(bossVis.sprite.canvas, p.x, p.y, bossScale(), 90, 1.8);
+      slowmo = 0.8;
+      ring(p.x, p.y - 6, 90, 50, '#ffd84a', 0.7); ring(p.x, p.y - 6, 60, 34, '#ffffff', 0.45);
+      decal(p.x, p.y, (GORE[G.REALMS[b.realm].id] || GORE.meadow).blood, 16);
       burst(p.x, p.y - 8, ['#ffd84a', '#ffffff', '#ff7a2e', '#ff4f4f'], 60, 130);
       text(p.x, p.y - 30, G.t('victory'), '#ffd84a', 8, { life: 1.8, max: 1.8, vy: -12 });
       St.shake(7); St.flash(0.5, '#ffd84a');
@@ -255,8 +274,8 @@
       if (amount) text(w.x, w.y, '+' + G.fmt(amount), '#ffd84a', 5);
       St.flash(0.25, '#fff3a0');
     });
-    G.on('realm', () => { groundKey = ''; St.flash(0.6, '#000000'); });
-    G.on('ascend', () => { groundKey = ''; vis.clear(); mobVis.clear(); heroKey = ''; St.flash(0.8, '#ffffff'); });
+    G.on('realm', () => { groundKey = ''; St.flash(0.3, '#000000'); });
+    G.on('ascend', () => { groundKey = ''; vis.clear(); mobVis.clear(); decals.length = 0; gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
     G.on('buy', (kind) => { if (kind === 'hero') heroKey = ''; });
   }
 
@@ -376,10 +395,13 @@
   function mobPos(m) {
     const b = btnPos();
     const a = -Math.PI / 2 + 0.55 + m.a * (Math.PI * 2 - 1.1);
-    const sx = b.x + Math.cos(a) * W * 0.62, sy = b.y + Math.sin(a) * H * 0.62;
-    const ex = b.x + Math.cos(a) * 21, ey = b.y + Math.sin(a) * 11 + 4;
-    const k = m.p;
-    const bob = m.p < 1 ? Math.round(Math.abs(Math.sin(time * 9 + m.id)) * 1.5) : 0;
+    // the crowd at the Button spreads into a loose ring instead of one pile
+    const j = ((m.id * 7919) % 97) / 97;
+    const sx = b.x + Math.cos(a) * W * 0.6, sy = b.y + Math.sin(a) * H * 0.56;
+    const ex = b.x + Math.cos(a) * (21 + j * 10), ey = b.y + Math.sin(a) * (11 + j * 6) + 4;
+    const v = mobVis.get(m.id);
+    const k = v && v.vp != null ? v.vp : m.p;
+    const bob = m.p < 1 ? Math.round(Math.abs(Math.sin(time * (m.kind === 'fodder' ? 14 : 9) + m.id)) * 1.5) : 0;
     return { x: Math.round(sx + (ex - sx) * k), y: Math.round(sy + (ey - sy) * k) - bob };
   }
   function mobVisOf(m) { let v = mobVis.get(m.id); if (!v) { v = { hit: 0 }; mobVis.set(m.id, v); } return v; }
@@ -392,23 +414,33 @@
     }
     return best;
   }
+  function mobSprite(m, realm) {
+    if (m.kind === 'fodder') return SPR.get(realm.fodder);
+    return SPR.get(realm.minion, m.kind === 'magic' ? { oc: '#3f7fff' } : m.kind === 'rare' ? { oc: '#ffd84a' } : null);
+  }
+  const MOB_BAR = { brute: '#e84a4a', magic: '#5a9cff', rare: '#ffd84a' };
   function drawMob(m) {
     const realm = G.REALMS[G.realmIndex(G.S.depth)];
-    const spr = SPR.get(realm.minion, m.elite ? { gold: true } : null);
+    const spr = mobSprite(m, realm);
     const v = mobVisOf(m);
     const q = mobPos(m);
-    shadow(q.x, q.y - 1, 10);
-    if (m.elite) glow(q.x, q.y - 8, 7, '#ffd84a', 0.2 + 0.08 * Math.sin(time * 6));
-    blit(spr, q.x + (v.hit > 0 ? Math.round(rand(-1, 1)) : 0), q.y);
-    if (v.hit > 0) { blit(white(spr), q.x, q.y, 1, Math.min(0.6, v.hit * 8)); v.hit -= 1 / 60; }
-    if (m.hp < m.max) {
-      const w = 12, k = clamp(m.hp / m.max, 0, 1);
+    const fod = m.kind === 'fodder';
+    shadow(q.x, q.y - 1, fod ? 6 : 10);
+    if (m.kind === 'magic') glow(q.x, q.y - 8, 7, '#3f7fff', 0.2 + 0.07 * Math.sin(time * 5 + m.id));
+    if (m.kind === 'rare') glow(q.x, q.y - 9, 10, '#ffd84a', 0.24 + 0.08 * Math.sin(time * 6));
+    let x = q.x;
+    if (v.hit > 0) x += Math.round(rand(-1, 1));
+    if (v.lunge > 0) { x += Math.sign(btnPos().x - q.x) * 2; v.lunge -= 1 / 60; }
+    blit(spr, x, q.y);
+    if (v.hit > 0) { blit(white(spr), x, q.y, 1, Math.min(0.85, v.hit * 10)); v.hit -= 1 / 60; }
+    if (!fod && m.hp < m.max) {
+      const w = m.kind === 'rare' ? 16 : 12, k = clamp(m.hp / m.max, 0, 1);
       lctx.fillStyle = '#0c0b12'; lctx.fillRect(q.x - w / 2 - 1, q.y - 21, w + 2, 3);
-      lctx.fillStyle = m.elite ? '#ffd84a' : '#e84a4a'; lctx.fillRect(q.x - w / 2, q.y - 20, Math.max(1, Math.round(w * k)), 1);
+      lctx.fillStyle = MOB_BAR[m.kind]; lctx.fillRect(q.x - w / 2, q.y - 20, Math.max(1, Math.round(w * k)), 1);
     }
     if (G.R.focus === m.id) {
       lctx.fillStyle = '#ffffff';
-      const r = 9, y = q.y - 8;
+      const r = fod ? 6 : 9, y = q.y - (fod ? 4 : 8);
       lctx.fillRect(q.x - r, y - r, 3, 1); lctx.fillRect(q.x - r, y - r, 1, 3);
       lctx.fillRect(q.x + r - 2, y - r, 3, 1); lctx.fillRect(q.x + r, y - r, 1, 3);
       lctx.fillRect(q.x - r, y + r, 3, 1); lctx.fillRect(q.x - r, y + r - 2, 1, 3);
@@ -443,26 +475,243 @@
     if (!h || !h.cls) return;
     const D = G.D, wt = D.hero ? D.hero.wtype : 'dagger';
     const col = G.WEAPONS[wt].col;
+    const find = id => { const m = G.R.mobs.find(q => q.id === id); return m ? Object.assign(mobPos(m), { m }) : null; };
+    const pts = ev.boss ? [Object.assign({}, bossPos(), { y: bossPos().y - 12 })] : (ev.ids || []).map(find).filter(Boolean);
+    if (!pts.length) return;
+    for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
+    // The Hand: a click calls lightning down from above the screen
+    if (ev.src === 'click') {
+      if (ev.boss) { bossHitT = 0.07; return; }
+      const t = pts[0], ty = t.y - 6;
+      if (t.m) mobVisOf(t.m).hit = 0.1;
+      const x0 = t.x + rand(-12, 12), path = [[x0, -4]];
+      for (let i = 1; i < 6; i++) path.push([x0 + (t.x - x0) * i / 6 + rand(-4, 4), -4 + (ty + 4) * i / 6]);
+      path.push([t.x, ty]);
+      bolts.push({ pts: path, life: 0.11, cols: ['#ffffff', '#ffe27a'] });
+      const r = aoePx(G.TUNE.smiteR);
+      ring(t.x, t.y - 3, r.rx, r.ry, '#ffe27a', 0.22);
+      burst(t.x, ty, ['#ffffff', '#ffe27a'], 5, 60, { life: 0.3 });
+      if (ev.crit) text(t.x, ty - 8, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 });
+      return;
+    }
     const hp = heroPos();
     const src = { x: hp.x + heroFace * 9, y: hp.y - 12 };
-    const pts = ev.boss ? [Object.assign({}, bossPos(), { y: bossPos().y - 12 })] : (ev.ids || []).map(id => { const m = G.R.mobs.find(q => q.id === id); return m ? Object.assign(mobPos(m), { m }) : null; }).filter(Boolean);
-    if (!pts.length) return;
+    if (ev.src === 'pet') {
+      if (shots.length > 90) return;
+      const t = pts[0], pp = petPos(Math.floor(Math.random() * Math.max(1, G.S.active.length)));
+      if (G.S.active.length) shots.push({ x: pp.x, y: pp.y, sx: pp.x, sy: pp.y, tx: t.x, ty: t.y - 6, t: 0, dur: 0.22, col: '#fff3a0' });
+      return;
+    }
     heroFace = pts[0].x >= hp.x ? 1 : -1;
     heroAtkT = 0.08;
     if (shots.length > 110) return;
+    const melee = MELEE[wt];
+    const area = ev.aoe ? aoePx(ev.aoe) : null;
     pts.forEach((t, i) => {
       const ty = t.y - 7;
       if (t.m) mobVisOf(t.m).hit = 0.08;
-      const melee = MELEE[wt];
       const dur = melee ? 0.1 : wt === 'bow' ? 0.16 : 0.22;
-      shots.push({ x: src.x, y: src.y, sx: src.x, sy: src.y, tx: t.x, ty, t: 0, dur, col: ev.crit ? '#ff7a2e' : col, flat: wt === 'bow' || melee, big: wt === 'staff' || ev.crit, key: melee });
+      shots.push({ x: src.x, y: src.y, sx: src.x, sy: src.y, tx: t.x, ty, t: 0, dur, col: ev.crit ? '#ff7a2e' : col, flat: wt === 'bow' || melee, big: wt === 'staff' || ev.crit, key: melee, boom: !melee && area && !ev.boss ? { x: t.x, y: t.y - 3, rx: area.rx, ry: area.ry, col } : null });
       if (wt === 'staff') shots.push({ x: src.x, y: src.y + 2, sx: src.x, sy: src.y + 2, tx: t.x, ty: ty + 3, t: 0, dur: dur * 1.1, col, flat: false });
-      if (melee) { // slash arc at the target
+      if (melee && !ev.boss) { // a crescent sweep through the pack
+        const a = Math.atan2(t.y - hp.y, t.x - hp.x);
+        ring(t.x, t.y - 4, area ? area.rx : 8, area ? area.ry : 5, ev.crit ? '#ff7a2e' : col, 0.14, [a - 1.2, a + 1.2]);
+      } else if (melee) {
         for (let j = 0; j < 5; j++) { const a = -1 + j * 0.5; part(t.x + Math.cos(a) * 6 * heroFace, ty + Math.sin(a) * 6, col, { vx: 0, vy: 0, grav: 0, life: 0.14 }); }
       }
       if (ev.crit && i === 0) text(t.x, ty - 8, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 });
     });
-    if (ev.src === 'click' && ev.boss) bossHitT = 0.07;
+  }
+
+  // ---------- Horde FX: the crunch ----------
+  // Every death breaks the sprite itself into chunks that fly, bounce and
+  // settle, and leaves a stain. Each land dies its own way.
+  const GORE = {
+    shore:     { blood: '#d8642a', style: 'splat' },
+    meadow:    { blood: '#8e1f1f', style: 'splat' },
+    forest:    { blood: '#7a2596', style: 'spores' },
+    highlands: { blood: '#55555f', style: 'shatter' },
+    tundra:    { blood: '#6fb4f0', style: 'shatter' },
+    godlands:  { blood: '#5f2aa8', style: 'splat' },
+    abyss:     { blood: '#e0541c', style: 'embers' },
+    void:      { blood: '#2e1c52', style: 'dissolve' },
+  };
+  const chunkCache = new WeakMap();
+  // 2x2 blocks of a sprite's opaque pixels, sampled once per sprite
+  function chunks(c) {
+    let out = chunkCache.get(c);
+    if (out) return out;
+    out = [];
+    try {
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      for (let y = 0; y < c.height; y += 2) for (let x = 0; x < c.width; x += 2) {
+        let col = null, n = 0;
+        for (let k = 0; k < 4; k++) {
+          const px = x + (k & 1), py = y + (k >> 1);
+          if (px >= c.width || py >= c.height) continue;
+          const i = (py * c.width + px) * 4;
+          if (d[i + 3] < 128) continue;
+          n++;
+          const hex = '#' + ((1 << 24) | (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]).toString(16).slice(1);
+          if (!col || col === '#0c0b12') col = hex;
+        }
+        if (n >= 2 && col !== '#0c0b12' && col !== '#1a1a22') out.push({ x, y, col });
+      }
+    } catch (e) { /* canvas unreadable: deaths fall back to plain particles */ }
+    chunkCache.set(c, out);
+    return out;
+  }
+  function gib(o) {
+    if (gibs.length >= MAXG) gibs.splice(0, 40);
+    o.max = o.life;
+    gibs.push(o);
+  }
+  // Break a sprite drawn at (x, y) (bottom-centre anchor, scale sc) into flying chunks
+  function explodeSprite(c, x, y, sc, n, force, style) {
+    const ch = chunks(c);
+    if (!ch.length) { burst(x, y - 6, '#ffffff', 10, 60 * force); return; }
+    const b = btnPos();
+    let dx = x - b.x, dy = y - b.y;
+    const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    const w = c.width * sc, h = c.height * sc;
+    for (let i = 0; i < n; i++) {
+      const k = ch[Math.floor(Math.random() * ch.length)];
+      const ox = k.x * sc - w / 2, oy = k.y * sc - h;
+      gib({
+        x: x + ox, y: y + oy, col: k.col, s: style === 'shatter' ? Math.max(1, sc) : 2 * sc,
+        vx: (ox * rand(3, 8) / sc + dx * rand(20, 70)) * force, vy: (-rand(45, 120) + dy * rand(0, 30)) * force,
+        floor: y + rand(-2, 4), b: 0, life: rand(0.9, 1.9), style,
+      });
+    }
+  }
+  function decal(x, y, col, r) {
+    if (decals.length >= MAXD) decals.shift();
+    const px = [];
+    const n = Math.round(r * 4);
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.28, d = Math.pow(Math.random(), 1.6) * r;
+      px.push([Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d * 0.5)]);
+    }
+    for (let i = 0; i < 2; i++) { const a = Math.random() * 6.28; px.push([Math.round(Math.cos(a) * r * 1.6), Math.round(Math.sin(a) * r * 0.8)]); }
+    decals.push({ x: Math.round(x), y: Math.round(y), col, px, life: rand(7, 10), max: 10 });
+  }
+  function ring(x, y, rx, ry, col, life, arc) {
+    if (rings.length > 40) rings.shift();
+    rings.push({ x, y, rx, ry, col, life, max: life, arc });
+  }
+  // Splash radius in arena units -> pixels (the arena is squashed vertically)
+  const aoePx = a => ({ rx: a * W * 0.62, ry: a * W * 0.62 * 0.55 });
+
+  const streak = { n: 0, t: 9, pop: 0 };
+  const STREAKS = [[25, 'sk_25'], [50, 'sk_50'], [100, 'sk_100'], [200, 'sk_200'], [400, 'sk_400'], [800, 'sk_800']];
+  function gore(m, gold, chest, src) {
+    const q = mobPos(m);
+    mobVis.delete(m.id);
+    const realm = G.REALMS[G.realmIndex(G.S.depth)];
+    const g = GORE[realm.id] || GORE.meadow;
+    const spr = mobSprite(m, realm);
+    const fod = m.kind === 'fodder';
+    const over = Math.min(3, m.over || 0) + (m.crit ? 1 : 0) + (src === 'boss' ? 1.5 : 0);
+    const force = 1 + over * 0.3 + (src === 'click' ? 0.35 : 0);
+    const n = fod ? (gibs.length > MAXG * 0.7 ? 3 : 6) : m.kind === 'brute' ? 20 : 30;
+    explodeSprite(spr, q.x, q.y, 1, n, force, g.style);
+    decal(q.x, q.y - 1, g.blood, fod ? 2.5 : 4 + Math.min(4, m.w));
+    // every land breaks differently
+    const c = q.x, y = q.y - 5;
+    if (g.style === 'shatter') burst(c, y, ['#ffffff', '#d8f0ff'], fod ? 3 : 8, 90, { grav: 200, life: 0.35 });
+    else if (g.style === 'embers') for (let i = 0; i < (fod ? 3 : 8); i++) part(c + rand(-4, 4), y, pick(['#ffb347', '#ff6a2e', '#ffd84a']), { vx: rand(-15, 15), vy: rand(-50, -20), grav: -30, life: rand(0.5, 1.1) });
+    else if (g.style === 'spores') for (let i = 0; i < (fod ? 3 : 7); i++) part(c + rand(-5, 5), y, pick(['#c84ae8', '#ff7ab0', '#f4ecd8']), { vx: rand(-10, 10), vy: rand(-25, -8), grav: -8, life: rand(0.8, 1.5) });
+    else if (g.style === 'dissolve') for (let i = 0; i < (fod ? 4 : 10); i++) part(c + rand(-5, 5), y + rand(-4, 4), pick(['#6b3fc0', '#7fe9ff', '#e0d0ff']), { vx: 0, vy: rand(-30, -10), grav: 0, life: rand(0.4, 0.9) });
+    else burst(c, y, g.blood, fod ? 3 : 7, 70, { grav: 220, life: 0.45 });
+    if (over >= 1.5 && !fod) ring(c, q.y - 3, 10, 5, '#ffffff', 0.18);
+    if (m.kind === 'magic') { hitstop = Math.max(hitstop, 0.035); St.shake(2); ring(c, q.y - 3, 16, 8, '#5a9cff', 0.3); }
+    if (m.kind === 'rare') {
+      hitstop = Math.max(hitstop, 0.09); St.shake(5); St.flash(0.18, '#ffd84a');
+      ring(c, q.y - 3, 28, 15, '#ffd84a', 0.45); ring(c, q.y - 3, 16, 9, '#ffffff', 0.3);
+      text(c, q.y - 26, G.t('slain', m.name), '#ffd84a', 4, { life: 1.6, max: 1.6, vy: -12 });
+      beams.push({ x: c, y: q.y, col: '#ffd84a', life: 1, max: 1, w: 5 });
+    }
+    const nc = m.kind === 'rare' ? 10 : m.kind === 'magic' ? 4 : m.kind === 'brute' ? 2 : Math.random() < 0.12 ? 1 : 0;
+    for (let i = 0; i < nc && coins.length < 220; i++) coins.push({ x: c, y: q.y - 6, vx: rand(-40, 40), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.45, 0.8), fly: 0 });
+    if (gold && !fod && !m.add) text(c, q.y - 16, '+' + G.fmt(gold), m.kind === 'brute' ? '#e8d890' : '#ffd84a', m.kind === 'brute' ? 3 : 4, { life: 0.8, max: 0.8 });
+    // kill streak
+    streak.n++; streak.t = 0; streak.pop = 0.15;
+    const sk = STREAKS.find(s => s[0] === streak.n);
+    if (sk) {
+      for (let i = texts.length - 1; i >= 0; i--) if (texts[i].callout) texts.splice(i, 1);
+      text(W / 2, H * 0.24, G.t(sk[1]), streak.n >= 200 ? '#ff4f7e' : '#ffe27a', streak.n >= 100 ? 8 : 7, { life: 1.8, max: 1.8, vy: -5, big: true, callout: true });
+      St.shake(2 + Math.log2(streak.n / 25));
+    }
+  }
+  function drawDecals(dt) {
+    for (let i = decals.length - 1; i >= 0; i--) {
+      const d = decals[i]; d.life -= dt;
+      if (d.life <= 0) { decals.splice(i, 1); continue; }
+      lctx.globalAlpha = 0.55 * Math.min(1, d.life / 2.5);
+      lctx.fillStyle = d.col;
+      for (const p of d.px) lctx.fillRect(d.x + p[0], d.y + p[1], 1, 1);
+    }
+    lctx.globalAlpha = 1;
+  }
+  function stepGibs(dt) {
+    for (let i = gibs.length - 1; i >= 0; i--) {
+      const g = gibs[i]; g.life -= dt;
+      if (g.life <= 0) { gibs.splice(i, 1); continue; }
+      if (g.rest) continue;
+      if (g.style === 'dissolve') { g.vy -= 40 * dt; g.vx *= 0.96; g.x += g.vx * dt; g.y += g.vy * dt; continue; }
+      g.vy += 320 * dt; g.x += g.vx * dt; g.y += g.vy * dt;
+      if (g.y >= g.floor && g.vy > 0) {
+        g.y = g.floor; g.vy *= -0.32; g.vx *= 0.5; g.b++;
+        if (g.b >= 2 || Math.abs(g.vy) < 18) { g.rest = true; g.life = Math.min(g.life, rand(0.5, 1.4)); }
+      }
+    }
+  }
+  function drawGibs(resting) {
+    for (const g of gibs) {
+      if (!!g.rest !== resting) continue;
+      lctx.globalAlpha = Math.min(1, g.life / 0.4);
+      lctx.fillStyle = g.col;
+      lctx.fillRect(Math.round(g.x), Math.round(g.y), g.s, g.s);
+    }
+    lctx.globalAlpha = 1;
+  }
+  // Coins bounce out of the dead and then get pulled into the Button
+  function stepCoins(dt) {
+    const b = btnPos();
+    for (let i = coins.length - 1; i >= 0; i--) {
+      const k = coins[i];
+      if (k.t > 0) {
+        k.t -= dt;
+        k.vy += 300 * dt; k.x += k.vx * dt; k.y += k.vy * dt;
+        if (k.y >= k.floor && k.vy > 0) { k.y = k.floor; k.vy *= -0.4; k.vx *= 0.6; }
+      } else {
+        k.fly += dt;
+        const dx = b.x - k.x, dy = b.y - 6 - k.y, d = Math.hypot(dx, dy);
+        const sp = 60 + k.fly * 520;
+        if (d < 4) { coins.splice(i, 1); part(b.x + rand(-6, 6), b.y - 6, '#fff3a0', { vx: rand(-20, 20), vy: rand(-30, -10), grav: 0, life: 0.25 }); if (G.Audio && G.Audio.coin && Math.random() < 0.3) G.Audio.coin(); continue; }
+        k.x += dx / d * Math.min(d, sp * dt); k.y += dy / d * Math.min(d, sp * dt);
+      }
+      lctx.fillStyle = '#c98f10'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y), 3, 1);
+      lctx.fillStyle = '#ffd84a'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y) - 2, 3, 2);
+      lctx.fillStyle = '#fff3a0'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y) - 2, 1, 1);
+    }
+  }
+  function drawRings(dt) {
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const r = rings[i]; r.life -= dt;
+      if (r.life <= 0) { rings.splice(i, 1); continue; }
+      const k = 1 - r.life / r.max, e = 1 - (1 - k) * (1 - k);
+      const rx = r.rx * (0.35 + 0.65 * e), ry = r.ry * (0.35 + 0.65 * e);
+      lctx.globalAlpha = 0.85 * (1 - k);
+      lctx.fillStyle = r.col;
+      const n = Math.max(16, Math.round(rx * 1.6));
+      const a0 = r.arc ? r.arc[0] : 0, a1 = r.arc ? r.arc[1] : Math.PI * 2;
+      for (let j = 0; j <= n; j++) {
+        const a = a0 + (a1 - a0) * j / n;
+        lctx.fillRect(Math.round(r.x + Math.cos(a) * rx), Math.round(r.y + Math.sin(a) * ry), 1, 1);
+      }
+    }
+    lctx.globalAlpha = 1;
   }
 
   // ---------- Drawing helpers ----------
@@ -502,6 +751,13 @@
   // ---------- Frame ----------
   St.frame = function (dt) {
     time += dt;
+    // hit-stop and slow motion only touch the visuals; the game keeps its own clock
+    const vdt = dt * (hitstop > 0 ? 0.08 : slowmo > 0 ? 0.3 : 1);
+    if (hitstop > 0) hitstop -= dt;
+    if (slowmo > 0) slowmo -= dt;
+    streak.t += dt;
+    if (streak.t > 2) streak.n = 0;
+    if (streak.pop > 0) streak.pop -= dt;
     const S_ = G.S, R = G.R;
     const realm = G.REALMS[G.realmIndex(S_.depth)];
     const gk = realm.id + '|' + W + 'x' + H;
@@ -514,6 +770,9 @@
     lctx.imageSmoothingEnabled = false;
     lctx.drawImage(groundCanvas, 0, 0);
     if (realm.id === 'shore') drawWater();
+    drawDecals(dt);
+    stepGibs(vdt);
+    drawGibs(true);
 
     // Collect drawables sorted by y
     const list = [];
@@ -526,6 +785,7 @@
       if (v.drop > 0) v.drop = Math.max(0, v.drop - dt * 3.2);
       if (v.hit > 0) v.hit -= dt;
       if (v.pop > 0) v.pop -= dt;
+      if (v.arc && (v.arc.t += vdt) >= v.arc.dur) { v.arc = null; landed(c, v); }
       list.push({ y: v.y, draw: () => drawChest(c, v) });
     }
     // Remove stale vis entries (e.g. after load)
@@ -558,7 +818,12 @@
       } });
     });
     // Mobs and the hero
-    for (const m of R.mobs || []) { const q = mobPos(m); list.push({ y: q.y, draw: () => drawMob(m) }); }
+    for (const m of R.mobs || []) {
+      const v = mobVisOf(m);
+      v.vp = v.vp == null ? m.p : v.vp + (m.p - v.vp) * Math.min(1, vdt * 14);
+      const q = mobPos(m);
+      list.push({ y: q.y, draw: () => drawMob(m) });
+    }
     if (G.S.hero && G.S.hero.cls) { const hp = heroPos(); list.push({ y: hp.y, draw: () => drawHero(hp) }); }
     if (mobVis.size > (R.mobs || []).length + 20) { const ids = new Set((R.mobs || []).map(m => m.id)); for (const k of [...mobVis.keys()]) if (!ids.has(k)) mobVis.delete(k); }
     // Button or boss
@@ -596,13 +861,15 @@
 
     list.sort((a, c) => a.y - c.y);
     for (const d of list) d.draw();
+    drawRings(vdt);
+    stepCoins(vdt);
 
     // Opening chests animation
     for (let i = opening.length - 1; i >= 0; i--) {
       const o = opening[i]; o.t += dt;
       if (o.t >= o.dur) { opening.splice(i, 1); continue; }
       const a = 1 - o.t / o.dur;
-      blit(SPR.get('chesto_' + o.tier), o.x, o.y + 1, 1, a);
+      blit(SPR.get((o.bag ? 'bag_' : 'chesto_') + o.tier), o.x, o.y + 1 - (o.bag ? Math.round(o.t * 20) : 0), 1, a);
     }
     // Beams
     for (let i = beams.length - 1; i >= 0; i--) {
@@ -618,8 +885,13 @@
     }
     // Shots
     for (let i = shots.length - 1; i >= 0; i--) {
-      const s = shots[i]; s.t += dt;
-      if (s.t >= s.dur) { shots.splice(i, 1); if (!s.key) part(s.tx, s.ty, s.col, { vx: rand(-20, 20), vy: rand(-20, 5), life: 0.2, grav: 0 }); continue; }
+      const s = shots[i]; s.t += vdt;
+      if (s.t >= s.dur) {
+        shots.splice(i, 1);
+        if (!s.key) part(s.tx, s.ty, s.col, { vx: rand(-20, 20), vy: rand(-20, 5), life: 0.2, grav: 0 });
+        if (s.boom) { ring(s.boom.x, s.boom.y, s.boom.rx, s.boom.ry, s.boom.col, 0.2); burst(s.boom.x, s.boom.y - 2, [s.boom.col, '#ffffff'], 4, 50, { life: 0.25 }); }
+        continue;
+      }
       const k = s.t / s.dur;
       const arc = s.flat ? 0 : 6;
       const x = s.sx + (s.tx - s.sx) * k, y = s.sy + (s.ty - s.sy) * k - Math.sin(k * Math.PI) * arc;
@@ -643,7 +915,7 @@
     for (let i = bolts.length - 1; i >= 0; i--) {
       const bo = bolts[i]; bo.life -= dt;
       if (bo.life <= 0) { bolts.splice(i, 1); continue; }
-      lctx.fillStyle = Math.random() < 0.5 ? '#ffffff' : '#7fe9ff';
+      lctx.fillStyle = Math.random() < 0.5 ? '#ffffff' : bo.cols ? bo.cols[1] : '#7fe9ff';
       for (let j = 0; j < bo.pts.length - 1; j++) line(bo.pts[j][0], bo.pts[j][1], bo.pts[j + 1][0], bo.pts[j + 1][1]);
     }
     // Flyers (item pops, merge)
@@ -662,14 +934,15 @@
     }
     // Particles
     for (let i = parts.length - 1; i >= 0; i--) {
-      const p = parts[i]; p.life -= dt;
+      const p = parts[i]; p.life -= vdt;
       if (p.life <= 0) { parts.splice(i, 1); continue; }
-      p.vy += p.grav * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      p.vy += p.grav * vdt; p.x += p.vx * vdt; p.y += p.vy * vdt;
       lctx.globalAlpha = Math.min(1, p.life / p.max * 1.6);
       lctx.fillStyle = p.col;
       lctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
     }
     lctx.globalAlpha = 1;
+    drawGibs(false);
 
     // Buff tint
     if (G.hasBuff('frenzy')) { lctx.globalAlpha = 0.07 + 0.03 * Math.sin(time * 6); lctx.fillStyle = '#ffd84a'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; }
@@ -696,7 +969,9 @@
     }
     // ---- Hi-res layer: text & bars ----
     ctx.setTransform(k, 0, 0, k, ox * k, oy * k);
+    drawNames();
     drawTexts(dt);
+    drawStreak();
     if (bossVis && R.boss) drawBossBar();
     else if (R.bossReady) drawReady(b);
     if (hoverChest) drawChestTip(hoverChest);
@@ -751,9 +1026,26 @@
     }
   }
 
+  // PoE-style drop: a thud of dust, a beam for the good stuff, a name tag
+  function landed(c, v) {
+    burst(v.x, v.y - 1, ['#c8b89a', '#8a7a60'], 5, 30, { grav: 60, life: 0.35 });
+    v.hit = 0.08;
+    if (c.tier >= 3) beams.push({ x: v.x, y: v.y, col: rarityCol(c.tier), life: 1.4 + c.tier * 0.2, max: 1.4 + c.tier * 0.2, w: c.tier >= 5 ? 7 : 5 });
+    if (c.tier >= 2 || c.mod) text(v.x, v.y - 16, G.L(G.RARITIES[c.tier].name) + (c.mod ? ' · ' + G.L(G.MOD_BY_ID[c.mod].name) : ''), c.mod ? G.MOD_BY_ID[c.mod].color : rarityCol(c.tier), 3, { vy: -6, life: 1.6, max: 1.6 });
+    if (c.tier >= 5) { St.shake(3); St.flash(0.2, rarityCol(c.tier)); }
+    if (G.Audio && G.Audio.drop) G.Audio.drop(c.tier);
+  }
   function drawChest(c, v) {
     const dropY = v.drop > 0 ? -Math.round(v.drop * v.drop * 30) : 0;
     let x = v.x, y = v.y + dropY;
+    if (v.arc) { // still flying out of the mob
+      const a = v.arc, k = Math.min(1, a.t / a.dur);
+      x = Math.round(a.sx + (v.x - a.sx) * k);
+      y = Math.round(a.sy + (v.y - a.sy) * k - Math.sin(k * Math.PI) * 18);
+      blit(SPR.get((c.bag ? 'bag_' : 'chest_') + c.tier), x, y);
+      if (c.tier >= 3 && Math.random() < 0.6) part(x + rand(-2, 2), y - 4, rarityCol(c.tier), { vx: 0, vy: 0, grav: 0, life: 0.3 });
+      return;
+    }
     let sc = 1;
     if (v.hit > 0) x += Math.round(rand(-1, 1));
     const mod = c.mod;
@@ -764,7 +1056,7 @@
       glow(x, y - 3, 7, col, (mod ? 0.22 : 0.16) + 0.08 * Math.sin(time * 4 + c.id));
     }
     if (c.tier === 6 && Math.random() < 0.15) part(x + rand(-6, 6), y - rand(4, 12), '#ffffff', { vy: -15, vx: 0, grav: 0, life: 0.6 });
-    let spr = SPR.get('chest_' + c.tier);
+    let spr = SPR.get((c.bag ? 'bag_' : 'chest_') + c.tier);
     let alpha;
     if (mod === 'ghost') { alpha = 0.55 + 0.15 * Math.sin(time * 3 + c.id); y -= 2 + Math.round(Math.sin(time * 2 + c.id) * 1.5); if (Math.random() < 0.08) part(x + rand(-5, 5), y - 3, '#ffffff', { vy: -8, vx: 0, grav: 0, life: 0.7 }); }
     if (mod === 'mimic' && c.awake) { spr = SPR.get('mimic'); x += Math.round(Math.sin(time * 30) * 1); }
@@ -871,6 +1163,29 @@
       ctx.fillStyle = t.col;
       ctx.fillText(t.str, t.x, t.y);
     }
+    ctx.globalAlpha = 1;
+  }
+  // Rare monsters wear their names, as in PoE
+  function drawNames() {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12';
+    for (const m of G.R.mobs || []) {
+      if (m.kind !== 'rare') continue;
+      const q = mobPos(m);
+      ctx.font = crisp(3) + 'px ' + FONT;
+      ctx.strokeText(m.name, q.x, q.y - 27); ctx.fillStyle = '#ffd84a'; ctx.fillText(m.name, q.x, q.y - 27);
+      const mod = G.RARE_MODS[m.mod].name;
+      ctx.strokeText(mod, q.x, q.y - 23); ctx.fillStyle = '#c8b4ff'; ctx.fillText(mod, q.x, q.y - 23);
+    }
+  }
+  function drawStreak() {
+    if (streak.n < 10) return;
+    const y = G.R.boss ? Math.ceil(50 / S) + 22 : Math.ceil(50 / S) + 2;
+    const pop = streak.pop > 0 ? 1 + streak.pop * 2 : 1;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = crisp(4 * pop) + 'px ' + FONT; ctx.lineWidth = 1.5; ctx.strokeStyle = '#0c0b12';
+    const s = G.t('streak', G.fmt(streak.n));
+    ctx.globalAlpha = Math.min(1, (2 - streak.t) * 2);
+    ctx.strokeText(s, W / 2, y); ctx.fillStyle = streak.n >= 100 ? '#ff7ae6' : streak.n >= 50 ? '#ff7a2e' : '#ffe27a'; ctx.fillText(s, W / 2, y);
     ctx.globalAlpha = 1;
   }
   function drawBossBar() {
