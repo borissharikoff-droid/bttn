@@ -25,6 +25,7 @@
     { id: 'pets', icon: 'egg_2', unlock: S => S.eggs > 0 || Object.keys(S.pets).length > 0 },
     { id: 'ach', icon: 'ic_trophy', unlock: S => Object.keys(S.ach).length > 0 },
     { id: 'asc', icon: 'ic_tomb', unlock: S => S.maxDepth >= 5 || S.ascensions > 0 },
+    { id: 'ladder', icon: 'ic_crown', unlock: () => true },
     { id: 'set', icon: 'ic_gear', unlock: () => true },
   ];
   const tabOpen = id => { const d = TABS.find(x => x.id === id); return d && d.unlock(G.S); };
@@ -116,6 +117,9 @@
     G.on('questClaim', () => { if (tab === 'quests') UI.render(); });
     G.on('daily', () => { if (tab === 'quests') UI.render(); });
     G.on('pets', () => { if (tab === 'pets') UI.render(); });
+    G.on('ladder', () => { if (tab === 'ladder') updaters.ladder(); });
+    G.on('net', () => { if (tab === 'ladder') updaters.ladder(); });
+    G.on('cloudNewer', c => { const ask = () => { if ($('#modal').hidden) askCloud(c); else setTimeout(ask, 1500); }; setTimeout(ask, 1200); });
     G.on('gear', (g, equipped) => { if (equipped && g.r >= 2) UI.toast(`<span>${esc(t('equipped'))}: <b style="color:${G.RARITIES[g.r].color}">${esc(L(G.ITEM_BY_ID[g.id].name))}</b></span>`, '', 'it_' + g.id); });
     G.on('levelUp', lvl => { if (lvl % 5 === 0) UI.toast(`<b>${esc(t('levelUp', lvl))}</b>`, 'ach', 'ic_star'); });
     G.on('buttonBreak', () => UI.toast(`<b>${esc(t('overload'))}</b> ${esc(t('overloadHint'))}`, '', 'ic_skull'));
@@ -837,8 +841,12 @@
         ${f.worn ? '' : `<button class="btn red" data-act="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))}</button>`}
       </div>`;
   };
+  let pickWait = 0;
   UI.pickClass = function () {
-    if (!$('#modal').hidden) { setTimeout(UI.pickClass, 500); return; }
+    if (G.S.hero.cls) return;
+    // Let the cloud save answer first: a returning player on a new device gets their hero back
+    const N = G.Net;
+    if (!$('#modal').hidden || (N && N.hold) || (N && N.status === 'connecting' && pickWait++ < 16)) { setTimeout(UI.pickClass, 500); return; }
     const html = `<p>${esc(t('pickClassHint'))}</p><div class="classGrid">${G.CLASSES.map(c => `
       <button class="clsCard" data-c="${c.id}">${img(c.spr, '', 6)}<b>${esc(L(c.name))}</b><small>${esc(L(c.desc))}</small></button>`).join('')}</div>`;
     const m = UI.modal(t('pickClass'), html, [], true);
@@ -848,6 +856,65 @@
       UI.render();
     }));
   };
+
+  // Ladder: shared ranking and cloud save status
+  let ladderBy = 'depth';
+  renderers.ladder = function (body) {
+    const S = G.S, N = G.Net;
+    body.innerHTML = `
+      <div class="detail" data-net></div>
+      <div class="tabTitle" style="padding:8px 4px"><small>${esc(t('rankBy'))}</small>
+        <span class="seg" data-by><button data-b="depth" class="${ladderBy === 'depth' ? 'on' : ''}">${esc(t('byDepth'))}</button><button data-b="power" class="${ladderBy === 'power' ? 'on' : ''}">${esc(t('byPower'))}</button></span></div>
+      <div class="ladder" data-list></div>
+      <p class="note">${esc(t('ladderRules'))}</p>`;
+    refs.lad = { net: body.querySelector('[data-net]'), list: body.querySelector('[data-list]'), key: '' };
+    body.addEventListener('click', e => {
+      const b = e.target.closest('[data-b]');
+      if (b) { ladderBy = b.dataset.b; $$('[data-by] button', body).forEach(x => x.classList.toggle('on', x === b)); refs.lad.key = ''; updaters.ladder(true); return; }
+      if (e.target.closest('[data-push]')) { N.pushNow(); UI.toast(esc(t('synced')), '', 'ic_crown'); return; }
+      if (e.target.closest('[data-cloud]')) { askCloud(N.cloud); return; }
+      if (e.target.closest('[data-name]')) { UI.go('hero'); setTimeout(() => { const i = $('#heroName'); if (i) i.focus(); }, 50); }
+    });
+  };
+  updaters.ladder = function (force) {
+    const N = G.Net, rf = refs.lad, S = G.S;
+    if (!rf) return;
+    const ago = ts => ts ? G.fmtTime((Date.now() - ts) / 1000) : '—';
+    const statusText = N.status === 'online' ? (N.mode === 'http' ? t('netHttp') : t('netArtifact'))
+      : N.status === 'connecting' ? t('netConnecting') : N.status === 'error' ? t('netError', N.error) : t('netOff');
+    const netHtml = `<h3>${esc(statusText)}</h3>
+      ${N.status === 'online' ? `<p>${esc(N.readOnly ? t('netReadOnly') : t('netSynced', ago(N.lastSaveAt), ago(N.lastLadderAt)))}</p>` : `<p>${esc(t('netOffHint'))}</p>`}
+      ${S.profile.name ? '' : `<p>${esc(t('noNameYet'))} <button class="btn" data-name>${esc(t('setName'))}</button></p>`}
+      <div class="act">${N.status === 'online' && !N.readOnly ? `<button class="btn gold" data-push>${esc(t('syncNow'))}</button>` : ''}
+        ${N.cloud ? `<button class="btn" data-cloud>${esc(t('loadCloud'))}</button>` : ''}</div>
+      ${N.error && N.status === 'online' ? `<p style="color:var(--bad)">${esc(t('netError', N.error))}</p>` : ''}`;
+    if (rf.net._h !== netHtml) { rf.net.innerHTML = netHtml; rf.net._h = netHtml; }
+    const list = N.sorted(ladderBy);
+    const key = ladderBy + JSON.stringify(list.map(e => [e.uid, e.depth, e.power, e.lvl, e.name])) + G.lang();
+    if (key === rf.key && !force) return;
+    rf.key = key;
+    const suspicious = N.entries.filter(e => !e.ok && !e.me).length;
+    if (!list.length) { rf.list.innerHTML = `<p class="note">${esc(N.status === 'online' ? t('ladderEmpty') : t('ladderOffline'))}</p>`; return; }
+    rf.list.innerHTML = list.slice(0, 100).map((e, i) => {
+      const cls = G.CLASS_BY_ID[e.cls] || G.CLASSES[0];
+      const nm = N.displayName(e) || t('anon');
+      return `<div class="lrow ${e.me ? 'me' : ''} ${e.ok ? '' : 'bad'}">
+        <b class="rk">${i + 1}</b>${img(cls.spr, '', 3)}
+        <span class="nm">${esc(nm)}${e.me ? ' · ' + esc(t('you')) : ''}<small>${esc(L(cls.name))} · ${esc(t('lvl'))} ${e.lvl}${e.ok ? '' : ' · ' + esc(t('unverified'))}</small></span>
+        <span class="v"><b>${esc(t('depthShort'))} ${e.depth + 1}</b><small>${esc(t('power'))} ${fmt(e.power || 0)}</small></span>
+      </div>`;
+    }).join('') + (suspicious ? `<p class="note">${esc(t('hiddenBad', suspicious))}</p>` : '');
+    const myIdx = list.findIndex(e => e.me);
+    setText($('#tabSub'), myIdx >= 0 ? t('yourRank', myIdx + 1, list.length) : '');
+  };
+  function askCloud(cloud) {
+    if (!cloud) return;
+    const when = new Date(cloud.ts || 0).toLocaleString();
+    UI.modal(t('cloudTitle'), `<p>${esc(t('cloudText', when))}</p>`, [
+      { label: t('cloudLoad'), cls: 'gold', fn: () => { G.Net.hold = false; if (G.Net.loadCloud()) { UI.toast(esc(t('imported')), 'ach', 'ic_scroll'); UI.render(); } else UI.toast(esc(t('badSave')), '', 'ic_skull'); } },
+      { label: t('cloudKeep'), fn: () => { G.Net.hold = false; G.Net.pushNow(); } },
+    ]);
+  }
 
   // Settings
   renderers.set = function (body) {

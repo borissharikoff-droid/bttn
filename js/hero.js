@@ -128,8 +128,8 @@
   G.mainStat = mainStat;
 
   // Full combat numbers for a given set of equipped items
-  function combat(eq, d) {
-    const S = G.S, h = S.hero;
+  function combat(eq, d, who) {
+    const h = who || G.S.hero;
     const cls = G.CLASS_BY_ID[h.cls] || G.CLASSES[0];
     const aff = {};
     for (const slot of G.SLOTS) {
@@ -480,13 +480,55 @@
   // recomputes power from this with the same combat() code, so a client
   // can't just send a big number.
   G.ladderSnapshot = function () {
-    const S = G.S, h = S.hero, D = G.D;
+    const S = G.S, h = S.hero;
     const gear = {};
     for (const s of G.SLOTS) { const g = h.eq[s]; gear[s] = g ? { id: g.id, r: g.r, il: g.il, e: g.e, a: g.a } : null; }
-    return {
-      v: 1, id: S.profile.id, name: S.profile.name || '', cls: h.cls, lvl: h.lvl,
-      power: D.power || 0, bestDepth: S.bestDepth, maxPower: S.rec.maxPower, ascensions: S.ascensions,
-      fame: S.fameTotal, gear, ts: Date.now(),
+    const snap = {
+      v: 1, name: (S.profile.name || '').slice(0, 16), cls: h.cls, lvl: h.lvl,
+      depth: S.bestDepth, asc: S.ascensions, fame: S.fameTotal, mad: Math.round(S.rec.madTime || 0), gear, ts: Date.now(),
     };
+    snap.power = G.ladderPower(snap);
+    return snap;
+  };
+
+  // Ladder power: gear, level and class only, with neutral global bonuses,
+  // so every client and the server compute the same number from a snapshot.
+  const NEUTRAL = { crit: 0.03, critMult: 3, spdMult: 1, heroMult: 1, hpMult: 1 };
+  G.ladderPower = function (snap) {
+    const eq = {};
+    for (const s of G.SLOTS) eq[s] = snap.gear && snap.gear[s] ? snap.gear[s] : null;
+    return combat(eq, NEUTRAL, { cls: snap.cls, lvl: snap.lvl }).power;
+  };
+
+  // Plausibility check for a snapshot from someone else's client (or a
+  // server request). Returns the list of problems; empty means it passes.
+  G.verifySnapshot = function (snap) {
+    const bad = [];
+    const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+    if (!snap || typeof snap !== 'object') return ['shape'];
+    if (!G.CLASS_BY_ID[snap.cls]) bad.push('class');
+    if (!int(snap.depth, 0, 100000)) bad.push('depth');
+    if (!int(snap.lvl, 1, 30 + 2 * (snap.depth | 0))) bad.push('level');
+    if (typeof snap.name !== 'string' || snap.name.length > 16) bad.push('name');
+    const gear = snap.gear || {};
+    for (const s of G.SLOTS) {
+      const g = gear[s];
+      if (g == null) continue;
+      const it = G.ITEM_BY_ID[g.id];
+      if (!it || G.slotOf(g.id) !== s || g.r !== it.r) { bad.push(s + ':item'); continue; }
+      if (!int(g.il, 0, (snap.depth | 0) + 3)) bad.push(s + ':ilvl');
+      if (!int(g.e, 0, G.ENCHANT_MAX)) bad.push(s + ':enchant');
+      if (!Array.isArray(g.a) || g.a.length > AFFIX_COUNT[g.r]) { bad.push(s + ':affixes'); continue; }
+      const seen = {};
+      for (const a of g.a) {
+        const def = Array.isArray(a) && G.AFFIXES[a[0]];
+        if (!def || seen[a[0]] || typeof a[1] !== 'number') { bad.push(s + ':affix'); break; }
+        seen[a[0]] = 1;
+        const k = 1 + 0.35 * g.r;
+        if (a[1] < def.v[0] * k - 1e-3 || a[1] > def.v[1] * k + 1e-3) { bad.push(s + ':range'); break; }
+      }
+    }
+    if (typeof snap.power === 'number' && !bad.length && G.ladderPower(snap) !== snap.power) bad.push('power');
+    return bad;
   };
 })(globalThis.G = globalThis.G || {});

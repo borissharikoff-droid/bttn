@@ -358,6 +358,19 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 .clsCard b { color: var(--gold); }
 .clsCard small { color: var(--dim); }
 
+/* Ladder */
+.ladder { display: grid; gap: 4px; }
+.lrow { display: grid; grid-template-columns: 30px 28px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px 10px; background: var(--panel2); border: 2px solid var(--ink); }
+.lrow img { width: 26px; height: 26px; }
+.lrow .rk { font: 8px/1 var(--font-display); color: var(--dim); text-align: right; }
+.lrow:nth-child(1) .rk { color: var(--gold); } .lrow:nth-child(2) .rk { color: #d2dae4; } .lrow:nth-child(3) .rk { color: #d08a4a; }
+.lrow .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; }
+.lrow small { display: block; color: var(--dim); }
+.lrow .v { text-align: right; white-space: nowrap; }
+.lrow .v b { font: 8px/1.4 var(--font-display); color: var(--gold); font-weight: normal; }
+.lrow.me { box-shadow: inset 0 0 0 2px var(--gold); }
+.lrow.bad { opacity: .5; }
+
 /* ---------- Phones ---------- */
 @media (max-width: 860px) {
   body { overflow: hidden; }

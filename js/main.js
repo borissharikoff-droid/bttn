@@ -45,7 +45,7 @@
     uiT -= dt;
     if (uiT <= 0) { uiT = 0.12; G.UI.update(); }
     saveT -= dt;
-    if (saveT <= 0) { saveT = 15; G.save(); }
+    if (saveT <= 0) { saveT = 15; G.save(); if (G.Net) G.Net.tick(); }
     requestAnimationFrame(frame);
   }
 
@@ -62,8 +62,9 @@
     G.Stage.init(document.getElementById('stage'));
     G.UI.init();
     if (offline) G.UI.offline(offline);
+    if (G.Net) G.Net.start();
     window.addEventListener('resize', () => { G.Stage.resize(); if (document.querySelector('.starmap')) G.UI.render(); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) G.save(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { G.save(); if (G.Net) G.Net.tick(true); } });
     window.addEventListener('pagehide', () => G.save());
     const hot = window.claude && window.claude.hot;
     if (hot && hot.snapshot) { try { hot.snapshot(() => ({ save: G.serialize() })); } catch (e) { /* optional */ } }

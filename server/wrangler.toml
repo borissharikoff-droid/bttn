@@ -1,0 +1,13 @@
+name = "bttn-ladder"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bttn"
+database_id = "REPLACE_WITH_YOUR_D1_ID"
+
+[vars]
+ALLOW_ORIGIN = "*"
+SEASON = "1"
+# Set the signing secret with: wrangler secret put SECRET
