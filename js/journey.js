@@ -137,7 +137,7 @@
   };
 
   // ---------- The daily Bounty ----------
-  J.BOUNTY = 12000;
+  J.BOUNTY = 18000;
   function bounty() {
     const S = G.S, k = G.todayKey();
     if (S.bounty.day !== k) { S.bounty = { day: k, n: 0, done: false }; }

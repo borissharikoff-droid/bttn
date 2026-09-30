@@ -64,9 +64,9 @@
     help_8: 'Ladder', help_8t: 'Name your hero in the Party tab and compare depth, stars and power with friends.',
     help_9: 'Lands, zones and stars', help_9t: 'Each land has five zones, the last one its lord\u2019s. Every zone brings a new kind of mob and is fought in three waves. Tap the land name for the world map: each land has three stars, kept forever, each worth +2.5% damage and gold. The Swift star needs a fresh try at the lord, not one after it escaped.',
     help_11: 'Your party', help_11t: 'Beat depths 5, 12 and 20 to open a party slot each, and recruit a companion in the Party tab: knights tank, clerics heal, the rest deal damage. Everyone has health and can fall; tap a fallen ally to raise them sooner. When the Button breaks, clicks do nothing for 12 s, and if the whole party falls meanwhile the Horde breaks through and pushes you back a depth.',
-    help_12: 'Sudden events and invasions', help_12t: 'About every minute something happens: a stampede, a gold rush, chest rain, treasure goblins, a meteor storm (tap the rocks), a blood moon, an ambush, a swarm or an adrenaline rush. Every seven minutes or so another world invades; hold it off, then slay its herald for a heap of loot.',
-    help_13: 'Chests and Looters', help_13t: 'The Horde drops little chests of coin; the chest bar brings real ones. The Treasure Hall makes room for 10, 20, 30, 50, 100, then 200 chests. Looters run and open them for you, faster with each level, and Loot Crew hires more. When the field is full, the lowest chest bursts and half of it is lost.',
-    help_14: 'The JACKPOT', help_14t: 'About one kill in two million. The longer since the last one, the better the odds. You will know it when you see it.',
+    help_12: 'Sudden events and invasions', help_12t: 'About every minute something happens: a stampede, gold fever, chest rain, treasure goblins, a meteor storm (tap the rocks), a crimson moon, an ambush, the flood or an adrenaline rush. Every seven minutes or so another world invades; hold it off, then slay its herald for a heap of loot.',
+    help_13: 'Chests and Looters', help_13t: 'The Horde drops little chests of coin; the chest bar brings real ones. The Treasure Hall makes room for 10, 20, 30, 50, 100, then 200 chests. Looters run and open them for you, faster with each level, and Loot Crew hires more. When the field is full, the lowest chest bursts open for half its gold.',
+    help_14: 'The JACKPOT', help_14t: 'About one kill in two million. The longer since the last one, the better the odds (your odds now are in the Party tab\u2019s records). You will know it when you see it.',
     help_10: 'Carnage', help_10t: 'Kill without pause: the streak climbs and so do gold and XP, up to +40%. Let it lapse for 2.5 seconds and it starts over.',
   });
 
@@ -109,7 +109,7 @@
     { id: 'shards', when: S => S.hero.shards >= 40, point: () => P.tab('hero'), text: 'tip_shards', until: () => G.UI.tab() === 'hero' },
     { id: 'asc', when: () => G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_asc', until: () => G.UI.tab() === 'asc' },
     { id: 'loot', when: () => (G.R.ground || []).some(e => e.t > 0.6 && (e.k !== 'gear' || e.r >= 1)), point: () => { const e = (G.R.ground || []).find(x => x.t > 0.6 && (x.k !== 'gear' || x.r >= 1)); return e && G.Stage.lootPoint(e); }, text: 'tip_loot', until: () => !(G.R.ground || []).length },
-    { id: 'hoard', when: () => (G.R.mobs || []).some(m => m.kind === 'hoard'), point: () => { const m = G.R.mobs.find(x => x.kind === 'hoard'); return m && G.Stage.mobPoint(m); }, text: 'tip_hoard', until: () => !(G.R.mobs || []).some(m => m.kind === 'hoard') },
+    { id: 'hoard', when: () => (G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob), point: () => { const m = G.R.mobs.find(x => x.kind === 'hoard' && !x.gob); return m && G.Stage.mobPoint(m); }, text: 'tip_hoard', until: () => !(G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob) },
     { id: 'shrine', when: () => G.R.shrine, point: () => G.Stage.shrinePoint(), text: 'tip_shrine', until: () => !G.R.shrine },
     { id: 'move', when: () => G.R.boss && G.R.boss.move, point: P.button, text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
     { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('hero'), text: 'tip_orb', until: () => G.UI.tab() === 'hero' },

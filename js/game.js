@@ -335,12 +335,14 @@
     if (mod === 'chromatic') tier = Math.min(6, tier + 1);
     if (S.chests.length >= D.slots) {
       if (!(D.merge && tryMerge())) {
-        // No room: the lowest plain chest on the field pops open to make space
-        const plain = S.chests.filter(c => !c.mod || c.mod === 'golden' || c.mod === 'ghost' || c.mod === 'void' || c.mod === 'chromatic');
-        const low = plain.reduce((a, b) => (!a || b.tier < a.tier ? b : a), null);
-        if (low && low.tier <= tier) openChest(low, 'overflow');
+        // No room: the lowest plain chest on the field pops open to make space. A little chest only
+        // pushes out another little one; a real chest pushes out the little ones first.
+        const plain = S.chests.filter(c => (!c.mod || c.mod === 'golden' || c.mod === 'ghost' || c.mod === 'void' || c.mod === 'chromatic') && (!small || c.small));
+        const worth = c => (c.small ? 0 : 10) + c.tier;
+        const low = plain.reduce((a, b) => (!a || worth(b) < worth(a) ? b : a), null);
+        if (low && (low.small && !small || low.tier <= tier)) openChest(low, 'overflow');
         else {
-          const v = chestValue(tier) * 0.3;
+          const v = chestValue(tier) * 0.3 * (small ? TUNE.smallChestK : 1);
           addGold(v, 'spill');
           emit('spill', tier, v);
           return null;
@@ -394,8 +396,8 @@
     let e = c.small ? 0 : G.RARITIES[c.tier].ess * D.essMult * (c.mod === 'void' ? 10 : 1); // the little ones hold no essence
     if (c.mod === 'void') e = Math.max(e, 1 * D.essMult);
     loot.ess = e; addEssence(e, 'chest' + c.tier);
-    if (c.tier >= 4 && chance(0.02 * (c.tier - 3) * D.eggMult)) loot.eggs += addEggs(1);
-    if (c.tier >= 4 && chance(0.02 * (c.tier - 3))) { const p = givePotion(); if (p) loot.pots.push(p); }
+    if (!c.small && c.tier >= 4 && chance(0.02 * (c.tier - 3) * D.eggMult)) loot.eggs += addEggs(1);
+    if (!c.small && c.tier >= 4 && chance(0.02 * (c.tier - 3))) { const p = givePotion(); if (p) loot.pots.push(p); }
     // the little ones from the Horde count apart, so chest goals and quests keep their meaning
     if (c.small) S.st.purses = (S.st.purses || 0) + 1;
     else { S.opened[c.tier]++; S.st.chests++; questProgress('chests', 1); }
@@ -714,6 +716,7 @@
     const S = G.S, u = G.UPGRADES.find(x => x.id === id);
     const L = S.upg[id] || 0;
     if (u.max && L >= u.max) return false;
+    if (u.req && !(S.upg[u.req] > 0)) return false;
     const c = upgCost(u, L);
     if (S.gold < c) return false;
     S.gold -= c; S.upg[id] = L + 1;
@@ -846,7 +849,7 @@
       case 'combo': q.n = Math.min(D.comboCap, Math.round(45 + lv * 8)); break;
       case 'mod': q.n = 3; break;
       case 'wisp': q.n = 1; break;
-      case 'kills': q.n = Math.round((40 + lv * 6) * 20 / 100) * 100; break;
+      case 'kills': q.n = Math.round((40 + lv * 6) * 30 / 100) * 100; break;
     }
     const roll = G.rng();
     if (roll < 0.15) { q.rw = 'eggs'; q.rn = 1 + (lv > 30 ? 1 : 0); }
@@ -1037,7 +1040,8 @@
       // longer wait when it can't yet (Rally builds with each try; The Hunt shortens the wait).
       // ⚔ calls it right away.
       // (an invasion is fought out first)
-      if (S.set.autoBoss && !R.inv) {
+      // (an invasion or a sudden event is fought out first; the Jackpot Frenzy carries on through a boss)
+      if (S.set.autoBoss && !R.inv && !(R.ev && R.ev.k !== 'jackpot')) {
         R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
         const wait = bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
         if (R.bossIn <= -wait) startBoss();
@@ -1113,7 +1117,8 @@
     if (!('party' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 65) delete S.rec.crowns[k];
     // saves from before 2.1: the hall gave one slot a level (up to 16); now it steps 10, 20, 30…
     if (!('jp' in data) && S.upg && S.upg.hall > 0) S.upg.hall = S.upg.hall <= 4 ? 1 : 2;
-    S.jp = Object.assign({ n: 0, at: 0 }, data.jp || {});
+    // a save from before the jackpot starts its clock now, not at its first minute of play
+    S.jp = data.jp ? Object.assign({ n: 0, at: 0 }, data.jp) : { n: 0, at: (S.st && S.st.playTime) || 0 };
     if (!Array.isArray(S.feed)) S.feed = [];
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);

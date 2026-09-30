@@ -280,7 +280,8 @@
   // The Hand can lift a fallen hero: each tap takes 4 seconds off the wait
   G.reviveTap = function (who) {
     if (!(unitDown(who) > 0)) return false;
-    const left = unitDown(who, unitDown(who) - TUNE.reviveTap);
+    // four seconds off the wait as it's shown, a healer or not
+    const left = unitDown(who, unitDown(who) - TUNE.reviveTap * G.reviveRate());
     emit('reviveTap', who, left);
     if (left <= 0) reviveUnit(who, 0.5);
     return true;
@@ -296,7 +297,7 @@
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.boss) G.fleeBoss();
     if (R.inv && G.endInvasion) G.endInvasion(false);
-    if (R.ev && G.endEvent) G.endEvent(false);
+    if (R.ev && R.ev.k !== 'jackpot' && G.endEvent) G.endEvent(false);
     const inRift = !!R.rift;
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
     const from = S.depth;
@@ -797,13 +798,13 @@
     // a chest spills out of the body now and then, where it fell
     if (!m.add && !R.rift && m.kind !== 'guardian' && G.spawnChest) {
       // by weight, so a pack split into more, smaller bodies drops the same
-      const pc = TUNE.killChest * (G.SMALL[m.kind] ? m.w / 0.008 : 1 + 20 * Math.min(6, m.w)) * evMul('chest') * (1 + 0.25 * perk('loot'));
+      const pc = TUNE.killChest * (G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w * 0.7 : 1 + 20 * Math.min(6, m.w)) * evMul('chest') * (1 + 0.25 * perk('loot'));
       if (chance(Math.min(1, pc))) { R.dropAt = m; G.spawnChest(undefined, null, false, true); R.dropAt = null; }
     }
-    // one in a million or so: the JACKPOT
+    // about one in two million: the JACKPOT
     if (!m.add && G.jackpotRoll) G.jackpotRoll(m, 'kill');
     // Plunder: a kill now and then pops a chest open on its own
-    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder') * (G.SMALL[m.kind] ? m.w / 0.008 : 1))) {
+    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder') * (G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w : 1))) {
       const c = S.chests.find(x => x.mod !== 'mimic' && x.mod !== 'frozen');
       if (c) { emit('plunder', m, c); G.openChest(c, 'plunder'); }
     }

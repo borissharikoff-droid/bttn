@@ -1,3 +1,204 @@
+# BTTN 2.1 — Loot Storm
+
+2.0 and 2.1 come out together. 2.0 brought the party, boss phases, invasions and two new lands. 2.1 fills the arena. Something sudden happens every minute, chests pile up by the hundred and little Looters run for them, the Horde comes much thicker, and every hit on you shows. About one kill in two million, the JACKPOT hits.
+
+## At a glance
+
+- **Sudden events, about every minute:** Stampede, Gold Fever, Chest Rain, Treasure Goblins, Meteor Storm, Crimson Moon, Ambush, the Flood and Adrenaline.
+- **Chests by the hundred.** The Horde drops little chests of coin, and the Treasure Hall makes room for 10, 20, 30, 50, 100, then 200 of them on the field.
+- **Looters.** Little key golems run to your chests and open them: one every 3 seconds at first, faster with each level. Loot Crew hires up to four more.
+- **A new perk, Plunder:** kills pop chests open on their own.
+- **The JACKPOT:** about one kill in two million, and the odds climb every hour. When it hits, the whole screen goes gold.
+- **A thicker Horde:** 1.4 times the small fry. A Warden who outclasses the depth now meets more mobs, not just heavier ones.
+- **You feel every hit:**
+  - red damage numbers over the Button and the party;
+  - red screen edges when you're hit hard;
+  - a heartbeat while the Button is low;
+  - health bars that leave a trail as they drop.
+
+## Sudden events
+
+About a minute after the tutorial ends, and then every 45–95 seconds, something happens. It doesn't start during a boss, a Rift or an invasion, and a boss that would come on its own waits until the event is over. Each event gets a big card, a sting of its own and a timer bar over the clear bar.
+
+| Event | Needs best depth | Lasts | What happens | What you get |
+|---|---|---|---|---|
+| **Stampede!** | 2 | 12 s | Pack after pack charges from one side, 1.5× faster. | 6–10 real chests if the Button holds. |
+| **Gold Fever** | any | 15 s | Kills pay 6× the gold, clicks 3×, and coins rain from the sky. | The gold. |
+| **Chest Rain** | any | 6 s | 22 chests fall from the sky onto the field. | The chests. |
+| **Treasure Goblins** | 3 | 20 s | 5–8 thieves run round the Button with sacks. | Each one caught drops 1–2 real chests and a piece of gear. |
+| **Meteor Storm** | 4 | 12 s | Rocks crash where the Horde is thickest, marked by shrinking red rings. A rock that lands by the Button hurts. | Tap a rock before it lands to smash it for gold. |
+| **Crimson Moon** | 6 | 20 s | Under a red sky and a red moon, the Horde has twice the health and bites twice as hard. | XP ×3, and kills drop three times the chests. |
+| **Ambush!** | 5 | 14 s | Two champions, two brutes and a pack spawn right at the Button, plus a named rare from best depth 11. | 4–6 real chests if you cut them all down in time. |
+| **The Flood** | 3 | 9 s | Up to 260 frail little ones pour in from every side. | A huge Carnage streak. |
+| **Adrenaline** | 2 | 10 s | The whole party attacks twice as fast. | Faster kills. |
+
+## Chests
+
+- **Little chests.** The Horde drops little chests of coin where it falls: heavier mobs drop them more often, and the chest bar still brings the real ones.
+  - Each little chest is worth a tenth of a real one. It holds no essence, and an item only one time in twenty.
+  - They count apart from real chests, so chest goals, quests and achievements keep their meaning.
+- **Treasure Hall** replaces Spacious Hall. Its six levels make room for 10, 20, 30, 50, 100 and then 200 chests on the field. When the room by the Button runs out, chests land anywhere on the field. With more than a dozen out, the ones on the open field are drawn small.
+- **A full field costs you.** Each new chest bursts the lowest one on the field, and half of that chest is lost. A little chest only pushes out another little one, and a real chest pushes out the little ones first.
+- **The Looter** replaces the Key Golem. It is a little key golem you can see running to its chest, and it opens the chest as it gets there.
+  - Level 1 opens one every 3 seconds (the Key Golem took 8), and each level is 10% faster.
+  - A Looter leaves a fresh chest alone for 2 seconds, and a good one for 20, so you can open those yourself.
+  - **Loot Crew** (once you have a Looter) hires one more Looter a level, up to five. Each runs for a different chest.
+- **Plunder**, a new perk: while chests are out, each kill has a 0.2% chance per level to pop one open (up to 0.6%).
+- **Fewer effects in a crowd:**
+  - little chests open with a puff and add their gold to the kill counter;
+  - when chests open in heaps, only the good ones get the full show;
+  - beams and glows stay for the good chests when the field is crowded;
+  - the chest bar shows how many chests are out: "Chest 40% · 37/50".
+- **Old saves** move to the new Treasure Hall levels: Spacious Hall 1–4 becomes level 1 (10 chests), and 5–10 becomes level 2 (20).
+
+## The JACKPOT
+
+- **The odds:** about one kill in two million, weighted for small fry, or one real chest in eighty thousand. They climb by the base amount for every hour of play since the last jackpot, so most Wardens hit their first after about three hours.
+- **The show:**
+  - time slows and the arena goes dark;
+  - golden rays turn round the Button;
+  - a golden Button drops from the sky and bounces;
+  - **JACKPOT!!!** runs round the rainbow, over "AGAINST ALL ODDS";
+  - coins and confetti fountain out, to a slot-machine fanfare.
+- **The haul:**
+  - 3,000 seconds of income in gold;
+  - 24 pieces of gear with a legendary floor on the first eight;
+  - a unique, guaranteed, and eight orbs;
+  - 30 seconds of **Jackpot Frenzy**: gold and clicks ×10, and sixty chests of good tiers raining down.
+- **Friends see it.** It goes in the ladder feed ("hit the JACKPOT!") and counts as a First. There's a hidden achievement for it too, and the Party tab's records show how far your odds have climbed. A wipe or time away doesn't cut the Jackpot Frenzy's rain short.
+
+## A thicker Horde
+
+- **Packs have 1.4 times the small fry,** each a little lighter, so the same gold and XP come in more bodies. A pack drops as much gear as before. Kill goals (land stars, the daily bounty, kill quests) rise by half to match.
+- **A Warden stronger than the depth** used to meet the same number of heavier mobs. Now half of that extra toughness comes as more mobs, up to twice as many.
+- **Up to 900 mobs on screen,** up from 600, and never fewer than 40 walking in. They walk faster and bite harder. It still runs at 60 frames a second in testing.
+
+## Feeling the hits
+
+- **Damage numbers.** Every bite on the Button adds up to a red number over it a few times a second, so a swarm reads as one big hit. Party members show their own red numbers, bigger for heavy blows.
+- **Hits you can feel:** big hits squash the Button and shake the screen, and the screen edges flush red with how hard you're being hit.
+- **When the Button is low** (under 30%), the edges pulse red, a heartbeat thumps and its bar glows. While the Button is broken, the edges stay red.
+- **Health bars leave a trail.** The Button bar leaves a pale trail that catches up half a second later, and the party bar chips flash when hit.
+
+## New achievements
+
+- **Wall to Wall:** have 200 chests on the field at once.
+- **Anything Can Happen:** live through 100 sudden events.
+- **Thief Taker:** catch 25 treasure goblins.
+- **Rock Breaker:** smash 50 meteors before they land.
+- **JACKPOT!** (hidden).
+
+## Fixes to 2.0
+
+- **Wounded bosses start in the right phase.** A boss that came back already wounded used to heal back up to the next phase's line on its first hit. Lords at 15% came back at 33%.
+- **A wipe keeps the wall boss's Rally.** Beating the boss one depth up again no longer throws away the wounds and Rally you built on it.
+- **Wipes and invasions:**
+  - a wipe or an ascension sends an invasion home, so it can't get stuck;
+  - the "boss ready" prompt no longer shows during an invasion.
+- **Slams and wipes:** a slam that breaks the Button and wipes the party no longer hits everyone again right after they get back up.
+- **A Cleric Warden now heals,** as its description says.
+- **The Party tab:**
+  - taps on members and Recruit are no longer lost when the strip redraws;
+  - a companion's page shows its own damage, health and power;
+  - recruiting no longer leaves the Warden's item selected;
+  - locked slots now say "Beat depth 5".
+- **More 2.1 fixes found in review:** Fusion no longer turns little chests into real ones; brutes and champions no longer drop extra real chests (Rifts included); chests keep off the Button and out of the edges, and find a new spot when the screen resizes; meteors fall over the crowd; long event lines fit on phones; the level-up cards sit above the event bar.
+- **The fold button:** the Rift button and the number keys open a folded panel, and turning a phone sideways no longer leaves it empty.
+- **Downed allies:**
+  - they blink TAP;
+  - their countdown counts at the real speed with a healer standing;
+  - their tap box no longer covers the chests next to them.
+- **The Button bar** says "BUTTON BROKEN · 8s" while it's broken.
+- **Saves and the ladder:**
+  - old saves load with the Warden at full health;
+  - a save taken while the Button was broken stays broken;
+  - a hard reset no longer starts with dead clicks;
+  - old ladder rows no longer show crowns for the Moon and Star Sea lords.
+- **Treasure goblins** are named as such, not as Hoarders, and a Hoarder's burst no longer says JACKPOT.
+- **Texts:** they now say "the Party tab" instead of "the Character tab", and the texts for the Cleric, the Knight, the tank, the recruit window and the Button breaking now match what the game does.
+
+---
+
+# BTTN 2.0 — The Party
+
+(Released together with 2.1, above.)
+
+The biggest patch yet. The Warden no longer holds the line alone: a party of up to four stands around the Button, each with their own gear, health and role, and everyone can fall. Bosses fight back and change phase, other worlds invade, two new lands wait past the Sky Citadel, and the screen is laid out again so the field gets the room.
+
+## At a glance
+
+- **A party of four.** Beat depths 5, 12 and 20 to open a party slot each. Recruit a companion of any class and dress them from the shared bag.
+- **Roles.** A knight is a **tank**, a cleric is a **healer**, and archers, wizards and rogues deal **damage**. The **Cleric** is a new class, for the Warden too.
+- **Everyone can fall, and a party can be wiped.** When the Button breaks, the party holds on alone. If they all fall too, the Horde breaks through.
+- **Bosses fight back and change phase.** Each phase hits harder and brings new moves. A lord's last phase is its rage.
+- **Invasions.** About every 7 minutes, the Moon, the stars, Heaven or the Deep pours into the arena, with its own sky, its own mobs and a herald worth slaying.
+- **Two new lands:** the Moon and the Star Sea (depths 66–75). The corrupted lands now start at depth 76.
+- **A tougher, crunchier Horde.** The small mobs take a few hits now, and every hit knocks them back.
+- **A cleaner screen.** The panel is narrower and denser, and the field shows about a third more ground. On phones the field takes most of the screen and the panel folds away. A party bar sits on the field.
+
+## The party
+
+- **Party slots** open when you beat depths 5, 12 and 20. When one opens, a card says so and the Party tab gets a red dot until the slot is filled. Tap **+ Recruit** and choose a class. The recruit window marks the role your party lacks.
+- **The Party tab** replaces the Character tab. Tap a portrait along the top to see that member: their gear, stats and role. Items you equip go to whoever is selected, from the same bag. New drops go to a companion when they suit them.
+- **Companions** stand by the Button and fight on their own with their class's weapon. Their hits deal 40% of what a Warden with the same gear would deal, and a cleric's 20%.
+- **Tank (knight):** draws most of the bites and bosses' blows, and takes 30% less from them.
+- **Healer (cleric):** heals whoever is worst off, the Button included, every 1.4 seconds. While a healer stands, the fallen get up three times faster.
+- **Damage (archer, wizard, rogue):** fights beside the Warden and thins the Horde.
+- **The party bar** on the field shows everyone's health. A member who falls shows a countdown. Tap them on the bar or on the field to raise them sooner.
+- **The Button fights back:** every 6 seconds it sends out a shockwave that hits the Horde around it for twice the Warden's hit.
+
+## Stakes
+
+- **Everyone has health.** Bites, bomber blasts, spitter globs and bosses land on the Button or on a party member (a standing tank takes most of them).
+- **A fallen member** gets up after 24 seconds, or 8 with a healer standing. Each tap takes 4 seconds off. Potions and healing tomes heal the whole party.
+- **When the Button breaks,** it is out for 12 seconds and clicks do nothing. The party fights on alone until it mends.
+- **A wipe:** if every member is down while the Button is broken, the Horde breaks through. You fall back one depth (not in a Rift), the clear bar empties and the loot on the ground is lost. Then everyone gets back up.
+
+## Bosses
+
+- **Bosses hit back** every 2 seconds, on a party member or the Button, and faster in each new phase. A bolt shows where each blow lands.
+- **Phases.** A lord changes phase at 66% and 33% of its health, and a boss at 50%. At each change it shrugs off damage for a moment and its timer stops. It also throws the Horde back and hits the whole party.
+- **New moves by phase,** among them a **barrage** of three bolts. A lord's last phase is its **rage**: harder bites and twice the adds.
+- **One phase at a time:** a huge hit stops at the next phase's line, so every phase is fought.
+
+## Invasions
+
+- **From depth 3,** about every 7 minutes (the first after about 5), another world invades for 90 seconds:
+  - the **Lunar Invasion** (moon rabbits, moon knights, the Moon Queen);
+  - the **Cosmic Invasion** (greys, saucers, the Mothership);
+  - the **Heavenly Crusade** (putti, archons, the Seraphim);
+  - the **Abyssal Tide** (squidlings, deep ones, the Leviathan).
+- **Each invasion** tints the sky, hangs its moon, planet, sun or eye above the field, and brings its own particles and fanfare.
+- **The Horde comes 1.8× thicker,** in the invader's shapes. Kill invaders to fill the invasion bar and bring out the **herald**.
+- **The herald** is always worth about 20 seconds of the whole party's attention, and you get at least 40 seconds for it. Slay it for a shower of 10–14 items, a real chance at a unique, and three orbs.
+- **Bosses wait** until the invasion is over. Stepping into a Rift sends it home.
+
+## New lands
+
+- **The Moon** (depths 66–70) has moonstone beetles, moon hoppers, meteor mites, moonstone hulks and the Selenite King. Its rule, **Low Gravity**, makes the Horde float in 30% slower but twice as thick.
+- **The Star Sea** (depths 71–75) has starlings, comets, supernovas, dwarf stars, voidwalkers and the Star Eater. Its rule, **Supernova**, brings three times the bombers and +50% loot.
+- **Both lands** have their own ground, decor, gore and zones. The corrupted lands now start at depth 76.
+
+## Crunch
+
+- **The small fry** (fodder and runners) take 2.2× the hits to kill, so the Horde lasts on screen and dies in bigger heaps.
+- **Every hit knocks a mob back** from the Button for a moment, and small ones fly further.
+- **More on screen:** companions swing, shoot and cast. Heals glow green, fallen members lie down with a revive ring, and the broken Button smokes. Phase changes stop time with a shockwave and a flash.
+
+## Interface
+
+- **The panel is narrower** (300–372 px) with tighter rows, smaller icons and denser text, and the gear slots and bag sit right under the portrait.
+- **The field is wider.** You see about a third more ground, with smaller sprites.
+- **On phones,** the field takes 58% of the screen. **▾** next to the gold folds the panel down to the gold and the tabs, and tapping any tab opens it again. On sharp screens, the field uses half-step pixel scales, so it fits more.
+- **Urgent cards** (a boss changing phase) cut in front of the others, and a phase card never shows after the fight has ended.
+
+## Saves
+
+- **Old saves load as they are,** with a solo Warden.
+- **Lord times for depths 66 and beyond,** recorded when those depths were corrupted lands, are dropped once, because those depths are now the Moon and the Star Sea.
+
+---
+
 # BTTN 1.2.1 — Bosses come to you
 
 A player reported being level 44 with 34,706 kills and still at depth 2: mobs died in one hit, the land never changed and no boss ever came. The clear bar was full 168 times over and the Warden would have killed the boss in a fiftieth of its time limit, but a boss only started when you pressed the small ⚔ button (or the skull above the Button). Bosses only came on their own with The Hunt, deep in the Constellation.

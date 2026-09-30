@@ -439,6 +439,8 @@
     updatePerks();
     updatePartyHud();
     updateEventBar();
+    // the level-up cards sit just above whatever the bottom HUD holds right now
+    const hb = $('.hud.bottom'); if (hb) { const hh = hb.offsetHeight + 8; if (hh !== UI._hudB) { UI._hudB = hh; $('#stageWrap').style.setProperty('--hudB', hh + 'px'); } }
     $('#hpRow').hidden = !(h && h.cls);
     if (h && h.cls) {
       const k = Math.max(0, h.hp / (D.heroHp || 1));
@@ -492,7 +494,7 @@
   // Upgrades
   renderers.upg = function (body) {
     const S = G.S;
-    const list = G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger'));
+    const list = G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (!u.req || S.upg[u.req] > 0) && (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger'));
     body.innerHTML = `<div class="list">${list.map(u => `
       <button class="row" data-u="${u.id}">
         <span class="ico">${img(u.icon, '', 4)}</span>
@@ -510,7 +512,7 @@
   updaters.upg = function () {
     const S = G.S;
     if (!refs.rows) return;
-    const visible = G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger')).length;
+    const visible = G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (!u.req || S.upg[u.req] > 0) && (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger')).length;
     if (visible !== refs.count) { UI.render(); return; }
     for (const r of refs.rows) {
       const L_ = S.upg[r.u.id] || 0;

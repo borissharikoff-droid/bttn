@@ -298,9 +298,9 @@
       name: 'Looter',
       desc: 'A Looter runs to your chests and opens them: one every 3 s, each level 10% faster',
       fx: (L, D) => { if (L > 0) D.autoOpen = 3 * Math.pow(0.9, L - 1); } },
-    { id: 'crew', icon: 'ic_crew', base: 40000, growth: 30, max: 4,
+    { id: 'crew', icon: 'ic_crew', base: 40000, growth: 30, max: 4, req: 'golem',
       name: 'Loot Crew',
-      desc: 'One more Looter running for your chests',
+      desc: 'One more Looter running for your chests (needs the Looter)',
       fx: (L, D) => { D.looters += L; } },
     { id: 'clover', icon: 'ic_clover', base: 1000, growth: 2.8, max: 20,
       name: 'Four-Leaf Clover',
@@ -427,7 +427,7 @@
   G.POTIONS = [
     { id: 'att',  short: 'ATT', color: '#e04cf0', name: 'Attack',    desc: 'Warden damage and clicks +5%' },
     { id: 'def',  short: 'DEF', color: '#9a9aa6', name: 'Defense',   desc: 'Button toughness +8%' },
-    { id: 'spd',  short: 'SPD', color: '#41d65b', name: 'Speed',     desc: 'Auto clicks and golem +5%' },
+    { id: 'spd',  short: 'SPD', color: '#41d65b', name: 'Speed',     desc: 'Auto clicks and Looters +5%' },
     { id: 'dex',  short: 'DEX', color: '#ff9b2d', name: 'Dexterity', desc: 'Crit chance +0.5%' },
     { id: 'vit',  short: 'VIT', color: '#e0413b', name: 'Vitality',  desc: 'Garrison income +5%' },
     { id: 'wis',  short: 'WIS', color: '#3fa0ff', name: 'Wisdom',    desc: 'Essence +5%' },
@@ -574,7 +574,7 @@
 
   // Land mastery: three stars per land, kept forever. Each one: +2.5% damage and gold
   G.STAR_BONUS = 0.025;
-  G.STAR_KILLS = i => 12000 * (1 + 0.1 * i);
+  G.STAR_KILLS = i => 18000 * (1 + 0.1 * i); // 2.1: the Horde comes 1.4-2x thicker
   G.STAR_SWIFT = 20;
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------
@@ -946,7 +946,8 @@
   function tryMerge() {
     const S = G.S;
     for (let t = 0; t < 6; t++) {
-      const same = S.chests.filter(c => c.tier === t && !c.mod);
+      // the Horde's little chests of coin don't fuse into real ones
+      const same = S.chests.filter(c => c.tier === t && !c.mod && !c.small);
       if (same.length >= 3) {
         const parts = same.slice(0, 3);
         S.chests = S.chests.filter(c => !parts.includes(c));
@@ -977,12 +978,14 @@
     if (mod === 'chromatic') tier = Math.min(6, tier + 1);
     if (S.chests.length >= D.slots) {
       if (!(D.merge && tryMerge())) {
-        // No room: the lowest plain chest on the field pops open to make space
-        const plain = S.chests.filter(c => !c.mod || c.mod === 'golden' || c.mod === 'ghost' || c.mod === 'void' || c.mod === 'chromatic');
-        const low = plain.reduce((a, b) => (!a || b.tier < a.tier ? b : a), null);
-        if (low && low.tier <= tier) openChest(low, 'overflow');
+        // No room: the lowest plain chest on the field pops open to make space. A little chest only
+        // pushes out another little one; a real chest pushes out the little ones first.
+        const plain = S.chests.filter(c => (!c.mod || c.mod === 'golden' || c.mod === 'ghost' || c.mod === 'void' || c.mod === 'chromatic') && (!small || c.small));
+        const worth = c => (c.small ? 0 : 10) + c.tier;
+        const low = plain.reduce((a, b) => (!a || worth(b) < worth(a) ? b : a), null);
+        if (low && (low.small && !small || low.tier <= tier)) openChest(low, 'overflow');
         else {
-          const v = chestValue(tier) * 0.3;
+          const v = chestValue(tier) * 0.3 * (small ? TUNE.smallChestK : 1);
           addGold(v, 'spill');
           emit('spill', tier, v);
           return null;
@@ -1036,8 +1039,8 @@
     let e = c.small ? 0 : G.RARITIES[c.tier].ess * D.essMult * (c.mod === 'void' ? 10 : 1); // the little ones hold no essence
     if (c.mod === 'void') e = Math.max(e, 1 * D.essMult);
     loot.ess = e; addEssence(e, 'chest' + c.tier);
-    if (c.tier >= 4 && chance(0.02 * (c.tier - 3) * D.eggMult)) loot.eggs += addEggs(1);
-    if (c.tier >= 4 && chance(0.02 * (c.tier - 3))) { const p = givePotion(); if (p) loot.pots.push(p); }
+    if (!c.small && c.tier >= 4 && chance(0.02 * (c.tier - 3) * D.eggMult)) loot.eggs += addEggs(1);
+    if (!c.small && c.tier >= 4 && chance(0.02 * (c.tier - 3))) { const p = givePotion(); if (p) loot.pots.push(p); }
     // the little ones from the Horde count apart, so chest goals and quests keep their meaning
     if (c.small) S.st.purses = (S.st.purses || 0) + 1;
     else { S.opened[c.tier]++; S.st.chests++; questProgress('chests', 1); }
@@ -1356,6 +1359,7 @@
     const S = G.S, u = G.UPGRADES.find(x => x.id === id);
     const L = S.upg[id] || 0;
     if (u.max && L >= u.max) return false;
+    if (u.req && !(S.upg[u.req] > 0)) return false;
     const c = upgCost(u, L);
     if (S.gold < c) return false;
     S.gold -= c; S.upg[id] = L + 1;
@@ -1488,7 +1492,7 @@
       case 'combo': q.n = Math.min(D.comboCap, Math.round(45 + lv * 8)); break;
       case 'mod': q.n = 3; break;
       case 'wisp': q.n = 1; break;
-      case 'kills': q.n = Math.round((40 + lv * 6) * 20 / 100) * 100; break;
+      case 'kills': q.n = Math.round((40 + lv * 6) * 30 / 100) * 100; break;
     }
     const roll = G.rng();
     if (roll < 0.15) { q.rw = 'eggs'; q.rn = 1 + (lv > 30 ? 1 : 0); }
@@ -1679,7 +1683,8 @@
       // longer wait when it can't yet (Rally builds with each try; The Hunt shortens the wait).
       // ⚔ calls it right away.
       // (an invasion is fought out first)
-      if (S.set.autoBoss && !R.inv) {
+      // (an invasion or a sudden event is fought out first; the Jackpot Frenzy carries on through a boss)
+      if (S.set.autoBoss && !R.inv && !(R.ev && R.ev.k !== 'jackpot')) {
         R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
         const wait = bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
         if (R.bossIn <= -wait) startBoss();
@@ -1755,7 +1760,8 @@
     if (!('party' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 65) delete S.rec.crowns[k];
     // saves from before 2.1: the hall gave one slot a level (up to 16); now it steps 10, 20, 30…
     if (!('jp' in data) && S.upg && S.upg.hall > 0) S.upg.hall = S.upg.hall <= 4 ? 1 : 2;
-    S.jp = Object.assign({ n: 0, at: 0 }, data.jp || {});
+    // a save from before the jackpot starts its clock now, not at its first minute of play
+    S.jp = data.jp ? Object.assign({ n: 0, at: 0 }, data.jp) : { n: 0, at: (S.st && S.st.playTime) || 0 };
     if (!Array.isArray(S.feed)) S.feed = [];
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
@@ -2059,7 +2065,8 @@
   // The Hand can lift a fallen hero: each tap takes 4 seconds off the wait
   G.reviveTap = function (who) {
     if (!(unitDown(who) > 0)) return false;
-    const left = unitDown(who, unitDown(who) - TUNE.reviveTap);
+    // four seconds off the wait as it's shown, a healer or not
+    const left = unitDown(who, unitDown(who) - TUNE.reviveTap * G.reviveRate());
     emit('reviveTap', who, left);
     if (left <= 0) reviveUnit(who, 0.5);
     return true;
@@ -2075,7 +2082,7 @@
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.boss) G.fleeBoss();
     if (R.inv && G.endInvasion) G.endInvasion(false);
-    if (R.ev && G.endEvent) G.endEvent(false);
+    if (R.ev && R.ev.k !== 'jackpot' && G.endEvent) G.endEvent(false);
     const inRift = !!R.rift;
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
     const from = S.depth;
@@ -2567,23 +2574,24 @@
     if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 4);
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
-    // a chest spills out of the body now and then, where it fell
-    if (!m.add && !R.rift && m.kind !== 'guardian' && G.spawnChest) {
-      // by weight, so a pack split into more, smaller bodies drops the same
-      const pc = TUNE.killChest * (G.SMALL[m.kind] ? m.w / 0.008 : 1 + 20 * Math.min(6, m.w)) * evMul('chest') * (1 + 0.25 * perk('loot'));
-      if (chance(Math.min(1, pc))) { R.dropAt = m; G.spawnChest(undefined, null, false, true); R.dropAt = null; }
-    }
-    // one in a million or so: the JACKPOT
-    if (!m.add && G.jackpotRoll) G.jackpotRoll(m, 'kill');
-    // Plunder: a kill now and then pops a chest open on its own
-    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder'))) {
-      const c = S.chests.find(x => x.mod !== 'mimic' && x.mod !== 'frozen');
-      if (c) { emit('plunder', m, c); G.openChest(c, 'plunder'); }
-    }
     else if (!m.add) {
+      // (without js/world.js, e.g. on the ladder server: the old loot bags)
       const greed = (R.hb.scroll > 0 ? 3 : 1) * (1 + 0.25 * perk('loot')) * (evo('midas') ? 1.5 : 1) * om().loot;
       const p = m.kind === 'rare' ? 1 : m.kind === 'magic' ? 0.4 * greed : TUNE.mobChest * m.w * greed;
       if (chance(p)) chest = dropBag(m);
+    }
+    // a chest spills out of the body now and then, where it fell
+    if (!m.add && !R.rift && m.kind !== 'guardian' && G.spawnChest) {
+      // by weight, so a pack split into more, smaller bodies drops the same
+      const pc = TUNE.killChest * (G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w * 0.7 : 1 + 20 * Math.min(6, m.w)) * evMul('chest') * (1 + 0.25 * perk('loot'));
+      if (chance(Math.min(1, pc))) { R.dropAt = m; G.spawnChest(undefined, null, false, true); R.dropAt = null; }
+    }
+    // about one in two million: the JACKPOT
+    if (!m.add && G.jackpotRoll) G.jackpotRoll(m, 'kill');
+    // Plunder: a kill now and then pops a chest open on its own
+    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder') * (G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w : 1))) {
+      const c = S.chests.find(x => x.mod !== 'mimic' && x.mod !== 'frozen');
+      if (c) { emit('plunder', m, c); G.openChest(c, 'plunder'); }
     }
     if (perk('leech')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.003 * perk('leech') * (G.SMALL[m.kind] ? 0.3 : 4) * (evo('bloodpact') ? 4 : 1));
     if (uq('sporeheart')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.004 * (G.SMALL[m.kind] ? 0.3 : 4));

@@ -165,9 +165,9 @@
       name: 'Looter',
       desc: 'A Looter runs to your chests and opens them: one every 3 s, each level 10% faster',
       fx: (L, D) => { if (L > 0) D.autoOpen = 3 * Math.pow(0.9, L - 1); } },
-    { id: 'crew', icon: 'ic_crew', base: 40000, growth: 30, max: 4,
+    { id: 'crew', icon: 'ic_crew', base: 40000, growth: 30, max: 4, req: 'golem',
       name: 'Loot Crew',
-      desc: 'One more Looter running for your chests',
+      desc: 'One more Looter running for your chests (needs the Looter)',
       fx: (L, D) => { D.looters += L; } },
     { id: 'clover', icon: 'ic_clover', base: 1000, growth: 2.8, max: 20,
       name: 'Four-Leaf Clover',
@@ -294,7 +294,7 @@
   G.POTIONS = [
     { id: 'att',  short: 'ATT', color: '#e04cf0', name: 'Attack',    desc: 'Warden damage and clicks +5%' },
     { id: 'def',  short: 'DEF', color: '#9a9aa6', name: 'Defense',   desc: 'Button toughness +8%' },
-    { id: 'spd',  short: 'SPD', color: '#41d65b', name: 'Speed',     desc: 'Auto clicks and golem +5%' },
+    { id: 'spd',  short: 'SPD', color: '#41d65b', name: 'Speed',     desc: 'Auto clicks and Looters +5%' },
     { id: 'dex',  short: 'DEX', color: '#ff9b2d', name: 'Dexterity', desc: 'Crit chance +0.5%' },
     { id: 'vit',  short: 'VIT', color: '#e0413b', name: 'Vitality',  desc: 'Garrison income +5%' },
     { id: 'wis',  short: 'WIS', color: '#3fa0ff', name: 'Wisdom',    desc: 'Essence +5%' },
@@ -441,7 +441,7 @@
 
   // Land mastery: three stars per land, kept forever. Each one: +2.5% damage and gold
   G.STAR_BONUS = 0.025;
-  G.STAR_KILLS = i => 12000 * (1 + 0.1 * i);
+  G.STAR_KILLS = i => 18000 * (1 + 0.1 * i); // 2.1: the Horde comes 1.4-2x thicker
   G.STAR_SWIFT = 20;
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------

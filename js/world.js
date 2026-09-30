@@ -130,7 +130,7 @@
     const S = S_();
     if (!S.jp || R.rift || !S.hero || !S.hero.cls || S.tut >= 0) return false;
     // small fry count by weight, so a thicker Horde doesn't hand out more of them
-    const k = src === 'chest' ? TUNE.jpChest : TUNE.jpKill * (m && G.SMALL[m.kind] ? m.w / 0.008 : 3);
+    const k = src === 'chest' ? TUNE.jpChest : TUNE.jpKill * (m && G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w * 0.7 : 3);
     if (!chance(k * jpOdds())) return false;
     G.jackpot(m);
     return true;
@@ -169,8 +169,8 @@
     // the first champion ever always drops an epic
     if (m.kind === 'magic' && !S.st.firstMagic) { S.st.firstMagic = 1; return drop('gear', G.pickItem(3), m); }
     // everything else drops by its weight: a brute's worth of fodder drops about what a brute does
-    // fodder by weight too, so thicker packs of lighter bodies drop the same
-    let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder * m.w / 0.008 : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
+    // fodder: a pack drops what it did before 2.1, however many more bodies it now comes in
+    let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder / ((G.TUNE.packMul || 1) * m.w / G.MOB_KINDS.fodder.w) : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
     p *= k;
     if (h.kills < 60 && !S.st.firstRare && chance(0.08)) { S.st.firstRare = 1; return drop('gear', G.pickItem(2), m); }
     let e = null;
@@ -553,6 +553,8 @@
     if (R.rift) riftEnd(false, 'away');
     G.pickupAll();
     R.shrine = null; R.breach = null;
+    // away from the screen, the rest of a Jackpot Frenzy's rain still lands
+    if (G.R.ev && G.R.ev.k === 'jackpot') for (let i = Math.floor(G.R.ev.t / 0.5); i > 0; i--) G.spawnChest(Math.min(6, G.rollTier() + 2));
     if (G.R.ev && G.endEvent) G.endEvent(false);
   };
 })(globalThis.G = globalThis.G || {});

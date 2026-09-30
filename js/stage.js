@@ -69,7 +69,8 @@
     // Keep slots on-screen and clear of the top HUD strip
     slots.forEach(s => { s.x = clamp(s.x, 10, W - 10); s.y = clamp(s.y, 22, H - 10); });
     // Re-seat existing chests
-    for (const [, v] of vis) { const s = slots[v.slot]; if (s) { v.x = s.x; v.y = s.y; } else if (v.slot < 0) Object.assign(v, onField(v.x, v.y)); }
+    // (field chests find a new spot on the new field rather than piling on its edge)
+    for (const [, v] of vis) { const s = slots[v.slot]; if (s) { v.x = s.x; v.y = s.y; } else if (v.slot < 0) Object.assign(v, fieldSpot()); }
   }
   // Keep ground loot clear of the HUD strips
   function onField(x, y) { return { x: Math.round(clamp(x, 10, W - 10)), y: Math.round(clamp(y, 26, H - Math.ceil(66 / S))) }; }
@@ -85,11 +86,16 @@
     const a = rand(0, Math.PI * 2), k = Math.sqrt(rand(0.18, 0.9));
     return inField(b.x + Math.cos(a) * W * 0.44 * k, b.y + Math.sin(a) * H * 0.38 * k + 6);
   }
-  // chests keep inside an oval round the Button, not in heaps along the edges of the screen
+  // chests keep inside an oval round the Button, not in heaps along the edges of the screen,
+  // and off the Button itself, so a tap on it is always a click
   function inField(x, y) {
-    const b = btnPos(), rx = W * 0.44, ry = H * 0.38, dx = x - b.x, dy = y - b.y - 6, r = Math.hypot(dx / rx, dy / ry);
-    if (r > 1) { const k = rand(0.8, 0.98) / r; x = b.x + dx * k; y = b.y + 6 + dy * k; }
-    return onField(x, y);
+    const b = btnPos(), rx = W * 0.44, ry = H * 0.38;
+    let dx = x - b.x, dy = y - b.y - 6;
+    if (!dx && !dy) dx = 1;
+    const r = Math.hypot(dx / rx, dy / ry);
+    if (r > 1) { const k = rand(0.8, 0.98) / r; dx *= k; dy *= k; }
+    else if (r < 0.42) { const k = rand(0.42, 0.5) / Math.max(1e-6, r); dx *= k; dy *= k; }
+    return onField(b.x + dx, b.y + 6 + dy);
   }
   function visFor(c) {
     let v = vis.get(c.id);
@@ -156,7 +162,7 @@
   function stepCards(dt) {
     for (const g of cardQ) g.age += dt;
     if (cardT > 0) { cardT -= dt; return; }
-    while (cardQ.length && cardQ[0].callout && cardQ[0].age > 1) cardQ.shift();
+    while (cardQ.length && cardQ[0].callout && (cardQ[0].age > 1 || jp)) cardQ.shift();
     const g = cardQ.shift();
     if (!g) return;
     g.shown = true;
@@ -1557,6 +1563,25 @@
   // ---------- Sudden events (js/events.js) ----------
   let evFade = 0, evLastK = null;
   const metPos = mt => mobPos({ id: -1000 - mt.id, a: mt.a, p: mt.p, kind: 'x' });
+  // the rocks fall over the crowd, not under it
+  function drawMeteors() {
+    const ev = G.R.ev;
+    if (!ev || ev.k !== 'meteors') return;
+    for (const mt of ev.met) {
+      const q = metPos(mt), f = 1 - mt.t / mt.T;
+      // where it will land: a shrinking red ring
+      const r = Math.round(10 - 5 * f);
+      lctx.globalAlpha = 0.35 + 0.4 * f; lctx.fillStyle = '#ff3b3b';
+      for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 + time * 2; lctx.fillRect(Math.round(q.x + Math.cos(a) * r), Math.round(q.y - 2 + Math.sin(a) * r * 0.55), 1, 1); }
+      lctx.globalAlpha = 1;
+      // the rock itself, coming in from high up and to the right
+      const mx = q.x + (1 - f) * 70, my = q.y - 4 - (1 - f) * 130;
+      const spr = SPR.defs.fx_meteor ? SPR.get('fx_meteor') : null;
+      glow(mx, my - 3, 6, '#ff7a2e', 0.4);
+      if (spr) blit(spr, Math.round(mx), Math.round(my)); else { lctx.fillStyle = '#ff7a2e'; lctx.fillRect(Math.round(mx) - 2, Math.round(my) - 4, 4, 4); }
+      if (Math.random() < 0.8) part(mx + 2, my - 4, pick(['#ffd84a', '#ff7a2e', '#ff3b3b', '#6e6e7c']), { vx: rand(10, 30), vy: rand(-40, -20), grav: 0, life: 0.35 });
+    }
+  }
   function drawEventFx(dt) {
     const ev = G.R.ev;
     evFade = clamp(evFade + (ev ? dt : -dt) * 2, 0, 1);
@@ -1578,20 +1603,6 @@
       // dust boils up where they charge from
       const q = mobPos({ id: -1, a: ev.a, p: 0.05, kind: 'x' });
       for (let i = 0; i < 3; i++) if (Math.random() < 0.8) part(q.x + rand(-26, 26), q.y + rand(-14, 14), pick(['#c8b89a', '#a89878', '#e0d4b8']), { vx: rand(-10, 10), vy: rand(-14, -4), grav: 0, life: rand(0.5, 1.1), size: 2 });
-    }
-    if (k === 'meteors' && ev) for (const mt of ev.met) {
-      const q = metPos(mt), f = 1 - mt.t / mt.T;
-      // where it will land: a shrinking red ring
-      const r = Math.round(10 - 5 * f);
-      lctx.globalAlpha = 0.35 + 0.4 * f; lctx.fillStyle = '#ff3b3b';
-      for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 + time * 2; lctx.fillRect(Math.round(q.x + Math.cos(a) * r), Math.round(q.y - 2 + Math.sin(a) * r * 0.55), 1, 1); }
-      lctx.globalAlpha = 1;
-      // the rock itself, coming in from high up and to the right
-      const mx = q.x + (1 - f) * 70, my = q.y - 4 - (1 - f) * 130;
-      const spr = SPR.defs.fx_meteor ? SPR.get('fx_meteor') : null;
-      glow(mx, my - 3, 6, '#ff7a2e', 0.4);
-      if (spr) blit(spr, Math.round(mx), Math.round(my)); else { lctx.fillStyle = '#ff7a2e'; lctx.fillRect(Math.round(mx) - 2, Math.round(my) - 4, 4, 4); }
-      if (Math.random() < 0.8) part(mx + 2, my - 4, pick(['#ffd84a', '#ff7a2e', '#ff3b3b', '#6e6e7c']), { vx: rand(10, 30), vy: rand(-40, -20), grav: 0, life: 0.35 });
     }
   }
   // ---------- The JACKPOT: the whole screen goes gold ----------
@@ -1697,7 +1708,7 @@
     G.on('hoardDie', m => {
       const q = mobPos(m);
       for (let i = 0; i < 40 && coins.length < 260; i++) coins.push({ x: q.x, y: q.y - 6, vx: rand(-70, 70), vy: rand(-150, -60), floor: q.y + rand(-3, 4), t: rand(0.6, 1), fly: 0 });
-      text(q.x, q.y - 28, G.t('jackpot'), '#ffd84a', 7, { life: 1.8, max: 1.8, vy: -12, big: true });
+      text(q.x, q.y - 28, G.t('hoardBurst'), '#ffd84a', 7, { life: 1.8, max: 1.8, vy: -12, big: true });
       ring(q.x, q.y - 3, 34, 18, '#ffd84a', 0.6); ring(q.x, q.y - 3, 22, 12, '#ffffff', 0.4);
       St.shake(6); St.flash(0.3, '#ffd84a'); slowmo = Math.max(slowmo, 0.6); hitstop = Math.max(hitstop, 0.12);
       if (G.Audio && G.Audio.jackpot) G.Audio.jackpot();
@@ -1993,6 +2004,7 @@
 
     list.sort((a, c) => a.y - c.y);
     for (const d of list) d.draw();
+    drawMeteors();
     drawLootBeams();
     drawShotsInFlight();
     drawBeamsFx(vdt);
@@ -2382,8 +2394,9 @@
       ctx.globalAlpha = a;
       ctx.font = crisp(t.size * pop) + 'px ' + FONT;
       // a line wider than the stage shrinks to fit
-      if (t.fitW == null) t.fitW = ctx.measureText(t.str).width / pop;
-      if (t.fitW > W - 8) ctx.font = (crisp(t.size * pop) * (W - 8) / t.fitW) + 'px ' + FONT;
+      if (t.fitW == null) { ctx.font = crisp(t.size) + 'px ' + FONT; t.fitW = ctx.measureText(t.str).width; t.fitS = crisp(t.size); ctx.font = crisp(t.size * pop) + 'px ' + FONT; }
+      const wNow = t.fitW * crisp(t.size * pop) / t.fitS;
+      if (wNow > W - 8) ctx.font = (crisp(t.size * pop) * (W - 8) / wNow) + 'px ' + FONT;
       ctx.lineWidth = Math.max(1, t.size * 0.35);
       ctx.strokeStyle = '#0c0b12';
       ctx.lineJoin = 'round';
@@ -2399,10 +2412,10 @@
     for (const m of G.R.mobs || []) {
       if (m.kind === 'hoard' || m.kind === 'guardian') {
         const q = mobPos(m), hoard = m.kind === 'hoard', y = hoard ? q.y - 25 : q.y - 44;
-        const nm = hoard ? G.t('hoarder') : m.inv && G.INV_BY_ID[m.inv] ? G.INV_BY_ID[m.inv].bossName : G.t('riftGuardian');
+        const nm = m.gob ? G.t('goblin') : hoard ? G.t('hoarder') : m.inv && G.INV_BY_ID[m.inv] ? G.INV_BY_ID[m.inv].bossName : G.t('riftGuardian');
         ctx.font = crisp(hoard ? 3 : 4) + 'px ' + FONT;
-        ctx.strokeText(nm, q.x, y); ctx.fillStyle = hoard ? '#ffd84a' : '#ff9ab4'; ctx.fillText(nm, q.x, y);
-        if (hoard) { const k = clamp(m.life / G.TUNE.hoardLife, 0, 1); ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - 9, y + 3, 18, 2); ctx.fillStyle = k > 0.3 ? '#b36bff' : '#ff4f4f'; ctx.fillRect(q.x - 9, y + 3, 18 * k, 1); }
+        ctx.strokeText(nm, q.x, y); ctx.fillStyle = m.gob ? '#8ae07a' : hoard ? '#ffd84a' : '#ff9ab4'; ctx.fillText(nm, q.x, y);
+        if (hoard) { const k = clamp(m.life / (m.gob ? (G.R.ev && G.R.ev.T) || 20 : G.TUNE.hoardLife), 0, 1); ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - 9, y + 3, 18, 2); ctx.fillStyle = k > 0.3 ? '#b36bff' : '#ff4f4f'; ctx.fillRect(q.x - 9, y + 3, 18 * k, 1); }
         else { const k = clamp(m.hp / m.max, 0, 1); ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - 21, y + 3, 42, 3); ctx.fillStyle = '#ff3b5c'; ctx.fillRect(q.x - 20, y + 4, 40 * k, 1.5); }
         continue;
       }
