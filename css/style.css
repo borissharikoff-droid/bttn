@@ -660,3 +660,97 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   .classGrid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
   .clsCard img { width: 48px; } .clsCard small { display: none; }
 }
+
+/* ======================= 2.0: a compact panel, the party ======================= */
+#app { grid-template-columns: minmax(0, 1fr) clamp(300px, 26vw, 372px); }
+.res { padding: 8px 10px 7px; gap: 5px; }
+.goldLine { gap: 8px; }
+.goldLine img { width: 24px; height: 24px; }
+.goldNum { font-size: 18px; min-width: 0; }
+.rates { gap: 10px; font-size: 14px; }
+.chip { font-size: 14px; padding: 2px 6px 2px 3px; }
+.chip img { width: 16px; height: 16px; }
+.tabs { padding: 6px 8px; gap: 2px; }
+.tab { height: 32px; max-width: 38px; }
+.tab img { width: 20px; height: 20px; }
+.tabTitle { padding: 8px 10px 0; }
+.tabBody { padding: 6px 8px 14px; }
+.note { font-size: 14px; margin: 3px 3px 8px; }
+.sect { margin: 10px 3px 6px; }
+.list { gap: 4px; }
+.row { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 8px; padding: 5px 7px; }
+.row .ico { width: 36px; height: 36px; }
+.row .ico img { width: 30px; height: 30px; }
+.row .name, .row .desc { font-size: 14px; }
+.statList { font-size: 14px; gap: 2px 10px; }
+.charCard { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 7px; }
+.portrait { width: 64px; height: 60px; }
+.portrait img { width: 76px; }
+.power b { font-size: 13px; }
+.doll { grid-template-columns: repeat(4, minmax(0, 58px)); justify-content: center; gap: 8px; margin: 6px 0; }
+.dslot { padding: 3px 2px; }
+.bag { grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; }
+.gear small, .gear u { font-size: 9px; }
+.clsCard { padding: 7px 5px; }
+.clsCard img { width: 44px; height: 44px; }
+.clsCard small { font-size: 13px; line-height: 1.15; }
+.foldBtn { display: none; }
+
+/* roles */
+.r_tank { --role: #5a9cff; } .r_heal { --role: #6ee07a; } .r_dps { --role: #ff8a5a; }
+em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--role); }
+.clsCard.need { box-shadow: inset 0 0 0 2px var(--role, var(--gold)); }
+.clsCard.need em.role { color: #fff; }
+
+/* the party strip in the Party tab */
+.partyStrip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 0 0 6px; }
+.pmem { position: relative; display: grid; justify-items: center; gap: 1px; padding: 4px 2px 5px; cursor: pointer; background: var(--panel2); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line); color: var(--text); }
+.pmem img { width: 40px; height: 38px; image-rendering: pixelated; }
+.pmem small { font: 7px/1.3 var(--font-display); color: var(--role, var(--dim)); white-space: nowrap; }
+.pmem i { display: block; width: 86%; height: 3px; background: var(--ink); }
+.pmem i u { display: block; height: 100%; background: var(--good); }
+.pmem.on { background: var(--slot-hi); box-shadow: inset 0 0 0 2px var(--gold); }
+.pmem.down img { filter: grayscale(1) brightness(.6); transform: rotate(-80deg) translate(-4px, 0); }
+.pmem.add { place-content: center; font: 16px/1 var(--font-display); color: var(--gold); box-shadow: inset 0 0 0 2px var(--gold); animation: pulse 1.4s ease-in-out infinite; }
+.pmem.add small { color: var(--gold); margin-top: 6px; }
+.pmem.lock { place-content: center; cursor: default; opacity: .55; background: var(--slot); }
+.pmem.lock small { color: var(--dim); white-space: normal; text-align: center; }
+
+/* the party on the field: a chip per unit */
+.partyHud { display: flex; gap: 4px; pointer-events: auto; align-self: flex-start; }
+.pchip { position: relative; width: 38px; padding: 1px 1px 3px; display: grid; justify-items: center; gap: 1px; cursor: pointer; background: rgba(12,11,18,.78); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--role, var(--line)); }
+.pchip img { width: 30px; height: 28px; image-rendering: pixelated; }
+.pchip i { display: block; width: 100%; height: 4px; background: #2a0f16; }
+.pchip i u { display: block; height: 100%; background: var(--good); transition: width .15s linear; }
+.pchip.low i u { background: var(--hp); }
+.pchip b { position: absolute; left: 0; right: 0; top: 8px; font: 8px/1 var(--font-display); color: #fff; text-align: center; text-shadow: 1px 1px 0 var(--ink), -1px -1px 0 var(--ink); font-weight: normal; }
+.pchip.down { box-shadow: inset 0 0 0 2px #e84a4a; animation: downBlink 1s steps(2) infinite; }
+.pchip.down img { filter: grayscale(1) brightness(.45); }
+@keyframes downBlink { 50% { box-shadow: inset 0 0 0 2px #ffd84a; } }
+.pchip:active { transform: translateY(1px); }
+
+/* phones: a bigger field, and a panel that folds away */
+@media (max-width: 860px) {
+  #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(250px, 58%) minmax(0, 1fr); }
+  #app.fold { grid-template-rows: minmax(0, 1fr) auto; }
+  #app.fold .tabTitle, #app.fold .tabBody, #app.fold .subRes { display: none; }
+  .res { grid-template-columns: auto 1fr auto; }
+  .foldBtn { display: grid; grid-column: 3; grid-row: 1; width: 30px; height: 26px; font: 12px/1 var(--font-body); color: var(--gold); }
+  .res { padding: 5px 10px; gap: 3px; }
+  .goldNum { font-size: 15px; flex: none; }
+  .rates { font-size: 13px; gap: 8px; }
+  .tabs { padding: 4px 4px; }
+  .tab { height: 30px; }
+  .tab img { width: 18px; height: 18px; }
+  .meter { height: 12px; }
+  .meter > span { font-size: 7px; }
+  .hud.bottom { gap: 4px; padding: 6px; }
+  .pchip { width: 34px; }
+  .pchip img { width: 26px; height: 24px; }
+  .bag { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); }
+  .classGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+}
+@media (max-width: 960px) and (orientation: landscape) and (max-height: 520px) {
+  #app, #app.fold { grid-template-columns: minmax(0, 1fr) minmax(260px, 40%); grid-template-rows: 100%; }
+  .foldBtn { display: none; }
+}

@@ -36,7 +36,9 @@
     const r = cv.parentElement.getBoundingClientRect();
     DPR = Math.min(2, window.devicePixelRatio || 1);
     const cw = Math.max(200, r.width), ch = Math.max(160, r.height);
-    S = clamp(Math.floor(Math.min(cw / 200, ch / 150)), 2, 6);
+    // a wide view of the field: on sharp screens the scale may be a half step (1.5 = 3 device pixels a pixel)
+    const step = DPR >= 2 ? 0.5 : 1;
+    S = clamp(Math.floor(Math.min(cw / 270, ch / 200) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
     W = Math.ceil(cw / S); H = Math.ceil(ch / S);
     cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
     cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
@@ -119,10 +121,17 @@
   // Title cards take turns: each card's lines appear together, the next card when this one is done
   const cardQ = [];
   let cardT = 0;
+  let lastCard = null;
   function cardText(off, str, col, size, o) {
     o = o || {};
-    let g = cardQ[cardQ.length - 1];
-    if (off === 0 || !g || g.shown) { g = { items: [], life: 0, callout: !!o.callout, age: 0 }; cardQ.push(g); }
+    let g = lastCard;
+    if (off === 0 || !g || g.shown) {
+      g = { items: [], life: 0, callout: !!o.callout, age: 0, tag: o.tag };
+      // an urgent card (a boss changing phase) cuts in front and replaces whatever is up
+      if (o.now) { cardQ.unshift(g); cardT = 0; for (let i = texts.length - 1; i >= 0; i--) if (texts[i].card) texts.splice(i, 1); }
+      else cardQ.push(g);
+      lastCard = g;
+    }
     g.items.push({ off, str, col, size, o });
     g.life = Math.max(g.life, o.life || 1.1);
     // streak callouts are only worth showing on time
@@ -136,7 +145,7 @@
     if (!g) return;
     g.shown = true;
     const y0 = cardY(0.27);
-    for (const it of g.items) text(W / 2, y0 + it.off, it.str, it.col, it.size, Object.assign({}, it.o, { life: g.life, max: g.life }));
+    for (const it of g.items) text(W / 2, y0 + it.off, it.str, it.col, it.size, Object.assign({}, it.o, { life: g.life, max: g.life, card: true }));
     cardT = g.life * 0.8;
   }
   St.cardBusy = () => cardT > 0;
@@ -268,8 +277,11 @@
       const b = btnPos();
       St.shake(6); St.flash(0.5, '#ff3b3b');
       burst(b.x, b.y - 6, ['#ff4f4f', '#ffd84a', '#3a3a44'], 40, 110);
-      text(b.x, b.y - 30, G.t('overload'), '#ff4f4f', 5, { life: 1.8, max: 1.8, vy: -10 });
+      text(b.x, b.y - 30, G.t('btnBroken'), '#ff4f4f', 5, { life: 1.8, max: 1.8, vy: -10 });
+      cardText(0, G.t('btnBrokenCard'), '#ff4f4f', 6, { life: 2.2, vy: -3, big: true });
+      cardText(9, G.t('btnBrokenSub', G.TUNE.btnDown), '#ffffff', 3, { life: 2.2, vy: -3 });
     });
+    partyListen();
     G.on('levelUp', lvl => {
       const hp = heroPos();
       hitstop = Math.max(hitstop, 0.06);
@@ -422,6 +434,8 @@
     G.Audio && G.Audio.unlock();
     if (hitWisp(p)) { G.catchWisp(); return 'wisp'; }
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
+    const dn = hitDowned(p);
+    if (dn != null) { G.reviveTap(dn); return 'revive'; }
     const ge = hitLoot(p);
     if (ge) { G.pickup(ge, 'hand'); return 'loot'; }
     if (hitShrine(p)) { G.useShrine('hand'); return 'shrine'; }
@@ -537,6 +551,151 @@
     if (hero.cast > 0) hero.cast -= dt;
   }
   St.heroPos = heroPos;
+
+  // ---------- The party on the field ----------
+  // Companions hold places around the Button; the Warden keeps the left.
+  const allyVis = [];
+  const aVis = i => allyVis[i] || (allyVis[i] = { atk: null, face: 1, hurt: 0, heal: 0, ph: Math.random() * 6 });
+  const SLOTS_AT = [[34, 14], [-14, 36], [18, 38]];
+  function allySlot(i) { const b = btnPos(), o = SLOTS_AT[i] || [0, 40]; return { x: b.x + o[0], y: b.y + o[1] }; }
+  function unitPos(who) { return who === 'button' ? { x: btnPos().x, y: btnPos().y - 6 } : who < 0 ? heroPos() : allySlot(who); }
+  St.unitPoint = who => { const q = unitPos(who); return St.toScreen(q.x, q.y - 12); };
+  const ROLE_COL = { tank: '#7fb8ff', heal: '#8ae07a', dps: '#ff9a5a' };
+  function hpBar(x, y, k, w, col) {
+    lctx.fillStyle = '#0c0b12'; lctx.fillRect(Math.round(x - w / 2) - 1, y - 1, w + 2, 4);
+    lctx.fillStyle = '#3a1a1e'; lctx.fillRect(Math.round(x - w / 2), y, w, 2);
+    lctx.fillStyle = k > 0.5 ? '#56d45a' : k > 0.25 ? '#ffd84a' : '#ff4f4f'; lctx.fillRect(Math.round(x - w / 2), y, Math.max(0, Math.round(w * k)), 2);
+    if (col) { lctx.fillStyle = col; lctx.fillRect(Math.round(x - w / 2) - 3, y - 1, 2, 4); }
+  }
+  // a fallen hero lies on its side, greyed, with a ring that fills as it gets back up
+  function drawDowned(u, q) {
+    lctx.save(); lctx.globalAlpha = 0.55;
+    lctx.translate(q.x, q.y - 3); lctx.rotate(-Math.PI / 2);
+    G.Doll.draw(lctx, u, 0, 0, { face: 1, pose: 'rest', ang: 0, time: 0 });
+    lctx.restore();
+    const k = clamp(1 - u.down / (G.TUNE.reviveTime || 24), 0, 1);
+    lctx.strokeStyle = '#0c0b12'; lctx.lineWidth = 3; lctx.beginPath(); lctx.arc(q.x, q.y - 6, 9, 0, Math.PI * 2); lctx.stroke();
+    lctx.strokeStyle = '#ffd84a'; lctx.lineWidth = 1; lctx.beginPath(); lctx.arc(q.x, q.y - 6, 9, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); lctx.stroke();
+    if (Math.random() < 0.08) part(q.x + rand(-4, 4), q.y - 10, '#c8c8d4', { vx: 0, vy: -8, grav: 0, life: 0.6 });
+  }
+  function drawAlly(i, u, q) {
+    const v = aVis(i);
+    if (u.down > 0) { drawDowned(u, q); return; }
+    const w = u.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
+    shadow(q.x, q.y - 1, 12);
+    if (v.heal > 0) { glow(q.x, q.y - 8, 9, '#8ae07a', v.heal * 2); v.heal -= fdt; }
+    let pose = 'rest', ang = G.Doll.restAngle(wt), draw = 0;
+    const a = v.atk;
+    if (a) {
+      const k = a.t / a.dur;
+      if (a.kind === 'swing') { if (k < 0.3) { pose = 'up'; ang = -2.4; } else { pose = 'fwd'; ang = G.lerp(-2.4, 0.8, Math.min(1, (k - 0.3) / 0.4)); } }
+      else if (a.kind === 'stab') { if (k > 0.3) { pose = 'fwd'; ang = 0; } }
+      else if (a.kind === 'shot') { pose = 'fwd'; draw = k < 0.5 ? k / 0.5 : 0; }
+      else if (a.kind === 'cast') { if (k < 0.4) { pose = 'up'; ang = -1.9; } else { pose = 'fwd'; ang = -0.55; } }
+      if ((a.t += fdt) >= a.dur) v.atk = null;
+    }
+    const bob = a ? 0 : Math.floor(time * 1.6 + v.ph) % 2;
+    G.Doll.draw(lctx, u, q.x, q.y, { face: v.face, pose, bob, ang, draw, time: time + v.ph });
+    if (v.hurt > 0) { lctx.globalAlpha = Math.min(0.6, v.hurt * 4); lctx.fillStyle = '#ff3b3b'; lctx.fillRect(q.x - 6, q.y - 20, 12, 20); lctx.globalAlpha = 1; v.hurt -= fdt; }
+    hpBar(q.x, q.y - 24, u.hp / u.max, 14, ROLE_COL[u.role]);
+  }
+  // heals, bites and boss shots between the party, the Button and the Horde
+  const beamsFx = [];
+  function drawBeamsFx(dt) {
+    for (let i = beamsFx.length - 1; i >= 0; i--) {
+      const f = beamsFx[i];
+      if ((f.t += dt) >= f.dur) { beamsFx.splice(i, 1); if (f.onEnd) f.onEnd(); continue; }
+      const k = f.t / f.dur, a = unitPos(f.from), b = unitPos(f.to);
+      if (f.kind === 'heal') {
+        lctx.globalAlpha = 0.7 * (1 - k); lctx.strokeStyle = '#8ae07a'; lctx.lineWidth = 2;
+        lctx.beginPath(); lctx.moveTo(a.x, a.y - 14); lctx.lineTo(b.x, b.y - 10); lctx.stroke(); lctx.globalAlpha = 1;
+      } else {
+        // a bolt from the boss to its victim
+        const bp = bossVis ? bossPos() : btnPos(), x = bp.x + (b.x - bp.x) * k, y = bp.y - 12 + (b.y - 10 - bp.y + 12) * k - Math.sin(k * Math.PI) * 10;
+        lctx.fillStyle = '#0c0b12'; lctx.fillRect(Math.round(x) - 2, Math.round(y) - 2, 5, 5);
+        lctx.fillStyle = f.col || '#ff7a2e'; lctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+        if (Math.random() < 0.5) part(x, y, f.col || '#ffb347', { vx: rand(-8, 8), vy: rand(-8, 8), grav: 0, life: 0.2 });
+      }
+    }
+  }
+  function partyListen() {
+    G.on('allyAttack', ev => {
+      const v = aVis(ev.i), q = allySlot(ev.i), m = G.S.party[ev.i];
+      if (!m) return;
+      const wt = ev.wt || (m.eq.weapon ? G.ITEM_TYPE[m.eq.weapon.id] : 'sword'), at = ATTACK[wt] || ['swing', 0.24];
+      v.atk = { kind: at[0], t: 0, dur: at[1] };
+      const t0 = ev.ids && G.R.mobs.find(x => x.id === ev.ids[0]);
+      const tp = t0 ? mobPos(t0) : ev.boss && bossVis ? bossPos() : null;
+      if (!tp) return;
+      v.face = tp.x >= q.x ? 1 : -1;
+      if (shots.length < 110 && !MELEE[wt]) shots.push({ x: q.x, y: q.y - 10, sx: q.x, sy: q.y - 10, tx: tp.x, ty: tp.y - 6, t: 0, dur: 0.2, col: G.WEAPONS[wt] ? G.WEAPONS[wt].col : '#ffffff', arrow: wt === 'bow', flat: wt === 'bow', big: wt === 'staff' });
+      else if (MELEE[wt]) burst(tp.x, tp.y - 5, ['#ffffff', G.WEAPONS[wt].col], 3, 40, { life: 0.2 });
+      for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
+      for (const id of ev.ids || []) mobVisOf({ id }).hit = 0.09;
+    });
+    G.on('heal', (i, who) => {
+      beamsFx.push({ kind: 'heal', from: i, to: who, t: 0, dur: 0.35 });
+      const q = unitPos(who);
+      burst(q.x, q.y - 12, ['#8ae07a', '#ffffff'], 5, 30, { grav: -20, life: 0.5 });
+      if (who !== 'button') aVisOf(who).heal = 0.3;
+    });
+    G.on('unitHurt', (who, dmg, src) => {
+      aVisOf(who).hurt = 0.12;
+      const q = unitPos(who);
+      if (Math.random() < 0.3 || src === 'boss' || src === 'slam' || src === 'barrage') text(q.x + rand(-5, 5), q.y - 28, '-' + G.fmt(dmg), '#ff6b6b', 3, { life: 0.6, max: 0.6, vy: -16 });
+    });
+    G.on('unitDown', who => {
+      const q = unitPos(who);
+      burst(q.x, q.y - 8, ['#8a8a9a', '#ff4f4f', '#ffffff'], 18, 70);
+      text(q.x, q.y - 30, G.t('downed'), '#ff4f4f', 4, { life: 1.4, max: 1.4, vy: -10 });
+      St.shake(2);
+    });
+    G.on('unitRevive', who => { const q = unitPos(who); burst(q.x, q.y - 8, ['#ffd84a', '#8ae07a', '#ffffff'], 20, 60, { grav: -30 }); text(q.x, q.y - 30, G.t('backUp'), '#8ae07a', 4, { life: 1.2, max: 1.2, vy: -10 }); ring(q.x, q.y - 4, 14, 7, '#ffd84a', 0.4); });
+    G.on('reviveTap', who => { const q = unitPos(who); burst(q.x, q.y - 8, ['#ffd84a', '#ffffff'], 6, 40, { life: 0.3 }); });
+    G.on('bossHit', (b, v) => beamsFx.push({ kind: 'bolt', from: 'boss', to: v, t: 0, dur: 0.35, col: b.lord ? '#ff4f7e' : '#ff7a2e' }));
+    G.on('barrageHit', (b, v, i) => setTimeout(() => beamsFx.push({ kind: 'bolt', from: 'boss', to: v, t: 0, dur: 0.4, col: '#ffb347' }), i * 90));
+    G.on('buttonPulse', () => { const b = btnPos(); ring(b.x, b.y - 4, 30, 15, '#ffd84a', 0.35); ring(b.x, b.y - 4, 20, 10, '#ffffff', 0.25); if (G.Audio && G.Audio.pulse) G.Audio.pulse(); });
+    G.on('buttonFixed', () => { const b = btnPos(); burst(b.x, b.y - 8, ['#ffd84a', '#ffffff', '#56d45a'], 24, 80); text(b.x, b.y - 32, G.t('buttonFixed'), '#56d45a', 4, { life: 1.4, max: 1.4, vy: -10 }); });
+    G.on('clickDead', () => { const b = btnPos(); burst(b.x + rand(-8, 8), b.y - 6, ['#6e6e7c', '#3a3a44'], 3, 25, { life: 0.3 }); });
+    G.on('recruit', (m, i) => { const q = allySlot(i); burst(q.x, q.y - 10, ['#ffd84a', '#ffffff'], 30, 90); ring(q.x, q.y - 4, 20, 10, '#ffd84a', 0.5); cardText(0, G.t('joined', G.L(G.CLASS_BY_ID[m.cls].name)).toUpperCase(), '#ffd84a', 6, { life: 2.4, vy: -3, big: true }); cardText(9, G.t('role_' + G.ROLES[m.cls]), '#ffffff', 3, { life: 2.4, vy: -3 }); });
+    G.on('slotOpen', () => { cardText(0, G.t('slotOpen'), '#ffd84a', 6, { life: 3, vy: -2, big: true }); cardText(9, G.t('slotOpenSub'), '#ffffff', 3, { life: 3, vy: -2 }); if (G.Audio && G.Audio.levelUp) G.Audio.levelUp(); });
+    G.on('invasion', (r, V) => {
+      St.flash(0.4, V.col); St.shake(4);
+      cardText(0, V.name, V.col, 8, { life: 3, vy: -2, big: true });
+      cardText(11, V.sub, '#ffffff', 3, { life: 3, vy: -2 });
+      if (G.Audio && G.Audio.invasion) G.Audio.invasion(V.id);
+    });
+    G.on('invasionBoss', (m, V) => { cardText(0, V.bossName.toUpperCase(), V.col, 7, { life: 2.4, vy: -2, big: true }); cardText(10, G.t('heraldSub'), '#ffffff', 3, { life: 2.4, vy: -2 }); St.shake(5); });
+    G.on('invasionEnd', (won, r) => { const V = G.INV_BY_ID[r.k]; cardText(0, won ? G.t('invWon') : G.t('invLost'), won ? '#ffd84a' : '#c8b4ff', 7, { life: 2.6, vy: -2, big: true }); if (won) { St.flash(0.4, '#ffd84a'); St.shake(6); } });
+    G.on('wipe', (from, to, rift) => {
+      St.flash(0.9, '#3a0000'); St.shake(9); slowmo = Math.max(slowmo, 1.2);
+      cardText(0, G.t('wipeTitle'), '#ff4f4f', 8, { life: 3.4, vy: -2, big: true });
+      cardText(11, rift ? G.t('wipeRift') : to < from ? G.t('wipeBack', to + 1) : G.t('wipeBar'), '#ffffff', 3, { life: 3.4, vy: -2 });
+      if (G.Audio && G.Audio.wipe) G.Audio.wipe();
+    });
+    // a phase card still waiting when the fight ends is stale
+    const dropPhase = () => { for (let i = cardQ.length - 1; i >= 0; i--) if (cardQ[i].tag === 'phase') cardQ.splice(i, 1); };
+    G.on('bossWin', dropPhase); G.on('bossFail', dropPhase); G.on('wipe', dropPhase);
+    G.on('bossPhase', b => {
+      const bp = bossPos();
+      hitstop = Math.max(hitstop, 0.25); St.shake(7); St.flash(0.35, b.lord ? '#ff4f7e' : '#ffffff');
+      ring(bp.x, bp.y - 8, 70, 36, '#ffffff', 0.6); ring(bp.x, bp.y - 8, 50, 26, b.lord ? '#ff4f7e' : '#ffb347', 0.5);
+      burst(bp.x, bp.y - 12, ['#ffffff', '#ffb347', '#ff4f7e'], 50, 150);
+      cardText(0, G.t('phaseN', b.phase), b.phase >= 3 ? '#ff4f4f' : '#ffb347', 8, { life: 2, vy: -3, big: true, now: true, tag: 'phase' });
+      cardText(11, G.t(b.phase >= 3 && b.lord ? 'phaseRage' : 'phaseSub'), '#ffffff', 3, { life: 2, vy: -3 });
+      if (G.Audio && G.Audio.phase) G.Audio.phase();
+    });
+  }
+  const aVisOf = who => (who < 0 ? hero : aVis(who));
+  // a tap on a fallen hero helps them up
+  function hitDowned(p) {
+    for (const u of G.partyUnits ? G.partyUnits() : []) {
+      if (!(u.down > 0)) continue;
+      const q = unitPos(u.who);
+      if (Math.abs(p.x - q.x) <= 11 && Math.abs(p.y - (q.y - 5)) <= 10) return u.who;
+    }
+    return null;
+  }
   function mobPos(m) {
     const b = btnPos();
     const a = -Math.PI / 2 + 0.55 + m.a * (Math.PI * 2 - 1.1);
@@ -560,6 +719,13 @@
     return best;
   }
   function mobSprite(m, realm) {
+    // an invasion's mobs come in its own shapes
+    if (m.inv && G.INV_BY_ID[m.inv]) {
+      const V = G.INV_BY_ID[m.inv];
+      if (m.kind === 'guardian') return SPR.boss(V.boss, true).canvas;
+      const id = G.SMALL[m.kind] ? V.swarm : V.elite;
+      if (SPR.defs[id]) return SPR.get(id, m.kind === 'magic' ? { oc: '#3f7fff' } : m.kind === 'rare' ? { oc: '#ffd84a' } : null);
+    }
     if (m.kind === 'fodder') return SPR.get(realm.fodder);
     if (G.ARCHETYPES && G.ARCHETYPES[m.kind]) return SPR.arch(m.kind, realm.id);
     if (m.kind === 'hoard') return SPR.get('m_hoard');
@@ -588,11 +754,12 @@
     }
     if (m.kind === 'runner' && m.p > 0 && Math.random() < 0.15) part(q.x, q.y - 1, '#d8cfb8', { vx: 0, vy: -4, grav: 0, life: 0.3 });
     if (m.kind === 'rare') glow(q.x, q.y - 9, 10, '#ffd84a', 0.24 + 0.08 * Math.sin(time * 6));
-    let x = q.x;
-    if (v.hit > 0) x += Math.round(rand(-1, 1));
+    let x = q.x, y = q.y;
+    // a hit knocks it back from the Button for a moment, a small one further
+    if (v.hit > 0) { const b = btnPos(), dx = q.x - b.x, dy = q.y - b.y, l = Math.hypot(dx, dy) || 1, k = v.hit * (fod ? 34 : 18); x += Math.round(dx / l * k + rand(-1, 1)); y += Math.round(dy / l * k * 0.6); }
     if (v.lunge > 0) { x += Math.sign(btnPos().x - q.x) * 2; v.lunge -= fdt; }
-    blit(spr, x, q.y);
-    if (v.hit > 0) { blit(white(spr), x, q.y, 1, Math.min(0.85, v.hit * 10)); v.hit -= fdt; }
+    blit(spr, x, y);
+    if (v.hit > 0) { blit(white(spr), x, y, 1, Math.min(0.85, v.hit * 10)); v.hit -= fdt; }
     if (!fod && m.hp < m.max) {
       const w = m.kind === 'rare' || m.kind === 'hoard' || m.kind === 'tank' ? 16 : m.kind === 'bomber' || m.kind === 'spitter' ? 8 : 12, k = clamp(m.hp / m.max, 0, 1);
       lctx.fillStyle = '#0c0b12'; lctx.fillRect(q.x - w / 2 - 1, q.y - 21, w + 2, 3);
@@ -634,6 +801,9 @@
   function drawHero(hp) {
     const h = G.S.hero;
     if (!h || !h.cls) return;
+    if (h.wdown > 0) { drawDowned({ cls: h.cls, eq: h.eq, down: h.wdown }, hp); return; }
+    if (hero.hurt > 0) hero.hurt -= fdt;
+    if (hero.heal > 0) { glow(hp.x, hp.y - 8, 9, '#8ae07a', hero.heal * 2); hero.heal -= fdt; }
     const w = h.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
     if (w && w.r >= 3) glow(hp.x, hp.y - 6, 10, G.RARITIES[w.r].color, 0.16 + 0.06 * Math.sin(time * 4));
     if (G.R.hb && G.R.hb.wing > 0) glow(hp.x, hp.y - 12, 12, '#ffffff', 0.25);
@@ -683,6 +853,8 @@
       ring(tp.x, tp.y, 5, 4, G.WEAPONS[wt].col, 0.18);
     }
     if (hero.moving && Math.random() < 0.3) part(hp.x + rand(-3, 3), hp.y, pick(['#c8b89a', '#8a7a60']), { vx: -hero.face * rand(5, 15), vy: rand(-10, -2), grav: 20, life: 0.3 });
+    if (hero.hurt > 0) { lctx.globalAlpha = Math.min(0.6, hero.hurt * 4); lctx.fillStyle = '#ff3b3b'; lctx.fillRect(hp.x - 6, hp.y - 20, 12, 20); lctx.globalAlpha = 1; }
+    if (G.D.wardenHp) hpBar(hp.x, hp.y - 26, h.whp / G.D.wardenHp, 16, ROLE_COL[G.ROLES[h.cls]]);
   }
   const MELEE = { dagger: 1, sword: 1, katana: 1, scythe: 1 };
   // The Warden's hits on a boss add up into floating numbers a few times a second
@@ -763,6 +935,8 @@
     ember:     { blood: '#1e1210', style: 'embers' },
     mirror:    { blood: '#9aa2bc', style: 'glass' },
     sky:       { blood: '#c8b070', style: 'feathers' },
+    moon:      { blood: '#9aa2bc', style: 'glass' },
+    cosmos:    { blood: '#3a2a6a', style: 'dissolve' },
   };
   const chunkCache = new WeakMap();
   // 2x2 blocks of a sprite's opaque pixels, sampled once per sprite
@@ -1277,6 +1451,23 @@
     lctx.fillStyle = '#b36bff'; lctx.fillRect(q.x - 10, q.y + ry + 3, Math.round(20 * k), 1);
   }
   // Rift: a purple edge on the world (its bar and clock are in the HUD row)
+  // An invasion paints the sky: a tint over the field, its moon, planet, sun or eye, and its weather
+  function drawInvasionSky(dt) {
+    const r = G.R.inv;
+    invFade = clamp(invFade + (r ? dt : -dt) * 1.5, 0, 1);
+    if (invFade <= 0) return;
+    const V = G.INV_BY_ID[(r && r.k) || lastInv] || G.INVASIONS[0];
+    if (r) lastInv = r.k;
+    lctx.globalAlpha = V.tintA * invFade; lctx.fillStyle = V.tint; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1;
+    const sky = SPR.defs[V.sky] ? SPR.get(V.sky) : null;
+    if (sky) { lctx.globalAlpha = 0.6 * invFade; lctx.drawImage(sky, Math.round(W * 0.8 - sky.width), Math.round(18 + Math.sin(time * 0.5) * 2), sky.width * 2, sky.height * 2); lctx.globalAlpha = 1; }
+    if (!r) return;
+    if (V.id === 'moon' && Math.random() < 0.5) part(rand(0, W), -2, pick(['#e8f0ff', '#c8d6ff', '#ffffff']), { vx: rand(-20, -5), vy: rand(40, 70), grav: 0, life: rand(0.8, 1.6) });
+    if (V.id === 'cosmic' && Math.random() < 0.06) { const x = rand(20, W - 20); beams.push({ x, y: rand(H * 0.3, H * 0.8), col: '#7fff9a', life: 0.6, max: 0.6, w: 6 }); }
+    if (V.id === 'heaven') { lctx.globalAlpha = 0.08 + 0.04 * Math.sin(time * 2); lctx.fillStyle = '#fff3a0'; for (let i = 0; i < 4; i++) { const x = (i * W / 3 + time * 8) % (W + 60) - 30; lctx.beginPath(); lctx.moveTo(x, 0); lctx.lineTo(x + 26, 0); lctx.lineTo(x + 70, H); lctx.lineTo(x + 30, H); lctx.fill(); } lctx.globalAlpha = 1; if (Math.random() < 0.2) part(rand(0, W), -2, '#ffffff', { vx: rand(-6, 6), vy: rand(10, 25), grav: 0, life: 2 }); }
+    if (V.id === 'deep' && Math.random() < 0.4) part(rand(0, W), H + 2, pick(['#4fe0c8', '#9ff0e0']), { vx: rand(-4, 4), vy: -rand(20, 40), grav: 0, life: rand(1, 2) });
+  }
+  let invFade = 0, lastInv = null;
   function drawRiftTint() {
     const r = G.R.rift;
     if (!r) return;
@@ -1489,6 +1680,7 @@
     drawPerkFx();
     drawBreach();
     drawRiftTint();
+    drawInvasionSky(vdt);
     stepGround(vdt);
 
     // Collect drawables sorted by y
@@ -1549,6 +1741,8 @@
       list.push({ y: q.y, draw: () => drawMob(m, q, mrealm) });
     }
     if (G.S.hero && G.S.hero.cls) { const hp = heroPos(); list.push({ y: hp.y, draw: () => drawHero(hp) }); }
+    // companions, each at their place
+    if (G.partyUnits && G.S.hero && G.S.hero.cls) for (const u of G.partyUnits()) if (u.who >= 0) { const q = allySlot(u.who); list.push({ y: q.y, draw: () => drawAlly(u.who, u, q) }); }
     if (mobVis.size > (R.mobs || []).length + 20) { const ids = new Set((R.mobs || []).map(m => m.id)); for (const k of [...mobVis.keys()]) if (!ids.has(k)) mobVis.delete(k); }
     // Button or boss
     if (bossVis && bossDmg.acc > 0 && (bossDmg.t -= dt) <= 0) {
@@ -1593,6 +1787,7 @@
     for (const d of list) d.draw();
     drawLootBeams();
     drawShotsInFlight();
+    drawBeamsFx(vdt);
     drawRings(vdt); drawGlowFx(vdt);
     stepCoins(vdt);
     stepGems(vdt);
@@ -1867,6 +2062,13 @@
     lctx.drawImage(spr, Math.round(b.x - bw / 2), Math.round(b.y + 4 - bh), bw, bh);
     if (btnFlashT > 0) { lctx.globalAlpha = Math.min(0.7, btnFlashT * 9); lctx.drawImage(white(spr), Math.round(b.x - bw / 2), Math.round(b.y + 4 - bh), bw, bh); lctx.globalAlpha = 1; btnFlashT -= fdt; }
     if (btnHurtT > 0) { blit(white(spr), b.x, b.y + 4, 1, btnHurtT * 3); btnHurtT -= fdt; }
+    if (G.R.btnDown > 0) {
+      // broken: dark, cracked, smoking, and a countdown until it mends
+      lctx.globalAlpha = 0.8; blit(SPR.button('#3a3348', true, 0), b.x, b.y + 4); lctx.globalAlpha = 1;
+      lctx.fillStyle = '#0c0b12';
+      for (const [x0, y0, x1, y1] of [[-8, -12, -2, -4], [-2, -4, -5, 2], [3, -13, 7, -6], [7, -6, 4, 0]]) { lctx.fillRect(b.x + x0, b.y + y0, Math.max(1, Math.abs(x1 - x0)), 1); lctx.fillRect(b.x + x1, b.y + Math.min(y0, y1), 1, Math.abs(y1 - y0)); }
+      if (Math.random() < 0.4) part(b.x + rand(-10, 10), b.y - rand(4, 12), pick(['#6e6e7c', '#3a3a44', '#ff7a2e']), { vx: rand(-5, 5), vy: -rand(15, 30), grav: -10, life: 0.8 });
+    }
     if (G.R.stun > 0) {
       lctx.globalAlpha = 0.45; blit(SPR.button('#3a3348', true, 0), b.x, b.y + 4); lctx.globalAlpha = 1;
       if (Math.random() < 0.5) part(b.x + rand(-14, 14), b.y - rand(0, 12), pick(['#7fe9ff', '#ffffff']), { vx: rand(-30, 30), vy: rand(-40, -10), life: 0.3 });
@@ -1949,7 +2151,7 @@
     for (const m of G.R.mobs || []) {
       if (m.kind === 'hoard' || m.kind === 'guardian') {
         const q = mobPos(m), hoard = m.kind === 'hoard', y = hoard ? q.y - 25 : q.y - 44;
-        const nm = G.t(hoard ? 'hoarder' : 'riftGuardian');
+        const nm = hoard ? G.t('hoarder') : m.inv && G.INV_BY_ID[m.inv] ? G.INV_BY_ID[m.inv].bossName : G.t('riftGuardian');
         ctx.font = crisp(hoard ? 3 : 4) + 'px ' + FONT;
         ctx.strokeText(nm, q.x, y); ctx.fillStyle = hoard ? '#ffd84a' : '#ff9ab4'; ctx.fillText(nm, q.x, y);
         if (hoard) { const k = clamp(m.life / G.TUNE.hoardLife, 0, 1); ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - 9, y + 3, 18, 2); ctx.fillStyle = k > 0.3 ? '#b36bff' : '#ff4f4f'; ctx.fillRect(q.x - 9, y + 3, 18 * k, 1); }

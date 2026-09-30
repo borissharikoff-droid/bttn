@@ -182,6 +182,12 @@
   A.breach = function () { noise(0.8, 0.08, 0, 300); tone(70, 1.2, 'sawtooth', 0.08, 0, 45); tone(105, 1.2, 'sawtooth', 0.05, 0.1, 70); };
   // a heap of the Horde dying in one frame: a deep crunch with a bright top
   A.bossCount = function (n) { tone(n === 1 ? 660 : 440, 0.12, 'square', 0.07); thud(0.08, 0.1, 0, 500); };
+  A.pulse = function () { if (!throttle('pulse', 300)) return; tone(220, 0.25, 'triangle', 0.06, 0, 440); thud(0.1, 0.1, 0, 600); };
+  A.wipe = function () { tone(196, 1.2, 'sawtooth', 0.1, 0, 49); tone(147, 1.4, 'sawtooth', 0.08, 0.1, 37); noise(0.8, 0.1, 0, 200); thud(0.4, 0.2, 0, 300); };
+  A.phase = function () { tone(110, 0.7, 'sawtooth', 0.1, 0, 55); noise(0.4, 0.08, 0, 400); thud(0.3, 0.18, 0, 400); [0, 3, 7].forEach((s, i) => tone(note(s), 0.3, 'square', 0.06, 0.2 + i * 0.08)); };
+  A.invasion = function (k) { const base = k === 'heaven' ? 12 : k === 'cosmic' ? 7 : k === 'deep' ? -5 : 3; [0, 5, 10, 15, 12].forEach((s, i) => tone(note(base + s), 0.35, k === 'cosmic' ? 'sawtooth' : 'triangle', 0.08, i * 0.12, k === 'cosmic' ? note(base + s + 12) : null)); noise(0.6, 0.05, 0, 800); };
+  A.down = function () { tone(330, 0.3, 'square', 0.07, 0, 110); };
+  A.revive = function () { [0, 4, 7, 12].forEach((s, i) => tone(note(12 + s), 0.12, 'triangle', 0.07, i * 0.05)); };
   A.heap = function (n) { if (!throttle('heap', 180)) return; thud(0.14, 0.16, 0, 700); noise(0.12, 0.08, 0, 900); tone(note(7 + Math.min(12, Math.log2(n / 10) * 4)), 0.08, 'square', 0.05, 0.02); };
   A.spit = function () { if (!throttle('spit', 120)) return; tone(420, 0.06, 'triangle', 0.04, 0, 260); noise(0.04, 0.03, 0, 3000); };
   A.carnage = function (t) { if (!t) return; [0, 5, 9, 12].forEach((s, i) => tone(note(14 + s + t * 2), 0.1, 'square', 0.05, i * 0.04)); };
@@ -244,6 +250,9 @@
     { bass: [-7, -7, -4, -4, -2, -2, -9, -9], lead: [5, 8, 12, 13, 12, 8, 5, 1], tempo: 0.18 },
     { bass: [0, 0, 4, 4, 0, 0, 3, 3], lead: [12, 16, 11, 15, 12, 16, 10, 14], tempo: 0.21 },
     { bass: [0, 0, 5, 5, 9, 9, 7, 7], lead: [19, 21, 24, 21, 19, 16, 19, 12], tempo: 0.22 },
+    // the Moon and the Star Sea
+    { bass: [-5, -5, -1, -1, 2, 2, -3, -3], lead: [14, 19, 21, 19, 14, 11, 9, 7], tempo: 0.26 },
+    { bass: [-12, -12, -7, -7, -5, -5, -10, -10], lead: [12, 19, 24, 22, 19, 17, 15, 10], tempo: 0.2 },
   ];
   let step = 0, musicTimer = null;
   function startMusic() {
@@ -302,6 +311,9 @@
   G.on('bomberPop', () => A.boom());
   G.on('carnage', t => A.carnage(t));
   G.on('landStar', () => A.star());
+  G.on('unitDown', () => A.down());
+  G.on('unitRevive', () => A.revive());
+  G.on('buttonBreak', () => A.boom());
   G.on('wave', () => A.wave());
   G.on('buttonBreak', () => A.overload());
   G.on('perk', () => A.perk());

@@ -63,6 +63,12 @@ function tryBuy(G, cps) {
   return true;
 }
 function shop(G, cps) {
+  // take on companions as slots open: a healer, a tank and damage, skipping what the Warden already is
+  if (G.recruit && G.S.party && G.S.party.length < G.partySlots()) {
+    const have = [G.S.hero.cls].concat(G.S.party.map(m => m.cls));
+    const want = ['cleric', 'knight', 'archer', 'wizard', 'rogue'].find(c => !have.includes(c));
+    if (want) G.recruit(want);
+  }
   let k = 0;
   while (tryBuy(G, cps) && k++ < 40);
   // enchant worn gear, cheapest first

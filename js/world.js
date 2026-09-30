@@ -17,6 +17,7 @@
     hoardEvery: 150, hoardFirst: 40, hoardLife: 16,
     shrineEvery: 170, shrineFirst: 100, shrineLife: 12, shrineDur: 15,
     breachEvery: 300, breachFirst: 240, breachDur: 12, breachRate: 2.5,
+    invEvery: 420, invFirst: 300, invTime: 90, invNeed: 90, invBoss: 30, invFocus: 20, invBossTime: 40,
     riftTime: 90, riftNeed: 40, riftGuard: 60,
   });
   Object.assign(R, { ground: [], gUid: 0, hoardT: null, shrine: null, shr: null, shrineT: null, breach: null, breachT: null });
@@ -126,7 +127,7 @@
     // the very first kill always drops something worth a look, and a rare comes early
     if (!S.st.drops) return drop('gear', G.pickItem(1), m);
     if (m.kind === 'hoard') { S.st.hoards++; emit('hoardDie', m); return shower(m, randInt(8, 12), 2, 0.04, { floorN: 2, spread: 0.1 }); }
-    if (m.kind === 'guardian') return null; // the Rift pays out when it closes
+    if (m.kind === 'guardian') return null; // the Rift or the invasion pays out on its own
     if (m.kind === 'rare') return shower(m, randInt(3, 5), 1, 0.006 * (uq('goldgrin') ? 1.5 : 1), { floorN: 1, spread: 0.05 });
     // the first champion ever always drops an epic
     if (m.kind === 'magic' && !S.st.firstMagic) { S.st.firstMagic = 1; return drop('gear', G.pickItem(3), m); }
@@ -238,7 +239,7 @@
     ['boss', 'First boss'], ['d5', 'The Crab King'], ['uq', 'First unique'], ['r4', 'First legendary'], ['d10', 'Depth 10'], ['rift5', 'Rift 5'],
     ['asc', 'First ascension'], ['evo', 'First evolution'], ['r5', 'First mythic'], ['d20', 'Depth 20'], ['rift15', 'Rift 15'], ['d30', 'Depth 30'],
     ['r6', 'First divine'], ['d40', 'The Mad Button'], ['rift30', 'Rift 30'], ['rift45', 'Rift 45'],
-    ['d50', 'Depth 50'], ['d60', 'Depth 60'], ['d65', 'The First Hand'], ['rift60', 'Rift 60'], ['all14', 'Every unique'], ['d80', 'Depth 80'], ['rift80', 'Rift 80'],
+    ['d50', 'Depth 50'], ['d60', 'Depth 60'], ['d65', 'The First Hand'], ['d75', 'The Star Eater'], ['rift60', 'Rift 60'], ['all14', 'Every unique'], ['d80', 'Depth 80'], ['rift80', 'Rift 80'],
   ];
   G.first = function (k) {
     const S = S_();
@@ -249,7 +250,7 @@
   };
   G.on('bossWin', (rew, b) => {
     G.first('boss');
-    for (const d of [5, 10, 20, 30, 40, 50, 60, 65, 80]) if (b.d + 1 === d && b.lord) G.first('d' + d);
+    for (const d of [5, 10, 20, 30, 40, 50, 60, 65, 75, 80]) if (b.d + 1 === d && b.lord) G.first('d' + d);
     // lord crowns: the fastest kill of a fresh lord (unwounded, no rally), and only at the edge of
     // your progress, so re-clearing old lands after ascending doesn't turn every crown into 0.1s
     const S = S_();
@@ -282,6 +283,48 @@
 
   // ---------- Events ----------
   const busy = () => R.boss || R.rift || R.stun > 0;
+  // ---------- Invasions ----------
+  function startInvasion(k) {
+    const v = G.INV_BY_ID[k] || G.INVASIONS[Math.floor(G.rng() * G.INVASIONS.length)];
+    R.inv = { k: v.id, t: TUNE.invTime, T: TUNE.invTime, prog: 0, need: TUNE.invNeed, boss: null };
+    R.surge = Math.max(R.surge || 0, 4);
+    S_().st.invasions = (S_().st.invasions || 0) + 1;
+    emit('invasion', R.inv, v);
+  }
+  G.startInvasion = startInvasion;
+  function invasionBoss() {
+    const r = R.inv, v = G.INV_BY_ID[r.k], d = G.depthNow();
+    const m = G.makeMob('guardian', rand(0.35, 0.65), 0);
+    m.w = 8; m.inv = r.k; m.lord = v.boss;
+    // tough, but never more than about twenty seconds of the whole party's focus
+    const hp = G.mobHp(d) * (TUNE.invBoss + 2 * d) * (G.omen ? G.omen().mobHp : 1);
+    m.hp = m.max = Math.min(hp, Math.max(G.mobHp(d) * 12, (G.D.heroDps || 1) * TUNE.invFocus));
+    r.boss = m.id;
+    r.t = Math.max(r.t, TUNE.invBossTime);
+    emit('invasionBoss', m, v);
+  }
+  function endInvasion(won) {
+    const r = R.inv;
+    if (!r) return;
+    R.inv = null;
+    // what's left of it goes home
+    if (!won) for (const m of R.mobs.slice()) if (m.inv) { m.dead = true; R.mobs.splice(R.mobs.indexOf(m), 1); emit('mobFlee', m); }
+    emit('invasionEnd', won, r);
+  }
+  G.invasionKill = function (m) {
+    const r = R.inv;
+    if (!r || !m.inv) return;
+    if (r.boss === m.id) {
+      S_().st.invWins = (S_().st.invWins || 0) + 1;
+      // the herald's haul: a shower with a good floor and a real shot at a unique
+      shower(m, randInt(10, 14), 3, 0.2, { floorN: 3, spread: 0.12, rolls: 2 });
+      for (let i = 0; i < 3; i++) drop('orb', rollOrb(), m, { wait: 0.3 + i * 0.1 });
+      endInvasion(true);
+      return;
+    }
+    if (!r.boss) { r.prog += m.w * 3; if (r.prog >= r.need) invasionBoss(); }
+  };
+
   function spawnHoarder() {
     const m = G.makeMob('hoard', rand(0.15, 0.85), 0.55);
     m.move = 'hoard'; m.life = TUNE.hoardLife; m.dir = chance(0.5) ? 1 : -1; m.ph = rand(0, 6);
@@ -343,6 +386,7 @@
     const S = S_(), rf = S.rift;
     lvl = Math.max(1, Math.min(G.riftMax(), lvl | 0));
     if (!G.riftOpenable() || R.boss || R.rift || R.stun > 0) return false;
+    if (R.inv) endInvasion(false); // stepping into a Rift sends an invasion home
     for (const m of R.mobs) { m.dead = true; emit('mobFlee', m); }
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.breach) closeBreach();
@@ -418,6 +462,16 @@
       if ((r.t -= dt) <= 0) riftEnd(false, 'time');
       return;
     }
+    // an invasion runs on its own clock; a boss fight or a Rift sends it home
+    if (R.inv) {
+      if (R.boss) endInvasion(false);
+      else if ((R.inv.t -= dt) <= 0) endInvasion(false);
+    } else if (S.bestDepth >= 3) {
+      // the clock runs through boss fights too; the invasion waits for the fight to end
+      if (R.invT == null) R.invT = S.st.invasions ? rand(0.8, 1.2) * TUNE.invEvery : TUNE.invFirst;
+      if (R.invT > 0) R.invT -= dt;
+      if (R.invT <= 0 && !busy() && !R.bossReady) { R.invT = rand(0.8, 1.2) * TUNE.invEvery; startInvasion(); }
+    }
     // first-time timers: a Hoarder in the first minute, a shrine soon after
     if (R.hoardT == null) R.hoardT = S.st.hoards ? rand(0.6, 1.2) * TUNE.hoardEvery : TUNE.hoardFirst;
     if (R.shrineT == null) R.shrineT = S.st.shrines ? rand(0.6, 1.2) * TUNE.shrineEvery : TUNE.shrineFirst;
@@ -443,8 +497,8 @@
   };
   // drop the per-run world without handing its loot to anyone (a hard reset or a loaded save)
   G.worldClear = function () {
-    R.ground.length = 0; R.rift = null; R.shrine = null; R.shr = null; R.breach = null;
-    R.hoardT = R.shrineT = R.breachT = null;
+    R.ground.length = 0; R.rift = null; R.shrine = null; R.shr = null; R.breach = null; R.inv = null;
+    R.hoardT = R.shrineT = R.breachT = R.invT = null;
   };
   G.worldReset = function () {
     G.pickupAll();

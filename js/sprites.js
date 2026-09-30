@@ -1418,6 +1418,8 @@
   };
   for (const land in ARCH_PAL) for (const k in ARCH_PX) def('a_' + k + '_' + land, Object.assign({ k: '#1a1a22', w: '#ffffff', y: '#ffe27a' }, ARCH_PAL[land]), ARCH_PX[k]);
   SPR.arch = (kind, land) => get('a_' + kind + '_' + (ARCH_PAL[land] ? land : 'meadow'));
+  // more lands can bring their own archetype palette (js/art2.js)
+  SPR.addArchPal = (land, pal) => { ARCH_PAL[land] = pal; for (const k in ARCH_PX) def('a_' + k + '_' + land, Object.assign({ k: '#1a1a22', w: '#ffffff', y: '#ffe27a' }, pal), ARCH_PX[k]); };
 
   // ================= THE LANDS PAST THE BUTTON =================
   def('f_page', { w: '#f4ecd8', W: '#4f6a9a', k: '#1a1a22' }, [
@@ -1907,6 +1909,7 @@
       l_salam: ['b_salam', { r: '#3a3038', R: '#1a1418', y: '#ff7a2e', o: '#ffd84a' }],
       l_mirror: ['b_mirror', { w: '#2a2238', C: '#4a3a68', c: '#7a6aa8', p: '#ff3b5c' }],
     };
+    if (SPR.bossMap && SPR.bossMap[spriteId]) map[spriteId] = SPR.bossMap[spriteId];
     if (spriteId === 'l_eye') return { canvas: bigEye(), scale: 2 };
     if (spriteId === 'l_button') return { canvas: button('#3a3348', false, 0, true), scale: 2, isButton: true };
     if (map[spriteId]) {
@@ -1986,6 +1989,14 @@
       } else if (realmId === 'sky') {
         if (rnd() < 0.25) { ctx.fillStyle = '#ffffff'; ctx.fillRect(tx * 8 + Math.floor(rnd() * 5), ty * 8 + Math.floor(rnd() * 8), 3, 1); }
         if (rnd() < 0.06) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
+      } else if (realmId === 'moon') {
+        // pocked regolith: tiny craters with a lit rim
+        if (rnd() < 0.14) { const x = tx * 8 + 1 + Math.floor(rnd() * 5), y = ty * 8 + 1 + Math.floor(rnd() * 5); ctx.fillStyle = cfg.base[3]; ctx.fillRect(x, y + 1, 2, 1); ctx.fillStyle = cfg.detail; ctx.fillRect(x, y, 2, 1); }
+        if (rnd() < 0.2) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
+      } else if (realmId === 'cosmos') {
+        // a floor of stars, a few of them bright
+        if (rnd() < 0.45) { ctx.fillStyle = rnd() < 0.3 ? '#ffffff' : cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
+        if (rnd() < 0.04) { const x = tx * 8 + 2 + Math.floor(rnd() * 4), y = ty * 8 + 2 + Math.floor(rnd() * 4); ctx.fillStyle = '#ffe27a'; ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3); }
       } else if (realmId === 'shore') {
         if (rnd() < 0.3) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
       }

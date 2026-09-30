@@ -10,7 +10,7 @@
   const img = (id, cls, sc, o) => `<img src="${ic(id, sc, o)}" alt="" class="${cls || ''}" draggable="false">`;
   const fmt = G.fmt, t = G.t, L = G.L;
 
-  let tab = 'upg', buyAmt = 1, selNode = 'spark', selItem = null, ascArm = 0, resetArm = 0;
+  let tab = 'upg', buyAmt = 1, selNode = 'spark', selItem = null, ascArm = 0, resetArm = 0, selWho = -1;
   let refs = {}, lastText = new WeakMap();
   const setText = (el, s) => { if (el && lastText.get(el) !== s) { el.textContent = s; lastText.set(el, s); } };
   const setClass = (el, c, on) => { if (el && el.classList.contains(c) !== !!on) el.classList.toggle(c, !!on); };
@@ -42,6 +42,7 @@
     $('#fameIco').src = ic('ic_fame', 3);
     buildTabs();
     bindHud();
+    bindPartyHud();
     bindKeys();
     listen();
     tab = 'upg';
@@ -57,6 +58,40 @@
   G.SHARE_URL = 'https://claude.ai/artifact/WcSxtLrabwMuEt2YcyxpWh';
   G.uiBusy = () => !$('#modal').hidden || !$('#intro').hidden;
 
+  // ---------- The party on the field: a chip per unit, tap a fallen one to raise them ----------
+  let phKey = '';
+  function updatePartyHud() {
+    const el = $('#partyHud'), h = G.S.hero;
+    const units = h && h.cls && G.S.party.length ? G.partyUnits() : [];
+    el.hidden = !units.length;
+    if (!units.length) return;
+    const key = units.map(u => u.cls + JSON.stringify(u.eq && G.SLOTS.map(s => u.eq[s] ? u.eq[s].id + (u.eq[s].q || '') : ''))).join('|');
+    if (key !== phKey) {
+      phKey = key;
+      el.innerHTML = units.map(u => `<button class="pchip r_${u.role}" data-who="${u.who}" aria-label="${esc(u.who < 0 ? t('wardenName') : L(G.CLASS_BY_ID[u.cls].name))}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><i><u></u></i><b></b></button>`).join('');
+    }
+    const chips = el.children;
+    units.forEach((u, i) => {
+      const c = chips[i]; if (!c) return;
+      const down = u.down > 0, k = Math.max(0, Math.min(1, u.hp / (u.max || 1)));
+      setClass(c, 'down', down);
+      setClass(c, 'low', !down && k < 0.35);
+      c.querySelector('u').style.width = (down ? 0 : k * 100) + '%';
+      setText(c.querySelector('b'), down ? Math.ceil(u.down) + 's' : '');
+    });
+  }
+  function bindPartyHud() {
+    $('#partyHud').addEventListener('click', e => {
+      const c = e.target.closest('.pchip'); if (!c) return;
+      const who = +c.dataset.who;
+      if (G.reviveTap(who)) { G.Audio.click(0, false); return; }
+      // a standing unit: open their page in the Party tab
+      selWho = who; selGear = null; UI.unfold(); UI.go('hero');
+    });
+    $('#btnFold').addEventListener('click', () => { $('#app').classList.toggle('fold'); $('#btnFold').textContent = $('#app').classList.contains('fold') ? '▴' : '▾'; setTimeout(() => G.Stage && G.Stage.resize && G.Stage.resize(), 0); });
+  }
+  UI.unfold = function () { if ($('#app').classList.contains('fold')) { $('#app').classList.remove('fold'); $('#btnFold').textContent = '▾'; setTimeout(() => G.Stage && G.Stage.resize && G.Stage.resize(), 0); } };
+
   function buildTabs() {
     const nav = $('#tabs');
     nav.innerHTML = TABS.map((x, i) => `<button class="tab" data-tab="${x.id}" aria-label="${esc(t('tab_' + x.id))}" title="${esc(t('tab_' + x.id))}${i < 10 ? ` (${(i + 1) % 10})` : ''}">${img(x.icon, '', 3)}<span class="dot" hidden></span></button>`).join('');
@@ -64,6 +99,7 @@
       const b = e.target.closest('.tab'); if (!b) return;
       const id = b.dataset.tab;
       if (!tabOpen(id)) { G.Audio.error(); return; }
+      UI.unfold();
       UI.go(id);
     });
   }
@@ -292,6 +328,8 @@
     setClass($('.tab[data-tab="upg"]'), 'afford', canUpg);
     setClass($('.tab[data-tab="heroes"]'), 'afford', canHero && tabOpen('heroes'));
     setClass($('.tab[data-tab="stars"]'), 'afford', canNode);
+    // an open party slot marks the Party tab until it is filled
+    if (S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length) { $('.tab[data-tab="hero"] .dot').hidden = false; }
     const qDot = $(`.tab[data-tab="quests"] .dot`);
     if (tabOpen('quests') && (S.quests.some(q => q.done) || G.dailyAvailable())) qDot.hidden = false;
     // HUD
@@ -325,7 +363,14 @@
     setClass($('#stageWrap'), 'fighting', !!R.boss);
     $('#bossRow').hidden = !bossShown;
     $('#btnRift').hidden = !(bossShown && !R.boss && !R.rift && G.riftOpenable());
-    if (bossShown && R.rift) {
+    if (bossShown && R.inv && !R.boss) {
+      // an invasion: hold it off until its herald comes, then slay the herald
+      const V = G.INV_BY_ID[R.inv.k], hb = R.inv.boss ? R.mobs.find(m => m.id === R.inv.boss) : null;
+      $('#bossMeter').style.width = (hb ? Math.max(0, hb.hp / hb.max) : Math.min(1, R.inv.prog / R.inv.need)) * 100 + '%';
+      setClass($('#bossWrap'), 'hp', !!hb); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'waves', false);
+      setText($('#bossText'), hb ? t('invHerald', V.bossName, Math.ceil(R.inv.t)) : t('invName', V.name, Math.floor(Math.min(R.inv.prog, R.inv.need)), R.inv.need, Math.ceil(R.inv.t)));
+      $('#btnFight').hidden = true; $('#btnRetreat').hidden = true;
+    } else if (bossShown && R.rift) {
       const r = R.rift, g = r.guard ? R.mobs.find(m => m.id === r.guard) : null;
       $('#bossMeter').style.width = (g ? Math.max(0, g.hp / g.max) : Math.min(1, r.prog / r.need)) * 100 + '%';
       setClass($('#bossWrap'), 'hp', !!g); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'waves', false);
@@ -368,6 +413,7 @@
       setText($('#xpText'), t('lvl') + ' ' + h.lvl);
     }
     updatePerks();
+    updatePartyHud();
     $('#hpRow').hidden = !(h && h.cls);
     if (h && h.cls) {
       const k = Math.max(0, h.hp / (D.heroHp || 1));
@@ -897,7 +943,9 @@
   const SLOT_ICON = { weapon: 'ic_sword', ability: 'ic_scroll', armor: 'it_chainmail', ring: 'it_copper_ring' };
   function findGear(u) {
     const h = G.S.hero;
-    for (const s of G.SLOTS) if (h.eq[s] && h.eq[s].u === u) return { g: h.eq[s], worn: s };
+    // worn by the member on screen, then by anyone else in the party, then in the bag
+    const order = [selWho].concat([-1].concat(G.S.party.map((_, i) => i)).filter(w => w !== selWho));
+    for (const w of order) { const eq = G.eqOf(w); for (const s of G.SLOTS) if (eq[s] && eq[s].u === u) return { g: eq[s], worn: s, who: w }; }
     const g = h.bag.find(x => x.u === u);
     return g ? { g, worn: null } : null;
   }
@@ -935,30 +983,34 @@
   renderers.hero = function (body) {
     const S = G.S, h = S.hero;
     if (!h.cls) { body.innerHTML = `<p class="note">${esc(t('pickClassHint'))}</p><button class="btn gold" data-pick>${esc(t('pickClass'))}</button>`; body.querySelector('[data-pick]').onclick = () => UI.pickClass(); return; }
-    const cls = G.CLASS_BY_ID[h.cls];
+    if (selWho >= S.party.length) selWho = -1;
+    const who = selWho, mem = who >= 0 ? S.party[who] : null, cls = G.CLASS_BY_ID[mem ? mem.cls : h.cls];
     const salvOpts = [0, 1, 2, 3];
     body.innerHTML = `
+      <div class="partyStrip" data-strip></div>
       <div class="charCard">
-        <div class="portrait"><img data-doll src="${G.Doll.portrait(h, 4)}" alt=""></div>
+        <div class="portrait"><img data-doll src="${G.Doll.portrait(mem ? { cls: mem.cls, eq: mem.eq } : h, 4)}" alt=""></div>
         <div class="charInfo">
-          <input id="heroName" maxlength="16" placeholder="${esc(t('namePh'))}" value="${esc(S.profile.name || '')}" aria-label="${esc(t('namePh'))}">
-          <div class="clsLine">${esc(L(cls.name))} · <span data-lvl></span></div>
+          ${mem ? `<div class="memName">${esc(L(cls.name))}</div>` : `<input id="heroName" maxlength="16" placeholder="${esc(t('namePh'))}" value="${esc(S.profile.name || '')}" aria-label="${esc(t('namePh'))}">`}
+          <div class="clsLine">${esc(L(cls.name))} · <span class="r_${G.ROLES[cls.id]}" style="color:var(--role)">${esc(G.ROLE_NAMES[G.ROLES[cls.id]])}</span> · <span data-lvl></span></div>
           <div class="pbar"><i data-xp></i><span data-xpt></span></div>
           <div class="power"><small>${esc(t('power'))}</small><b data-pow></b></div>
         </div>
       </div>
-      <div class="sect">${esc(t('roleTitle'))}</div>
-      <p class="note">${esc(t('roleHint'))}</p>
-      <div class="statList" data-role></div>
-      <div class="sect">${esc(t('perksTitle'))}</div>
-      <div class="perkList" data-perks></div>
       <div class="doll">${G.SLOTS.map(s => `<div class="dslot" data-slot="${s}"><span class="lbl">${esc(t('slot_' + s))}</span><div data-in></div></div>`).join('')}</div>
       <div class="detail" data-gd></div>
       <div class="sect">${esc(t('orbs'))} <small style="color:var(--dim)">${esc(t('orbHint'))}</small></div>
       <div data-orbs></div>
-      <div class="statList heroStats" data-stats></div>
       <div class="sect">${esc(t('bag'))} <span data-bagn></span> · ${img('ic_shard', 'inl', 2)} <span data-shards></span> ${esc(t('shards'))}</div>
       <div class="bag" data-bag></div>
+      <div class="sect">${esc(mem ? t('roleTitleMem') : t('roleTitle'))}</div>
+      <p class="note">${esc(mem ? t('roleHint_' + G.ROLES[mem.cls]) : t('roleHint'))}</p>
+      <div class="statList" data-role></div>
+      <div ${mem ? 'hidden' : ''}>
+      <div class="sect">${esc(t('perksTitle'))}</div>
+      <div class="perkList" data-perks></div>
+      </div>
+      <div class="statList heroStats" data-stats></div>
       <div class="setList" style="margin-top:8px">
         <div class="setRow"><span>${esc(t('autoEquip'))}</span><button class="toggle ${h.auto ? 'on' : ''}" data-ht="auto" aria-label="${esc(t('autoEquip'))}"></button></div>
         <div class="setRow"><span>${esc(t('autoPerk'))}</span><button class="toggle ${h.autoPerk ? 'on' : ''}" data-ht="autoPerk" aria-label="${esc(t('autoPerk'))}"></button></div>
@@ -974,9 +1026,15 @@
       slots: $$('.dslot', body), gd: body.querySelector('[data-gd]'), stats: body.querySelector('[data-stats]'), bag: body.querySelector('[data-bag]'),
       bagn: body.querySelector('[data-bagn]'), shards: body.querySelector('[data-shards]'), rec: body.querySelector('[data-rec]'), key: '',
       role: body.querySelector('[data-role]'), perks: body.querySelector('[data-perks]'), orbs: body.querySelector('[data-orbs]'),
+      strip: body.querySelector('[data-strip]'),
     };
-    $('#heroName', body).addEventListener('change', e => { S.profile.name = e.target.value.trim().slice(0, 16); });
+    const nm = $('#heroName', body);
+    if (nm) nm.addEventListener('change', e => { S.profile.name = e.target.value.trim().slice(0, 16); });
     body.addEventListener('click', e => {
+      // pick whose gear you're looking at, or take on a new companion
+      const pm = e.target.closest('[data-who]');
+      if (pm) { selWho = +pm.dataset.who; selGear = null; UI.render(); return; }
+      if (e.target.closest('[data-recruit]')) { UI.recruit(); return; }
       const tg = e.target.closest('[data-ht]');
       if (tg) { h[tg.dataset.ht] = h[tg.dataset.ht] ? 0 : 1; tg.classList.toggle('on'); return; }
       const sb = e.target.closest('[data-salv] button');
@@ -989,7 +1047,7 @@
       // the item's details sit above the bag: bring them into view, or on a phone nothing seems to happen
       if (gt) { selGear = +gt.dataset.g; refs.hero.key = ''; updaters.hero(true); if (refs.hero.gd) refs.hero.gd.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
       const ds = e.target.closest('.dslot');
-      if (ds && !e.target.closest('[data-g]')) { const g = h.eq[ds.dataset.slot]; if (g) { selGear = g.u; refs.hero.key = ''; updaters.hero(true); } return; }
+      if (ds && !e.target.closest('[data-g]')) { const g = G.eqOf(selWho)[ds.dataset.slot]; if (g) { selGear = g.u; refs.hero.key = ''; updaters.hero(true); } return; }
       const ob = e.target.closest('[data-orb]');
       if (ob) {
         const f = findGear(selGear), id = ob.dataset.orb;
@@ -1004,19 +1062,39 @@
       if (act) {
         const f = findGear(selGear); if (!f) return;
         const a = act.dataset.act;
-        if (a === 'equip') G.equip(f.g);
-        else if (a === 'unequip') G.unequip(f.worn);
+        if (a === 'equip') G.equip(f.g, false, selWho);
+        else if (a === 'unequip') G.unequip(f.worn, f.who);
         else if (a === 'enchant') { if (!G.enchant(f.g)) G.Audio.error(); }
         else if (a === 'salvage') { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_shard'); selGear = null; } }
         refs.hero.key = ''; updaters.hero(true);
       }
     });
-    if (!selGear || !findGear(selGear)) selGear = h.eq.weapon ? h.eq.weapon.u : null;
+    if (!selGear || !findGear(selGear)) { const e0 = G.eqOf(selWho); selGear = e0.weapon ? e0.weapon.u : null; }
+  };
+  // Taking on a companion: pick a class; the roles the party lacks come first
+  UI.recruit = function () {
+    const S = G.S;
+    if (S.party.length >= G.partySlots()) return;
+    const have = [S.hero.cls].concat(S.party.map(m => m.cls)).map(c => G.ROLES[c]);
+    const need = r => !have.includes(r);
+    const html = `<p>${esc(t('recruitHint'))}</p><div class="classGrid">${G.CLASSES.map(c => { const r = G.ROLES[c.id]; return `
+      <button class="clsCard ${need(r) ? 'need' : ''}" data-c="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><em class="role r_${r}">${esc(G.ROLE_NAMES[r])}${need(r) ? ' · ' + esc(t('recruitNeed')) : ''}</em><small>${esc(L(c.desc))}</small></button>`; }).join('')}</div>`;
+    const m = UI.modal(t('recruitTitle'), html, [{ label: t('close') }]);
+    m.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => {
+      if (G.recruit(b.dataset.c)) { m.hidden = true; m.innerHTML = ''; selWho = S.party.length - 1; G.Audio && G.Audio.buy(); UI.render(); }
+    }));
   };
   updaters.hero = function (force) {
     const S = G.S, D = G.D, h = S.hero, rf = refs.hero;
     if (!rf || !h.cls) return;
-    const c = D.hero;
+    if (selWho >= S.party.length) { selWho = -1; UI.render(); return; }
+    const mem = selWho >= 0 ? S.party[selWho] : null, eqS = G.eqOf(selWho);
+    const c = mem ? (D.party[selWho] || {}).c || D.hero : D.hero;
+    // the party strip: everyone, their health, and the places still to fill
+    const units = G.partyUnits(), slots = G.partySlots();
+    let sh = units.map(u => `<button class="pmem ${u.who === selWho ? 'on' : ''} ${u.down > 0 ? 'down' : ''}" data-who="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small class="r_${u.role}">${esc(G.ROLE_NAMES[u.role])}</small><i><u style="width:${Math.round(100 * Math.max(0, u.hp) / u.max)}%"></u></i></button>`).join('');
+    for (let k = S.party.length; k < 3; k++) sh += k < slots ? `<button class="pmem add" data-recruit>+<small>${esc(t('recruit'))}</small></button>` : `<div class="pmem lock"><small>${esc(t('recruitAt', G.PARTY_AT[k]))}</small></div>`;
+    if (rf.strip._h !== sh) { rf.strip.innerHTML = sh; rf.strip._h = sh; }
     setText(rf.lvl, t('lvl') + ' ' + h.lvl);
     rf.xp.style.width = Math.min(100, h.xp / G.xpNeed(h.lvl) * 100) + '%';
     setText(rf.xpt, fmt(Math.floor(h.xp)) + ' / ' + fmt(G.xpNeed(h.lvl)));
@@ -1036,7 +1114,7 @@
     ];
     const roleHtml = role.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('') + (alone > limit * 2 ? `<p class="note warn">${esc(t('roleWeak'))}</p>` : '');
     if (rf.role.innerHTML !== roleHtml) rf.role.innerHTML = roleHtml;
-    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks, h.orbs]);
+    const key = JSON.stringify([eqS, selWho, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks, h.orbs]);
     if (key === rf.key && !force) return;
     const pk = Object.keys(h.perks || {}).filter(k => h.perks[k] > 0);
     rf.perks.innerHTML = pk.length ? pk.map(k => {
@@ -1044,10 +1122,10 @@
       const P = G.PERKS[k]; return `<div class="perkChip" title="${esc(P.desc)}">${img(P.icon, '', 3)}<b>${esc(P.name)}</b><small>${h.perks[k]}/${P.max}</small></div>`;
     }).join('') : `<p class="note">${esc(t('perksNone'))}</p>`;
     rf.key = key;
-    const dk = JSON.stringify(h.eq);
-    if (dk !== rf.dollKey) { rf.dollKey = dk; const im = document.querySelector('.portrait img[data-doll]'); if (im) im.src = G.Doll.portrait(h, 4); }
+    const dk = JSON.stringify(eqS) + selWho;
+    if (dk !== rf.dollKey) { rf.dollKey = dk; const im = document.querySelector('.portrait img[data-doll]'); if (im) im.src = G.Doll.portrait(mem ? { cls: mem.cls, eq: mem.eq } : h, 4); }
     for (const el of rf.slots) {
-      const g = h.eq[el.dataset.slot];
+      const g = eqS[el.dataset.slot];
       const box = el.querySelector('[data-in]');
       const hh = g ? gearTile(g, selGear === g.u ? 'sel' : '') : `<span class="empty">${img(SLOT_ICON[el.dataset.slot], '', 3, { dark: true })}</span>`;
       if (box._h !== hh) { box.innerHTML = hh; box._h = hh; }
@@ -1057,10 +1135,9 @@
     const bag = h.bag.slice().sort((a, b) => order.indexOf(G.slotOf(a.id)) - order.indexOf(G.slotOf(b.id)) || b.r - a.r || b.il - a.il);
     rf.bag.innerHTML = bag.length ? bag.map(g => gearTile(g, selGear === g.u ? 'sel' : '')).join('') : `<p class="note">${esc(t('bagEmpty'))}</p>`;
     // upgrade arrows
-    const cur = D.power;
-    $$('[data-g]', rf.bag).forEach(el => { const g = h.bag.find(x => x.u === +el.dataset.g); if (g && G.powerWith(G.slotOf(g.id), g) > cur) el.querySelector('u').hidden = false; });
+    $$('[data-g]', rf.bag).forEach(el => { const g = h.bag.find(x => x.u === +el.dataset.g); if (!g) return; const sl = G.slotOf(g.id); if (mem && sl === 'weapon' && !G.CLASS_BY_ID[mem.cls].weapons.includes(G.ITEM_TYPE[g.id])) return; if (G.powerWith(sl, g, selWho) > G.powerWith(sl, eqS[sl], selWho)) el.querySelector('u').hidden = false; });
     // Stats
-    const cls = G.CLASS_BY_ID[h.cls];
+    const cls = G.CLASS_BY_ID[mem ? mem.cls : h.cls];
     const rows = [
       ['st_dps', fmt(c.dps, true)], ['st_hit', fmt(c.hit, true)], ['st_rate', c.rate.toFixed(2) + t('perSec')], ['st_targets', c.targets],
       ['st_crit', Math.round(c.crit * 100) + '% · ×' + c.critMult.toFixed(1)], ['st_hp', fmt(c.hp)],
@@ -1074,7 +1151,7 @@
     const f = selGear ? findGear(selGear) : null;
     if (!f) { rf.gd.innerHTML = `<p>${esc(t('tapItem'))}</p>`; rf.orbs.innerHTML = orbBar(null); return; }
     const g = f.g, r = G.RARITIES[g.r], slot = G.slotOf(g.id), U = g.q ? G.UNIQUES[g.q] : null;
-    const cmp = f.worn ? null : G.powerWith(slot, g) - G.powerWith(slot, h.eq[slot]);
+    const cmp = f.worn ? null : G.powerWith(slot, g, selWho) - G.powerWith(slot, eqS[slot], selWho);
     const ec = G.enchantCost(g);
     const canE = g.e < G.ENCHANT_MAX && h.shards >= ec.shards && S.gold >= ec.gold;
     rf.orbs.innerHTML = orbBar(g);

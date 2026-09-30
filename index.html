@@ -26,6 +26,7 @@
     <div id="banner" hidden></div>
     <div class="hud bottom">
       <div class="buffs" id="buffs"></div>
+      <div class="partyHud" id="partyHud" hidden></div>
       <div class="bossRow" id="bossRow" hidden>
         <div class="meter boss" id="bossWrap"><i id="bossMeter"></i><span id="bossText"></span></div>
         <button class="btn fight" id="btnFight" hidden>⚔</button>
@@ -46,6 +47,7 @@
     <header class="res">
       <div class="goldLine"><img id="goldIco" alt=""><span class="goldNum" id="goldNum">0</span></div>
       <div class="rates"><span><b id="gpsNum">0</b> <span data-i18n="perSec"></span></span><span><b id="clickNum">1</b> <span data-i18n="perClick"></span></span></div>
+      <button class="iconBtn foldBtn" id="btnFold" aria-label="Fold the panel">▾</button>
       <div class="subRes">
         <span class="chip ess" id="essChip" hidden><img id="essIco" alt=""><b id="essNum">0</b></span>
         <span class="chip egg" id="eggChip" hidden><img id="eggIco" alt=""><b id="eggNum">0</b></span>
@@ -72,6 +74,7 @@
 <script src="js/world.js"></script>
 <script src="js/net.js"></script>
 <script src="js/sprites.js"></script>
+<script src="js/art2.js"></script>
 <script src="js/doll.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/stage.js"></script>

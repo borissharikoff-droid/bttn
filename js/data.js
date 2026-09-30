@@ -391,7 +391,31 @@
       zones: ['Cloud Steps', 'The Gilded Gate', 'The Choir Halls', 'The Throne Bridge', 'The Hand\u2019s Palace'],
       mobs: { runner: 'Cherub', spitter: 'Sun Lance', bomber: 'Halo Bomb', tank: 'Throne Guard' },
       rule: 'Thin Air', ruleDesc: 'Champions and rares come twice as often, loot +40%', champ: 2, rare: 2, loot: 1.4 },
+    // Past the sky: the Moon and the sea of stars, depths 66 to 75
+    { id: 'moon',      name: 'The Moon', minion: 'b_selenite', lord: 'l_selenite', fodder: 'f_selenite', outer: 1,
+      minionName: 'Selenite Golem', lordName: 'The Selenite King',
+      zones: ['The Sea of Tranquility', 'Crater Fields', 'The Dark Side', 'Moonstone Mines', 'The Lunar Throne'],
+      mobs: { runner: 'Moon Hopper', spitter: 'Crater Spitter', bomber: 'Meteor Mite', tank: 'Moonstone Hulk' },
+      rule: 'Low Gravity', ruleDesc: 'The Horde floats in 30% slower but twice as thick', slow: 0.7, thick: 2 },
+    { id: 'cosmos',    name: 'The Star Sea', minion: 'b_voidwalker', lord: 'l_voidwalker', fodder: 'f_starling', outer: 1,
+      minionName: 'Voidwalker', lordName: 'The Star Eater',
+      zones: ['The Nebula Shore', 'Asteroid Drift', 'The Dead Satellite', 'The Event Horizon', 'The Star Eater\u2019s Maw'],
+      mobs: { runner: 'Comet', spitter: 'Quasar Eye', bomber: 'Supernova', tank: 'Dwarf Star' },
+      rule: 'Supernova', ruleDesc: 'Bombers come three times as often, loot +50%', bomb: 3, loot: 1.5 },
   ];
+  // Invasions: now and then another world pours into the arena for a minute and a bit.
+  // Hold it off and its herald comes; slay the herald for a big haul.
+  G.INVASIONS = [
+    { id: 'moon',   name: 'LUNAR INVASION',    sub: 'The Moon sends its children down', col: '#c8d6ff', tint: '#1a2a6a', tintA: 0.28, sky: 'sky_moon',
+      swarm: 'v_moonling', elite: 'v_lunar', boss: 'v_moonqueen', bossName: 'The Moon Queen' },
+    { id: 'cosmic', name: 'COSMIC INVASION',   sub: 'Something came from past the stars', col: '#7fff9a', tint: '#050818', tintA: 0.36, sky: 'sky_planet',
+      swarm: 'v_grey', elite: 'v_saucer', boss: 'v_mothership', bossName: 'The Mothership' },
+    { id: 'heaven', name: 'HEAVENLY CRUSADE',  sub: 'The sky opens and it is not friendly', col: '#ffe27a', tint: '#fff3c0', tintA: 0.22, sky: 'sky_sun',
+      swarm: 'v_putto', elite: 'v_archon', boss: 'v_seraphim', bossName: 'The Seraphim' },
+    { id: 'deep',   name: 'ABYSSAL TIDE',      sub: 'The ground floods with the deep', col: '#4fe0c8', tint: '#062a2a', tintA: 0.3, sky: 'sky_eye',
+      swarm: 'v_squidling', elite: 'v_deepone', boss: 'v_leviathan', bossName: 'The Leviathan' },
+  ];
+  G.INV_BY_ID = {}; G.INVASIONS.forEach(v => G.INV_BY_ID[v.id] = v);
   // The Horde changes as you go deeper into a land: each zone brings a new kind of mob.
   // Per zone (0-4), the share of packs led by each kind; fodder swarms fill the rest.
   G.ARCHETYPES = {

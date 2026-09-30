@@ -46,7 +46,7 @@
       set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1, filter: 1 },
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
-      uq: {}, feed: [], rift: newRift(), lands: {},
+      uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -208,6 +208,8 @@
     if (mt.length >= TUNE.maxManualCps) return null;
     mt.push(now);
 
+    // a broken Button gives nothing: no gold, no lightning, until it mends
+    if (R.btnDown > 0) { emit('clickDead'); return null; }
     S.clicks++; S.clicksRun++;
     R.combo = Math.min(D.comboCap, R.combo + 1);
     R.comboT = TUNE.comboTime;
@@ -477,13 +479,18 @@
     slam:   { col: '#ff3b3b', name: 'SLAM', wind: 1.4, need: 5 },
     summon: { col: '#b36bff', name: 'SUMMON', wind: 1.6, need: 6 },
     shield: { col: '#4fa8ff', name: 'SHIELD', wind: 3, need: 8 },
+    barrage: { col: '#ffb347', name: 'BARRAGE', wind: 1.2, need: 4 },
   };
-  const MOVE_ORDER = { lord: ['slam', 'summon', 'shield'], boss: ['slam', 'slam', 'summon'] };
+  // later phases bring the barrage, a volley at the heroes themselves
+  const MOVE_ORDER = {
+    lord: [['slam', 'summon', 'shield'], ['slam', 'barrage', 'summon', 'shield', 'barrage'], ['barrage', 'slam', 'barrage', 'summon', 'shield']],
+    boss: [['slam', 'slam', 'summon'], ['slam', 'barrage', 'summon', 'barrage']],
+  };
   function bossMoves(b, dt) {
     if (b.stagger > 0) b.stagger -= dt;
     if (!b.move) {
       if ((b.moveT -= dt) > 0) return;
-      const order = MOVE_ORDER[b.lord ? 'lord' : 'boss'];
+      const set = MOVE_ORDER[b.lord ? 'lord' : 'boss'], order = set[Math.min(set.length, b.phase || 1) - 1];
       const k = order[(b.moveN = (b.moveN || 0) + 1) % order.length];
       b.move = { k, t: G.BOSS_MOVES[k].wind, T: G.BOSS_MOVES[k].wind, n: 0, need: G.BOSS_MOVES[k].need };
       emit('bossMove', b);
@@ -492,8 +499,17 @@
     if ((b.move.t -= dt) > 0) return;
     // the move lands
     const k = b.move.k;
-    b.move = null; b.moveT = b.lord ? 5 : 7;
-    if (k === 'slam' && G.hurtButton) G.hurtButton(G.mobAtk(b.d) * (b.lord ? 7 : 5) * (b.rage ? 1.5 : 1));
+    b.move = null; b.moveT = (b.lord ? 5 : 7) / (1 + 0.3 * ((b.phase || 1) - 1));
+    if (k === 'barrage' && G.partyUnits) {
+      const a = G.mobAtk(b.d) * (b.rage ? 1.5 : 1);
+      for (let i = 0; i < 3 && R.boss === b; i++) { const up = G.partyUnits().filter(u => !(u.down > 0)); const v = up.length && chance(0.75) ? up[Math.floor(G.rng() * up.length)].who : 'button'; G.hurtParty(v, a * 2.2, 'barrage'); emit('barrageHit', b, v, i); }
+    }
+    // a slam lands on everyone: the Button and each hero standing
+    if (k === 'slam' && G.hurtButton) {
+      const a = G.mobAtk(b.d) * (b.rage ? 1.5 : 1);
+      G.hurtButton(a * (b.lord ? 5 : 3.5));
+      if (G.partyUnits) for (const u of G.partyUnits()) if (!(u.down > 0)) G.hurtParty(u.who, a * (b.lord ? 3 : 2), 'slam');
+    }
     if (k === 'summon' && G.spawnPack) { G.spawnPack(true); G.spawnPack(true); }
     emit('bossMoveLand', b, k);
   }
@@ -508,7 +524,8 @@
   }
   function startBoss() {
     const S = G.S;
-    if (R.boss || R.rift || !R.bossReady) return false;
+    // an invasion is fought out first
+    if (R.boss || R.rift || !R.bossReady || R.inv) return false;
     const d = S.depth;
     const lord = isLord(d);
     const max = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
@@ -519,7 +536,7 @@
     const rally = (S.scar && S.scar.d === d ? (lord ? 0.2 : 0.15) * Math.min(5, S.scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
-    R.boss = { d, lord, hp, max, scar, rally, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
+    R.boss = { d, lord, hp, max, scar, rally, phase: 1, inv: 0, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
     R.bossReady = false; R.bossIn = null;
     emit('bossStart', R.boss);
@@ -536,17 +553,31 @@
   }
   G.bossOdds = bossOdds;
 
+  // Phases: a lord changes at 66% and 33% of its health, a boss at 50%. It shrugs off
+  // everything for a moment, throws the Horde back, hits the whole party and fights harder.
+  function phaseAt(b) { return b.lord ? (b.hp < b.max * 0.33 ? 3 : b.hp < b.max * 0.66 ? 2 : 1) : (b.hp < b.max * 0.5 ? 2 : 1); }
   function hitBoss(dmg) {
     const b = R.boss;
     if (!b || b.dead) return;
+    if (b.inv > 0) return;
     // a shield soaks most of it; a staggered boss takes half again
     if (b.move && b.move.k === 'shield') dmg *= 0.3;
     else if (b.stagger > 0) dmg *= 1.5;
     if (b.rally) dmg *= 1 + b.rally;
     b.hp -= dmg;
     if (b.hp <= 0) bossWin();
-    // lords enrage when they're nearly done: twice the adds, harder bites
-    else if (b.lord && !b.rage && b.hp < b.max * 0.3) { b.rage = 1; emit('bossRage', b); }
+    else if (phaseAt(b) > b.phase) {
+      // one phase at a time: a huge hit stops at the next phase's floor
+      const fl = (b.lord ? [0.66, 0.33, 0] : [0.5, 0])[b.phase] || 0;
+      if (fl > 0) b.hp = Math.max(b.hp, fl * b.max + 1);
+      b.phase++; b.inv = 1.6; b.move = null; b.moveT = 1.5;
+      // the last phase of a lord is its rage: twice the adds, harder bites
+      if (b.lord && b.phase === 3) { b.rage = 1; emit('bossRage', b); }
+      for (const m of R.mobs) m.p = Math.max(-0.1, m.p - 0.3);
+      const a = G.mobAtk(b.d);
+      emit('bossPhase', b);
+      if (G.partyUnits) for (const u of G.partyUnits()) if (!(u.down > 0) && R.boss === b) G.hurtParty(u.who, a * 1.5, 'phase');
+    }
   }
   G.hitBoss = hitBoss;
 
@@ -573,7 +604,11 @@
     S.scar = null; S.rested = 0;
     S.depth++;
     if (S.depth > S.maxDepth) S.maxDepth = S.depth;
-    if (S.depth > S.bestDepth) S.bestDepth = S.depth;
+    if (S.depth > S.bestDepth) {
+      S.bestDepth = S.depth;
+      const slot = G.PARTY_AT ? G.PARTY_AT.indexOf(S.bestDepth) : -1;
+      if (slot >= 0) emit('slotOpen', slot);
+    }
     S.bossMeter = 0;
     R.boss = null;
     R.dirty = true;
@@ -951,6 +986,7 @@
       const b = R.boss;
       if (R.boss) {
         b.t -= dt;
+        if (b.inv > 0) { b.inv -= dt; b.t += dt; } // the clock holds while it changes
         if (b.t <= 0) bossFail();
         else bossMoves(b, dt);
       }
@@ -959,7 +995,8 @@
       // Bosses come on their own: after a short countdown when the Warden can take it, or after a
       // longer wait when it can't yet (Rally builds with each try; The Hunt shortens the wait).
       // ⚔ calls it right away.
-      if (S.set.autoBoss) {
+      // (an invasion is fought out first)
+      if (S.set.autoBoss && !R.inv) {
         R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
         const wait = bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
         if (R.bossIn <= -wait) startBoss();
@@ -1038,13 +1075,15 @@
     if (!S.lands || typeof S.lands !== 'object') S.lands = {};
     // saves from before 1.1: past depth 40 the lands changed, so crown times there belong to other lords now
     if (!('lands' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 40) delete S.rec.crowns[k];
+    // saves from before 2.0: depths 65-74 were corrupted lands then, the Moon and the Star Sea now
+    if (!('party' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 65) delete S.rec.crowns[k];
     if (!Array.isArray(S.feed)) S.feed = [];
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
     G.S = S;
     if (G.ensureHero) G.ensureHero(S);
     if (R.mobs) R.mobs.length = 0; if (R.shots) R.shots.length = 0;
-    R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null; R.wave = null;
+    R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null; R.wave = null; R.btnDown = 0;
     if (G.worldClear) G.worldClear();
     // saves from before 1.0: the Journey gained 11 steps in between the old ones
     if (!('uq' in data) && G.Journey && G.Journey.fromV0) S.journey = G.Journey.fromV0(S.journey || 0);

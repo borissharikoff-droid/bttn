@@ -524,7 +524,31 @@
       zones: ['Cloud Steps', 'The Gilded Gate', 'The Choir Halls', 'The Throne Bridge', 'The Hand\u2019s Palace'],
       mobs: { runner: 'Cherub', spitter: 'Sun Lance', bomber: 'Halo Bomb', tank: 'Throne Guard' },
       rule: 'Thin Air', ruleDesc: 'Champions and rares come twice as often, loot +40%', champ: 2, rare: 2, loot: 1.4 },
+    // Past the sky: the Moon and the sea of stars, depths 66 to 75
+    { id: 'moon',      name: 'The Moon', minion: 'b_selenite', lord: 'l_selenite', fodder: 'f_selenite', outer: 1,
+      minionName: 'Selenite Golem', lordName: 'The Selenite King',
+      zones: ['The Sea of Tranquility', 'Crater Fields', 'The Dark Side', 'Moonstone Mines', 'The Lunar Throne'],
+      mobs: { runner: 'Moon Hopper', spitter: 'Crater Spitter', bomber: 'Meteor Mite', tank: 'Moonstone Hulk' },
+      rule: 'Low Gravity', ruleDesc: 'The Horde floats in 30% slower but twice as thick', slow: 0.7, thick: 2 },
+    { id: 'cosmos',    name: 'The Star Sea', minion: 'b_voidwalker', lord: 'l_voidwalker', fodder: 'f_starling', outer: 1,
+      minionName: 'Voidwalker', lordName: 'The Star Eater',
+      zones: ['The Nebula Shore', 'Asteroid Drift', 'The Dead Satellite', 'The Event Horizon', 'The Star Eater\u2019s Maw'],
+      mobs: { runner: 'Comet', spitter: 'Quasar Eye', bomber: 'Supernova', tank: 'Dwarf Star' },
+      rule: 'Supernova', ruleDesc: 'Bombers come three times as often, loot +50%', bomb: 3, loot: 1.5 },
   ];
+  // Invasions: now and then another world pours into the arena for a minute and a bit.
+  // Hold it off and its herald comes; slay the herald for a big haul.
+  G.INVASIONS = [
+    { id: 'moon',   name: 'LUNAR INVASION',    sub: 'The Moon sends its children down', col: '#c8d6ff', tint: '#1a2a6a', tintA: 0.28, sky: 'sky_moon',
+      swarm: 'v_moonling', elite: 'v_lunar', boss: 'v_moonqueen', bossName: 'The Moon Queen' },
+    { id: 'cosmic', name: 'COSMIC INVASION',   sub: 'Something came from past the stars', col: '#7fff9a', tint: '#050818', tintA: 0.36, sky: 'sky_planet',
+      swarm: 'v_grey', elite: 'v_saucer', boss: 'v_mothership', bossName: 'The Mothership' },
+    { id: 'heaven', name: 'HEAVENLY CRUSADE',  sub: 'The sky opens and it is not friendly', col: '#ffe27a', tint: '#fff3c0', tintA: 0.22, sky: 'sky_sun',
+      swarm: 'v_putto', elite: 'v_archon', boss: 'v_seraphim', bossName: 'The Seraphim' },
+    { id: 'deep',   name: 'ABYSSAL TIDE',      sub: 'The ground floods with the deep', col: '#4fe0c8', tint: '#062a2a', tintA: 0.3, sky: 'sky_eye',
+      swarm: 'v_squidling', elite: 'v_deepone', boss: 'v_leviathan', bossName: 'The Leviathan' },
+  ];
+  G.INV_BY_ID = {}; G.INVASIONS.forEach(v => G.INV_BY_ID[v.id] = v);
   // The Horde changes as you go deeper into a land: each zone brings a new kind of mob.
   // Per zone (0-4), the share of packs led by each kind; fodder swarms fill the rest.
   G.ARCHETYPES = {
@@ -659,7 +683,7 @@
       set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1, filter: 1 },
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
-      uq: {}, feed: [], rift: newRift(), lands: {},
+      uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -821,6 +845,8 @@
     if (mt.length >= TUNE.maxManualCps) return null;
     mt.push(now);
 
+    // a broken Button gives nothing: no gold, no lightning, until it mends
+    if (R.btnDown > 0) { emit('clickDead'); return null; }
     S.clicks++; S.clicksRun++;
     R.combo = Math.min(D.comboCap, R.combo + 1);
     R.comboT = TUNE.comboTime;
@@ -1090,13 +1116,18 @@
     slam:   { col: '#ff3b3b', name: 'SLAM', wind: 1.4, need: 5 },
     summon: { col: '#b36bff', name: 'SUMMON', wind: 1.6, need: 6 },
     shield: { col: '#4fa8ff', name: 'SHIELD', wind: 3, need: 8 },
+    barrage: { col: '#ffb347', name: 'BARRAGE', wind: 1.2, need: 4 },
   };
-  const MOVE_ORDER = { lord: ['slam', 'summon', 'shield'], boss: ['slam', 'slam', 'summon'] };
+  // later phases bring the barrage, a volley at the heroes themselves
+  const MOVE_ORDER = {
+    lord: [['slam', 'summon', 'shield'], ['slam', 'barrage', 'summon', 'shield', 'barrage'], ['barrage', 'slam', 'barrage', 'summon', 'shield']],
+    boss: [['slam', 'slam', 'summon'], ['slam', 'barrage', 'summon', 'barrage']],
+  };
   function bossMoves(b, dt) {
     if (b.stagger > 0) b.stagger -= dt;
     if (!b.move) {
       if ((b.moveT -= dt) > 0) return;
-      const order = MOVE_ORDER[b.lord ? 'lord' : 'boss'];
+      const set = MOVE_ORDER[b.lord ? 'lord' : 'boss'], order = set[Math.min(set.length, b.phase || 1) - 1];
       const k = order[(b.moveN = (b.moveN || 0) + 1) % order.length];
       b.move = { k, t: G.BOSS_MOVES[k].wind, T: G.BOSS_MOVES[k].wind, n: 0, need: G.BOSS_MOVES[k].need };
       emit('bossMove', b);
@@ -1105,8 +1136,17 @@
     if ((b.move.t -= dt) > 0) return;
     // the move lands
     const k = b.move.k;
-    b.move = null; b.moveT = b.lord ? 5 : 7;
-    if (k === 'slam' && G.hurtButton) G.hurtButton(G.mobAtk(b.d) * (b.lord ? 7 : 5) * (b.rage ? 1.5 : 1));
+    b.move = null; b.moveT = (b.lord ? 5 : 7) / (1 + 0.3 * ((b.phase || 1) - 1));
+    if (k === 'barrage' && G.partyUnits) {
+      const a = G.mobAtk(b.d) * (b.rage ? 1.5 : 1);
+      for (let i = 0; i < 3 && R.boss === b; i++) { const up = G.partyUnits().filter(u => !(u.down > 0)); const v = up.length && chance(0.75) ? up[Math.floor(G.rng() * up.length)].who : 'button'; G.hurtParty(v, a * 2.2, 'barrage'); emit('barrageHit', b, v, i); }
+    }
+    // a slam lands on everyone: the Button and each hero standing
+    if (k === 'slam' && G.hurtButton) {
+      const a = G.mobAtk(b.d) * (b.rage ? 1.5 : 1);
+      G.hurtButton(a * (b.lord ? 5 : 3.5));
+      if (G.partyUnits) for (const u of G.partyUnits()) if (!(u.down > 0)) G.hurtParty(u.who, a * (b.lord ? 3 : 2), 'slam');
+    }
     if (k === 'summon' && G.spawnPack) { G.spawnPack(true); G.spawnPack(true); }
     emit('bossMoveLand', b, k);
   }
@@ -1121,7 +1161,8 @@
   }
   function startBoss() {
     const S = G.S;
-    if (R.boss || R.rift || !R.bossReady) return false;
+    // an invasion is fought out first
+    if (R.boss || R.rift || !R.bossReady || R.inv) return false;
     const d = S.depth;
     const lord = isLord(d);
     const max = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
@@ -1132,7 +1173,7 @@
     const rally = (S.scar && S.scar.d === d ? (lord ? 0.2 : 0.15) * Math.min(5, S.scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
-    R.boss = { d, lord, hp, max, scar, rally, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
+    R.boss = { d, lord, hp, max, scar, rally, phase: 1, inv: 0, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
     R.bossReady = false; R.bossIn = null;
     emit('bossStart', R.boss);
@@ -1149,17 +1190,31 @@
   }
   G.bossOdds = bossOdds;
 
+  // Phases: a lord changes at 66% and 33% of its health, a boss at 50%. It shrugs off
+  // everything for a moment, throws the Horde back, hits the whole party and fights harder.
+  function phaseAt(b) { return b.lord ? (b.hp < b.max * 0.33 ? 3 : b.hp < b.max * 0.66 ? 2 : 1) : (b.hp < b.max * 0.5 ? 2 : 1); }
   function hitBoss(dmg) {
     const b = R.boss;
     if (!b || b.dead) return;
+    if (b.inv > 0) return;
     // a shield soaks most of it; a staggered boss takes half again
     if (b.move && b.move.k === 'shield') dmg *= 0.3;
     else if (b.stagger > 0) dmg *= 1.5;
     if (b.rally) dmg *= 1 + b.rally;
     b.hp -= dmg;
     if (b.hp <= 0) bossWin();
-    // lords enrage when they're nearly done: twice the adds, harder bites
-    else if (b.lord && !b.rage && b.hp < b.max * 0.3) { b.rage = 1; emit('bossRage', b); }
+    else if (phaseAt(b) > b.phase) {
+      // one phase at a time: a huge hit stops at the next phase's floor
+      const fl = (b.lord ? [0.66, 0.33, 0] : [0.5, 0])[b.phase] || 0;
+      if (fl > 0) b.hp = Math.max(b.hp, fl * b.max + 1);
+      b.phase++; b.inv = 1.6; b.move = null; b.moveT = 1.5;
+      // the last phase of a lord is its rage: twice the adds, harder bites
+      if (b.lord && b.phase === 3) { b.rage = 1; emit('bossRage', b); }
+      for (const m of R.mobs) m.p = Math.max(-0.1, m.p - 0.3);
+      const a = G.mobAtk(b.d);
+      emit('bossPhase', b);
+      if (G.partyUnits) for (const u of G.partyUnits()) if (!(u.down > 0) && R.boss === b) G.hurtParty(u.who, a * 1.5, 'phase');
+    }
   }
   G.hitBoss = hitBoss;
 
@@ -1186,7 +1241,11 @@
     S.scar = null; S.rested = 0;
     S.depth++;
     if (S.depth > S.maxDepth) S.maxDepth = S.depth;
-    if (S.depth > S.bestDepth) S.bestDepth = S.depth;
+    if (S.depth > S.bestDepth) {
+      S.bestDepth = S.depth;
+      const slot = G.PARTY_AT ? G.PARTY_AT.indexOf(S.bestDepth) : -1;
+      if (slot >= 0) emit('slotOpen', slot);
+    }
     S.bossMeter = 0;
     R.boss = null;
     R.dirty = true;
@@ -1564,6 +1623,7 @@
       const b = R.boss;
       if (R.boss) {
         b.t -= dt;
+        if (b.inv > 0) { b.inv -= dt; b.t += dt; } // the clock holds while it changes
         if (b.t <= 0) bossFail();
         else bossMoves(b, dt);
       }
@@ -1572,7 +1632,8 @@
       // Bosses come on their own: after a short countdown when the Warden can take it, or after a
       // longer wait when it can't yet (Rally builds with each try; The Hunt shortens the wait).
       // ⚔ calls it right away.
-      if (S.set.autoBoss) {
+      // (an invasion is fought out first)
+      if (S.set.autoBoss && !R.inv) {
         R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
         const wait = bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
         if (R.bossIn <= -wait) startBoss();
@@ -1651,13 +1712,15 @@
     if (!S.lands || typeof S.lands !== 'object') S.lands = {};
     // saves from before 1.1: past depth 40 the lands changed, so crown times there belong to other lords now
     if (!('lands' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 40) delete S.rec.crowns[k];
+    // saves from before 2.0: depths 65-74 were corrupted lands then, the Moon and the Star Sea now
+    if (!('party' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 65) delete S.rec.crowns[k];
     if (!Array.isArray(S.feed)) S.feed = [];
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
     G.S = S;
     if (G.ensureHero) G.ensureHero(S);
     if (R.mobs) R.mobs.length = 0; if (R.shots) R.shots.length = 0;
-    R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null; R.wave = null;
+    R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null; R.wave = null; R.btnDown = 0;
     if (G.worldClear) G.worldClear();
     // saves from before 1.0: the Journey gained 11 steps in between the old ones
     if (!('uq' in data) && G.Journey && G.Journey.fromV0) S.journey = G.Journey.fromV0(S.journey || 0);
@@ -1683,6 +1746,9 @@
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
     // the arena is never empty: lots of small bodies, capped for the frame rate
     mobMax: 600, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
+    // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
+    // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
+    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.07, pulseEvery: 6, smallHp: 2.2,
   });
 
   // ---------- Content ----------
@@ -1737,7 +1803,12 @@
       name: 'Wizard', desc: 'Staves and wands. Attacks 15% faster.' },
     { id: 'rogue', spr: 'h_rogue', weapons: ['dagger'], starter: 'rusty_dagger', hp: 1, crit: 0.1, extra: 0,
       name: 'Rogue', desc: 'Daggers. +10% crit chance.' },
+    { id: 'cleric', spr: 'h_priest', weapons: ['staff', 'wand'], starter: 'oak_wand', hp: 1.1, crit: 0, extra: 0,
+      name: 'Cleric', desc: 'Staves and wands. Heals the party and the Button, and raises the fallen faster. Hits softly.' },
   ];
+  // What each class does in the party: tanks draw the bites, healers mend, the rest deal damage
+  G.ROLES = { knight: 'tank', cleric: 'heal', archer: 'dps', wizard: 'dps', rogue: 'dps' };
+  G.ROLE_NAMES = { tank: 'Tank', heal: 'Healer', dps: 'Damage' };
   G.CLASS_BY_ID = {}; G.CLASSES.forEach(c => G.CLASS_BY_ID[c.id] = c);
   G.AFFIXES = {
     dmg:   { v: [0.04, 0.10], name: 'Damage' },
@@ -1852,7 +1923,7 @@
   function newHero() {
     return { cls: null, lvl: 1, xp: 0, eq: { weapon: null, ability: null, armor: null, ring: null }, bag: [], gu: 0,
       shards: 0, hp: TUNE.baseHp, auto: 1, salv: 1, cast: 1, kills: 0, elites: 0, fresh: 0,
-      perks: {}, perkPts: 0, offer: null, offerT: 0, autoPerk: 1, orbs: {} };
+      perks: {}, perkPts: 0, offer: null, offerT: 0, autoPerk: 1, orbs: {}, whp: TUNE.baseHp, wdown: 0 };
   }
   G.newHero = newHero;
   function ensureHero(S) {
@@ -1863,8 +1934,102 @@
     if (!S.profile) S.profile = { id: Math.random().toString(36).slice(2, 10), name: '' };
     S.rec = Object.assign({ maxPower: 0, maxLevel: 1, madTime: 0, runStart: Date.now() }, S.rec || {});
     S.rec.evos = S.rec.evos || {};
+    // companions: up to three more heroes with their own gear
+    S.party = (Array.isArray(S.party) ? S.party : []).filter(m => m && G.CLASS_BY_ID[m.cls]).slice(0, 3)
+      .map(m => Object.assign({ hp: TUNE.baseHp, down: 0, acc: 0 }, m, { eq: Object.assign({ weapon: null, ability: null, armor: null, ring: null }, m.eq || {}) }));
   }
   G.ensureHero = ensureHero;
+
+  // ---------- The party ----------
+  // The Warden leads; companions join as you go deeper (after the Crab King, at depth 12 and at depth 20).
+  G.PARTY_AT = [5, 12, 20];
+  G.partySlots = () => G.PARTY_AT.filter(d => (G.S.bestDepth || 0) >= d).length;
+  G.recruit = function (cls) {
+    const S = G.S, C = G.CLASS_BY_ID[cls];
+    if (!C || S.party.length >= G.partySlots()) return false;
+    const m = { cls, eq: { weapon: null, ability: null, armor: null, ring: null }, hp: TUNE.baseHp, down: 0, acc: 0 };
+    m.eq.weapon = makeGear(C.starter, Math.max(0, G.S.depth - 1));
+    S.party.push(m);
+    G.dirty(); G.recalc();
+    m.hp = (G.D.party[S.party.length - 1] || {}).hp || TUNE.baseHp;
+    emit('recruit', m, S.party.length - 1);
+    return true;
+  };
+  // Everyone on the field, the Warden first: {who: -1 for the Warden or the companion's index, cls, role, hp, max, down}
+  G.partyUnits = function () {
+    const S = G.S, h = S.hero, D = G.D, out = [];
+    if (!h || !h.cls) return out;
+    out.push({ who: -1, cls: h.cls, eq: h.eq, role: G.ROLES[h.cls], hp: h.whp, max: D.wardenHp || TUNE.baseHp, down: h.wdown });
+    S.party.forEach((m, i) => out.push({ who: i, cls: m.cls, eq: m.eq, role: G.ROLES[m.cls], hp: m.hp, max: (D.party && D.party[i] ? D.party[i].hp : TUNE.baseHp), down: m.down }));
+    return out;
+  };
+  const unitGet = who => (who < 0 ? G.S.hero : G.S.party[who]);
+  const unitHp = (who, v) => { const u = unitGet(who); if (!u) return 0; if (v !== undefined) { if (who < 0) u.whp = v; else u.hp = v; } return who < 0 ? u.whp : u.hp; };
+  const unitDown = (who, v) => { const u = unitGet(who); if (!u) return 0; if (v !== undefined) { if (who < 0) u.wdown = v; else u.down = v; } return who < 0 ? u.wdown : u.down; };
+  const unitMax = who => (who < 0 ? G.D.wardenHp : (G.D.party[who] || {}).hp) || TUNE.baseHp;
+  const alive = () => G.partyUnits().filter(u => !(u.down > 0));
+  G.partyAlive = () => alive().length;
+  // Who a mob or a boss hits: a standing tank draws it, else the Button or anyone standing
+  // who a bite lands on: a standing tank draws most of them, the Button takes most of the rest
+  function victim() {
+    const up = alive(), btn = !(R.btnDown > 0);
+    const tank = up.find(u => u.role === 'tank');
+    if (tank && chance(btn ? 0.6 : 0.85)) return tank.who;
+    if (!up.length) return btn ? 'button' : null;
+    if (btn && chance(0.65)) return 'button';
+    return up[Math.floor(G.rng() * up.length)].who;
+  }
+  function hurtUnit(who, dmg, src) {
+    if (unitDown(who) > 0) return;
+    const role = G.ROLES[who < 0 ? G.S.hero.cls : G.S.party[who].cls];
+    if (role === 'tank') dmg *= 0.7;
+    const hp = unitHp(who, unitHp(who) - dmg);
+    emit('unitHurt', who, dmg, src);
+    if (hp <= 0) {
+      unitHp(who, 0);
+      unitDown(who, TUNE.reviveTime);
+      emit('unitDown', who);
+      checkWipe();
+    }
+  }
+  // the fight goes to the victim: a party member or the Button
+  function hitParty(v, dmg, src) { if (v === 'button') hurtButton(dmg); else if (v != null) hurtUnit(v, dmg, src); else checkWipe(); }
+  G.hurtParty = hitParty;
+  function reviveUnit(who, frac) {
+    unitDown(who, 0); unitHp(who, unitMax(who) * (frac || 0.4));
+    emit('unitRevive', who);
+  }
+  // The Hand can lift a fallen hero: each tap takes 4 seconds off the wait
+  G.reviveTap = function (who) {
+    if (!(unitDown(who) > 0)) return false;
+    const left = unitDown(who, unitDown(who) - TUNE.reviveTap);
+    emit('reviveTap', who, left);
+    if (left <= 0) reviveUnit(who, 0.5);
+    return true;
+  };
+  // Everyone down and the Button broken: the Horde breaks through
+  function checkWipe() {
+    if (R.btnDown > 0 && !alive().length) wipe();
+  }
+  function wipe() {
+    const S = G.S, h = S.hero;
+    S.st.wipes = (S.st.wipes || 0) + 1;
+    for (const m of R.mobs) emit('mobFlee', m);
+    R.mobs.length = 0; if (R.shots) R.shots.length = 0;
+    if (R.boss) G.fleeBoss();
+    const inRift = !!R.rift;
+    if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
+    const from = S.depth;
+    // pushed back: the clear bar is lost and, past the first depth, a depth with it
+    if (!inRift) { S.bossMeter = 0; if (S.depth > 0) S.depth--; R.bossReady = false; }
+    if (R.ground) R.ground.length = 0;
+    R.btnDown = 0; h.hp = G.D.heroHp;
+    for (const u of G.partyUnits()) reviveUnit(u.who, 1);
+    R.stun = 4; // the party regroups
+    G.dirty(); G.recalc();
+    emit('wipe', from, S.depth, inRift);
+  }
+  G.wipe = wipe;
 
   const R = G.R;
   ensureHero(G.S);
@@ -1946,12 +2111,19 @@
   }
   G.heroCombat = combat;
 
-  function powerWith(slot, g) {
-    const eq = Object.assign({}, G.S.hero.eq);
+  function powerWith(slot, g, who) {
+    const m = who != null && who >= 0 ? G.S.party[who] : null;
+    const eq = Object.assign({}, m ? m.eq : G.S.hero.eq);
     eq[slot] = g;
-    return combat(eq, G.D).power;
+    return combat(eq, G.D, m ? { cls: m.cls, lvl: G.S.hero.lvl } : undefined).power;
   }
   G.powerWith = powerWith;
+  // Whose gear set this is: the Warden's (who < 0) or a companion's
+  const eqOf = who => (who != null && who >= 0 && G.S.party[who] ? G.S.party[who].eq : G.S.hero.eq);
+  G.eqOf = eqOf;
+  // Everything anyone in the party wears
+  function worn(g) { if (G.SLOTS.some(s => G.S.hero.eq[s] === g)) return true; return (G.S.party || []).some(m => G.SLOTS.some(s => m.eq[s] === g)); }
+  G.isWorn = worn;
 
   function gainGear(it, srcTier, pre) {
     const S = G.S, h = S.hero;
@@ -1963,6 +2135,13 @@
     if (h.auto && h.cls) {
       const cur = h.eq[slot];
       if (!cur || powerWith(slot, g) > powerWith(slot, cur)) { equip(g, true); equipped = true; }
+      // what the Warden doesn't want may suit a companion (weapons only for their own class)
+      else (S.party || []).some((m, i) => {
+        if (slot === 'weapon' && !G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id])) return false;
+        const c2 = m.eq[slot];
+        if (!c2 || powerWith(slot, g, i) > powerWith(slot, c2, i)) { equip(g, true, i); equipped = true; return true; }
+        return false;
+      });
     }
     if (!equipped) {
       if (h.salv && g.r < h.salv && !g.q) { salvage(g, true); return g; }
@@ -1979,22 +2158,24 @@
   }
   G.gainGear = gainGear;
 
-  function equip(g, silent) {
-    const h = G.S.hero, slot = G.slotOf(g.id);
-    const old = h.eq[slot];
+  function equip(g, silent, who) {
+    const h = G.S.hero, slot = G.slotOf(g.id), eq = eqOf(who);
+    // taking it off whoever wore it before
+    for (const e of [h.eq].concat((G.S.party || []).map(m => m.eq))) if (e !== eq && e[slot] === g) { e[slot] = null; }
+    const old = eq[slot];
     const i = h.bag.indexOf(g);
     if (i >= 0) h.bag.splice(i, 1);
-    h.eq[slot] = g;
-    if (old) h.bag.push(old);
+    eq[slot] = g;
+    if (old && old !== g) h.bag.push(old);
     G.dirty(); G.recalc();
     if (!silent) emit('equip', g);
     return true;
   }
   G.equip = equip;
-  function unequip(slot) {
-    const h = G.S.hero, g = h.eq[slot];
+  function unequip(slot, who) {
+    const h = G.S.hero, eq = eqOf(who), g = eq[slot];
     if (!g) return false;
-    h.eq[slot] = null; h.bag.push(g);
+    eq[slot] = null; h.bag.push(g);
     G.dirty(); G.recalc(); emit('equip', null);
     return true;
   }
@@ -2006,7 +2187,7 @@
     const h = G.S.hero;
     const i = h.bag.indexOf(g);
     if (i >= 0) h.bag.splice(i, 1);
-    for (const s of G.SLOTS) if (h.eq[s] === g) return 0; // never scrap what you wear
+    if (worn(g)) return 0; // never scrap what anyone wears
     const v = salvageValue(g);
     h.shards += v;
     if (!silent) emit('salvage', g, v);
@@ -2081,7 +2262,7 @@
     for (const g of h.bag) if (G.slotOf(g.id) === 'weapon') { const p = powerWith('weapon', g); if (p > bp) { bp = p; best = g; } }
     if (best && best !== h.eq.weapon) equip(best, true);
     G.dirty(); G.recalc();
-    h.hp = G.D.heroHp;
+    h.hp = G.D.heroHp; h.whp = G.D.wardenHp; h.wdown = 0;
     emit('classChosen', cls);
     return true;
   }
@@ -2116,6 +2297,21 @@
     d.heroHp = c.hp * (1 + 0.2 * perk('bulwark')) * (evo('bastion') ? 2 : 1);
     d.heroDps = c.dps * buffDmg * might * frenzy;
     d.power = c.power;
+    // the Warden's own health, apart from the Button's
+    d.wardenHp = c.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (G.ROLES[h.cls] === 'tank' ? 1.5 : 1);
+    // companions fight with their own gear and the same run bonuses
+    d.party = (S.party || []).map(m => {
+      const pc = combat(m.eq, d, { cls: m.cls, lvl: h.lvl }), role = G.ROLES[m.cls];
+      // companions back the Warden up: their hits count for less, a cleric's least of all
+      const soft = TUNE.allyDmg * (role === 'heal' ? 0.5 : 1);
+      const o = { c: pc, role, hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy, hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) };
+      o.dps = pc.dps * buffDmg * might * frenzy * soft;
+      if (m.hp > o.hp) m.hp = o.hp;
+      return o;
+    });
+    d.wardenDps = d.heroDps;
+    for (const p of d.party) d.heroDps += p.dps;
+    if (h.whp > d.wardenHp) h.whp = d.wardenHp;
     if (h.hp > d.heroHp) h.hp = d.heroHp;
     if (c.power > S.rec.maxPower) S.rec.maxPower = c.power;
   };
@@ -2178,7 +2374,8 @@
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
     const w = K.w * (add ? 1 : Math.max(1, (R.hs || 1) / 1.5));
-    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1);
+    // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
+    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1);
     const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
@@ -2187,6 +2384,8 @@
     }
     if (kind === 'brute' && land().stone) m.stone = 1;
     if (R.breach && R.breach.t > 0 && !add && kind !== 'guardian' && kind !== 'hoard') m.br = 1;
+    // an invasion's mobs wear its colours and count toward holding it off
+    if (R.inv && !add && kind !== 'hoard') m.inv = R.inv.k;
     R.mobs.push(m);
     emit('mobSpawn', m);
     return m;
@@ -2237,7 +2436,9 @@
   // reach limits how far from the Button the hero can strike.
   function targets(n, reach) {
     const minP = reach ? (1 - reach) / 0.88 : -1;
-    const list = R.mobs.filter(m => m.p >= minP && !m.gone).sort((a, b) => b.p + (b.kind === 'hoard' ? 1 : 0) - a.p - (a.kind === 'hoard' ? 1 : 0));
+    // Hoarders first, then heralds and Rift guardians, then whoever is closest
+    const pri = m => m.p + (m.kind === 'hoard' ? 1 : m.kind === 'guardian' ? 0.6 : 0);
+    const list = R.mobs.filter(m => m.p >= minP && !m.gone).sort((a, b) => pri(b) - pri(a));
     const fi = R.focus ? list.findIndex(m => m.id === R.focus) : -1;
     if (fi > 0) list.unshift(list.splice(fi, 1)[0]);
     else if (fi < 0 && !R.mobs.some(m => m.id === R.focus && !m.dead)) R.focus = null;
@@ -2323,6 +2524,7 @@
     const boom = uq('hellstring') && (src === 'auto' || src === 'chain') ? 0.6 : uq('ashbringer') && src === 'auto' ? 0.5 : uq('pincer') && m.crit ? 0.5 : L.boom && !m.add && chance(L.boom) ? 0.8 : 0;
     if (boom && (R.boomD || 0) < 3) blast(m, boom);
     if (R.rift && G.riftKill) G.riftKill(m);
+    if (m.inv && G.invasionKill) G.invasionKill(m);
   }
   function spores(m, n) { for (let k = 0; k < n && R.mobs.length < TUNE.mobMax; k++) makeMob('fodder', m.a + rand(-0.04, 0.04), m.p - rand(0, 0.08), m.add); }
   function bomb(m) {
@@ -2458,24 +2660,78 @@
   G.heroVolley = attack;
 
   G.hurtButton = d => hurtButton(d);
+  // The party's clock: the fallen get up, the cleric mends, companions fight, the Button pulses
+  function partyTick(dt, regen) {
+    const S = G.S, D = G.D, h = S.hero;
+    const units = G.partyUnits();
+    const cleric = units.some(u => u.role === 'heal' && !(u.down > 0));
+    for (const u of units) {
+      if (u.down > 0) { const left = unitDown(u.who, u.down - dt * (cleric ? 3 : 1)); if (left <= 0) reviveUnit(u.who, 0.4); }
+      else unitHp(u.who, Math.min(u.max, u.hp + u.max * regen * dt));
+    }
+    // a broken Button mends on its own
+    if (R.btnDown > 0 && (R.btnDown -= dt) <= 0) { R.btnDown = 0; h.hp = D.heroHp * 0.5; emit('buttonFixed'); }
+    // clerics heal whoever is worst off, the Button included
+    S.party.forEach((m, i) => {
+      if (m.down > 0) return;
+      const P = D.party[i];
+      if (!P) return;
+      if (P.role === 'heal' && (m.healT = (m.healT || 0) - dt) <= 0) {
+        m.healT = TUNE.healEvery;
+        let best = null, bk = 0.98;
+        for (const u of G.partyUnits()) if (!(u.down > 0) && u.hp / u.max < bk) { bk = u.hp / u.max; best = u.who; }
+        if (!(R.btnDown > 0) && h.hp / D.heroHp < bk) { bk = h.hp / D.heroHp; best = 'button'; }
+        if (best === 'button') { h.hp = Math.min(D.heroHp, h.hp + D.heroHp * TUNE.healPct * 1.5); emit('heal', i, 'button'); }
+        else if (best != null) { unitHp(best, Math.min(unitMax(best), unitHp(best) + unitMax(best) * TUNE.healPct * (1 + 0.1 * Math.min(10, h.lvl / 5)))); emit('heal', i, best); }
+      }
+      // companions attack on their own
+      m.acc = (m.acc || 0) + dt * P.rate;
+      let guard = 0;
+      while (m.acc >= 1 && guard++ < 8) { if (!allyAttack(i, P)) { m.acc = 1; break; } m.acc -= 1; }
+    });
+    // the Button fights back: a shockwave now and then around it
+    if (!(R.btnDown > 0) && (R.pulseT = (R.pulseT == null ? TUNE.pulseEvery : R.pulseT) - dt) <= 0) {
+      R.pulseT = TUNE.pulseEvery;
+      const near = R.mobs.filter(m => !m.dead && 1 - 0.88 * m.p < 0.3);
+      if (near.length || R.boss) {
+        emit('buttonPulse');
+        const dmg = (D.heroHit || 1) * 2;
+        for (const m of near) dealHit(m, dmg, 'pulse', false);
+        if (R.boss) G.hitBoss(dmg * 0.5);
+      }
+    }
+  }
+  // One swing of a companion's weapon
+  function allyAttack(i, P) {
+    const wt = P.c.wt, reach = Math.min(1, wt.reach * (1 + 0.2 * perk('reach')));
+    const ts = targets(P.c.targets + perk('multi'), reach);
+    if (!R.boss && !ts.length) return false;
+    const crit = chance(P.c.crit);
+    const dmg = P.hit * (crit ? P.c.critMult : 1);
+    if (R.boss) G.hitBoss(dmg * G.D.bossMult);
+    if (!ts.length) { emit('allyAttack', { i, boss: true, crit, dmg }); return true; }
+    const splash = around(ts, wt.aoe * (1 + 0.3 * perk('cleave')));
+    emit('allyAttack', { i, ids: ts.map(m => m.id), splash: splash.map(m => m.id), aoe: wt.aoe, crit, dmg, wt: P.c.wtype });
+    for (const m of ts) dealHit(m, dmg, 'ally', crit);
+    for (const m of splash) dealHit(m, dmg * wt.sp, 'ally', crit);
+    return true;
+  }
   function hurtButton(dmg) {
     const h = G.S.hero;
-    if (R.stun > 0) return;
+    if (R.stun > 0 || R.btnDown > 0) return;
     h.hp -= dmg;
     emit('buttonHurt', dmg);
     if (h.hp <= 0) breakButton();
   }
+  // A broken Button is out for a while: no gold, no lightning. The party fights on around it;
+  // if they all fall before it mends, the Horde breaks through (wipe)
   function breakButton() {
-    const S = G.S, h = S.hero;
-    R.stun = 4;
-    h.hp = G.D.heroHp;
-    for (const m of R.mobs) emit('mobFlee', m);
-    R.mobs.length = 0; if (R.shots) R.shots.length = 0;
-    // a Rift's Horde never fills the clear bar, so a broken Rift doesn't take from it either
-    if (!R.rift) S.bossMeter = Math.floor(S.bossMeter * 0.5);
-    if (R.boss) G.fleeBoss();
-    if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
+    const h = G.S.hero;
+    h.hp = 0;
+    R.btnDown = TUNE.btnDown;
+    G.S.st.breaks = (G.S.st.breaks || 0) + 1;
     emit('buttonBreak');
+    checkWipe();
   }
 
   function castAbility() {
@@ -2486,8 +2742,8 @@
     R.abilCd = ab.cd * (1 - Math.min(0.5, 0.03 * g.e)) * (uq('watcher') ? 0.5 : 1);
     const hit = D.heroHit;
     switch (type) {
-      case 'potion': h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.6); break;
-      case 'tome': h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.3); R.hb.tome = 6; break;
+      case 'potion': h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.6); for (const u of G.partyUnits()) if (!(u.down > 0)) unitHp(u.who, Math.min(u.max, u.hp + u.max * 0.5)); break;
+      case 'tome': h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.3); for (const u of G.partyUnits()) if (!(u.down > 0)) unitHp(u.who, Math.min(u.max, u.hp + u.max * 0.3)); R.hb.tome = 6; break;
       case 'scroll': R.hb.scroll = 12; break;
       case 'orb': R.hb.orb = 6; break;
       case 'wing': R.hb.wing = 8; break;
@@ -2518,8 +2774,10 @@
     if (R.stun > 0) R.stun -= dt;
     if (R.reapT > 0 && (R.reapT -= dt) <= 0) { R.reap = 0; G.dirty(); }
     if (R.carn && (R.carnT += dt) > 2.5) { R.carn = 0; emit('carnage', 0); }
-    // regen
-    h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.03 * dt);
+    // regen: slow, slower still with a boss on the field, so a fight can be lost
+    const regen = R.boss ? 0.004 : 0.012;
+    if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * regen * dt);
+    partyTick(dt, regen);
     // the horde: a steady flow of packs, with a surge every half a minute
     if (R.stun <= 0) {
       if (R.boss) {
@@ -2530,7 +2788,7 @@
         else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen * (land().surge || 1); emit('surge'); }
         const surging = R.surge > 0;
         R.hs = hordeScale();
-        const thick = om().horde * (R.rift ? 1.5 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
+        const thick = om().horde * (R.rift ? 1.5 : 1) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
         R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * thick);
         const cap = hordeCap(dnow()) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1) * (R.rift || shrine('slaughter') ? 1.5 : 1);
         // each zone is fought in three waves; the second and third open with champions and a rush
@@ -2571,7 +2829,7 @@
       if (m.p < 1) m.p = Math.min(1, m.p + m.sp * dt * slow);
       else if (m.kind === 'bomber') {
         // a bomber that reaches the Button goes off on it
-        hurtButton(atk * m.w * 6 * (evo('bastion') ? 0.7 : 1)); emit('bomberPop', m);
+        hitParty(victim(), atk * m.w * 6 * (evo('bastion') ? 0.7 : 1), 'bomb'); emit('bomberPop', m);
         m.dead = true; const i = R.mobs.indexOf(m); if (i >= 0) R.mobs.splice(i, 1);
         emit('mobFlee', m);
         if (R.stun > 0) break;
@@ -2580,7 +2838,7 @@
         if (m.atkT <= 0) {
           m.atkT = 1;
           if (uq('othercloak') && m.kind !== 'guardian' && m.kind !== 'rare' && chance(1 / 3)) { emit('thorns', m); dealHit(m, 2 * m.hp + 1, 'thorns', false); continue; }
-          hurtButton(atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1)); emit('mobBite', m);
+          const v = victim(); m.bit = v; hitParty(v, atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1), 'bite'); emit('mobBite', m, v);
           if (uq('voidplate') && !m.dead) { emit('thorns', m); dealHit(m, D.heroHit * 10, 'thorns', false); }
           if (R.stun > 0) break;
         }
@@ -2591,12 +2849,12 @@
     for (let i = R.shots.length - 1; i >= 0; i--) {
       const sh = R.shots[i];
       if (!sh) continue;
-      if ((sh.t -= dt) <= 0) { R.shots.splice(i, 1); if (R.stun <= 0) { hurtButton(sh.dmg); emit('spitHit', sh); } if (R.stun > 0) break; }
+      if ((sh.t -= dt) <= 0) { R.shots.splice(i, 1); if (R.stun <= 0) { const v = sh.v != null ? sh.v : victim(); hitParty(v, sh.dmg, 'spit'); emit('spitHit', sh, v); } if (R.stun > 0) break; }
     }
     // the boss hits the button too
     if (R.boss) {
       R.bossAtkT -= dt;
-      if (R.bossAtkT <= 0) { R.bossAtkT = 2; hurtButton(atk * (R.boss.lord ? 5 : 3) * (R.boss.rage ? 1.5 : 1)); }
+      if (R.bossAtkT <= 0) { R.bossAtkT = 2 / (1 + 0.25 * ((R.boss.phase || 1) - 1)); const b = R.boss, v = victim(); emit('bossHit', b, v); hitParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1), 'boss'); }
     }
     // perks that work on their own
     const hit = D.heroHit;
@@ -2632,7 +2890,7 @@
     // (the clock stops while a window covers the cards, so they can't be picked for you unseen)
     if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[0]);
     // hero attacks
-    R.heroAcc += dt * D.heroRate;
+    R.heroAcc += h.wdown > 0 ? 0 : dt * D.heroRate;
     let guard = 0;
     while (R.heroAcc >= 1 && guard++ < 30) {
       if (!attack(1, 'auto')) { R.heroAcc = 1; break; }
@@ -2685,8 +2943,12 @@
     if (G.worldReset) G.worldReset();
     R.mobs.length = 0; if (R.shots) R.shots.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20; R.reap = 0; R.rift = null;
     G.S.rec.runStart = Date.now();
+    R.btnDown = 0; h.wdown = 0;
+    for (const m of G.S.party) { m.down = 0; m.acc = 0; }
     G.dirty(); G.recalc();
     h.hp = G.D.heroHp || TUNE.baseHp;
+    h.whp = G.D.wardenHp || TUNE.baseHp;
+    G.S.party.forEach((m, i) => { m.hp = (G.D.party[i] || {}).hp || TUNE.baseHp; });
   };
 
   // ---------- Ladder snapshot ----------
@@ -2748,7 +3010,7 @@
     if (snap.mad != null && snap.mad !== 0 && !(int(snap.mad, 60, 1e9) && (snap.depth | 0) >= 40)) bad.push('mad');
     const numMap = (o, n) => o == null || (typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length <= n && Object.keys(o).every(k => k.length <= 8 && typeof o[k] === 'number' && o[k] > 0));
     // firsts: known milestones only, dated after the release and not in the future, and actually reached
-    const FS = { boss: 0, d5: 0, d10: 0, d20: 0, d30: 0, d40: 0, d50: 0, d60: 0, d65: 0, d80: 0, uq: 0, r4: 0, r5: 0, r6: 0, asc: 0, evo: 0, all14: 0,
+    const FS = { boss: 0, d5: 0, d10: 0, d20: 0, d30: 0, d40: 0, d50: 0, d60: 0, d65: 0, d75: 0, d80: 0, uq: 0, r4: 0, r5: 0, r6: 0, asc: 0, evo: 0, all14: 0,
       rift5: 0, rift15: 0, rift30: 0, rift45: 0, rift60: 0, rift80: 0 };
     const fsOk = k => {
       const v = snap.fs[k];
@@ -2758,7 +3020,7 @@
       // 'all14' was earned when there were 14 uniques; later ones don't take it away
       return k !== 'all14' || (snap.uq | 0) >= 14;
     };
-    if (!numMap(snap.fs, 24) || (snap.fs && !Object.keys(snap.fs).every(fsOk))) bad.push('firsts');
+    if (!numMap(snap.fs, 30) || (snap.fs && !Object.keys(snap.fs).every(fsOk))) bad.push('firsts');
     // a crown time must be a lord this Warden reached
     if (!numMap(snap.cr, 64) || (snap.cr && Object.keys(snap.cr).some(k => !G.isLord(+k) || +k > reach))) bad.push('crowns');
     if (snap.ev != null && (!Array.isArray(snap.ev) || snap.ev.length > 8 || !snap.ev.every(e => Array.isArray(e) && typeof e[0] === 'number' && typeof e[1] === 'string' && /^[a-z0-9]{1,16}$/.test(e[1]) && typeof e[2] === 'string' && e[2].length <= 48))) bad.push('feed');

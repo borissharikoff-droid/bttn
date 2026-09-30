@@ -21,7 +21,7 @@ const PERSONAS = {
     days: 7, sessions: [[15, 8 * 3600], [15, 16 * 3600]] },
 };
 // "Big" moments are the ones a player would notice as progress
-const BIG = new Set(['boss', 'lord', 'land', 'rarity', 'pet', 'unlock', 'ascend', 'evolve', 'goal', 'unique', 'hoard', 'riftWin', 'landStar']);
+const BIG = new Set(['boss', 'lord', 'land', 'rarity', 'pet', 'unlock', 'ascend', 'evolve', 'goal', 'unique', 'hoard', 'riftWin', 'landStar', 'invasion']);
 
 function run(name, seed, minutes) {
   const P = PERSONAS[name];
@@ -58,6 +58,11 @@ function run(name, seed, minutes) {
   G.on('bossWin', () => Object.assign(attempts[attempts.length - 1] || {}, { res: 'win', secs: Math.round(clock.now - attempts[attempts.length - 1].t0) }));
   G.on('evolve', () => mark('evolve'));
   G.on('landStar', () => mark('landStar'));
+  const party = { downs: 0, wipes: 0, breaks: 0, invasions: 0, invWins: 0, phases: 0, heralds: 0, invLog: [] };
+  G.on('invasion', () => party.invLog.push({ d: G.depthNow(), k: +((G.D.heroDps || 0) / G.mobHp(G.depthNow())).toFixed(2) }));
+  G.on('invasionBoss', m => { party.heralds++; const l = party.invLog[party.invLog.length - 1]; if (l) { l.herald = +(G.R.inv.T - G.R.inv.t).toFixed(0); l.hp = +(m.max / Math.max(1, G.D.heroDps)).toFixed(1); } });
+  G.on('invasionEnd', (w, r) => { const l = party.invLog[party.invLog.length - 1]; if (l) { l.win = w; l.prog = Math.round(r.prog); l.boss = !!G.R.boss; } });
+  G.on('unitDown', () => party.downs++); G.on('wipe', () => { party.wipes++; mark('wipe'); }); G.on('buttonBreak', () => party.breaks++); G.on('invasion', () => party.invasions++); G.on('invasionEnd', w => { if (w) { party.invWins++; mark('invasion'); } }); G.on('bossPhase', () => party.phases++);
   let pops = 0; G.on('bomberPop', () => pops++);
   G.on('bounty', () => mark('bounty'));
   // loot on the ground, events and Rifts
@@ -168,7 +173,7 @@ function run(name, seed, minutes) {
     persona: name, seed, minutes: Math.round(total / 60), cls: s.hero.cls,
     first: Object.fromEntries(['boss', 'lord', 'perk', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'pet', 'tab_stars', 'tab_pets', 'tab_asc', 'ascend', 'break', 'hoardSeen', 'hoard', 'shrine', 'breach', 'unique', 'riftWin'].map(k => [k, first[k] != null ? +(first[k] / 60).toFixed(1) : null])),
     loot: { dropsPerMin: +(drops / (clock.now / 60)).toFixed(1), orbs, uniques, found: Object.keys(S().uq || {}).length, hoards: moments.filter(m => m[1] === 'hoard').length, hoardsSeen: moments.filter(m => m[1] === 'hoardSeen').length, shrines: moments.filter(m => m[1] === 'shrine').length, breaches: moments.filter(m => m[1] === 'breach').length },
-    stars: G.starCount(), breaks: moments.filter(m => m[1] === 'break').length, pops, uqTotal: G.UNIQUE_IDS.length,
+    party, stars: G.starCount(), breaks: moments.filter(m => m[1] === 'break').length, pops, uqTotal: G.UNIQUE_IDS.length,
     crowd: (() => { const c = crowd.slice().sort((a, b) => a - b); return { avg: Math.round(c.reduce((a, b) => a + b, 0) / (c.length || 1)), p50: c[c.length >> 1] || 0, p90: c[Math.floor(c.length * 0.9)] || 0, max: c[c.length - 1] || 0, killsPerMin: Math.round(kills / (clock.now / 60)) }; })(),
     rift: { best: riftBest, runs: riftRuns, open: S().rift.open },
     depthAt: Object.fromEntries(Object.entries(depthAt).map(([k, v]) => [k, +(v / 60).toFixed(1)])),

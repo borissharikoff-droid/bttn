@@ -669,6 +669,100 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   .clsCard img { width: 48px; } .clsCard small { display: none; }
 }
 
+/* ======================= 2.0: a compact panel, the party ======================= */
+#app { grid-template-columns: minmax(0, 1fr) clamp(300px, 26vw, 372px); }
+.res { padding: 8px 10px 7px; gap: 5px; }
+.goldLine { gap: 8px; }
+.goldLine img { width: 24px; height: 24px; }
+.goldNum { font-size: 18px; min-width: 0; }
+.rates { gap: 10px; font-size: 14px; }
+.chip { font-size: 14px; padding: 2px 6px 2px 3px; }
+.chip img { width: 16px; height: 16px; }
+.tabs { padding: 6px 8px; gap: 2px; }
+.tab { height: 32px; max-width: 38px; }
+.tab img { width: 20px; height: 20px; }
+.tabTitle { padding: 8px 10px 0; }
+.tabBody { padding: 6px 8px 14px; }
+.note { font-size: 14px; margin: 3px 3px 8px; }
+.sect { margin: 10px 3px 6px; }
+.list { gap: 4px; }
+.row { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 8px; padding: 5px 7px; }
+.row .ico { width: 36px; height: 36px; }
+.row .ico img { width: 30px; height: 30px; }
+.row .name, .row .desc { font-size: 14px; }
+.statList { font-size: 14px; gap: 2px 10px; }
+.charCard { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 7px; }
+.portrait { width: 64px; height: 60px; }
+.portrait img { width: 76px; }
+.power b { font-size: 13px; }
+.doll { grid-template-columns: repeat(4, minmax(0, 58px)); justify-content: center; gap: 8px; margin: 6px 0; }
+.dslot { padding: 3px 2px; }
+.bag { grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; }
+.gear small, .gear u { font-size: 9px; }
+.clsCard { padding: 7px 5px; }
+.clsCard img { width: 44px; height: 44px; }
+.clsCard small { font-size: 13px; line-height: 1.15; }
+.foldBtn { display: none; }
+
+/* roles */
+.r_tank { --role: #5a9cff; } .r_heal { --role: #6ee07a; } .r_dps { --role: #ff8a5a; }
+em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--role); }
+.clsCard.need { box-shadow: inset 0 0 0 2px var(--role, var(--gold)); }
+.clsCard.need em.role { color: #fff; }
+
+/* the party strip in the Party tab */
+.partyStrip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 0 0 6px; }
+.pmem { position: relative; display: grid; justify-items: center; gap: 1px; padding: 4px 2px 5px; cursor: pointer; background: var(--panel2); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line); color: var(--text); }
+.pmem img { width: 40px; height: 38px; image-rendering: pixelated; }
+.pmem small { font: 7px/1.3 var(--font-display); color: var(--role, var(--dim)); white-space: nowrap; }
+.pmem i { display: block; width: 86%; height: 3px; background: var(--ink); }
+.pmem i u { display: block; height: 100%; background: var(--good); }
+.pmem.on { background: var(--slot-hi); box-shadow: inset 0 0 0 2px var(--gold); }
+.pmem.down img { filter: grayscale(1) brightness(.6); transform: rotate(-80deg) translate(-4px, 0); }
+.pmem.add { place-content: center; font: 16px/1 var(--font-display); color: var(--gold); box-shadow: inset 0 0 0 2px var(--gold); animation: pulse 1.4s ease-in-out infinite; }
+.pmem.add small { color: var(--gold); margin-top: 6px; }
+.pmem.lock { place-content: center; cursor: default; opacity: .55; background: var(--slot); }
+.pmem.lock small { color: var(--dim); white-space: normal; text-align: center; }
+
+/* the party on the field: a chip per unit */
+.partyHud { display: flex; gap: 4px; pointer-events: auto; align-self: flex-start; }
+.pchip { position: relative; width: 38px; padding: 1px 1px 3px; display: grid; justify-items: center; gap: 1px; cursor: pointer; background: rgba(12,11,18,.78); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--role, var(--line)); }
+.pchip img { width: 30px; height: 28px; image-rendering: pixelated; }
+.pchip i { display: block; width: 100%; height: 4px; background: #2a0f16; }
+.pchip i u { display: block; height: 100%; background: var(--good); transition: width .15s linear; }
+.pchip.low i u { background: var(--hp); }
+.pchip b { position: absolute; left: 0; right: 0; top: 8px; font: 8px/1 var(--font-display); color: #fff; text-align: center; text-shadow: 1px 1px 0 var(--ink), -1px -1px 0 var(--ink); font-weight: normal; }
+.pchip.down { box-shadow: inset 0 0 0 2px #e84a4a; animation: downBlink 1s steps(2) infinite; }
+.pchip.down img { filter: grayscale(1) brightness(.45); }
+@keyframes downBlink { 50% { box-shadow: inset 0 0 0 2px #ffd84a; } }
+.pchip:active { transform: translateY(1px); }
+
+/* phones: a bigger field, and a panel that folds away */
+@media (max-width: 860px) {
+  #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(250px, 58%) minmax(0, 1fr); }
+  #app.fold { grid-template-rows: minmax(0, 1fr) auto; }
+  #app.fold .tabTitle, #app.fold .tabBody, #app.fold .subRes { display: none; }
+  .res { grid-template-columns: auto 1fr auto; }
+  .foldBtn { display: grid; grid-column: 3; grid-row: 1; width: 30px; height: 26px; font: 12px/1 var(--font-body); color: var(--gold); }
+  .res { padding: 5px 10px; gap: 3px; }
+  .goldNum { font-size: 15px; flex: none; }
+  .rates { font-size: 13px; gap: 8px; }
+  .tabs { padding: 4px 4px; }
+  .tab { height: 30px; }
+  .tab img { width: 18px; height: 18px; }
+  .meter { height: 12px; }
+  .meter > span { font-size: 7px; }
+  .hud.bottom { gap: 4px; padding: 6px; }
+  .pchip { width: 34px; }
+  .pchip img { width: 26px; height: 24px; }
+  .bag { grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); }
+  .classGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+}
+@media (max-width: 960px) and (orientation: landscape) and (max-height: 520px) {
+  #app, #app.fold { grid-template-columns: minmax(0, 1fr) minmax(260px, 40%); grid-template-rows: 100%; }
+  .foldBtn { display: none; }
+}
+
 </style>
 </head>
 <body>
@@ -689,6 +783,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     <div id="banner" hidden></div>
     <div class="hud bottom">
       <div class="buffs" id="buffs"></div>
+      <div class="partyHud" id="partyHud" hidden></div>
       <div class="bossRow" id="bossRow" hidden>
         <div class="meter boss" id="bossWrap"><i id="bossMeter"></i><span id="bossText"></span></div>
         <button class="btn fight" id="btnFight" hidden>⚔</button>
@@ -709,6 +804,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     <header class="res">
       <div class="goldLine"><img id="goldIco" alt=""><span class="goldNum" id="goldNum">0</span></div>
       <div class="rates"><span><b id="gpsNum">0</b> <span data-i18n="perSec"></span></span><span><b id="clickNum">1</b> <span data-i18n="perClick"></span></span></div>
+      <button class="iconBtn foldBtn" id="btnFold" aria-label="Fold the panel">▾</button>
       <div class="subRes">
         <span class="chip ess" id="essChip" hidden><img id="essIco" alt=""><b id="essNum">0</b></span>
         <span class="chip egg" id="eggChip" hidden><img id="eggIco" alt=""><b id="eggNum">0</b></span>
@@ -1250,7 +1346,31 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       zones: ['Cloud Steps', 'The Gilded Gate', 'The Choir Halls', 'The Throne Bridge', 'The Hand\u2019s Palace'],
       mobs: { runner: 'Cherub', spitter: 'Sun Lance', bomber: 'Halo Bomb', tank: 'Throne Guard' },
       rule: 'Thin Air', ruleDesc: 'Champions and rares come twice as often, loot +40%', champ: 2, rare: 2, loot: 1.4 },
+    // Past the sky: the Moon and the sea of stars, depths 66 to 75
+    { id: 'moon',      name: 'The Moon', minion: 'b_selenite', lord: 'l_selenite', fodder: 'f_selenite', outer: 1,
+      minionName: 'Selenite Golem', lordName: 'The Selenite King',
+      zones: ['The Sea of Tranquility', 'Crater Fields', 'The Dark Side', 'Moonstone Mines', 'The Lunar Throne'],
+      mobs: { runner: 'Moon Hopper', spitter: 'Crater Spitter', bomber: 'Meteor Mite', tank: 'Moonstone Hulk' },
+      rule: 'Low Gravity', ruleDesc: 'The Horde floats in 30% slower but twice as thick', slow: 0.7, thick: 2 },
+    { id: 'cosmos',    name: 'The Star Sea', minion: 'b_voidwalker', lord: 'l_voidwalker', fodder: 'f_starling', outer: 1,
+      minionName: 'Voidwalker', lordName: 'The Star Eater',
+      zones: ['The Nebula Shore', 'Asteroid Drift', 'The Dead Satellite', 'The Event Horizon', 'The Star Eater\u2019s Maw'],
+      mobs: { runner: 'Comet', spitter: 'Quasar Eye', bomber: 'Supernova', tank: 'Dwarf Star' },
+      rule: 'Supernova', ruleDesc: 'Bombers come three times as often, loot +50%', bomb: 3, loot: 1.5 },
   ];
+  // Invasions: now and then another world pours into the arena for a minute and a bit.
+  // Hold it off and its herald comes; slay the herald for a big haul.
+  G.INVASIONS = [
+    { id: 'moon',   name: 'LUNAR INVASION',    sub: 'The Moon sends its children down', col: '#c8d6ff', tint: '#1a2a6a', tintA: 0.28, sky: 'sky_moon',
+      swarm: 'v_moonling', elite: 'v_lunar', boss: 'v_moonqueen', bossName: 'The Moon Queen' },
+    { id: 'cosmic', name: 'COSMIC INVASION',   sub: 'Something came from past the stars', col: '#7fff9a', tint: '#050818', tintA: 0.36, sky: 'sky_planet',
+      swarm: 'v_grey', elite: 'v_saucer', boss: 'v_mothership', bossName: 'The Mothership' },
+    { id: 'heaven', name: 'HEAVENLY CRUSADE',  sub: 'The sky opens and it is not friendly', col: '#ffe27a', tint: '#fff3c0', tintA: 0.22, sky: 'sky_sun',
+      swarm: 'v_putto', elite: 'v_archon', boss: 'v_seraphim', bossName: 'The Seraphim' },
+    { id: 'deep',   name: 'ABYSSAL TIDE',      sub: 'The ground floods with the deep', col: '#4fe0c8', tint: '#062a2a', tintA: 0.3, sky: 'sky_eye',
+      swarm: 'v_squidling', elite: 'v_deepone', boss: 'v_leviathan', bossName: 'The Leviathan' },
+  ];
+  G.INV_BY_ID = {}; G.INVASIONS.forEach(v => G.INV_BY_ID[v.id] = v);
   // The Horde changes as you go deeper into a land: each zone brings a new kind of mob.
   // Per zone (0-4), the share of packs led by each kind; fodder swarms fill the rest.
   G.ARCHETYPES = {
@@ -1352,7 +1472,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     anon: 'Nameless hero', you: 'you', unverified: 'failed the check', hiddenBad: 'Entries hidden for failing the check: {0}', yourRank: 'You are {0} of {1}',
     cloudTitle: 'Cloud save', cloudText: 'The cloud has a save from {0}, newer than this browser. Load it? Current progress here will be replaced.',
     cloudLoad: 'Load', cloudKeep: 'Keep current',
-    tab_hero: 'Character', clearMeter: 'Clear {0}/{1}', buttonHp: 'Button {0}/{1}', overload: 'BUTTON OVERLOADED', overloadHint: 'Mobs broke the Button. Get better armour or enchant it.',
+    tab_hero: 'Party', clearMeter: 'Clear {0}/{1}', buttonHp: 'Button {0}/{1}', overload: 'BUTTON OVERLOADED', overloadHint: 'Mobs broke the Button. Get better armour or enchant it.',
     levelUp: 'Level {0}!', q_kills: 'Slay {0} mobs', pickClass: 'Choose your Warden', pickClassHint: 'Your Warden holds the line against the Horde and wears 4 items: weapon, ability, armour and ring. Their own weapon type deals +50% damage.',
     namePh: 'Warden name', power: 'Power', slot_weapon: 'Weapon', slot_ability: 'Ability', slot_armor: 'Armour', slot_ring: 'Ring',
     bag: 'Bag', shards: 'shards', autoEquip: 'Equip upgrades automatically', autoCast: 'Cast the ability automatically', autoSalv: 'Scrap below', off: 'Off',
@@ -1447,6 +1567,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     rivalAhead: '#{0} of {1} · {2} is {3} ahead', rivalTop: '#1 of {0} · defend it', rivalDepths: '{0} depths', rivalDepth1: '1 depth',
     myHidden: 'Your entry is hidden from the others because it failed a check: {0}. Tell whoever runs the game.', inspectVs: 'vs yours',
     sk_25: 'KILLING SPREE', sk_50: 'RAMPAGE', sk_100: 'MASSACRE', sk_200: 'CARNAGE', sk_400: 'ANNIHILATION', sk_800: 'APOCALYPSE',
+    downed: 'DOWN!', backUp: 'BACK UP!', buttonFixed: 'BUTTON MENDED', joined: '{0} JOINS THE PARTY', role_tank: 'Tank: draws the bites', role_heal: 'Healer: mends the party and the Button', role_dps: 'Damage', recruit: 'Recruit', recruitAt: 'Depth {0}', recruitTitle: 'Recruit a companion', recruitHint: 'Companions stand by the Button and fight on their own. They share your bag: equip them from here. Tanks draw the bites, healers mend everyone, the rest deal damage.', recruitNeed: 'your party lacks one', slotOpen: 'A PARTY SLOT OPENS', slotOpenSub: 'Recruit a companion in the Party tab', partyHint: 'Your party: tap a fallen ally to raise them sooner.', wardenName: 'Warden', roleTitleMem: 'What they do', roleHint_tank: 'Stands in front: the Horde and the bosses bite them instead of the Button, and they shrug off 30% of it. Give them your best armour.', roleHint_heal: 'Mends the most hurt of the party and the Button, over and over; while they stand, the fallen get up three times faster. Hits softly.', roleHint_dps: 'Fights beside the Warden and thins the Horde. Give them a good weapon of their kind.',
+    wipeTitle: 'THE HORDE BROKE THROUGH', wipeBack: 'Pushed back to depth {0}', wipeBar: 'The clear bar is lost', wipeRift: 'The Rift collapses',
+    phaseN: 'PHASE {0}', phaseSub: 'It hits the whole party now', phaseRage: 'ENRAGED', btnBroken: 'BROKEN!', btnBrokenCard: 'THE BUTTON BROKE', btnBrokenSub: 'Hold for {0}s: if the whole party falls, the Horde breaks through',
+    heraldSub: 'The herald: slay it for a big haul', invWon: 'INVASION REPELLED', invLost: 'THE INVASION WITHDRAWS', tapRevive: 'TAP', invName: '{0} · {1}/{2} · {3}s', invHerald: '{0} · {1}s',
     sk_3000: 'EXTINCTION', sk_6000: 'CATACLYSM', sk_10000: 'GODLIKE',
     waveN: 'WAVE {0}/3', waveSub: 'Champions lead the rush', zoneCard: 'ZONE {0}/5 · {1}', zoneLord: 'THE LORD AWAITS', newKind: 'NEW: {0}',
     landStar: 'LAND STAR · {0}', star_1: 'Conquered: slew the lord', star_2: 'Slaughter: {0} of its Horde slain', star_4: 'Swift: slay the lord within {0}s on a fresh try (not after it escaped)',
@@ -1514,7 +1638,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1, filter: 1 },
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
-      uq: {}, feed: [], rift: newRift(), lands: {},
+      uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -1676,6 +1800,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (mt.length >= TUNE.maxManualCps) return null;
     mt.push(now);
 
+    // a broken Button gives nothing: no gold, no lightning, until it mends
+    if (R.btnDown > 0) { emit('clickDead'); return null; }
     S.clicks++; S.clicksRun++;
     R.combo = Math.min(D.comboCap, R.combo + 1);
     R.comboT = TUNE.comboTime;
@@ -1945,13 +2071,18 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     slam:   { col: '#ff3b3b', name: 'SLAM', wind: 1.4, need: 5 },
     summon: { col: '#b36bff', name: 'SUMMON', wind: 1.6, need: 6 },
     shield: { col: '#4fa8ff', name: 'SHIELD', wind: 3, need: 8 },
+    barrage: { col: '#ffb347', name: 'BARRAGE', wind: 1.2, need: 4 },
   };
-  const MOVE_ORDER = { lord: ['slam', 'summon', 'shield'], boss: ['slam', 'slam', 'summon'] };
+  // later phases bring the barrage, a volley at the heroes themselves
+  const MOVE_ORDER = {
+    lord: [['slam', 'summon', 'shield'], ['slam', 'barrage', 'summon', 'shield', 'barrage'], ['barrage', 'slam', 'barrage', 'summon', 'shield']],
+    boss: [['slam', 'slam', 'summon'], ['slam', 'barrage', 'summon', 'barrage']],
+  };
   function bossMoves(b, dt) {
     if (b.stagger > 0) b.stagger -= dt;
     if (!b.move) {
       if ((b.moveT -= dt) > 0) return;
-      const order = MOVE_ORDER[b.lord ? 'lord' : 'boss'];
+      const set = MOVE_ORDER[b.lord ? 'lord' : 'boss'], order = set[Math.min(set.length, b.phase || 1) - 1];
       const k = order[(b.moveN = (b.moveN || 0) + 1) % order.length];
       b.move = { k, t: G.BOSS_MOVES[k].wind, T: G.BOSS_MOVES[k].wind, n: 0, need: G.BOSS_MOVES[k].need };
       emit('bossMove', b);
@@ -1960,8 +2091,17 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if ((b.move.t -= dt) > 0) return;
     // the move lands
     const k = b.move.k;
-    b.move = null; b.moveT = b.lord ? 5 : 7;
-    if (k === 'slam' && G.hurtButton) G.hurtButton(G.mobAtk(b.d) * (b.lord ? 7 : 5) * (b.rage ? 1.5 : 1));
+    b.move = null; b.moveT = (b.lord ? 5 : 7) / (1 + 0.3 * ((b.phase || 1) - 1));
+    if (k === 'barrage' && G.partyUnits) {
+      const a = G.mobAtk(b.d) * (b.rage ? 1.5 : 1);
+      for (let i = 0; i < 3 && R.boss === b; i++) { const up = G.partyUnits().filter(u => !(u.down > 0)); const v = up.length && chance(0.75) ? up[Math.floor(G.rng() * up.length)].who : 'button'; G.hurtParty(v, a * 2.2, 'barrage'); emit('barrageHit', b, v, i); }
+    }
+    // a slam lands on everyone: the Button and each hero standing
+    if (k === 'slam' && G.hurtButton) {
+      const a = G.mobAtk(b.d) * (b.rage ? 1.5 : 1);
+      G.hurtButton(a * (b.lord ? 5 : 3.5));
+      if (G.partyUnits) for (const u of G.partyUnits()) if (!(u.down > 0)) G.hurtParty(u.who, a * (b.lord ? 3 : 2), 'slam');
+    }
     if (k === 'summon' && G.spawnPack) { G.spawnPack(true); G.spawnPack(true); }
     emit('bossMoveLand', b, k);
   }
@@ -1976,7 +2116,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   }
   function startBoss() {
     const S = G.S;
-    if (R.boss || R.rift || !R.bossReady) return false;
+    // an invasion is fought out first
+    if (R.boss || R.rift || !R.bossReady || R.inv) return false;
     const d = S.depth;
     const lord = isLord(d);
     const max = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
@@ -1987,7 +2128,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const rally = (S.scar && S.scar.d === d ? (lord ? 0.2 : 0.15) * Math.min(5, S.scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
-    R.boss = { d, lord, hp, max, scar, rally, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
+    R.boss = { d, lord, hp, max, scar, rally, phase: 1, inv: 0, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
     R.bossReady = false; R.bossIn = null;
     emit('bossStart', R.boss);
@@ -2004,17 +2145,31 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   }
   G.bossOdds = bossOdds;
 
+  // Phases: a lord changes at 66% and 33% of its health, a boss at 50%. It shrugs off
+  // everything for a moment, throws the Horde back, hits the whole party and fights harder.
+  function phaseAt(b) { return b.lord ? (b.hp < b.max * 0.33 ? 3 : b.hp < b.max * 0.66 ? 2 : 1) : (b.hp < b.max * 0.5 ? 2 : 1); }
   function hitBoss(dmg) {
     const b = R.boss;
     if (!b || b.dead) return;
+    if (b.inv > 0) return;
     // a shield soaks most of it; a staggered boss takes half again
     if (b.move && b.move.k === 'shield') dmg *= 0.3;
     else if (b.stagger > 0) dmg *= 1.5;
     if (b.rally) dmg *= 1 + b.rally;
     b.hp -= dmg;
     if (b.hp <= 0) bossWin();
-    // lords enrage when they're nearly done: twice the adds, harder bites
-    else if (b.lord && !b.rage && b.hp < b.max * 0.3) { b.rage = 1; emit('bossRage', b); }
+    else if (phaseAt(b) > b.phase) {
+      // one phase at a time: a huge hit stops at the next phase's floor
+      const fl = (b.lord ? [0.66, 0.33, 0] : [0.5, 0])[b.phase] || 0;
+      if (fl > 0) b.hp = Math.max(b.hp, fl * b.max + 1);
+      b.phase++; b.inv = 1.6; b.move = null; b.moveT = 1.5;
+      // the last phase of a lord is its rage: twice the adds, harder bites
+      if (b.lord && b.phase === 3) { b.rage = 1; emit('bossRage', b); }
+      for (const m of R.mobs) m.p = Math.max(-0.1, m.p - 0.3);
+      const a = G.mobAtk(b.d);
+      emit('bossPhase', b);
+      if (G.partyUnits) for (const u of G.partyUnits()) if (!(u.down > 0) && R.boss === b) G.hurtParty(u.who, a * 1.5, 'phase');
+    }
   }
   G.hitBoss = hitBoss;
 
@@ -2041,7 +2196,11 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     S.scar = null; S.rested = 0;
     S.depth++;
     if (S.depth > S.maxDepth) S.maxDepth = S.depth;
-    if (S.depth > S.bestDepth) S.bestDepth = S.depth;
+    if (S.depth > S.bestDepth) {
+      S.bestDepth = S.depth;
+      const slot = G.PARTY_AT ? G.PARTY_AT.indexOf(S.bestDepth) : -1;
+      if (slot >= 0) emit('slotOpen', slot);
+    }
     S.bossMeter = 0;
     R.boss = null;
     R.dirty = true;
@@ -2419,6 +2578,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       const b = R.boss;
       if (R.boss) {
         b.t -= dt;
+        if (b.inv > 0) { b.inv -= dt; b.t += dt; } // the clock holds while it changes
         if (b.t <= 0) bossFail();
         else bossMoves(b, dt);
       }
@@ -2427,7 +2587,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       // Bosses come on their own: after a short countdown when the Warden can take it, or after a
       // longer wait when it can't yet (Rally builds with each try; The Hunt shortens the wait).
       // ⚔ calls it right away.
-      if (S.set.autoBoss) {
+      // (an invasion is fought out first)
+      if (S.set.autoBoss && !R.inv) {
         R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
         const wait = bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
         if (R.bossIn <= -wait) startBoss();
@@ -2506,13 +2667,15 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (!S.lands || typeof S.lands !== 'object') S.lands = {};
     // saves from before 1.1: past depth 40 the lands changed, so crown times there belong to other lords now
     if (!('lands' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 40) delete S.rec.crowns[k];
+    // saves from before 2.0: depths 65-74 were corrupted lands then, the Moon and the Star Sea now
+    if (!('party' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 65) delete S.rec.crowns[k];
     if (!Array.isArray(S.feed)) S.feed = [];
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
     G.S = S;
     if (G.ensureHero) G.ensureHero(S);
     if (R.mobs) R.mobs.length = 0; if (R.shots) R.shots.length = 0;
-    R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null; R.wave = null;
+    R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null; R.wave = null; R.btnDown = 0;
     if (G.worldClear) G.worldClear();
     // saves from before 1.0: the Journey gained 11 steps in between the old ones
     if (!('uq' in data) && G.Journey && G.Journey.fromV0) S.journey = G.Journey.fromV0(S.journey || 0);
@@ -2538,6 +2701,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
     // the arena is never empty: lots of small bodies, capped for the frame rate
     mobMax: 600, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
+    // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
+    // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
+    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.07, pulseEvery: 6, smallHp: 2.2,
   });
 
   // ---------- Content ----------
@@ -2592,7 +2758,12 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       name: 'Wizard', desc: 'Staves and wands. Attacks 15% faster.' },
     { id: 'rogue', spr: 'h_rogue', weapons: ['dagger'], starter: 'rusty_dagger', hp: 1, crit: 0.1, extra: 0,
       name: 'Rogue', desc: 'Daggers. +10% crit chance.' },
+    { id: 'cleric', spr: 'h_priest', weapons: ['staff', 'wand'], starter: 'oak_wand', hp: 1.1, crit: 0, extra: 0,
+      name: 'Cleric', desc: 'Staves and wands. Heals the party and the Button, and raises the fallen faster. Hits softly.' },
   ];
+  // What each class does in the party: tanks draw the bites, healers mend, the rest deal damage
+  G.ROLES = { knight: 'tank', cleric: 'heal', archer: 'dps', wizard: 'dps', rogue: 'dps' };
+  G.ROLE_NAMES = { tank: 'Tank', heal: 'Healer', dps: 'Damage' };
   G.CLASS_BY_ID = {}; G.CLASSES.forEach(c => G.CLASS_BY_ID[c.id] = c);
   G.AFFIXES = {
     dmg:   { v: [0.04, 0.10], name: 'Damage' },
@@ -2707,7 +2878,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   function newHero() {
     return { cls: null, lvl: 1, xp: 0, eq: { weapon: null, ability: null, armor: null, ring: null }, bag: [], gu: 0,
       shards: 0, hp: TUNE.baseHp, auto: 1, salv: 1, cast: 1, kills: 0, elites: 0, fresh: 0,
-      perks: {}, perkPts: 0, offer: null, offerT: 0, autoPerk: 1, orbs: {} };
+      perks: {}, perkPts: 0, offer: null, offerT: 0, autoPerk: 1, orbs: {}, whp: TUNE.baseHp, wdown: 0 };
   }
   G.newHero = newHero;
   function ensureHero(S) {
@@ -2718,8 +2889,102 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (!S.profile) S.profile = { id: Math.random().toString(36).slice(2, 10), name: '' };
     S.rec = Object.assign({ maxPower: 0, maxLevel: 1, madTime: 0, runStart: Date.now() }, S.rec || {});
     S.rec.evos = S.rec.evos || {};
+    // companions: up to three more heroes with their own gear
+    S.party = (Array.isArray(S.party) ? S.party : []).filter(m => m && G.CLASS_BY_ID[m.cls]).slice(0, 3)
+      .map(m => Object.assign({ hp: TUNE.baseHp, down: 0, acc: 0 }, m, { eq: Object.assign({ weapon: null, ability: null, armor: null, ring: null }, m.eq || {}) }));
   }
   G.ensureHero = ensureHero;
+
+  // ---------- The party ----------
+  // The Warden leads; companions join as you go deeper (after the Crab King, at depth 12 and at depth 20).
+  G.PARTY_AT = [5, 12, 20];
+  G.partySlots = () => G.PARTY_AT.filter(d => (G.S.bestDepth || 0) >= d).length;
+  G.recruit = function (cls) {
+    const S = G.S, C = G.CLASS_BY_ID[cls];
+    if (!C || S.party.length >= G.partySlots()) return false;
+    const m = { cls, eq: { weapon: null, ability: null, armor: null, ring: null }, hp: TUNE.baseHp, down: 0, acc: 0 };
+    m.eq.weapon = makeGear(C.starter, Math.max(0, G.S.depth - 1));
+    S.party.push(m);
+    G.dirty(); G.recalc();
+    m.hp = (G.D.party[S.party.length - 1] || {}).hp || TUNE.baseHp;
+    emit('recruit', m, S.party.length - 1);
+    return true;
+  };
+  // Everyone on the field, the Warden first: {who: -1 for the Warden or the companion's index, cls, role, hp, max, down}
+  G.partyUnits = function () {
+    const S = G.S, h = S.hero, D = G.D, out = [];
+    if (!h || !h.cls) return out;
+    out.push({ who: -1, cls: h.cls, eq: h.eq, role: G.ROLES[h.cls], hp: h.whp, max: D.wardenHp || TUNE.baseHp, down: h.wdown });
+    S.party.forEach((m, i) => out.push({ who: i, cls: m.cls, eq: m.eq, role: G.ROLES[m.cls], hp: m.hp, max: (D.party && D.party[i] ? D.party[i].hp : TUNE.baseHp), down: m.down }));
+    return out;
+  };
+  const unitGet = who => (who < 0 ? G.S.hero : G.S.party[who]);
+  const unitHp = (who, v) => { const u = unitGet(who); if (!u) return 0; if (v !== undefined) { if (who < 0) u.whp = v; else u.hp = v; } return who < 0 ? u.whp : u.hp; };
+  const unitDown = (who, v) => { const u = unitGet(who); if (!u) return 0; if (v !== undefined) { if (who < 0) u.wdown = v; else u.down = v; } return who < 0 ? u.wdown : u.down; };
+  const unitMax = who => (who < 0 ? G.D.wardenHp : (G.D.party[who] || {}).hp) || TUNE.baseHp;
+  const alive = () => G.partyUnits().filter(u => !(u.down > 0));
+  G.partyAlive = () => alive().length;
+  // Who a mob or a boss hits: a standing tank draws it, else the Button or anyone standing
+  // who a bite lands on: a standing tank draws most of them, the Button takes most of the rest
+  function victim() {
+    const up = alive(), btn = !(R.btnDown > 0);
+    const tank = up.find(u => u.role === 'tank');
+    if (tank && chance(btn ? 0.6 : 0.85)) return tank.who;
+    if (!up.length) return btn ? 'button' : null;
+    if (btn && chance(0.65)) return 'button';
+    return up[Math.floor(G.rng() * up.length)].who;
+  }
+  function hurtUnit(who, dmg, src) {
+    if (unitDown(who) > 0) return;
+    const role = G.ROLES[who < 0 ? G.S.hero.cls : G.S.party[who].cls];
+    if (role === 'tank') dmg *= 0.7;
+    const hp = unitHp(who, unitHp(who) - dmg);
+    emit('unitHurt', who, dmg, src);
+    if (hp <= 0) {
+      unitHp(who, 0);
+      unitDown(who, TUNE.reviveTime);
+      emit('unitDown', who);
+      checkWipe();
+    }
+  }
+  // the fight goes to the victim: a party member or the Button
+  function hitParty(v, dmg, src) { if (v === 'button') hurtButton(dmg); else if (v != null) hurtUnit(v, dmg, src); else checkWipe(); }
+  G.hurtParty = hitParty;
+  function reviveUnit(who, frac) {
+    unitDown(who, 0); unitHp(who, unitMax(who) * (frac || 0.4));
+    emit('unitRevive', who);
+  }
+  // The Hand can lift a fallen hero: each tap takes 4 seconds off the wait
+  G.reviveTap = function (who) {
+    if (!(unitDown(who) > 0)) return false;
+    const left = unitDown(who, unitDown(who) - TUNE.reviveTap);
+    emit('reviveTap', who, left);
+    if (left <= 0) reviveUnit(who, 0.5);
+    return true;
+  };
+  // Everyone down and the Button broken: the Horde breaks through
+  function checkWipe() {
+    if (R.btnDown > 0 && !alive().length) wipe();
+  }
+  function wipe() {
+    const S = G.S, h = S.hero;
+    S.st.wipes = (S.st.wipes || 0) + 1;
+    for (const m of R.mobs) emit('mobFlee', m);
+    R.mobs.length = 0; if (R.shots) R.shots.length = 0;
+    if (R.boss) G.fleeBoss();
+    const inRift = !!R.rift;
+    if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
+    const from = S.depth;
+    // pushed back: the clear bar is lost and, past the first depth, a depth with it
+    if (!inRift) { S.bossMeter = 0; if (S.depth > 0) S.depth--; R.bossReady = false; }
+    if (R.ground) R.ground.length = 0;
+    R.btnDown = 0; h.hp = G.D.heroHp;
+    for (const u of G.partyUnits()) reviveUnit(u.who, 1);
+    R.stun = 4; // the party regroups
+    G.dirty(); G.recalc();
+    emit('wipe', from, S.depth, inRift);
+  }
+  G.wipe = wipe;
 
   const R = G.R;
   ensureHero(G.S);
@@ -2801,12 +3066,19 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   }
   G.heroCombat = combat;
 
-  function powerWith(slot, g) {
-    const eq = Object.assign({}, G.S.hero.eq);
+  function powerWith(slot, g, who) {
+    const m = who != null && who >= 0 ? G.S.party[who] : null;
+    const eq = Object.assign({}, m ? m.eq : G.S.hero.eq);
     eq[slot] = g;
-    return combat(eq, G.D).power;
+    return combat(eq, G.D, m ? { cls: m.cls, lvl: G.S.hero.lvl } : undefined).power;
   }
   G.powerWith = powerWith;
+  // Whose gear set this is: the Warden's (who < 0) or a companion's
+  const eqOf = who => (who != null && who >= 0 && G.S.party[who] ? G.S.party[who].eq : G.S.hero.eq);
+  G.eqOf = eqOf;
+  // Everything anyone in the party wears
+  function worn(g) { if (G.SLOTS.some(s => G.S.hero.eq[s] === g)) return true; return (G.S.party || []).some(m => G.SLOTS.some(s => m.eq[s] === g)); }
+  G.isWorn = worn;
 
   function gainGear(it, srcTier, pre) {
     const S = G.S, h = S.hero;
@@ -2818,6 +3090,13 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (h.auto && h.cls) {
       const cur = h.eq[slot];
       if (!cur || powerWith(slot, g) > powerWith(slot, cur)) { equip(g, true); equipped = true; }
+      // what the Warden doesn't want may suit a companion (weapons only for their own class)
+      else (S.party || []).some((m, i) => {
+        if (slot === 'weapon' && !G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id])) return false;
+        const c2 = m.eq[slot];
+        if (!c2 || powerWith(slot, g, i) > powerWith(slot, c2, i)) { equip(g, true, i); equipped = true; return true; }
+        return false;
+      });
     }
     if (!equipped) {
       if (h.salv && g.r < h.salv && !g.q) { salvage(g, true); return g; }
@@ -2834,22 +3113,24 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   }
   G.gainGear = gainGear;
 
-  function equip(g, silent) {
-    const h = G.S.hero, slot = G.slotOf(g.id);
-    const old = h.eq[slot];
+  function equip(g, silent, who) {
+    const h = G.S.hero, slot = G.slotOf(g.id), eq = eqOf(who);
+    // taking it off whoever wore it before
+    for (const e of [h.eq].concat((G.S.party || []).map(m => m.eq))) if (e !== eq && e[slot] === g) { e[slot] = null; }
+    const old = eq[slot];
     const i = h.bag.indexOf(g);
     if (i >= 0) h.bag.splice(i, 1);
-    h.eq[slot] = g;
-    if (old) h.bag.push(old);
+    eq[slot] = g;
+    if (old && old !== g) h.bag.push(old);
     G.dirty(); G.recalc();
     if (!silent) emit('equip', g);
     return true;
   }
   G.equip = equip;
-  function unequip(slot) {
-    const h = G.S.hero, g = h.eq[slot];
+  function unequip(slot, who) {
+    const h = G.S.hero, eq = eqOf(who), g = eq[slot];
     if (!g) return false;
-    h.eq[slot] = null; h.bag.push(g);
+    eq[slot] = null; h.bag.push(g);
     G.dirty(); G.recalc(); emit('equip', null);
     return true;
   }
@@ -2861,7 +3142,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const h = G.S.hero;
     const i = h.bag.indexOf(g);
     if (i >= 0) h.bag.splice(i, 1);
-    for (const s of G.SLOTS) if (h.eq[s] === g) return 0; // never scrap what you wear
+    if (worn(g)) return 0; // never scrap what anyone wears
     const v = salvageValue(g);
     h.shards += v;
     if (!silent) emit('salvage', g, v);
@@ -2936,7 +3217,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     for (const g of h.bag) if (G.slotOf(g.id) === 'weapon') { const p = powerWith('weapon', g); if (p > bp) { bp = p; best = g; } }
     if (best && best !== h.eq.weapon) equip(best, true);
     G.dirty(); G.recalc();
-    h.hp = G.D.heroHp;
+    h.hp = G.D.heroHp; h.whp = G.D.wardenHp; h.wdown = 0;
     emit('classChosen', cls);
     return true;
   }
@@ -2971,6 +3252,21 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     d.heroHp = c.hp * (1 + 0.2 * perk('bulwark')) * (evo('bastion') ? 2 : 1);
     d.heroDps = c.dps * buffDmg * might * frenzy;
     d.power = c.power;
+    // the Warden's own health, apart from the Button's
+    d.wardenHp = c.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (G.ROLES[h.cls] === 'tank' ? 1.5 : 1);
+    // companions fight with their own gear and the same run bonuses
+    d.party = (S.party || []).map(m => {
+      const pc = combat(m.eq, d, { cls: m.cls, lvl: h.lvl }), role = G.ROLES[m.cls];
+      // companions back the Warden up: their hits count for less, a cleric's least of all
+      const soft = TUNE.allyDmg * (role === 'heal' ? 0.5 : 1);
+      const o = { c: pc, role, hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy, hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) };
+      o.dps = pc.dps * buffDmg * might * frenzy * soft;
+      if (m.hp > o.hp) m.hp = o.hp;
+      return o;
+    });
+    d.wardenDps = d.heroDps;
+    for (const p of d.party) d.heroDps += p.dps;
+    if (h.whp > d.wardenHp) h.whp = d.wardenHp;
     if (h.hp > d.heroHp) h.hp = d.heroHp;
     if (c.power > S.rec.maxPower) S.rec.maxPower = c.power;
   };
@@ -3033,7 +3329,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
     const w = K.w * (add ? 1 : Math.max(1, (R.hs || 1) / 1.5));
-    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1);
+    // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
+    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1);
     const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
@@ -3042,6 +3339,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     }
     if (kind === 'brute' && land().stone) m.stone = 1;
     if (R.breach && R.breach.t > 0 && !add && kind !== 'guardian' && kind !== 'hoard') m.br = 1;
+    // an invasion's mobs wear its colours and count toward holding it off
+    if (R.inv && !add && kind !== 'hoard') m.inv = R.inv.k;
     R.mobs.push(m);
     emit('mobSpawn', m);
     return m;
@@ -3092,7 +3391,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   // reach limits how far from the Button the hero can strike.
   function targets(n, reach) {
     const minP = reach ? (1 - reach) / 0.88 : -1;
-    const list = R.mobs.filter(m => m.p >= minP && !m.gone).sort((a, b) => b.p + (b.kind === 'hoard' ? 1 : 0) - a.p - (a.kind === 'hoard' ? 1 : 0));
+    // Hoarders first, then heralds and Rift guardians, then whoever is closest
+    const pri = m => m.p + (m.kind === 'hoard' ? 1 : m.kind === 'guardian' ? 0.6 : 0);
+    const list = R.mobs.filter(m => m.p >= minP && !m.gone).sort((a, b) => pri(b) - pri(a));
     const fi = R.focus ? list.findIndex(m => m.id === R.focus) : -1;
     if (fi > 0) list.unshift(list.splice(fi, 1)[0]);
     else if (fi < 0 && !R.mobs.some(m => m.id === R.focus && !m.dead)) R.focus = null;
@@ -3178,6 +3479,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const boom = uq('hellstring') && (src === 'auto' || src === 'chain') ? 0.6 : uq('ashbringer') && src === 'auto' ? 0.5 : uq('pincer') && m.crit ? 0.5 : L.boom && !m.add && chance(L.boom) ? 0.8 : 0;
     if (boom && (R.boomD || 0) < 3) blast(m, boom);
     if (R.rift && G.riftKill) G.riftKill(m);
+    if (m.inv && G.invasionKill) G.invasionKill(m);
   }
   function spores(m, n) { for (let k = 0; k < n && R.mobs.length < TUNE.mobMax; k++) makeMob('fodder', m.a + rand(-0.04, 0.04), m.p - rand(0, 0.08), m.add); }
   function bomb(m) {
@@ -3313,24 +3615,78 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   G.heroVolley = attack;
 
   G.hurtButton = d => hurtButton(d);
+  // The party's clock: the fallen get up, the cleric mends, companions fight, the Button pulses
+  function partyTick(dt, regen) {
+    const S = G.S, D = G.D, h = S.hero;
+    const units = G.partyUnits();
+    const cleric = units.some(u => u.role === 'heal' && !(u.down > 0));
+    for (const u of units) {
+      if (u.down > 0) { const left = unitDown(u.who, u.down - dt * (cleric ? 3 : 1)); if (left <= 0) reviveUnit(u.who, 0.4); }
+      else unitHp(u.who, Math.min(u.max, u.hp + u.max * regen * dt));
+    }
+    // a broken Button mends on its own
+    if (R.btnDown > 0 && (R.btnDown -= dt) <= 0) { R.btnDown = 0; h.hp = D.heroHp * 0.5; emit('buttonFixed'); }
+    // clerics heal whoever is worst off, the Button included
+    S.party.forEach((m, i) => {
+      if (m.down > 0) return;
+      const P = D.party[i];
+      if (!P) return;
+      if (P.role === 'heal' && (m.healT = (m.healT || 0) - dt) <= 0) {
+        m.healT = TUNE.healEvery;
+        let best = null, bk = 0.98;
+        for (const u of G.partyUnits()) if (!(u.down > 0) && u.hp / u.max < bk) { bk = u.hp / u.max; best = u.who; }
+        if (!(R.btnDown > 0) && h.hp / D.heroHp < bk) { bk = h.hp / D.heroHp; best = 'button'; }
+        if (best === 'button') { h.hp = Math.min(D.heroHp, h.hp + D.heroHp * TUNE.healPct * 1.5); emit('heal', i, 'button'); }
+        else if (best != null) { unitHp(best, Math.min(unitMax(best), unitHp(best) + unitMax(best) * TUNE.healPct * (1 + 0.1 * Math.min(10, h.lvl / 5)))); emit('heal', i, best); }
+      }
+      // companions attack on their own
+      m.acc = (m.acc || 0) + dt * P.rate;
+      let guard = 0;
+      while (m.acc >= 1 && guard++ < 8) { if (!allyAttack(i, P)) { m.acc = 1; break; } m.acc -= 1; }
+    });
+    // the Button fights back: a shockwave now and then around it
+    if (!(R.btnDown > 0) && (R.pulseT = (R.pulseT == null ? TUNE.pulseEvery : R.pulseT) - dt) <= 0) {
+      R.pulseT = TUNE.pulseEvery;
+      const near = R.mobs.filter(m => !m.dead && 1 - 0.88 * m.p < 0.3);
+      if (near.length || R.boss) {
+        emit('buttonPulse');
+        const dmg = (D.heroHit || 1) * 2;
+        for (const m of near) dealHit(m, dmg, 'pulse', false);
+        if (R.boss) G.hitBoss(dmg * 0.5);
+      }
+    }
+  }
+  // One swing of a companion's weapon
+  function allyAttack(i, P) {
+    const wt = P.c.wt, reach = Math.min(1, wt.reach * (1 + 0.2 * perk('reach')));
+    const ts = targets(P.c.targets + perk('multi'), reach);
+    if (!R.boss && !ts.length) return false;
+    const crit = chance(P.c.crit);
+    const dmg = P.hit * (crit ? P.c.critMult : 1);
+    if (R.boss) G.hitBoss(dmg * G.D.bossMult);
+    if (!ts.length) { emit('allyAttack', { i, boss: true, crit, dmg }); return true; }
+    const splash = around(ts, wt.aoe * (1 + 0.3 * perk('cleave')));
+    emit('allyAttack', { i, ids: ts.map(m => m.id), splash: splash.map(m => m.id), aoe: wt.aoe, crit, dmg, wt: P.c.wtype });
+    for (const m of ts) dealHit(m, dmg, 'ally', crit);
+    for (const m of splash) dealHit(m, dmg * wt.sp, 'ally', crit);
+    return true;
+  }
   function hurtButton(dmg) {
     const h = G.S.hero;
-    if (R.stun > 0) return;
+    if (R.stun > 0 || R.btnDown > 0) return;
     h.hp -= dmg;
     emit('buttonHurt', dmg);
     if (h.hp <= 0) breakButton();
   }
+  // A broken Button is out for a while: no gold, no lightning. The party fights on around it;
+  // if they all fall before it mends, the Horde breaks through (wipe)
   function breakButton() {
-    const S = G.S, h = S.hero;
-    R.stun = 4;
-    h.hp = G.D.heroHp;
-    for (const m of R.mobs) emit('mobFlee', m);
-    R.mobs.length = 0; if (R.shots) R.shots.length = 0;
-    // a Rift's Horde never fills the clear bar, so a broken Rift doesn't take from it either
-    if (!R.rift) S.bossMeter = Math.floor(S.bossMeter * 0.5);
-    if (R.boss) G.fleeBoss();
-    if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
+    const h = G.S.hero;
+    h.hp = 0;
+    R.btnDown = TUNE.btnDown;
+    G.S.st.breaks = (G.S.st.breaks || 0) + 1;
     emit('buttonBreak');
+    checkWipe();
   }
 
   function castAbility() {
@@ -3341,8 +3697,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     R.abilCd = ab.cd * (1 - Math.min(0.5, 0.03 * g.e)) * (uq('watcher') ? 0.5 : 1);
     const hit = D.heroHit;
     switch (type) {
-      case 'potion': h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.6); break;
-      case 'tome': h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.3); R.hb.tome = 6; break;
+      case 'potion': h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.6); for (const u of G.partyUnits()) if (!(u.down > 0)) unitHp(u.who, Math.min(u.max, u.hp + u.max * 0.5)); break;
+      case 'tome': h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.3); for (const u of G.partyUnits()) if (!(u.down > 0)) unitHp(u.who, Math.min(u.max, u.hp + u.max * 0.3)); R.hb.tome = 6; break;
       case 'scroll': R.hb.scroll = 12; break;
       case 'orb': R.hb.orb = 6; break;
       case 'wing': R.hb.wing = 8; break;
@@ -3373,8 +3729,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (R.stun > 0) R.stun -= dt;
     if (R.reapT > 0 && (R.reapT -= dt) <= 0) { R.reap = 0; G.dirty(); }
     if (R.carn && (R.carnT += dt) > 2.5) { R.carn = 0; emit('carnage', 0); }
-    // regen
-    h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.03 * dt);
+    // regen: slow, slower still with a boss on the field, so a fight can be lost
+    const regen = R.boss ? 0.004 : 0.012;
+    if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * regen * dt);
+    partyTick(dt, regen);
     // the horde: a steady flow of packs, with a surge every half a minute
     if (R.stun <= 0) {
       if (R.boss) {
@@ -3385,7 +3743,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
         else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen * (land().surge || 1); emit('surge'); }
         const surging = R.surge > 0;
         R.hs = hordeScale();
-        const thick = om().horde * (R.rift ? 1.5 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
+        const thick = om().horde * (R.rift ? 1.5 : 1) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
         R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * thick);
         const cap = hordeCap(dnow()) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1) * (R.rift || shrine('slaughter') ? 1.5 : 1);
         // each zone is fought in three waves; the second and third open with champions and a rush
@@ -3426,7 +3784,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       if (m.p < 1) m.p = Math.min(1, m.p + m.sp * dt * slow);
       else if (m.kind === 'bomber') {
         // a bomber that reaches the Button goes off on it
-        hurtButton(atk * m.w * 6 * (evo('bastion') ? 0.7 : 1)); emit('bomberPop', m);
+        hitParty(victim(), atk * m.w * 6 * (evo('bastion') ? 0.7 : 1), 'bomb'); emit('bomberPop', m);
         m.dead = true; const i = R.mobs.indexOf(m); if (i >= 0) R.mobs.splice(i, 1);
         emit('mobFlee', m);
         if (R.stun > 0) break;
@@ -3435,7 +3793,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
         if (m.atkT <= 0) {
           m.atkT = 1;
           if (uq('othercloak') && m.kind !== 'guardian' && m.kind !== 'rare' && chance(1 / 3)) { emit('thorns', m); dealHit(m, 2 * m.hp + 1, 'thorns', false); continue; }
-          hurtButton(atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1)); emit('mobBite', m);
+          const v = victim(); m.bit = v; hitParty(v, atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1), 'bite'); emit('mobBite', m, v);
           if (uq('voidplate') && !m.dead) { emit('thorns', m); dealHit(m, D.heroHit * 10, 'thorns', false); }
           if (R.stun > 0) break;
         }
@@ -3446,12 +3804,12 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     for (let i = R.shots.length - 1; i >= 0; i--) {
       const sh = R.shots[i];
       if (!sh) continue;
-      if ((sh.t -= dt) <= 0) { R.shots.splice(i, 1); if (R.stun <= 0) { hurtButton(sh.dmg); emit('spitHit', sh); } if (R.stun > 0) break; }
+      if ((sh.t -= dt) <= 0) { R.shots.splice(i, 1); if (R.stun <= 0) { const v = sh.v != null ? sh.v : victim(); hitParty(v, sh.dmg, 'spit'); emit('spitHit', sh, v); } if (R.stun > 0) break; }
     }
     // the boss hits the button too
     if (R.boss) {
       R.bossAtkT -= dt;
-      if (R.bossAtkT <= 0) { R.bossAtkT = 2; hurtButton(atk * (R.boss.lord ? 5 : 3) * (R.boss.rage ? 1.5 : 1)); }
+      if (R.bossAtkT <= 0) { R.bossAtkT = 2 / (1 + 0.25 * ((R.boss.phase || 1) - 1)); const b = R.boss, v = victim(); emit('bossHit', b, v); hitParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1), 'boss'); }
     }
     // perks that work on their own
     const hit = D.heroHit;
@@ -3487,7 +3845,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     // (the clock stops while a window covers the cards, so they can't be picked for you unseen)
     if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[0]);
     // hero attacks
-    R.heroAcc += dt * D.heroRate;
+    R.heroAcc += h.wdown > 0 ? 0 : dt * D.heroRate;
     let guard = 0;
     while (R.heroAcc >= 1 && guard++ < 30) {
       if (!attack(1, 'auto')) { R.heroAcc = 1; break; }
@@ -3540,8 +3898,12 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (G.worldReset) G.worldReset();
     R.mobs.length = 0; if (R.shots) R.shots.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20; R.reap = 0; R.rift = null;
     G.S.rec.runStart = Date.now();
+    R.btnDown = 0; h.wdown = 0;
+    for (const m of G.S.party) { m.down = 0; m.acc = 0; }
     G.dirty(); G.recalc();
     h.hp = G.D.heroHp || TUNE.baseHp;
+    h.whp = G.D.wardenHp || TUNE.baseHp;
+    G.S.party.forEach((m, i) => { m.hp = (G.D.party[i] || {}).hp || TUNE.baseHp; });
   };
 
   // ---------- Ladder snapshot ----------
@@ -3603,7 +3965,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (snap.mad != null && snap.mad !== 0 && !(int(snap.mad, 60, 1e9) && (snap.depth | 0) >= 40)) bad.push('mad');
     const numMap = (o, n) => o == null || (typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length <= n && Object.keys(o).every(k => k.length <= 8 && typeof o[k] === 'number' && o[k] > 0));
     // firsts: known milestones only, dated after the release and not in the future, and actually reached
-    const FS = { boss: 0, d5: 0, d10: 0, d20: 0, d30: 0, d40: 0, d50: 0, d60: 0, d65: 0, d80: 0, uq: 0, r4: 0, r5: 0, r6: 0, asc: 0, evo: 0, all14: 0,
+    const FS = { boss: 0, d5: 0, d10: 0, d20: 0, d30: 0, d40: 0, d50: 0, d60: 0, d65: 0, d75: 0, d80: 0, uq: 0, r4: 0, r5: 0, r6: 0, asc: 0, evo: 0, all14: 0,
       rift5: 0, rift15: 0, rift30: 0, rift45: 0, rift60: 0, rift80: 0 };
     const fsOk = k => {
       const v = snap.fs[k];
@@ -3613,7 +3975,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       // 'all14' was earned when there were 14 uniques; later ones don't take it away
       return k !== 'all14' || (snap.uq | 0) >= 14;
     };
-    if (!numMap(snap.fs, 24) || (snap.fs && !Object.keys(snap.fs).every(fsOk))) bad.push('firsts');
+    if (!numMap(snap.fs, 30) || (snap.fs && !Object.keys(snap.fs).every(fsOk))) bad.push('firsts');
     // a crown time must be a lord this Warden reached
     if (!numMap(snap.cr, 64) || (snap.cr && Object.keys(snap.cr).some(k => !G.isLord(+k) || +k > reach))) bad.push('crowns');
     if (snap.ev != null && (!Array.isArray(snap.ev) || snap.ev.length > 8 || !snap.ev.every(e => Array.isArray(e) && typeof e[0] === 'number' && typeof e[1] === 'string' && /^[a-z0-9]{1,16}$/.test(e[1]) && typeof e[2] === 'string' && e[2].length <= 48))) bad.push('feed');
@@ -3924,6 +4286,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     hoardEvery: 150, hoardFirst: 40, hoardLife: 16,
     shrineEvery: 170, shrineFirst: 100, shrineLife: 12, shrineDur: 15,
     breachEvery: 300, breachFirst: 240, breachDur: 12, breachRate: 2.5,
+    invEvery: 420, invFirst: 300, invTime: 90, invNeed: 90, invBoss: 30, invFocus: 20, invBossTime: 40,
     riftTime: 90, riftNeed: 40, riftGuard: 60,
   });
   Object.assign(R, { ground: [], gUid: 0, hoardT: null, shrine: null, shr: null, shrineT: null, breach: null, breachT: null });
@@ -4033,7 +4396,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     // the very first kill always drops something worth a look, and a rare comes early
     if (!S.st.drops) return drop('gear', G.pickItem(1), m);
     if (m.kind === 'hoard') { S.st.hoards++; emit('hoardDie', m); return shower(m, randInt(8, 12), 2, 0.04, { floorN: 2, spread: 0.1 }); }
-    if (m.kind === 'guardian') return null; // the Rift pays out when it closes
+    if (m.kind === 'guardian') return null; // the Rift or the invasion pays out on its own
     if (m.kind === 'rare') return shower(m, randInt(3, 5), 1, 0.006 * (uq('goldgrin') ? 1.5 : 1), { floorN: 1, spread: 0.05 });
     // the first champion ever always drops an epic
     if (m.kind === 'magic' && !S.st.firstMagic) { S.st.firstMagic = 1; return drop('gear', G.pickItem(3), m); }
@@ -4145,7 +4508,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     ['boss', 'First boss'], ['d5', 'The Crab King'], ['uq', 'First unique'], ['r4', 'First legendary'], ['d10', 'Depth 10'], ['rift5', 'Rift 5'],
     ['asc', 'First ascension'], ['evo', 'First evolution'], ['r5', 'First mythic'], ['d20', 'Depth 20'], ['rift15', 'Rift 15'], ['d30', 'Depth 30'],
     ['r6', 'First divine'], ['d40', 'The Mad Button'], ['rift30', 'Rift 30'], ['rift45', 'Rift 45'],
-    ['d50', 'Depth 50'], ['d60', 'Depth 60'], ['d65', 'The First Hand'], ['rift60', 'Rift 60'], ['all14', 'Every unique'], ['d80', 'Depth 80'], ['rift80', 'Rift 80'],
+    ['d50', 'Depth 50'], ['d60', 'Depth 60'], ['d65', 'The First Hand'], ['d75', 'The Star Eater'], ['rift60', 'Rift 60'], ['all14', 'Every unique'], ['d80', 'Depth 80'], ['rift80', 'Rift 80'],
   ];
   G.first = function (k) {
     const S = S_();
@@ -4156,7 +4519,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   };
   G.on('bossWin', (rew, b) => {
     G.first('boss');
-    for (const d of [5, 10, 20, 30, 40, 50, 60, 65, 80]) if (b.d + 1 === d && b.lord) G.first('d' + d);
+    for (const d of [5, 10, 20, 30, 40, 50, 60, 65, 75, 80]) if (b.d + 1 === d && b.lord) G.first('d' + d);
     // lord crowns: the fastest kill of a fresh lord (unwounded, no rally), and only at the edge of
     // your progress, so re-clearing old lands after ascending doesn't turn every crown into 0.1s
     const S = S_();
@@ -4189,6 +4552,48 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 
   // ---------- Events ----------
   const busy = () => R.boss || R.rift || R.stun > 0;
+  // ---------- Invasions ----------
+  function startInvasion(k) {
+    const v = G.INV_BY_ID[k] || G.INVASIONS[Math.floor(G.rng() * G.INVASIONS.length)];
+    R.inv = { k: v.id, t: TUNE.invTime, T: TUNE.invTime, prog: 0, need: TUNE.invNeed, boss: null };
+    R.surge = Math.max(R.surge || 0, 4);
+    S_().st.invasions = (S_().st.invasions || 0) + 1;
+    emit('invasion', R.inv, v);
+  }
+  G.startInvasion = startInvasion;
+  function invasionBoss() {
+    const r = R.inv, v = G.INV_BY_ID[r.k], d = G.depthNow();
+    const m = G.makeMob('guardian', rand(0.35, 0.65), 0);
+    m.w = 8; m.inv = r.k; m.lord = v.boss;
+    // tough, but never more than about twenty seconds of the whole party's focus
+    const hp = G.mobHp(d) * (TUNE.invBoss + 2 * d) * (G.omen ? G.omen().mobHp : 1);
+    m.hp = m.max = Math.min(hp, Math.max(G.mobHp(d) * 12, (G.D.heroDps || 1) * TUNE.invFocus));
+    r.boss = m.id;
+    r.t = Math.max(r.t, TUNE.invBossTime);
+    emit('invasionBoss', m, v);
+  }
+  function endInvasion(won) {
+    const r = R.inv;
+    if (!r) return;
+    R.inv = null;
+    // what's left of it goes home
+    if (!won) for (const m of R.mobs.slice()) if (m.inv) { m.dead = true; R.mobs.splice(R.mobs.indexOf(m), 1); emit('mobFlee', m); }
+    emit('invasionEnd', won, r);
+  }
+  G.invasionKill = function (m) {
+    const r = R.inv;
+    if (!r || !m.inv) return;
+    if (r.boss === m.id) {
+      S_().st.invWins = (S_().st.invWins || 0) + 1;
+      // the herald's haul: a shower with a good floor and a real shot at a unique
+      shower(m, randInt(10, 14), 3, 0.2, { floorN: 3, spread: 0.12, rolls: 2 });
+      for (let i = 0; i < 3; i++) drop('orb', rollOrb(), m, { wait: 0.3 + i * 0.1 });
+      endInvasion(true);
+      return;
+    }
+    if (!r.boss) { r.prog += m.w * 3; if (r.prog >= r.need) invasionBoss(); }
+  };
+
   function spawnHoarder() {
     const m = G.makeMob('hoard', rand(0.15, 0.85), 0.55);
     m.move = 'hoard'; m.life = TUNE.hoardLife; m.dir = chance(0.5) ? 1 : -1; m.ph = rand(0, 6);
@@ -4250,6 +4655,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const S = S_(), rf = S.rift;
     lvl = Math.max(1, Math.min(G.riftMax(), lvl | 0));
     if (!G.riftOpenable() || R.boss || R.rift || R.stun > 0) return false;
+    if (R.inv) endInvasion(false); // stepping into a Rift sends an invasion home
     for (const m of R.mobs) { m.dead = true; emit('mobFlee', m); }
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.breach) closeBreach();
@@ -4325,6 +4731,16 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       if ((r.t -= dt) <= 0) riftEnd(false, 'time');
       return;
     }
+    // an invasion runs on its own clock; a boss fight or a Rift sends it home
+    if (R.inv) {
+      if (R.boss) endInvasion(false);
+      else if ((R.inv.t -= dt) <= 0) endInvasion(false);
+    } else if (S.bestDepth >= 3) {
+      // the clock runs through boss fights too; the invasion waits for the fight to end
+      if (R.invT == null) R.invT = S.st.invasions ? rand(0.8, 1.2) * TUNE.invEvery : TUNE.invFirst;
+      if (R.invT > 0) R.invT -= dt;
+      if (R.invT <= 0 && !busy() && !R.bossReady) { R.invT = rand(0.8, 1.2) * TUNE.invEvery; startInvasion(); }
+    }
     // first-time timers: a Hoarder in the first minute, a shrine soon after
     if (R.hoardT == null) R.hoardT = S.st.hoards ? rand(0.6, 1.2) * TUNE.hoardEvery : TUNE.hoardFirst;
     if (R.shrineT == null) R.shrineT = S.st.shrines ? rand(0.6, 1.2) * TUNE.shrineEvery : TUNE.shrineFirst;
@@ -4350,8 +4766,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   };
   // drop the per-run world without handing its loot to anyone (a hard reset or a loaded save)
   G.worldClear = function () {
-    R.ground.length = 0; R.rift = null; R.shrine = null; R.shr = null; R.breach = null;
-    R.hoardT = R.shrineT = R.breachT = null;
+    R.ground.length = 0; R.rift = null; R.shrine = null; R.shr = null; R.breach = null; R.inv = null;
+    R.hoardT = R.shrineT = R.breachT = R.invT = null;
   };
   G.worldReset = function () {
     G.pickupAll();
@@ -6054,6 +6470,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   };
   for (const land in ARCH_PAL) for (const k in ARCH_PX) def('a_' + k + '_' + land, Object.assign({ k: '#1a1a22', w: '#ffffff', y: '#ffe27a' }, ARCH_PAL[land]), ARCH_PX[k]);
   SPR.arch = (kind, land) => get('a_' + kind + '_' + (ARCH_PAL[land] ? land : 'meadow'));
+  // more lands can bring their own archetype palette (js/art2.js)
+  SPR.addArchPal = (land, pal) => { ARCH_PAL[land] = pal; for (const k in ARCH_PX) def('a_' + k + '_' + land, Object.assign({ k: '#1a1a22', w: '#ffffff', y: '#ffe27a' }, pal), ARCH_PX[k]); };
 
   // ================= THE LANDS PAST THE BUTTON =================
   def('f_page', { w: '#f4ecd8', W: '#4f6a9a', k: '#1a1a22' }, [
@@ -6543,6 +6961,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       l_salam: ['b_salam', { r: '#3a3038', R: '#1a1418', y: '#ff7a2e', o: '#ffd84a' }],
       l_mirror: ['b_mirror', { w: '#2a2238', C: '#4a3a68', c: '#7a6aa8', p: '#ff3b5c' }],
     };
+    if (SPR.bossMap && SPR.bossMap[spriteId]) map[spriteId] = SPR.bossMap[spriteId];
     if (spriteId === 'l_eye') return { canvas: bigEye(), scale: 2 };
     if (spriteId === 'l_button') return { canvas: button('#3a3348', false, 0, true), scale: 2, isButton: true };
     if (map[spriteId]) {
@@ -6622,6 +7041,14 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       } else if (realmId === 'sky') {
         if (rnd() < 0.25) { ctx.fillStyle = '#ffffff'; ctx.fillRect(tx * 8 + Math.floor(rnd() * 5), ty * 8 + Math.floor(rnd() * 8), 3, 1); }
         if (rnd() < 0.06) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
+      } else if (realmId === 'moon') {
+        // pocked regolith: tiny craters with a lit rim
+        if (rnd() < 0.14) { const x = tx * 8 + 1 + Math.floor(rnd() * 5), y = ty * 8 + 1 + Math.floor(rnd() * 5); ctx.fillStyle = cfg.base[3]; ctx.fillRect(x, y + 1, 2, 1); ctx.fillStyle = cfg.detail; ctx.fillRect(x, y, 2, 1); }
+        if (rnd() < 0.2) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
+      } else if (realmId === 'cosmos') {
+        // a floor of stars, a few of them bright
+        if (rnd() < 0.45) { ctx.fillStyle = rnd() < 0.3 ? '#ffffff' : cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
+        if (rnd() < 0.04) { const x = tx * 8 + 2 + Math.floor(rnd() * 4), y = ty * 8 + 2 + Math.floor(rnd() * 4); ctx.fillStyle = '#ffe27a'; ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3); }
       } else if (realmId === 'shore') {
         if (rnd() < 0.3) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
       }
@@ -6629,6 +7056,442 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     return c;
   }
   SPR.ground = ground;
+})(globalThis.G = globalThis.G || {});
+
+/* js/art2.js */
+// BTTN — art for 2.0: invasion mobs, the Moon and the Star Sea, sky pieces.
+// Loaded after sprites.js; uses its def() and the hooks it exposes.
+(function (G) {
+  'use strict';
+  const SPR = G.SPR;
+  if (!SPR) return;
+  const def = SPR.def;
+
+  // rows for a w x h piece from a per-pixel painter (x, y) -> palette char or '.'
+  function paint(w, h, fn) {
+    const rows = [];
+    for (let y = 0; y < h; y++) { let r = ''; for (let x = 0; x < w; x++) r += fn(x, y) || '.'; rows.push(r); }
+    return rows;
+  }
+
+  // ================= LUNAR INVASION =================
+  // moonling: a pale moon-rabbit with a lilac glow at its feet
+  def('v_moonling', { w: '#f4f6ff', W: '#c4cce4', b: '#a8d4ff', l: '#c8a8ff', k: '#1a1a22', p: '#ffb0d8' }, [
+    '.w....w.',
+    '.wl..lw.',
+    '.wl..lw.',
+    '.wwwwww.',
+    'wwkwwkww',
+    'wbwppwbw',
+    '.wWWWWw.',
+    '.l.ll.l.',
+  ]);
+  // lunar knight: silver plate, crescent crest, lance
+  def('v_lunar', { m: '#e4e9f6', M: '#a4aec8', D: '#6c7696', c: '#fff1a8', C: '#d8c060', b: '#8ae8ff', l: '#a888f0', L: '#6a4ab8', w: '#ffffff' }, [
+    '....c......c..w.',
+    '....cc....cc.www',
+    '.....cccccc...D.',
+    '....mmmmmmmm..D.',
+    '....mMMMMMMm..D.',
+    '....mbbbbbbm..D.',
+    '....mMMMMMMm..D.',
+    '..l..mmmmmm...D.',
+    '.llmmmMccMmmm.D.',
+    '.lmMmmmccmmmMmmm',
+    '.lmM.mmmmmm.M.D.',
+    '.lL..mMMMMm...D.',
+    '.lL..mmmmmm...D.',
+    '.L...mM..Mm...D.',
+    '.....mM..Mm.....',
+    '....DDD..DDD....',
+  ]);
+  // the Moon Queen (boss): crown, silver hair and robes, crescent staff
+  def('v_moonqueen', { y: '#ffd84a', Y: '#c98f10', b: '#8ae8ff', h: '#f0f2ff', H: '#b0b8e0', s: '#f6e4ec', e: '#1a1a22', p: '#ff9ad0',
+    r: '#e8e4ff', R: '#a898e0', l: '#9a70f0', L: '#5a3ab0', c: '#fff3b0', D: '#8a90b0' }, [
+    'c...c..y.yy.y...',
+    'cc.cc..yybbyy...',
+    '.ccc..hhhhhhhh..',
+    '..D..hhsssssshh.',
+    '..D..hhsesseshh.',
+    '..D..hhssppsshh.',
+    '..D.hhhHssssHhh.',
+    '..D..hlrrrrrrlh.',
+    '..srrhhrrllrrhh.',
+    '..D..hRrrllrrRh.',
+    '..D..hRrrllrrRh.',
+    '..D..RrrrllrrrR.',
+    '..D.RrrrrllrrrrR',
+    '..D.RrrrrllrrrrR',
+    '..DRrrrrrllrrrrR',
+    '..DLLLLLLLLLLLL.',
+  ]);
+
+  // ================= COSMIC INVASION =================
+  // grey: big head, big black eyes, silver suit
+  def('v_grey', { g: '#b8e8a8', G: '#7ab880', k: '#0c0b12', w: '#ffffff', m: '#b8c0d0' }, [
+    '.gggggg.',
+    'gggggggg',
+    'gkkggkkg',
+    'gkkggkkg',
+    '.gkggkg.',
+    '..gGGg..',
+    '.gmmmmg.',
+    '..m..m..',
+  ]);
+  // saucer: glass dome with a pilot, rim lights, a tractor beam
+  def('v_saucer', { m: '#d8dee8', M: '#9aa4b8', D: '#5e6680', w: '#ffffff', r: '#ff4f4f', y: '#ffe27a', c: '#8ae8ff', C: '#3aa8d0',
+    g: '#8adc6a', k: '#0c0b12', b: '#b8ffb0', B: '#eaffe4' }, [
+    '................',
+    '......cccc......',
+    '.....cwggcC.....',
+    '....cwkggkCc....',
+    '....ccCggCCc....',
+    '..mmmmmmmmmmmm..',
+    '.mwwmmmmmmmmMMm.',
+    'DMrMMyMMMMyMMrMD',
+    '.DDDDDDDDDDDDDD.',
+    '...DDDDDDDDDD...',
+    '.....DyyyyD.....',
+    '......bbbb......',
+    '.....bbBBbb.....',
+    '....bbbBBbbb....',
+    '...bbbbBBbbbb...',
+    '..bBbbbBBbbbBb..',
+  ]);
+  // the Overmind (boss): a brain in a glass jar on a ship, with claws
+  def('v_mothership', { c: '#8ae8ff', w: '#ffffff', p: '#ff9ac8', P: '#d860a0', r: '#ff3b3b', y: '#ffe27a', k: '#0c0b12',
+    C: '#3aa8d0', m: '#d8dee8', M: '#9aa4b8', D: '#5e6680', t: '#8adc6a', T: '#4a9a3a' }, [
+    '....cccccccc....',
+    '...cwppPPppwc...',
+    '..cwpPppppPpPc..',
+    '..cppPpPPpPppc..',
+    '.cpPppppPpppPpc.',
+    '.cpPPpppppPPppc.',
+    '.cpprrppppprrpc.',
+    '.cCpppPPPPpppCc.',
+    'MmmmmmmmmmmmmmmM',
+    'MyMMrMMyyMMrMMyM',
+    '.MMMMMMMMMMMMMM.',
+    '..DDDDDDDDDDDD..',
+    '.t.DtDDDDDDtD.t.',
+    't..t.t....t.t..t',
+    't..T..t..t..T..t',
+    '.T.T..T..T..T.T.',
+  ]);
+
+  // ================= HEAVENLY CRUSADE =================
+  // putto: golden curls, a floating halo, little wings
+  def('v_putto', { y: '#ffe27a', h: '#ffb040', s: '#f8d4b0', e: '#1a1a22', p: '#ff9ab0', w: '#ffffff', W: '#d8dcef' }, [
+    '..yyyy..',
+    '.hhhhhh.',
+    '.sesses.',
+    'wwpsspww',
+    'wWswwsWw',
+    '.W.ww.W.',
+    '...ss...',
+  ]);
+  // archon: gold plate, wide wings, a flaming sword
+  def('v_archon', { y: '#ffe27a', g: '#ffd84a', G: '#c98f10', s: '#f2c6a0', e: '#1a1a22', w: '#ffffff', W: '#c8d6e8',
+    o: '#ff9a2e', r: '#e0402a', f: '#fff3a0', m: '#f4f4fa' }, [
+    '.....yyyyyy...r.',
+    'w.............or',
+    'ww....gggg...ofo',
+    'wWw..gGGGGg.wofo',
+    'wWWw.gseesgwWofo',
+    '.wWWw.ssss.wWofo',
+    '..wWwggggggwWofo',
+    '...wgGgyygGgwofo',
+    '....gGgggggGgGG.',
+    '.....gGggGg..sG.',
+    '.....gGggGg.....',
+    '......gGGg......',
+    '.....gg..gg.....',
+    '.....gg..gg.....',
+    '....GGG..GGG....',
+    '................',
+  ]);
+  // seraphim (boss): a golden ring around an eye, three pairs of wings
+  def('v_seraphim', { y: '#ffd84a', Y: '#c98f10', e: '#fffbe8', b: '#4fa8ff', k: '#0c0b12', w: '#ffffff', W: '#c8d6e8', f: '#ffb347' }, [
+    '.w............w.',
+    'wWw..........wWw',
+    '.wWw...ff...wWw.',
+    '..wWw.yyyy.wWw..',
+    '...wwyYeeYyww...',
+    'wwwwyYeeeeYywwww',
+    'WWwwyebbbbeywwWW',
+    '.WWyYebkkbeYyWW.',
+    '.WWyYebkkbeYyWW.',
+    'WWwwyebbbbeywwWW',
+    'wwwwyYeeeeYywwww',
+    '...wwyYeeYyww...',
+    '..wWw.yyyy.wWw..',
+    '.wWw........wWw.',
+    'wWw..........wWw',
+    '.w............w.',
+  ]);
+
+  // ================= ABYSSAL TIDE =================
+  // squidling: teal mantle, violet tentacles
+  def('v_squidling', { t: '#3ad0c0', T: '#1f8a8a', g: '#b0fff0', w: '#ffffff', k: '#1a1a22', v: '#a060e0', V: '#6a38b0' }, [
+    '...tt...',
+    '..tggt..',
+    '.tTttTt.',
+    'tTttttTt',
+    'twkttwkt',
+    '.tvvvvt.',
+    '.v.vv.v.',
+    'v.v..v.v',
+  ]);
+  // deep one: fish-headed warrior with a trident
+  def('v_deepone', { g: '#4ac8a0', G: '#2a8a78', d: '#1f5a5a', f: '#a070e0', y: '#ffe27a', k: '#1a1a22', b: '#c8f0e0',
+    t: '#c8a032', T: '#8a6a20', w: '#ffffff' }, [
+    't.t.t....f.f....',
+    'ttttt...fgfgf...',
+    '..t....ggggggg..',
+    '..t...gyygggyyg.',
+    '..t...gykgggkyg.',
+    '..t...ggggggggg.',
+    '..t...gwdwdwdwg.',
+    '..t....ggggggg..',
+    '..t..ggGbbbbGgg.',
+    '.ggggggGbbbbGggg',
+    '..t.fggGbbbbGgf.',
+    '..t..ggGbbbbGg..',
+    '..t...gGGGGGGg..',
+    '..t...gg....gg..',
+    '..t...gg....gg..',
+    '..T..fff...fff..',
+  ]);
+  // leviathan (boss): a kraken's head, slit eyes, a ring of tentacles
+  def('v_leviathan', { g: '#2a9a8a', G: '#1a5a64', v: '#c080ff', V: '#7a48c0', y: '#ffe27a', k: '#0c0b12', w: '#ffffff', c: '#7affe8' }, [
+    '.....gggggg.....',
+    '...ggcggggcgg...',
+    '..gggggggggggg..',
+    '.gGggvggggvggGg.',
+    'v.gggggggggggg.v',
+    'v.gyyyggggyyyg.v',
+    'vgGykyGggGykyGgv',
+    'vgGGggggggggGGgv',
+    '.vgGGwGwwGwGGgv.',
+    '.vvgGGkkkkGGgvv.',
+    '..vgvgGGGGgvgv..',
+    '.vg.vg.gg.gv.gv.',
+    'vg..vg.gg.gv..gv',
+    'v..vg..gg..gv..v',
+    '.vvg..gg..gg.gvv',
+    '......v....v....',
+  ]);
+
+  // ================= SKY PIECES (24x24 backdrops, no gameplay) =================
+  const C24 = 11.5;
+  const dist = (x, y, cx, cy) => Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+  // full moon: lit from the top left, with maria and craters
+  {
+    const craters = [[7, 8, 2.2], [15, 6, 1.6], [14, 15, 2.8], [6, 16, 1.4], [18, 11, 1.2], [10, 19, 1.3]];
+    const maria = [[9, 11, 3.6], [15, 10, 2.6], [12, 15, 2.4]];
+    def('sky_moon', { w: '#fffdf0', m: '#ece6cc', M: '#d2cbae', D: '#aaa38a', c: '#c2bb9e', k: '#8a846e' }, paint(24, 24, (x, y) => {
+      const r = dist(x, y, C24, C24);
+      if (r > 11.2) return '';
+      const lit = ((C24 - x) * 0.55 + (C24 - y) * 0.55) / 11 + (1 - r / 11.2) * 0.6;
+      let ch = lit > 0.95 ? 'w' : lit > 0.25 ? 'm' : lit > -0.25 ? 'M' : 'D';
+      for (const [cx, cy, cr] of maria) if (dist(x, y, cx, cy) < cr && ch !== 'D') ch = 'M';
+      for (const [cx, cy, cr] of craters) {
+        const d = dist(x, y, cx, cy);
+        if (d < cr) ch = d > cr - 1.1 && (x - cx) + (y - cy) < 0 ? 'k' : 'c';
+        else if (cr >= 2 && d < cr + 0.7 && (x - cx) + (y - cy) > 1) ch = 'w';
+      }
+      return ch;
+    }));
+  }
+  // ringed planet: banded globe, a tilted ring passing behind and in front
+  {
+    const cx = 12, cy = 12, pr = 6.6, tilt = -0.35, ct = Math.cos(tilt), st = Math.sin(tilt);
+    def('sky_planet', { o: '#f09a50', O: '#c8703a', y: '#ffc07a', D: '#8a4424', r: '#f8f0dc', R: '#c0b494', k: '#7a6a58' }, paint(24, 24, (x, y) => {
+      const dx = x - cx + 0.5, dy = y - cy + 0.5;
+      const u = dx * ct + dy * st, v = -dx * st + dy * ct; // ring frame
+      const e = Math.sqrt((u / 11.6) * (u / 11.6) + (v / 4.2) * (v / 4.2));
+      const inRing = e > 0.68 && e < 1 && !(e > 0.83 && e < 0.87);
+      const onPlanet = dx * dx + dy * dy < pr * pr;
+      if (inRing && (v > 0 || !onPlanet)) return e > 0.9 ? 'R' : e < 0.84 ? 'r' : 'k';
+      if (onPlanet) {
+        const band = Math.floor((v + 7) / 2.2) % 3;
+        const shade = dx * 0.5 + dy * 0.5 > 2.6;
+        if (shade) return band === 0 ? 'D' : 'O';
+        return band === 0 ? 'O' : band === 1 ? 'o' : 'y';
+      }
+      return '';
+    }));
+  }
+  // holy sun: a white-gold core, a halo ring, long and short rays
+  def('sky_sun', { w: '#ffffff', f: '#fffbe0', y: '#ffe27a', Y: '#ffc629', h: '#fff3b0', o: '#ffb347' }, paint(24, 24, (x, y) => {
+    const dx = x - C24, dy = y - C24, r = Math.sqrt(dx * dx + dy * dy);
+    const a = Math.atan2(dy, dx), k = Math.round(a / (Math.PI / 8));
+    const off = Math.abs(a - k * Math.PI / 8) * r; // distance from the nearest ray axis
+    if (r < 2.5) return 'w';
+    if (r < 4.5) return 'f';
+    if (r < 6.2) return 'y';
+    if (r < 7.0) return 'Y';
+    if (r > 7.6 && r < 8.6) return 'h';
+    const long = k % 2 === 0;
+    if (off < 0.8 && r < (long ? 11.8 : 10)) return long ? 'y' : 'o';
+    return '';
+  }));
+  // abyssal eye: a whirlpool of teal and violet around a slit-pupilled eye
+  def('sky_eye', { k: '#0c1020', d: '#16304a', t: '#2a8a9a', T: '#6ae8e0', v: '#5a2a9a', i: '#ffb02e', I: '#e0601e', y: '#ffe27a', s: '#0c0b12' }, paint(24, 24, (x, y) => {
+    const dx = x - C24, dy = y - C24, r = Math.sqrt(dx * dx + dy * dy);
+    if (r > 11.6) return '';
+    if (r < 4.6) {
+      if (Math.abs(dx) < 0.9 && Math.abs(dy) < 3.6) return 's';
+      return r < 2.2 ? 'y' : r < 3.6 ? 'i' : 'I';
+    }
+    const s = ((Math.atan2(dy, dx) + Math.log(r) * 2.4) / (Math.PI * 2 / 3)) % 1;
+    const f = (s + 1) % 1;
+    if (r < 5.6) return 'k';
+    if (f < 0.18) return r < 8 ? 'T' : 't';
+    if (f < 0.4) return 'd';
+    if (f < 0.55) return 'v';
+    return 'k';
+  }));
+
+  // ================= THE MOON =================
+  // decor: craters, moonrock with a lilac crystal, a planted flag
+  def('d_crater', { w: '#e8e8f0', g: '#b4b4c0', G: '#8a8a98', D: '#6a6a78', K: '#50505e' }, [
+    '........',
+    '........',
+    '.wwwwww.',
+    'wKKKKKDw',
+    'wKDDggGw',
+    '.wggggw.',
+    '..GGGG..',
+    '........',
+  ]);
+  def('d_moonrock', { w: '#e4e6f0', m: '#b8bcc8', M: '#8a8e9e', l: '#c8a8ff', L: '#8a68e0' }, [
+    '........',
+    '......l.',
+    '..ww.lL.',
+    '.wmmmlL.',
+    'wmmmmMM.',
+    'mMmmMMMM',
+    '.MMMMMM.',
+    '........',
+  ]);
+  // a planted flag with the Button on it
+  def('d_flag', { p: '#c8ccd8', w: '#f4f6ff', W: '#c8cce0', r: '#e8413c', g: '#9a9aa8' }, [
+    '.pwwwwww',
+    '.pwwrrww',
+    '.pwwrrWw',
+    '.pWwwwWW',
+    '.p......',
+    '.p......',
+    '.p......',
+    'gpg.....',
+  ]);
+  // selenite: a moonstone beetle with crystals on its back
+  def('f_selenite', { m: '#dce4f4', M: '#9aa8c8', c: '#c8a8ff', C: '#8a68e0', w: '#ffffff', k: '#1a1a22' }, [
+    '...c.c..',
+    '.c.wcCc.',
+    '.wcwcCC.',
+    'mmmmmmmm',
+    'mmkmmkmm',
+    'mMmmmmMm',
+    '.MMMMMM.',
+    'm.m..m.m',
+  ]);
+  // selenite golem: moonstone body, crystal growths, a glowing moon-orb core
+  def('b_selenite', { m: '#dce4f4', M: '#9aa8c8', D: '#6a7898', c: '#c8a8ff', C: '#8a68e0', w: '#ffffff', b: '#8ae8ff', k: '#1a1a22', y: '#fff3b0' }, [
+    '.......c........',
+    '.c....wcC.....c.',
+    'wcC..mmmmmm..wcC',
+    'wcC.mwmmmmmM.wcC',
+    'wcC.mbbmmbbM.wcC',
+    'mmmmmmmmmmMMmmMM',
+    'mwmmmmMMMMMMmmMM',
+    'mwmm.mmmmmmM.mMM',
+    'mwmm.mmwymmM.MMM',
+    'mmMm.mmyymmM.MMD',
+    '.MM..mmmmmMM..D.',
+    '.....mmmmMMM....',
+    '.....mmm.mMM....',
+    '....mmMM.mMMM...',
+    '....DDDD.DDDD...',
+    '................',
+  ]);
+  // ground: pale grey regolith (light to dark); lilac-glow archetypes
+  SPR.REALM_GROUND.moon = { base: ['#bcbcc6', '#b2b2bc', '#a8a8b4', '#94949f'], detail: '#e4e4ee', decor: ['d_crater', 'd_moonrock', 'd_crater', 'd_flag'] };
+  SPR.addArchPal('moon', { a: '#d0d4e0', A: '#7a7e92', c: '#b890ff' });
+
+  // ================= THE STAR SEA =================
+  // decor: drifting asteroids and a little satellite
+  def('d_asteroid', { b: '#9a8a7a', B: '#6a5a4e', w: '#c8b8a8', K: '#4a3e36' }, [
+    '........',
+    '..bbbb..',
+    '.bwbbKb.',
+    'bbbKbbBb',
+    'bKbbbBBb',
+    'bbbBBKBb',
+    '.BBBBBB.',
+    '........',
+  ]);
+  def('d_satellite', { b: '#4a7ae8', B: '#2a4ab0', y: '#ffd84a', m: '#d8dee8', w: '#ffffff', r: '#ff4f4f' }, [
+    '....r...',
+    '...mm...',
+    'bBbyybBb',
+    'BbByyBbB',
+    'bBbyybBb',
+    '...mm...',
+    '..w..w..',
+    '........',
+  ]);
+  // a small glowing puff of star gas
+  def('d_nebula', { p: '#ff7ae6', w: '#ffe0f8', c: '#8a6aff', s: '#ffffff' }, [
+    '......s.',
+    '..pp....',
+    '.pwwp.c.',
+    'pwwwppcc',
+    '.pwppcc.',
+    '..ppccc.',
+    '...cc...',
+    '........',
+  ]);
+  // starling: a living five-pointed star
+  def('f_starling', { y: '#ffe27a', Y: '#ffb347', w: '#fffbe0', k: '#1a1a22', p: '#ff8ab8' }, [
+    '...yy...',
+    '...wy...',
+    'yywyyyyy',
+    '.ykyyky.',
+    '..yppy..',
+    '..yYYy..',
+    '.yY..Yy.',
+    '.Y....Y.',
+  ]);
+  // voidwalker: an astronaut with a cracked visor and something inside
+  def('b_voidwalker', { w: '#eceff6', W: '#a8b0c4', D: '#6e7690', k: '#1a1438', c: '#ffffff', e: '#ff4fd8', s: '#9af0ff', v: '#8a4ae0', V: '#4a2a90', r: '#ff4f4f', o: '#ffb347' }, [
+    '..........vv....',
+    '....wwwwwwvw....',
+    '...wkkkkkkckw...',
+    '...wkeeekckkw...',
+    '...wkekekckkw...',
+    '...wkeeeckckw...',
+    '...wkskkckkcw...',
+    '....wwwwwwww....',
+    '..WwwwwwwwwwwW..',
+    '.WwwWwrowwWwwwW.',
+    '.Ww.wwwwwwww.wW.',
+    '.WW.wWwwwwWw.WW.',
+    '....wwwwwwww....',
+    '....ww....ww....',
+    '....wW....Ww....',
+    '...DDD....DDD...',
+  ]);
+  // ground: deep blue-violet space with a starlight detail; blue and gold archetypes
+  SPR.REALM_GROUND.cosmos = { base: ['#1a1e44', '#15183a', '#20244e', '#0e1030'], detail: '#9af0ff', decor: ['d_asteroid', 'd_satellite', 'd_asteroid', 'd_nebula'] };
+  SPR.addArchPal('cosmos', { a: '#5a78f0', A: '#26307a', c: '#ffe27a' });
+
+  // ================= LORDS (recoloured minions with a crown) =================
+  SPR.bossMap = Object.assign(SPR.bossMap || {}, {
+    l_selenite: ['b_selenite', { m: '#8a90c8', M: '#5a5e98', D: '#383a6a', c: '#ffd84a', C: '#c98f10', w: '#c8ccf0', b: '#ff7ae6', y: '#ffe27a' }],
+    l_voidwalker: ['b_voidwalker', { w: '#6a5a90', W: '#463a68', D: '#2a2244', k: '#0c0b12', c: '#d8c8ff', e: '#ff3b3b', s: '#ffd84a', v: '#ff4f7e', V: '#9e2440', r: '#ffd84a', o: '#ff7a2e' }],
+  });
 })(globalThis.G = globalThis.G || {});
 
 /* js/doll.js */
@@ -6650,6 +7513,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     knight: { head: 'helm', helm: ['#d2dae4', '#8f99a8'], visor: '#1a1a22', plume: '#3f63d9', body: ['#b8c2d0', '#8f99a8'], tabard: '#3f63d9', legs: ['#6b7484', '#4f5664'], boots: ['#4a4f5c', '#35394a'], hands: '#b8c2d0' },
     archer: { head: 'hood', hood: ['#58a83e', '#3d7f2b'], body: ['#8a5a2e', '#6b4420'], collar: '#58a83e', legs: ['#6b4a2a', '#503620'], boots: ['#3a2a1a', '#2a1e12'], quiver: true },
     wizard: { head: 'hat', hat: ['#4468e0', '#2c47a6'], band: '#ffd84a', body: ['#4468e0', '#2c47a6'], robe: true, beard: '#e8e8f0', legs: ['#4468e0', '#2c47a6'], boots: ['#3a2a1a', '#2a1e12'] },
+    cleric: { head: 'hood', hood: ['#f4efe0', '#c9c0a8'], body: ['#f4efe0', '#c9c0a8'], robe: true, band: '#ffd84a', cross: '#ffd84a', halo: '#fff3a8', legs: ['#f4efe0', '#c9c0a8'], boots: ['#8a6a3a', '#6a4e28'] },
     rogue: { head: 'hood', hood: ['#4a4a62', '#33334a'], mask: '#2d2430', body: ['#5a5a74', '#3f3f56'], strap: '#2d2430', legs: ['#2d2430', '#1f1a24'], boots: ['#1f1a24', '#141018'] },
   };
 
@@ -6755,6 +7619,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     px(16, 12 + u, 1, 4, bodyDark);
     px(9, 12 + u, 1, 4, G.shade(bodyMain, 0.18));
     if (!body && look.tabard) px(12, 12 + u, 2, 4, look.tabard);
+    if (!body && look.cross) { px(12, 12 + u, 2, 4, look.cross); px(11, 13 + u, 4, 1, look.cross); }
     if (!body && look.collar) px(9, 12 + u, 8, 1, look.collar);
     if (!body && look.strap) { [[10, 12], [11, 13], [12, 13], [13, 14], [14, 14], [15, 15]].forEach(([a, b]) => px(a, b + u - O + O, 1, 1, look.strap)); }
     if (body) { // plate: shoulder pads and a trim in the item's accent
@@ -6811,6 +7676,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       px(15, 3 + u, 1, 2, d);
       top = 0 + u;
     }
+    if (look.halo && !hcol) { px(10, top - 2, 6, 1, look.halo); px(9, top - 1, 1, 1, look.halo); px(16, top - 1, 1, 1, look.halo); top -= 2; }
     if (look.beard && !hcol) { px(11, 10 + u, 4, 3, look.beard); px(12, 13 + u, 2, 1, look.beard); }
 
     // --- worn jewellery ---
@@ -7130,6 +7996,12 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   A.breach = function () { noise(0.8, 0.08, 0, 300); tone(70, 1.2, 'sawtooth', 0.08, 0, 45); tone(105, 1.2, 'sawtooth', 0.05, 0.1, 70); };
   // a heap of the Horde dying in one frame: a deep crunch with a bright top
   A.bossCount = function (n) { tone(n === 1 ? 660 : 440, 0.12, 'square', 0.07); thud(0.08, 0.1, 0, 500); };
+  A.pulse = function () { if (!throttle('pulse', 300)) return; tone(220, 0.25, 'triangle', 0.06, 0, 440); thud(0.1, 0.1, 0, 600); };
+  A.wipe = function () { tone(196, 1.2, 'sawtooth', 0.1, 0, 49); tone(147, 1.4, 'sawtooth', 0.08, 0.1, 37); noise(0.8, 0.1, 0, 200); thud(0.4, 0.2, 0, 300); };
+  A.phase = function () { tone(110, 0.7, 'sawtooth', 0.1, 0, 55); noise(0.4, 0.08, 0, 400); thud(0.3, 0.18, 0, 400); [0, 3, 7].forEach((s, i) => tone(note(s), 0.3, 'square', 0.06, 0.2 + i * 0.08)); };
+  A.invasion = function (k) { const base = k === 'heaven' ? 12 : k === 'cosmic' ? 7 : k === 'deep' ? -5 : 3; [0, 5, 10, 15, 12].forEach((s, i) => tone(note(base + s), 0.35, k === 'cosmic' ? 'sawtooth' : 'triangle', 0.08, i * 0.12, k === 'cosmic' ? note(base + s + 12) : null)); noise(0.6, 0.05, 0, 800); };
+  A.down = function () { tone(330, 0.3, 'square', 0.07, 0, 110); };
+  A.revive = function () { [0, 4, 7, 12].forEach((s, i) => tone(note(12 + s), 0.12, 'triangle', 0.07, i * 0.05)); };
   A.heap = function (n) { if (!throttle('heap', 180)) return; thud(0.14, 0.16, 0, 700); noise(0.12, 0.08, 0, 900); tone(note(7 + Math.min(12, Math.log2(n / 10) * 4)), 0.08, 'square', 0.05, 0.02); };
   A.spit = function () { if (!throttle('spit', 120)) return; tone(420, 0.06, 'triangle', 0.04, 0, 260); noise(0.04, 0.03, 0, 3000); };
   A.carnage = function (t) { if (!t) return; [0, 5, 9, 12].forEach((s, i) => tone(note(14 + s + t * 2), 0.1, 'square', 0.05, i * 0.04)); };
@@ -7192,6 +8064,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     { bass: [-7, -7, -4, -4, -2, -2, -9, -9], lead: [5, 8, 12, 13, 12, 8, 5, 1], tempo: 0.18 },
     { bass: [0, 0, 4, 4, 0, 0, 3, 3], lead: [12, 16, 11, 15, 12, 16, 10, 14], tempo: 0.21 },
     { bass: [0, 0, 5, 5, 9, 9, 7, 7], lead: [19, 21, 24, 21, 19, 16, 19, 12], tempo: 0.22 },
+    // the Moon and the Star Sea
+    { bass: [-5, -5, -1, -1, 2, 2, -3, -3], lead: [14, 19, 21, 19, 14, 11, 9, 7], tempo: 0.26 },
+    { bass: [-12, -12, -7, -7, -5, -5, -10, -10], lead: [12, 19, 24, 22, 19, 17, 15, 10], tempo: 0.2 },
   ];
   let step = 0, musicTimer = null;
   function startMusic() {
@@ -7250,6 +8125,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   G.on('bomberPop', () => A.boom());
   G.on('carnage', t => A.carnage(t));
   G.on('landStar', () => A.star());
+  G.on('unitDown', () => A.down());
+  G.on('unitRevive', () => A.revive());
+  G.on('buttonBreak', () => A.boom());
   G.on('wave', () => A.wave());
   G.on('buttonBreak', () => A.overload());
   G.on('perk', () => A.perk());
@@ -7296,7 +8174,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const r = cv.parentElement.getBoundingClientRect();
     DPR = Math.min(2, window.devicePixelRatio || 1);
     const cw = Math.max(200, r.width), ch = Math.max(160, r.height);
-    S = clamp(Math.floor(Math.min(cw / 200, ch / 150)), 2, 6);
+    // a wide view of the field: on sharp screens the scale may be a half step (1.5 = 3 device pixels a pixel)
+    const step = DPR >= 2 ? 0.5 : 1;
+    S = clamp(Math.floor(Math.min(cw / 270, ch / 200) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
     W = Math.ceil(cw / S); H = Math.ceil(ch / S);
     cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
     cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
@@ -7379,10 +8259,17 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   // Title cards take turns: each card's lines appear together, the next card when this one is done
   const cardQ = [];
   let cardT = 0;
+  let lastCard = null;
   function cardText(off, str, col, size, o) {
     o = o || {};
-    let g = cardQ[cardQ.length - 1];
-    if (off === 0 || !g || g.shown) { g = { items: [], life: 0, callout: !!o.callout, age: 0 }; cardQ.push(g); }
+    let g = lastCard;
+    if (off === 0 || !g || g.shown) {
+      g = { items: [], life: 0, callout: !!o.callout, age: 0, tag: o.tag };
+      // an urgent card (a boss changing phase) cuts in front and replaces whatever is up
+      if (o.now) { cardQ.unshift(g); cardT = 0; for (let i = texts.length - 1; i >= 0; i--) if (texts[i].card) texts.splice(i, 1); }
+      else cardQ.push(g);
+      lastCard = g;
+    }
     g.items.push({ off, str, col, size, o });
     g.life = Math.max(g.life, o.life || 1.1);
     // streak callouts are only worth showing on time
@@ -7396,7 +8283,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (!g) return;
     g.shown = true;
     const y0 = cardY(0.27);
-    for (const it of g.items) text(W / 2, y0 + it.off, it.str, it.col, it.size, Object.assign({}, it.o, { life: g.life, max: g.life }));
+    for (const it of g.items) text(W / 2, y0 + it.off, it.str, it.col, it.size, Object.assign({}, it.o, { life: g.life, max: g.life, card: true }));
     cardT = g.life * 0.8;
   }
   St.cardBusy = () => cardT > 0;
@@ -7528,8 +8415,11 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       const b = btnPos();
       St.shake(6); St.flash(0.5, '#ff3b3b');
       burst(b.x, b.y - 6, ['#ff4f4f', '#ffd84a', '#3a3a44'], 40, 110);
-      text(b.x, b.y - 30, G.t('overload'), '#ff4f4f', 5, { life: 1.8, max: 1.8, vy: -10 });
+      text(b.x, b.y - 30, G.t('btnBroken'), '#ff4f4f', 5, { life: 1.8, max: 1.8, vy: -10 });
+      cardText(0, G.t('btnBrokenCard'), '#ff4f4f', 6, { life: 2.2, vy: -3, big: true });
+      cardText(9, G.t('btnBrokenSub', G.TUNE.btnDown), '#ffffff', 3, { life: 2.2, vy: -3 });
     });
+    partyListen();
     G.on('levelUp', lvl => {
       const hp = heroPos();
       hitstop = Math.max(hitstop, 0.06);
@@ -7682,6 +8572,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     G.Audio && G.Audio.unlock();
     if (hitWisp(p)) { G.catchWisp(); return 'wisp'; }
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
+    const dn = hitDowned(p);
+    if (dn != null) { G.reviveTap(dn); return 'revive'; }
     const ge = hitLoot(p);
     if (ge) { G.pickup(ge, 'hand'); return 'loot'; }
     if (hitShrine(p)) { G.useShrine('hand'); return 'shrine'; }
@@ -7797,6 +8689,151 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (hero.cast > 0) hero.cast -= dt;
   }
   St.heroPos = heroPos;
+
+  // ---------- The party on the field ----------
+  // Companions hold places around the Button; the Warden keeps the left.
+  const allyVis = [];
+  const aVis = i => allyVis[i] || (allyVis[i] = { atk: null, face: 1, hurt: 0, heal: 0, ph: Math.random() * 6 });
+  const SLOTS_AT = [[34, 14], [-14, 36], [18, 38]];
+  function allySlot(i) { const b = btnPos(), o = SLOTS_AT[i] || [0, 40]; return { x: b.x + o[0], y: b.y + o[1] }; }
+  function unitPos(who) { return who === 'button' ? { x: btnPos().x, y: btnPos().y - 6 } : who < 0 ? heroPos() : allySlot(who); }
+  St.unitPoint = who => { const q = unitPos(who); return St.toScreen(q.x, q.y - 12); };
+  const ROLE_COL = { tank: '#7fb8ff', heal: '#8ae07a', dps: '#ff9a5a' };
+  function hpBar(x, y, k, w, col) {
+    lctx.fillStyle = '#0c0b12'; lctx.fillRect(Math.round(x - w / 2) - 1, y - 1, w + 2, 4);
+    lctx.fillStyle = '#3a1a1e'; lctx.fillRect(Math.round(x - w / 2), y, w, 2);
+    lctx.fillStyle = k > 0.5 ? '#56d45a' : k > 0.25 ? '#ffd84a' : '#ff4f4f'; lctx.fillRect(Math.round(x - w / 2), y, Math.max(0, Math.round(w * k)), 2);
+    if (col) { lctx.fillStyle = col; lctx.fillRect(Math.round(x - w / 2) - 3, y - 1, 2, 4); }
+  }
+  // a fallen hero lies on its side, greyed, with a ring that fills as it gets back up
+  function drawDowned(u, q) {
+    lctx.save(); lctx.globalAlpha = 0.55;
+    lctx.translate(q.x, q.y - 3); lctx.rotate(-Math.PI / 2);
+    G.Doll.draw(lctx, u, 0, 0, { face: 1, pose: 'rest', ang: 0, time: 0 });
+    lctx.restore();
+    const k = clamp(1 - u.down / (G.TUNE.reviveTime || 24), 0, 1);
+    lctx.strokeStyle = '#0c0b12'; lctx.lineWidth = 3; lctx.beginPath(); lctx.arc(q.x, q.y - 6, 9, 0, Math.PI * 2); lctx.stroke();
+    lctx.strokeStyle = '#ffd84a'; lctx.lineWidth = 1; lctx.beginPath(); lctx.arc(q.x, q.y - 6, 9, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); lctx.stroke();
+    if (Math.random() < 0.08) part(q.x + rand(-4, 4), q.y - 10, '#c8c8d4', { vx: 0, vy: -8, grav: 0, life: 0.6 });
+  }
+  function drawAlly(i, u, q) {
+    const v = aVis(i);
+    if (u.down > 0) { drawDowned(u, q); return; }
+    const w = u.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
+    shadow(q.x, q.y - 1, 12);
+    if (v.heal > 0) { glow(q.x, q.y - 8, 9, '#8ae07a', v.heal * 2); v.heal -= fdt; }
+    let pose = 'rest', ang = G.Doll.restAngle(wt), draw = 0;
+    const a = v.atk;
+    if (a) {
+      const k = a.t / a.dur;
+      if (a.kind === 'swing') { if (k < 0.3) { pose = 'up'; ang = -2.4; } else { pose = 'fwd'; ang = G.lerp(-2.4, 0.8, Math.min(1, (k - 0.3) / 0.4)); } }
+      else if (a.kind === 'stab') { if (k > 0.3) { pose = 'fwd'; ang = 0; } }
+      else if (a.kind === 'shot') { pose = 'fwd'; draw = k < 0.5 ? k / 0.5 : 0; }
+      else if (a.kind === 'cast') { if (k < 0.4) { pose = 'up'; ang = -1.9; } else { pose = 'fwd'; ang = -0.55; } }
+      if ((a.t += fdt) >= a.dur) v.atk = null;
+    }
+    const bob = a ? 0 : Math.floor(time * 1.6 + v.ph) % 2;
+    G.Doll.draw(lctx, u, q.x, q.y, { face: v.face, pose, bob, ang, draw, time: time + v.ph });
+    if (v.hurt > 0) { lctx.globalAlpha = Math.min(0.6, v.hurt * 4); lctx.fillStyle = '#ff3b3b'; lctx.fillRect(q.x - 6, q.y - 20, 12, 20); lctx.globalAlpha = 1; v.hurt -= fdt; }
+    hpBar(q.x, q.y - 24, u.hp / u.max, 14, ROLE_COL[u.role]);
+  }
+  // heals, bites and boss shots between the party, the Button and the Horde
+  const beamsFx = [];
+  function drawBeamsFx(dt) {
+    for (let i = beamsFx.length - 1; i >= 0; i--) {
+      const f = beamsFx[i];
+      if ((f.t += dt) >= f.dur) { beamsFx.splice(i, 1); if (f.onEnd) f.onEnd(); continue; }
+      const k = f.t / f.dur, a = unitPos(f.from), b = unitPos(f.to);
+      if (f.kind === 'heal') {
+        lctx.globalAlpha = 0.7 * (1 - k); lctx.strokeStyle = '#8ae07a'; lctx.lineWidth = 2;
+        lctx.beginPath(); lctx.moveTo(a.x, a.y - 14); lctx.lineTo(b.x, b.y - 10); lctx.stroke(); lctx.globalAlpha = 1;
+      } else {
+        // a bolt from the boss to its victim
+        const bp = bossVis ? bossPos() : btnPos(), x = bp.x + (b.x - bp.x) * k, y = bp.y - 12 + (b.y - 10 - bp.y + 12) * k - Math.sin(k * Math.PI) * 10;
+        lctx.fillStyle = '#0c0b12'; lctx.fillRect(Math.round(x) - 2, Math.round(y) - 2, 5, 5);
+        lctx.fillStyle = f.col || '#ff7a2e'; lctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+        if (Math.random() < 0.5) part(x, y, f.col || '#ffb347', { vx: rand(-8, 8), vy: rand(-8, 8), grav: 0, life: 0.2 });
+      }
+    }
+  }
+  function partyListen() {
+    G.on('allyAttack', ev => {
+      const v = aVis(ev.i), q = allySlot(ev.i), m = G.S.party[ev.i];
+      if (!m) return;
+      const wt = ev.wt || (m.eq.weapon ? G.ITEM_TYPE[m.eq.weapon.id] : 'sword'), at = ATTACK[wt] || ['swing', 0.24];
+      v.atk = { kind: at[0], t: 0, dur: at[1] };
+      const t0 = ev.ids && G.R.mobs.find(x => x.id === ev.ids[0]);
+      const tp = t0 ? mobPos(t0) : ev.boss && bossVis ? bossPos() : null;
+      if (!tp) return;
+      v.face = tp.x >= q.x ? 1 : -1;
+      if (shots.length < 110 && !MELEE[wt]) shots.push({ x: q.x, y: q.y - 10, sx: q.x, sy: q.y - 10, tx: tp.x, ty: tp.y - 6, t: 0, dur: 0.2, col: G.WEAPONS[wt] ? G.WEAPONS[wt].col : '#ffffff', arrow: wt === 'bow', flat: wt === 'bow', big: wt === 'staff' });
+      else if (MELEE[wt]) burst(tp.x, tp.y - 5, ['#ffffff', G.WEAPONS[wt].col], 3, 40, { life: 0.2 });
+      for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
+      for (const id of ev.ids || []) mobVisOf({ id }).hit = 0.09;
+    });
+    G.on('heal', (i, who) => {
+      beamsFx.push({ kind: 'heal', from: i, to: who, t: 0, dur: 0.35 });
+      const q = unitPos(who);
+      burst(q.x, q.y - 12, ['#8ae07a', '#ffffff'], 5, 30, { grav: -20, life: 0.5 });
+      if (who !== 'button') aVisOf(who).heal = 0.3;
+    });
+    G.on('unitHurt', (who, dmg, src) => {
+      aVisOf(who).hurt = 0.12;
+      const q = unitPos(who);
+      if (Math.random() < 0.3 || src === 'boss' || src === 'slam' || src === 'barrage') text(q.x + rand(-5, 5), q.y - 28, '-' + G.fmt(dmg), '#ff6b6b', 3, { life: 0.6, max: 0.6, vy: -16 });
+    });
+    G.on('unitDown', who => {
+      const q = unitPos(who);
+      burst(q.x, q.y - 8, ['#8a8a9a', '#ff4f4f', '#ffffff'], 18, 70);
+      text(q.x, q.y - 30, G.t('downed'), '#ff4f4f', 4, { life: 1.4, max: 1.4, vy: -10 });
+      St.shake(2);
+    });
+    G.on('unitRevive', who => { const q = unitPos(who); burst(q.x, q.y - 8, ['#ffd84a', '#8ae07a', '#ffffff'], 20, 60, { grav: -30 }); text(q.x, q.y - 30, G.t('backUp'), '#8ae07a', 4, { life: 1.2, max: 1.2, vy: -10 }); ring(q.x, q.y - 4, 14, 7, '#ffd84a', 0.4); });
+    G.on('reviveTap', who => { const q = unitPos(who); burst(q.x, q.y - 8, ['#ffd84a', '#ffffff'], 6, 40, { life: 0.3 }); });
+    G.on('bossHit', (b, v) => beamsFx.push({ kind: 'bolt', from: 'boss', to: v, t: 0, dur: 0.35, col: b.lord ? '#ff4f7e' : '#ff7a2e' }));
+    G.on('barrageHit', (b, v, i) => setTimeout(() => beamsFx.push({ kind: 'bolt', from: 'boss', to: v, t: 0, dur: 0.4, col: '#ffb347' }), i * 90));
+    G.on('buttonPulse', () => { const b = btnPos(); ring(b.x, b.y - 4, 30, 15, '#ffd84a', 0.35); ring(b.x, b.y - 4, 20, 10, '#ffffff', 0.25); if (G.Audio && G.Audio.pulse) G.Audio.pulse(); });
+    G.on('buttonFixed', () => { const b = btnPos(); burst(b.x, b.y - 8, ['#ffd84a', '#ffffff', '#56d45a'], 24, 80); text(b.x, b.y - 32, G.t('buttonFixed'), '#56d45a', 4, { life: 1.4, max: 1.4, vy: -10 }); });
+    G.on('clickDead', () => { const b = btnPos(); burst(b.x + rand(-8, 8), b.y - 6, ['#6e6e7c', '#3a3a44'], 3, 25, { life: 0.3 }); });
+    G.on('recruit', (m, i) => { const q = allySlot(i); burst(q.x, q.y - 10, ['#ffd84a', '#ffffff'], 30, 90); ring(q.x, q.y - 4, 20, 10, '#ffd84a', 0.5); cardText(0, G.t('joined', G.L(G.CLASS_BY_ID[m.cls].name)).toUpperCase(), '#ffd84a', 6, { life: 2.4, vy: -3, big: true }); cardText(9, G.t('role_' + G.ROLES[m.cls]), '#ffffff', 3, { life: 2.4, vy: -3 }); });
+    G.on('slotOpen', () => { cardText(0, G.t('slotOpen'), '#ffd84a', 6, { life: 3, vy: -2, big: true }); cardText(9, G.t('slotOpenSub'), '#ffffff', 3, { life: 3, vy: -2 }); if (G.Audio && G.Audio.levelUp) G.Audio.levelUp(); });
+    G.on('invasion', (r, V) => {
+      St.flash(0.4, V.col); St.shake(4);
+      cardText(0, V.name, V.col, 8, { life: 3, vy: -2, big: true });
+      cardText(11, V.sub, '#ffffff', 3, { life: 3, vy: -2 });
+      if (G.Audio && G.Audio.invasion) G.Audio.invasion(V.id);
+    });
+    G.on('invasionBoss', (m, V) => { cardText(0, V.bossName.toUpperCase(), V.col, 7, { life: 2.4, vy: -2, big: true }); cardText(10, G.t('heraldSub'), '#ffffff', 3, { life: 2.4, vy: -2 }); St.shake(5); });
+    G.on('invasionEnd', (won, r) => { const V = G.INV_BY_ID[r.k]; cardText(0, won ? G.t('invWon') : G.t('invLost'), won ? '#ffd84a' : '#c8b4ff', 7, { life: 2.6, vy: -2, big: true }); if (won) { St.flash(0.4, '#ffd84a'); St.shake(6); } });
+    G.on('wipe', (from, to, rift) => {
+      St.flash(0.9, '#3a0000'); St.shake(9); slowmo = Math.max(slowmo, 1.2);
+      cardText(0, G.t('wipeTitle'), '#ff4f4f', 8, { life: 3.4, vy: -2, big: true });
+      cardText(11, rift ? G.t('wipeRift') : to < from ? G.t('wipeBack', to + 1) : G.t('wipeBar'), '#ffffff', 3, { life: 3.4, vy: -2 });
+      if (G.Audio && G.Audio.wipe) G.Audio.wipe();
+    });
+    // a phase card still waiting when the fight ends is stale
+    const dropPhase = () => { for (let i = cardQ.length - 1; i >= 0; i--) if (cardQ[i].tag === 'phase') cardQ.splice(i, 1); };
+    G.on('bossWin', dropPhase); G.on('bossFail', dropPhase); G.on('wipe', dropPhase);
+    G.on('bossPhase', b => {
+      const bp = bossPos();
+      hitstop = Math.max(hitstop, 0.25); St.shake(7); St.flash(0.35, b.lord ? '#ff4f7e' : '#ffffff');
+      ring(bp.x, bp.y - 8, 70, 36, '#ffffff', 0.6); ring(bp.x, bp.y - 8, 50, 26, b.lord ? '#ff4f7e' : '#ffb347', 0.5);
+      burst(bp.x, bp.y - 12, ['#ffffff', '#ffb347', '#ff4f7e'], 50, 150);
+      cardText(0, G.t('phaseN', b.phase), b.phase >= 3 ? '#ff4f4f' : '#ffb347', 8, { life: 2, vy: -3, big: true, now: true, tag: 'phase' });
+      cardText(11, G.t(b.phase >= 3 && b.lord ? 'phaseRage' : 'phaseSub'), '#ffffff', 3, { life: 2, vy: -3 });
+      if (G.Audio && G.Audio.phase) G.Audio.phase();
+    });
+  }
+  const aVisOf = who => (who < 0 ? hero : aVis(who));
+  // a tap on a fallen hero helps them up
+  function hitDowned(p) {
+    for (const u of G.partyUnits ? G.partyUnits() : []) {
+      if (!(u.down > 0)) continue;
+      const q = unitPos(u.who);
+      if (Math.abs(p.x - q.x) <= 11 && Math.abs(p.y - (q.y - 5)) <= 10) return u.who;
+    }
+    return null;
+  }
   function mobPos(m) {
     const b = btnPos();
     const a = -Math.PI / 2 + 0.55 + m.a * (Math.PI * 2 - 1.1);
@@ -7820,6 +8857,13 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     return best;
   }
   function mobSprite(m, realm) {
+    // an invasion's mobs come in its own shapes
+    if (m.inv && G.INV_BY_ID[m.inv]) {
+      const V = G.INV_BY_ID[m.inv];
+      if (m.kind === 'guardian') return SPR.boss(V.boss, true).canvas;
+      const id = G.SMALL[m.kind] ? V.swarm : V.elite;
+      if (SPR.defs[id]) return SPR.get(id, m.kind === 'magic' ? { oc: '#3f7fff' } : m.kind === 'rare' ? { oc: '#ffd84a' } : null);
+    }
     if (m.kind === 'fodder') return SPR.get(realm.fodder);
     if (G.ARCHETYPES && G.ARCHETYPES[m.kind]) return SPR.arch(m.kind, realm.id);
     if (m.kind === 'hoard') return SPR.get('m_hoard');
@@ -7848,11 +8892,12 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     }
     if (m.kind === 'runner' && m.p > 0 && Math.random() < 0.15) part(q.x, q.y - 1, '#d8cfb8', { vx: 0, vy: -4, grav: 0, life: 0.3 });
     if (m.kind === 'rare') glow(q.x, q.y - 9, 10, '#ffd84a', 0.24 + 0.08 * Math.sin(time * 6));
-    let x = q.x;
-    if (v.hit > 0) x += Math.round(rand(-1, 1));
+    let x = q.x, y = q.y;
+    // a hit knocks it back from the Button for a moment, a small one further
+    if (v.hit > 0) { const b = btnPos(), dx = q.x - b.x, dy = q.y - b.y, l = Math.hypot(dx, dy) || 1, k = v.hit * (fod ? 34 : 18); x += Math.round(dx / l * k + rand(-1, 1)); y += Math.round(dy / l * k * 0.6); }
     if (v.lunge > 0) { x += Math.sign(btnPos().x - q.x) * 2; v.lunge -= fdt; }
-    blit(spr, x, q.y);
-    if (v.hit > 0) { blit(white(spr), x, q.y, 1, Math.min(0.85, v.hit * 10)); v.hit -= fdt; }
+    blit(spr, x, y);
+    if (v.hit > 0) { blit(white(spr), x, y, 1, Math.min(0.85, v.hit * 10)); v.hit -= fdt; }
     if (!fod && m.hp < m.max) {
       const w = m.kind === 'rare' || m.kind === 'hoard' || m.kind === 'tank' ? 16 : m.kind === 'bomber' || m.kind === 'spitter' ? 8 : 12, k = clamp(m.hp / m.max, 0, 1);
       lctx.fillStyle = '#0c0b12'; lctx.fillRect(q.x - w / 2 - 1, q.y - 21, w + 2, 3);
@@ -7894,6 +8939,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   function drawHero(hp) {
     const h = G.S.hero;
     if (!h || !h.cls) return;
+    if (h.wdown > 0) { drawDowned({ cls: h.cls, eq: h.eq, down: h.wdown }, hp); return; }
+    if (hero.hurt > 0) hero.hurt -= fdt;
+    if (hero.heal > 0) { glow(hp.x, hp.y - 8, 9, '#8ae07a', hero.heal * 2); hero.heal -= fdt; }
     const w = h.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
     if (w && w.r >= 3) glow(hp.x, hp.y - 6, 10, G.RARITIES[w.r].color, 0.16 + 0.06 * Math.sin(time * 4));
     if (G.R.hb && G.R.hb.wing > 0) glow(hp.x, hp.y - 12, 12, '#ffffff', 0.25);
@@ -7943,6 +8991,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       ring(tp.x, tp.y, 5, 4, G.WEAPONS[wt].col, 0.18);
     }
     if (hero.moving && Math.random() < 0.3) part(hp.x + rand(-3, 3), hp.y, pick(['#c8b89a', '#8a7a60']), { vx: -hero.face * rand(5, 15), vy: rand(-10, -2), grav: 20, life: 0.3 });
+    if (hero.hurt > 0) { lctx.globalAlpha = Math.min(0.6, hero.hurt * 4); lctx.fillStyle = '#ff3b3b'; lctx.fillRect(hp.x - 6, hp.y - 20, 12, 20); lctx.globalAlpha = 1; }
+    if (G.D.wardenHp) hpBar(hp.x, hp.y - 26, h.whp / G.D.wardenHp, 16, ROLE_COL[G.ROLES[h.cls]]);
   }
   const MELEE = { dagger: 1, sword: 1, katana: 1, scythe: 1 };
   // The Warden's hits on a boss add up into floating numbers a few times a second
@@ -8023,6 +9073,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     ember:     { blood: '#1e1210', style: 'embers' },
     mirror:    { blood: '#9aa2bc', style: 'glass' },
     sky:       { blood: '#c8b070', style: 'feathers' },
+    moon:      { blood: '#9aa2bc', style: 'glass' },
+    cosmos:    { blood: '#3a2a6a', style: 'dissolve' },
   };
   const chunkCache = new WeakMap();
   // 2x2 blocks of a sprite's opaque pixels, sampled once per sprite
@@ -8537,6 +9589,23 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     lctx.fillStyle = '#b36bff'; lctx.fillRect(q.x - 10, q.y + ry + 3, Math.round(20 * k), 1);
   }
   // Rift: a purple edge on the world (its bar and clock are in the HUD row)
+  // An invasion paints the sky: a tint over the field, its moon, planet, sun or eye, and its weather
+  function drawInvasionSky(dt) {
+    const r = G.R.inv;
+    invFade = clamp(invFade + (r ? dt : -dt) * 1.5, 0, 1);
+    if (invFade <= 0) return;
+    const V = G.INV_BY_ID[(r && r.k) || lastInv] || G.INVASIONS[0];
+    if (r) lastInv = r.k;
+    lctx.globalAlpha = V.tintA * invFade; lctx.fillStyle = V.tint; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1;
+    const sky = SPR.defs[V.sky] ? SPR.get(V.sky) : null;
+    if (sky) { lctx.globalAlpha = 0.6 * invFade; lctx.drawImage(sky, Math.round(W * 0.8 - sky.width), Math.round(18 + Math.sin(time * 0.5) * 2), sky.width * 2, sky.height * 2); lctx.globalAlpha = 1; }
+    if (!r) return;
+    if (V.id === 'moon' && Math.random() < 0.5) part(rand(0, W), -2, pick(['#e8f0ff', '#c8d6ff', '#ffffff']), { vx: rand(-20, -5), vy: rand(40, 70), grav: 0, life: rand(0.8, 1.6) });
+    if (V.id === 'cosmic' && Math.random() < 0.06) { const x = rand(20, W - 20); beams.push({ x, y: rand(H * 0.3, H * 0.8), col: '#7fff9a', life: 0.6, max: 0.6, w: 6 }); }
+    if (V.id === 'heaven') { lctx.globalAlpha = 0.08 + 0.04 * Math.sin(time * 2); lctx.fillStyle = '#fff3a0'; for (let i = 0; i < 4; i++) { const x = (i * W / 3 + time * 8) % (W + 60) - 30; lctx.beginPath(); lctx.moveTo(x, 0); lctx.lineTo(x + 26, 0); lctx.lineTo(x + 70, H); lctx.lineTo(x + 30, H); lctx.fill(); } lctx.globalAlpha = 1; if (Math.random() < 0.2) part(rand(0, W), -2, '#ffffff', { vx: rand(-6, 6), vy: rand(10, 25), grav: 0, life: 2 }); }
+    if (V.id === 'deep' && Math.random() < 0.4) part(rand(0, W), H + 2, pick(['#4fe0c8', '#9ff0e0']), { vx: rand(-4, 4), vy: -rand(20, 40), grav: 0, life: rand(1, 2) });
+  }
+  let invFade = 0, lastInv = null;
   function drawRiftTint() {
     const r = G.R.rift;
     if (!r) return;
@@ -8749,6 +9818,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     drawPerkFx();
     drawBreach();
     drawRiftTint();
+    drawInvasionSky(vdt);
     stepGround(vdt);
 
     // Collect drawables sorted by y
@@ -8809,6 +9879,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       list.push({ y: q.y, draw: () => drawMob(m, q, mrealm) });
     }
     if (G.S.hero && G.S.hero.cls) { const hp = heroPos(); list.push({ y: hp.y, draw: () => drawHero(hp) }); }
+    // companions, each at their place
+    if (G.partyUnits && G.S.hero && G.S.hero.cls) for (const u of G.partyUnits()) if (u.who >= 0) { const q = allySlot(u.who); list.push({ y: q.y, draw: () => drawAlly(u.who, u, q) }); }
     if (mobVis.size > (R.mobs || []).length + 20) { const ids = new Set((R.mobs || []).map(m => m.id)); for (const k of [...mobVis.keys()]) if (!ids.has(k)) mobVis.delete(k); }
     // Button or boss
     if (bossVis && bossDmg.acc > 0 && (bossDmg.t -= dt) <= 0) {
@@ -8853,6 +9925,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     for (const d of list) d.draw();
     drawLootBeams();
     drawShotsInFlight();
+    drawBeamsFx(vdt);
     drawRings(vdt); drawGlowFx(vdt);
     stepCoins(vdt);
     stepGems(vdt);
@@ -9127,6 +10200,13 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     lctx.drawImage(spr, Math.round(b.x - bw / 2), Math.round(b.y + 4 - bh), bw, bh);
     if (btnFlashT > 0) { lctx.globalAlpha = Math.min(0.7, btnFlashT * 9); lctx.drawImage(white(spr), Math.round(b.x - bw / 2), Math.round(b.y + 4 - bh), bw, bh); lctx.globalAlpha = 1; btnFlashT -= fdt; }
     if (btnHurtT > 0) { blit(white(spr), b.x, b.y + 4, 1, btnHurtT * 3); btnHurtT -= fdt; }
+    if (G.R.btnDown > 0) {
+      // broken: dark, cracked, smoking, and a countdown until it mends
+      lctx.globalAlpha = 0.8; blit(SPR.button('#3a3348', true, 0), b.x, b.y + 4); lctx.globalAlpha = 1;
+      lctx.fillStyle = '#0c0b12';
+      for (const [x0, y0, x1, y1] of [[-8, -12, -2, -4], [-2, -4, -5, 2], [3, -13, 7, -6], [7, -6, 4, 0]]) { lctx.fillRect(b.x + x0, b.y + y0, Math.max(1, Math.abs(x1 - x0)), 1); lctx.fillRect(b.x + x1, b.y + Math.min(y0, y1), 1, Math.abs(y1 - y0)); }
+      if (Math.random() < 0.4) part(b.x + rand(-10, 10), b.y - rand(4, 12), pick(['#6e6e7c', '#3a3a44', '#ff7a2e']), { vx: rand(-5, 5), vy: -rand(15, 30), grav: -10, life: 0.8 });
+    }
     if (G.R.stun > 0) {
       lctx.globalAlpha = 0.45; blit(SPR.button('#3a3348', true, 0), b.x, b.y + 4); lctx.globalAlpha = 1;
       if (Math.random() < 0.5) part(b.x + rand(-14, 14), b.y - rand(0, 12), pick(['#7fe9ff', '#ffffff']), { vx: rand(-30, 30), vy: rand(-40, -10), life: 0.3 });
@@ -9209,7 +10289,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     for (const m of G.R.mobs || []) {
       if (m.kind === 'hoard' || m.kind === 'guardian') {
         const q = mobPos(m), hoard = m.kind === 'hoard', y = hoard ? q.y - 25 : q.y - 44;
-        const nm = G.t(hoard ? 'hoarder' : 'riftGuardian');
+        const nm = hoard ? G.t('hoarder') : m.inv && G.INV_BY_ID[m.inv] ? G.INV_BY_ID[m.inv].bossName : G.t('riftGuardian');
         ctx.font = crisp(hoard ? 3 : 4) + 'px ' + FONT;
         ctx.strokeText(nm, q.x, y); ctx.fillStyle = hoard ? '#ffd84a' : '#ff9ab4'; ctx.fillText(nm, q.x, y);
         if (hoard) { const k = clamp(m.life / G.TUNE.hoardLife, 0, 1); ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - 9, y + 3, 18, 2); ctx.fillStyle = k > 0.3 ? '#b36bff' : '#ff4f4f'; ctx.fillRect(q.x - 9, y + 3, 18 * k, 1); }
@@ -9338,7 +10418,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   const img = (id, cls, sc, o) => `<img src="${ic(id, sc, o)}" alt="" class="${cls || ''}" draggable="false">`;
   const fmt = G.fmt, t = G.t, L = G.L;
 
-  let tab = 'upg', buyAmt = 1, selNode = 'spark', selItem = null, ascArm = 0, resetArm = 0;
+  let tab = 'upg', buyAmt = 1, selNode = 'spark', selItem = null, ascArm = 0, resetArm = 0, selWho = -1;
   let refs = {}, lastText = new WeakMap();
   const setText = (el, s) => { if (el && lastText.get(el) !== s) { el.textContent = s; lastText.set(el, s); } };
   const setClass = (el, c, on) => { if (el && el.classList.contains(c) !== !!on) el.classList.toggle(c, !!on); };
@@ -9370,6 +10450,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     $('#fameIco').src = ic('ic_fame', 3);
     buildTabs();
     bindHud();
+    bindPartyHud();
     bindKeys();
     listen();
     tab = 'upg';
@@ -9385,6 +10466,40 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   G.SHARE_URL = 'https://claude.ai/artifact/WcSxtLrabwMuEt2YcyxpWh';
   G.uiBusy = () => !$('#modal').hidden || !$('#intro').hidden;
 
+  // ---------- The party on the field: a chip per unit, tap a fallen one to raise them ----------
+  let phKey = '';
+  function updatePartyHud() {
+    const el = $('#partyHud'), h = G.S.hero;
+    const units = h && h.cls && G.S.party.length ? G.partyUnits() : [];
+    el.hidden = !units.length;
+    if (!units.length) return;
+    const key = units.map(u => u.cls + JSON.stringify(u.eq && G.SLOTS.map(s => u.eq[s] ? u.eq[s].id + (u.eq[s].q || '') : ''))).join('|');
+    if (key !== phKey) {
+      phKey = key;
+      el.innerHTML = units.map(u => `<button class="pchip r_${u.role}" data-who="${u.who}" aria-label="${esc(u.who < 0 ? t('wardenName') : L(G.CLASS_BY_ID[u.cls].name))}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><i><u></u></i><b></b></button>`).join('');
+    }
+    const chips = el.children;
+    units.forEach((u, i) => {
+      const c = chips[i]; if (!c) return;
+      const down = u.down > 0, k = Math.max(0, Math.min(1, u.hp / (u.max || 1)));
+      setClass(c, 'down', down);
+      setClass(c, 'low', !down && k < 0.35);
+      c.querySelector('u').style.width = (down ? 0 : k * 100) + '%';
+      setText(c.querySelector('b'), down ? Math.ceil(u.down) + 's' : '');
+    });
+  }
+  function bindPartyHud() {
+    $('#partyHud').addEventListener('click', e => {
+      const c = e.target.closest('.pchip'); if (!c) return;
+      const who = +c.dataset.who;
+      if (G.reviveTap(who)) { G.Audio.click(0, false); return; }
+      // a standing unit: open their page in the Party tab
+      selWho = who; selGear = null; UI.unfold(); UI.go('hero');
+    });
+    $('#btnFold').addEventListener('click', () => { $('#app').classList.toggle('fold'); $('#btnFold').textContent = $('#app').classList.contains('fold') ? '▴' : '▾'; setTimeout(() => G.Stage && G.Stage.resize && G.Stage.resize(), 0); });
+  }
+  UI.unfold = function () { if ($('#app').classList.contains('fold')) { $('#app').classList.remove('fold'); $('#btnFold').textContent = '▾'; setTimeout(() => G.Stage && G.Stage.resize && G.Stage.resize(), 0); } };
+
   function buildTabs() {
     const nav = $('#tabs');
     nav.innerHTML = TABS.map((x, i) => `<button class="tab" data-tab="${x.id}" aria-label="${esc(t('tab_' + x.id))}" title="${esc(t('tab_' + x.id))}${i < 10 ? ` (${(i + 1) % 10})` : ''}">${img(x.icon, '', 3)}<span class="dot" hidden></span></button>`).join('');
@@ -9392,6 +10507,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       const b = e.target.closest('.tab'); if (!b) return;
       const id = b.dataset.tab;
       if (!tabOpen(id)) { G.Audio.error(); return; }
+      UI.unfold();
       UI.go(id);
     });
   }
@@ -9620,6 +10736,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     setClass($('.tab[data-tab="upg"]'), 'afford', canUpg);
     setClass($('.tab[data-tab="heroes"]'), 'afford', canHero && tabOpen('heroes'));
     setClass($('.tab[data-tab="stars"]'), 'afford', canNode);
+    // an open party slot marks the Party tab until it is filled
+    if (S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length) { $('.tab[data-tab="hero"] .dot').hidden = false; }
     const qDot = $(`.tab[data-tab="quests"] .dot`);
     if (tabOpen('quests') && (S.quests.some(q => q.done) || G.dailyAvailable())) qDot.hidden = false;
     // HUD
@@ -9653,7 +10771,14 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     setClass($('#stageWrap'), 'fighting', !!R.boss);
     $('#bossRow').hidden = !bossShown;
     $('#btnRift').hidden = !(bossShown && !R.boss && !R.rift && G.riftOpenable());
-    if (bossShown && R.rift) {
+    if (bossShown && R.inv && !R.boss) {
+      // an invasion: hold it off until its herald comes, then slay the herald
+      const V = G.INV_BY_ID[R.inv.k], hb = R.inv.boss ? R.mobs.find(m => m.id === R.inv.boss) : null;
+      $('#bossMeter').style.width = (hb ? Math.max(0, hb.hp / hb.max) : Math.min(1, R.inv.prog / R.inv.need)) * 100 + '%';
+      setClass($('#bossWrap'), 'hp', !!hb); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'waves', false);
+      setText($('#bossText'), hb ? t('invHerald', V.bossName, Math.ceil(R.inv.t)) : t('invName', V.name, Math.floor(Math.min(R.inv.prog, R.inv.need)), R.inv.need, Math.ceil(R.inv.t)));
+      $('#btnFight').hidden = true; $('#btnRetreat').hidden = true;
+    } else if (bossShown && R.rift) {
       const r = R.rift, g = r.guard ? R.mobs.find(m => m.id === r.guard) : null;
       $('#bossMeter').style.width = (g ? Math.max(0, g.hp / g.max) : Math.min(1, r.prog / r.need)) * 100 + '%';
       setClass($('#bossWrap'), 'hp', !!g); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'waves', false);
@@ -9696,6 +10821,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       setText($('#xpText'), t('lvl') + ' ' + h.lvl);
     }
     updatePerks();
+    updatePartyHud();
     $('#hpRow').hidden = !(h && h.cls);
     if (h && h.cls) {
       const k = Math.max(0, h.hp / (D.heroHp || 1));
@@ -10225,7 +11351,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   const SLOT_ICON = { weapon: 'ic_sword', ability: 'ic_scroll', armor: 'it_chainmail', ring: 'it_copper_ring' };
   function findGear(u) {
     const h = G.S.hero;
-    for (const s of G.SLOTS) if (h.eq[s] && h.eq[s].u === u) return { g: h.eq[s], worn: s };
+    // worn by the member on screen, then by anyone else in the party, then in the bag
+    const order = [selWho].concat([-1].concat(G.S.party.map((_, i) => i)).filter(w => w !== selWho));
+    for (const w of order) { const eq = G.eqOf(w); for (const s of G.SLOTS) if (eq[s] && eq[s].u === u) return { g: eq[s], worn: s, who: w }; }
     const g = h.bag.find(x => x.u === u);
     return g ? { g, worn: null } : null;
   }
@@ -10263,30 +11391,34 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   renderers.hero = function (body) {
     const S = G.S, h = S.hero;
     if (!h.cls) { body.innerHTML = `<p class="note">${esc(t('pickClassHint'))}</p><button class="btn gold" data-pick>${esc(t('pickClass'))}</button>`; body.querySelector('[data-pick]').onclick = () => UI.pickClass(); return; }
-    const cls = G.CLASS_BY_ID[h.cls];
+    if (selWho >= S.party.length) selWho = -1;
+    const who = selWho, mem = who >= 0 ? S.party[who] : null, cls = G.CLASS_BY_ID[mem ? mem.cls : h.cls];
     const salvOpts = [0, 1, 2, 3];
     body.innerHTML = `
+      <div class="partyStrip" data-strip></div>
       <div class="charCard">
-        <div class="portrait"><img data-doll src="${G.Doll.portrait(h, 4)}" alt=""></div>
+        <div class="portrait"><img data-doll src="${G.Doll.portrait(mem ? { cls: mem.cls, eq: mem.eq } : h, 4)}" alt=""></div>
         <div class="charInfo">
-          <input id="heroName" maxlength="16" placeholder="${esc(t('namePh'))}" value="${esc(S.profile.name || '')}" aria-label="${esc(t('namePh'))}">
-          <div class="clsLine">${esc(L(cls.name))} · <span data-lvl></span></div>
+          ${mem ? `<div class="memName">${esc(L(cls.name))}</div>` : `<input id="heroName" maxlength="16" placeholder="${esc(t('namePh'))}" value="${esc(S.profile.name || '')}" aria-label="${esc(t('namePh'))}">`}
+          <div class="clsLine">${esc(L(cls.name))} · <span class="r_${G.ROLES[cls.id]}" style="color:var(--role)">${esc(G.ROLE_NAMES[G.ROLES[cls.id]])}</span> · <span data-lvl></span></div>
           <div class="pbar"><i data-xp></i><span data-xpt></span></div>
           <div class="power"><small>${esc(t('power'))}</small><b data-pow></b></div>
         </div>
       </div>
-      <div class="sect">${esc(t('roleTitle'))}</div>
-      <p class="note">${esc(t('roleHint'))}</p>
-      <div class="statList" data-role></div>
-      <div class="sect">${esc(t('perksTitle'))}</div>
-      <div class="perkList" data-perks></div>
       <div class="doll">${G.SLOTS.map(s => `<div class="dslot" data-slot="${s}"><span class="lbl">${esc(t('slot_' + s))}</span><div data-in></div></div>`).join('')}</div>
       <div class="detail" data-gd></div>
       <div class="sect">${esc(t('orbs'))} <small style="color:var(--dim)">${esc(t('orbHint'))}</small></div>
       <div data-orbs></div>
-      <div class="statList heroStats" data-stats></div>
       <div class="sect">${esc(t('bag'))} <span data-bagn></span> · ${img('ic_shard', 'inl', 2)} <span data-shards></span> ${esc(t('shards'))}</div>
       <div class="bag" data-bag></div>
+      <div class="sect">${esc(mem ? t('roleTitleMem') : t('roleTitle'))}</div>
+      <p class="note">${esc(mem ? t('roleHint_' + G.ROLES[mem.cls]) : t('roleHint'))}</p>
+      <div class="statList" data-role></div>
+      <div ${mem ? 'hidden' : ''}>
+      <div class="sect">${esc(t('perksTitle'))}</div>
+      <div class="perkList" data-perks></div>
+      </div>
+      <div class="statList heroStats" data-stats></div>
       <div class="setList" style="margin-top:8px">
         <div class="setRow"><span>${esc(t('autoEquip'))}</span><button class="toggle ${h.auto ? 'on' : ''}" data-ht="auto" aria-label="${esc(t('autoEquip'))}"></button></div>
         <div class="setRow"><span>${esc(t('autoPerk'))}</span><button class="toggle ${h.autoPerk ? 'on' : ''}" data-ht="autoPerk" aria-label="${esc(t('autoPerk'))}"></button></div>
@@ -10302,9 +11434,15 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       slots: $$('.dslot', body), gd: body.querySelector('[data-gd]'), stats: body.querySelector('[data-stats]'), bag: body.querySelector('[data-bag]'),
       bagn: body.querySelector('[data-bagn]'), shards: body.querySelector('[data-shards]'), rec: body.querySelector('[data-rec]'), key: '',
       role: body.querySelector('[data-role]'), perks: body.querySelector('[data-perks]'), orbs: body.querySelector('[data-orbs]'),
+      strip: body.querySelector('[data-strip]'),
     };
-    $('#heroName', body).addEventListener('change', e => { S.profile.name = e.target.value.trim().slice(0, 16); });
+    const nm = $('#heroName', body);
+    if (nm) nm.addEventListener('change', e => { S.profile.name = e.target.value.trim().slice(0, 16); });
     body.addEventListener('click', e => {
+      // pick whose gear you're looking at, or take on a new companion
+      const pm = e.target.closest('[data-who]');
+      if (pm) { selWho = +pm.dataset.who; selGear = null; UI.render(); return; }
+      if (e.target.closest('[data-recruit]')) { UI.recruit(); return; }
       const tg = e.target.closest('[data-ht]');
       if (tg) { h[tg.dataset.ht] = h[tg.dataset.ht] ? 0 : 1; tg.classList.toggle('on'); return; }
       const sb = e.target.closest('[data-salv] button');
@@ -10317,7 +11455,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       // the item's details sit above the bag: bring them into view, or on a phone nothing seems to happen
       if (gt) { selGear = +gt.dataset.g; refs.hero.key = ''; updaters.hero(true); if (refs.hero.gd) refs.hero.gd.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
       const ds = e.target.closest('.dslot');
-      if (ds && !e.target.closest('[data-g]')) { const g = h.eq[ds.dataset.slot]; if (g) { selGear = g.u; refs.hero.key = ''; updaters.hero(true); } return; }
+      if (ds && !e.target.closest('[data-g]')) { const g = G.eqOf(selWho)[ds.dataset.slot]; if (g) { selGear = g.u; refs.hero.key = ''; updaters.hero(true); } return; }
       const ob = e.target.closest('[data-orb]');
       if (ob) {
         const f = findGear(selGear), id = ob.dataset.orb;
@@ -10332,19 +11470,39 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       if (act) {
         const f = findGear(selGear); if (!f) return;
         const a = act.dataset.act;
-        if (a === 'equip') G.equip(f.g);
-        else if (a === 'unequip') G.unequip(f.worn);
+        if (a === 'equip') G.equip(f.g, false, selWho);
+        else if (a === 'unequip') G.unequip(f.worn, f.who);
         else if (a === 'enchant') { if (!G.enchant(f.g)) G.Audio.error(); }
         else if (a === 'salvage') { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_shard'); selGear = null; } }
         refs.hero.key = ''; updaters.hero(true);
       }
     });
-    if (!selGear || !findGear(selGear)) selGear = h.eq.weapon ? h.eq.weapon.u : null;
+    if (!selGear || !findGear(selGear)) { const e0 = G.eqOf(selWho); selGear = e0.weapon ? e0.weapon.u : null; }
+  };
+  // Taking on a companion: pick a class; the roles the party lacks come first
+  UI.recruit = function () {
+    const S = G.S;
+    if (S.party.length >= G.partySlots()) return;
+    const have = [S.hero.cls].concat(S.party.map(m => m.cls)).map(c => G.ROLES[c]);
+    const need = r => !have.includes(r);
+    const html = `<p>${esc(t('recruitHint'))}</p><div class="classGrid">${G.CLASSES.map(c => { const r = G.ROLES[c.id]; return `
+      <button class="clsCard ${need(r) ? 'need' : ''}" data-c="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><em class="role r_${r}">${esc(G.ROLE_NAMES[r])}${need(r) ? ' · ' + esc(t('recruitNeed')) : ''}</em><small>${esc(L(c.desc))}</small></button>`; }).join('')}</div>`;
+    const m = UI.modal(t('recruitTitle'), html, [{ label: t('close') }]);
+    m.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => {
+      if (G.recruit(b.dataset.c)) { m.hidden = true; m.innerHTML = ''; selWho = S.party.length - 1; G.Audio && G.Audio.buy(); UI.render(); }
+    }));
   };
   updaters.hero = function (force) {
     const S = G.S, D = G.D, h = S.hero, rf = refs.hero;
     if (!rf || !h.cls) return;
-    const c = D.hero;
+    if (selWho >= S.party.length) { selWho = -1; UI.render(); return; }
+    const mem = selWho >= 0 ? S.party[selWho] : null, eqS = G.eqOf(selWho);
+    const c = mem ? (D.party[selWho] || {}).c || D.hero : D.hero;
+    // the party strip: everyone, their health, and the places still to fill
+    const units = G.partyUnits(), slots = G.partySlots();
+    let sh = units.map(u => `<button class="pmem ${u.who === selWho ? 'on' : ''} ${u.down > 0 ? 'down' : ''}" data-who="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small class="r_${u.role}">${esc(G.ROLE_NAMES[u.role])}</small><i><u style="width:${Math.round(100 * Math.max(0, u.hp) / u.max)}%"></u></i></button>`).join('');
+    for (let k = S.party.length; k < 3; k++) sh += k < slots ? `<button class="pmem add" data-recruit>+<small>${esc(t('recruit'))}</small></button>` : `<div class="pmem lock"><small>${esc(t('recruitAt', G.PARTY_AT[k]))}</small></div>`;
+    if (rf.strip._h !== sh) { rf.strip.innerHTML = sh; rf.strip._h = sh; }
     setText(rf.lvl, t('lvl') + ' ' + h.lvl);
     rf.xp.style.width = Math.min(100, h.xp / G.xpNeed(h.lvl) * 100) + '%';
     setText(rf.xpt, fmt(Math.floor(h.xp)) + ' / ' + fmt(G.xpNeed(h.lvl)));
@@ -10364,7 +11522,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     ];
     const roleHtml = role.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('') + (alone > limit * 2 ? `<p class="note warn">${esc(t('roleWeak'))}</p>` : '');
     if (rf.role.innerHTML !== roleHtml) rf.role.innerHTML = roleHtml;
-    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks, h.orbs]);
+    const key = JSON.stringify([eqS, selWho, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks, h.orbs]);
     if (key === rf.key && !force) return;
     const pk = Object.keys(h.perks || {}).filter(k => h.perks[k] > 0);
     rf.perks.innerHTML = pk.length ? pk.map(k => {
@@ -10372,10 +11530,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       const P = G.PERKS[k]; return `<div class="perkChip" title="${esc(P.desc)}">${img(P.icon, '', 3)}<b>${esc(P.name)}</b><small>${h.perks[k]}/${P.max}</small></div>`;
     }).join('') : `<p class="note">${esc(t('perksNone'))}</p>`;
     rf.key = key;
-    const dk = JSON.stringify(h.eq);
-    if (dk !== rf.dollKey) { rf.dollKey = dk; const im = document.querySelector('.portrait img[data-doll]'); if (im) im.src = G.Doll.portrait(h, 4); }
+    const dk = JSON.stringify(eqS) + selWho;
+    if (dk !== rf.dollKey) { rf.dollKey = dk; const im = document.querySelector('.portrait img[data-doll]'); if (im) im.src = G.Doll.portrait(mem ? { cls: mem.cls, eq: mem.eq } : h, 4); }
     for (const el of rf.slots) {
-      const g = h.eq[el.dataset.slot];
+      const g = eqS[el.dataset.slot];
       const box = el.querySelector('[data-in]');
       const hh = g ? gearTile(g, selGear === g.u ? 'sel' : '') : `<span class="empty">${img(SLOT_ICON[el.dataset.slot], '', 3, { dark: true })}</span>`;
       if (box._h !== hh) { box.innerHTML = hh; box._h = hh; }
@@ -10385,10 +11543,9 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const bag = h.bag.slice().sort((a, b) => order.indexOf(G.slotOf(a.id)) - order.indexOf(G.slotOf(b.id)) || b.r - a.r || b.il - a.il);
     rf.bag.innerHTML = bag.length ? bag.map(g => gearTile(g, selGear === g.u ? 'sel' : '')).join('') : `<p class="note">${esc(t('bagEmpty'))}</p>`;
     // upgrade arrows
-    const cur = D.power;
-    $$('[data-g]', rf.bag).forEach(el => { const g = h.bag.find(x => x.u === +el.dataset.g); if (g && G.powerWith(G.slotOf(g.id), g) > cur) el.querySelector('u').hidden = false; });
+    $$('[data-g]', rf.bag).forEach(el => { const g = h.bag.find(x => x.u === +el.dataset.g); if (!g) return; const sl = G.slotOf(g.id); if (mem && sl === 'weapon' && !G.CLASS_BY_ID[mem.cls].weapons.includes(G.ITEM_TYPE[g.id])) return; if (G.powerWith(sl, g, selWho) > G.powerWith(sl, eqS[sl], selWho)) el.querySelector('u').hidden = false; });
     // Stats
-    const cls = G.CLASS_BY_ID[h.cls];
+    const cls = G.CLASS_BY_ID[mem ? mem.cls : h.cls];
     const rows = [
       ['st_dps', fmt(c.dps, true)], ['st_hit', fmt(c.hit, true)], ['st_rate', c.rate.toFixed(2) + t('perSec')], ['st_targets', c.targets],
       ['st_crit', Math.round(c.crit * 100) + '% · ×' + c.critMult.toFixed(1)], ['st_hp', fmt(c.hp)],
@@ -10402,7 +11559,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const f = selGear ? findGear(selGear) : null;
     if (!f) { rf.gd.innerHTML = `<p>${esc(t('tapItem'))}</p>`; rf.orbs.innerHTML = orbBar(null); return; }
     const g = f.g, r = G.RARITIES[g.r], slot = G.slotOf(g.id), U = g.q ? G.UNIQUES[g.q] : null;
-    const cmp = f.worn ? null : G.powerWith(slot, g) - G.powerWith(slot, h.eq[slot]);
+    const cmp = f.worn ? null : G.powerWith(slot, g, selWho) - G.powerWith(slot, eqS[slot], selWho);
     const ec = G.enchantCost(g);
     const canE = g.e < G.ENCHANT_MAX && h.shards >= ec.shards && S.gold >= ec.gold;
     rf.orbs.innerHTML = orbBar(g);

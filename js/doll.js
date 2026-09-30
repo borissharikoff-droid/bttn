@@ -16,6 +16,7 @@
     knight: { head: 'helm', helm: ['#d2dae4', '#8f99a8'], visor: '#1a1a22', plume: '#3f63d9', body: ['#b8c2d0', '#8f99a8'], tabard: '#3f63d9', legs: ['#6b7484', '#4f5664'], boots: ['#4a4f5c', '#35394a'], hands: '#b8c2d0' },
     archer: { head: 'hood', hood: ['#58a83e', '#3d7f2b'], body: ['#8a5a2e', '#6b4420'], collar: '#58a83e', legs: ['#6b4a2a', '#503620'], boots: ['#3a2a1a', '#2a1e12'], quiver: true },
     wizard: { head: 'hat', hat: ['#4468e0', '#2c47a6'], band: '#ffd84a', body: ['#4468e0', '#2c47a6'], robe: true, beard: '#e8e8f0', legs: ['#4468e0', '#2c47a6'], boots: ['#3a2a1a', '#2a1e12'] },
+    cleric: { head: 'hood', hood: ['#f4efe0', '#c9c0a8'], body: ['#f4efe0', '#c9c0a8'], robe: true, band: '#ffd84a', cross: '#ffd84a', halo: '#fff3a8', legs: ['#f4efe0', '#c9c0a8'], boots: ['#8a6a3a', '#6a4e28'] },
     rogue: { head: 'hood', hood: ['#4a4a62', '#33334a'], mask: '#2d2430', body: ['#5a5a74', '#3f3f56'], strap: '#2d2430', legs: ['#2d2430', '#1f1a24'], boots: ['#1f1a24', '#141018'] },
   };
 
@@ -121,6 +122,7 @@
     px(16, 12 + u, 1, 4, bodyDark);
     px(9, 12 + u, 1, 4, G.shade(bodyMain, 0.18));
     if (!body && look.tabard) px(12, 12 + u, 2, 4, look.tabard);
+    if (!body && look.cross) { px(12, 12 + u, 2, 4, look.cross); px(11, 13 + u, 4, 1, look.cross); }
     if (!body && look.collar) px(9, 12 + u, 8, 1, look.collar);
     if (!body && look.strap) { [[10, 12], [11, 13], [12, 13], [13, 14], [14, 14], [15, 15]].forEach(([a, b]) => px(a, b + u - O + O, 1, 1, look.strap)); }
     if (body) { // plate: shoulder pads and a trim in the item's accent
@@ -177,6 +179,7 @@
       px(15, 3 + u, 1, 2, d);
       top = 0 + u;
     }
+    if (look.halo && !hcol) { px(10, top - 2, 6, 1, look.halo); px(9, top - 1, 1, 1, look.halo); px(16, top - 1, 1, 1, look.halo); top -= 2; }
     if (look.beard && !hcol) { px(11, 10 + u, 4, 3, look.beard); px(12, 13 + u, 2, 1, look.beard); }
 
     // --- worn jewellery ---
