@@ -72,6 +72,8 @@
   };
 
   function bindHud() {
+    $('#realmBox').addEventListener('click', () => { if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
+    $('#realmBox').addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); e.stopPropagation(); if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#btnSound').addEventListener('click', () => { G.S.set.sound = G.S.set.sound ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.update(true); });
     $('#btnMusic').addEventListener('click', () => { G.S.set.music = G.S.set.music ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.update(true); });
     $('#btnSound img').src = ic('ic_note', 3);
@@ -105,6 +107,7 @@
   function listen() {
     G.on('achievement', a => { UI.toast(`<span>${esc(t('achievement'))}: <b>${esc(L(a.name))}</b></span>`, 'ach', 'ic_trophy'); if (tab === 'ach') UI.render(); });
     G.on('questDone', q => UI.toast(`<b>${esc(t('questDone'))}</b>`, '', 'ic_scroll'));
+    G.on('landStar', (i, bit, n) => { zoneKey = ''; UI.toast(`<span><b style="color:#ffd84a">\u2605 ${esc(G.REALMS[i].name)} · ${esc(t('starName_' + bit))}</b><br><small>${esc(t('starBonus', n, '+' + Math.round(n * G.STAR_BONUS * 100) + '%'))}</small></span>`, 'ach', 'ic_star'); });
     G.on('realm', r => UI.toast(`<span>${esc(t('newLands', G.realmName(G.S.depth)))} · <b>${esc(G.REALMS[r].rule)}</b></span>`, 'ach', 'ic_star'));
     G.on('potion', p => UI.toast(`<span>${esc(t('potionDrink', L(p.name)))} <b>${esc(p.short)} ${G.S.pots[p.id]}/${G.D.potCap}</b></span>`, '', 'pot_' + p.id));
     G.on('chestOpen', loot => {
@@ -171,6 +174,28 @@
 
   // ---------- Update loop ----------
   let goalKey = '';
+  let zoneKey = '';
+  // The world map: every land, its zones and its three stars
+  UI.worldMap = function () {
+    UI.mapSeen = true;
+    const S = G.S, here = G.realmIndex(S.depth), seen = Math.min(G.REALMS.length - 1, Math.floor(S.bestDepth / G.REALM_SIZE));
+    const n = G.starCount ? G.starCount() : 0;
+    const rows = G.REALMS.map((R_, i) => {
+      const open = i <= seen || G.starsOf(i) > 0, rec = (S.lands && S.lands[i]) || { k: 0, s: 0 };
+      const need = G.STAR_KILLS(i), st = rec.s | 0;
+      const stars = [1, 2, 4].map(b => `<i class="${st & b ? 'on' : ''}" title="${esc(t('star_' + b, b === 2 ? fmt(need) : G.STAR_SWIFT))}">\u2605</i>`).join('');
+      const head = i === 8 ? `<h3 class="wmHead">${esc(t('outerLands'))}</h3>` : '';
+      if (!open) return head + `<div class="wmRow locked">${img(R_.fodder, '', 3, { dark: true })}<div><b>${esc(t('landLocked'))}</b><small>${esc(t('depth'))} ${i * G.REALM_SIZE + 1}–${(i + 1) * G.REALM_SIZE}</small></div><span class="lstars">${stars}</span></div>`;
+      const cleared = S.bestDepth > i * G.REALM_SIZE + G.REALM_SIZE - 1;
+      // the land you're in shows where you are now; the others how far you've ever got
+      const zones = R_.zones.map((zn, zi) => { const d = i * G.REALM_SIZE + zi; const cls = i === here ? (zi < G.zoneOf(S.depth) ? 'done' : zi === G.zoneOf(S.depth) ? 'cur' : '') : d < S.bestDepth ? 'done' : ''; return `<span class="${cls} ${zi === G.REALM_SIZE - 1 ? 'lord' : ''}" title="${esc(zn)}"></span>`; }).join('');
+      return head + `<div class="wmRow ${i === here ? 'here' : ''} ${cleared ? 'clear' : ''}">${img(R_.fodder, '', 3)}<div><b>${esc(R_.name)}${i === here ? ` <em>${esc(t('landHere'))}</em>` : ''}</b>
+        <small>${esc(R_.rule)}: ${esc(R_.ruleDesc)}</small>
+        <div class="wmZones">${zones}</div>
+        <small>${esc(t('landKills', fmt(Math.min(rec.k | 0, need)), fmt(need)))} · ${esc(R_.lordName)}</small></div><span class="lstars">${stars}</span></div>`;
+    }).join('');
+    UI.modal(t('worldMap'), `<p class="note">${esc(t('worldHint'))}</p><p class="note">${esc(t('starReqs', fmt(G.STAR_KILLS(here)), G.STAR_SWIFT))}</p><p class="wmTotal">\u2605 ${n} / ${3 * G.REALMS.length} · +${Math.round(n * G.STAR_BONUS * 100)}%</p><div class="wmList">${rows}</div>`, [{ label: t('close') || 'Close', cls: '' }]);
+  };
   function updateGoal() {
     const S = G.S, box = $('#goal');
     const on = !!(S.hero && S.hero.cls);
@@ -262,8 +287,19 @@
     // HUD
     const realm = G.REALMS[G.realmIndex(S.depth)];
     setText($('#realmName'), G.realmName(S.depth));
-    setText($('#depthNum'), String(S.depth + 1));
-    setText($('#realmSub'), (G.isLord(S.depth) ? t('lordTitle') + ': ' : t('bossTitle') + ': ') + L(G.bossName(S.depth)));
+    // where you are in this land: five zones, the last one the lord's
+    const li = G.realmIndex(S.depth), z = G.zoneOf(S.depth);
+    const zk = S.depth + '|' + (G.starsOf ? G.starsOf(li) : 0);
+    if (zk !== zoneKey) {
+      zoneKey = zk;
+      let pips = '';
+      for (let i = 0; i < G.REALM_SIZE; i++) pips += `<i class="${i < z ? 'done' : i === z ? 'cur' : ''} ${i === G.REALM_SIZE - 1 ? 'lord' : ''}"></i>`;
+      $('#zonePips').innerHTML = pips;
+      const n = G.starsOf ? G.starsOf(li) : 0;
+      $('#landStars').innerHTML = [0, 1, 2].map(i => `<i class="${i < n ? 'on' : ''}">\u2605</i>`).join('');
+    }
+    setText($('#zoneName'), G.ZONE_NAME(S.depth));
+    setText($('#realmSub'), t('depth') + ' ' + (S.depth + 1) + ' · ' + (G.isLord(S.depth) ? t('lordTitle') + ': ' : t('bossTitle') + ': ') + L(G.bossName(S.depth)));
     const cm = $('#chestMeter');
     cm.style.width = Math.min(100, S.chestMeter / D.chestNeed * 100) + '%';
     const comboK = R.combo / (D.comboCap || 1);
@@ -277,7 +313,7 @@
     if (bossShown && R.rift) {
       const r = R.rift, g = r.guard ? R.mobs.find(m => m.id === r.guard) : null;
       $('#bossMeter').style.width = (g ? Math.max(0, g.hp / g.max) : Math.min(1, r.prog / r.need)) * 100 + '%';
-      setClass($('#bossWrap'), 'hp', !!g); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true);
+      setClass($('#bossWrap'), 'hp', !!g); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'waves', false);
       setText($('#bossText'), t('riftName', r.lvl) + ' · ' + Math.ceil(r.t) + 's · ' + (g ? t('riftGuardian') : Math.floor(Math.min(1, r.prog / r.need) * 100) + '%'));
       $('#btnFight').hidden = true; $('#btnRetreat').hidden = false;
     } else if (bossShown) {
@@ -285,7 +321,7 @@
       if (R.boss) {
         const k = Math.max(0, R.boss.hp / R.boss.max);
         $('#bossMeter').style.width = k * 100 + '%';
-        setClass($('#bossWrap'), 'hp', true);
+        setClass($('#bossWrap'), 'hp', true); setClass($('#bossWrap'), 'waves', false);
         setText($('#bossText'), L(G.bossName(R.boss.d)) + ' · ' + Math.ceil(R.boss.t) + 's');
         $('#btnFight').hidden = true; $('#btnRetreat').hidden = false;
       } else {
@@ -293,7 +329,9 @@
         const need = D.bossNeed;
         $('#bossMeter').style.width = Math.min(100, S.bossMeter / need * 100) + '%';
         const hs = G.hordeScale(), weak = hs <= 0.45;
-        setText($('#bossText'), R.bossReady ? t('bossReady') : t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
+        const wave = Math.min(3, 1 + Math.floor(3 * S.bossMeter / need));
+        setText($('#bossText'), R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
+        setClass($('#bossWrap'), 'waves', true);
         setClass($('#bossWrap'), 'weak', weak && !R.bossReady);
         $('#btnFight').hidden = !R.bossReady; $('#btnRetreat').hidden = true;
       }
@@ -550,7 +588,7 @@
       <div class="sect">${esc(t('uniques'))} <small style="color:var(--dim)">${esc(t('uqFound', Object.keys(S.uq).length, G.UNIQUE_IDS.length))}</small></div>
       <div class="evoBook uqBook">${G.UNIQUE_IDS.map(q => {
         const U = G.UNIQUES[q], n = S.uq[q] || 0;
-        return `<div class="evoRow ${n ? 'uq' : 'off'}">${img('u_' + q, '', 3, n ? null : { dark: true })}<div><b>${esc(n ? U.name : '???')}${n > 1 ? ` <small>×${n}</small>` : ''}</b><small>${esc(U.boss ? t('uqDropsBoss') : t('uqDrops', U.minD + 1))}</small>${n ? `<small class="d">${esc(U.fx)}</small>` : ''}</div></div>`;
+        return `<div class="evoRow ${n ? 'uq' : 'off'}">${img('u_' + q, '', 3, n ? null : { dark: true })}<div><b>${esc(n ? U.name : '???')}${n > 1 ? ` <small>×${n}</small>` : ''}</b><small>${esc(U.boss ? t('uqDropsBoss', G.bossName(U.minD)) : t('uqDrops', U.minD + 1))}</small>${n ? `<small class="d">${esc(U.fx)}</small>` : ''}</div></div>`;
       }).join('')}</div>
       <div class="sect">${esc(t('evoBook'))} <small style="color:var(--dim)">${esc(t('evoFound', Object.keys(S.rec.evos || {}).length, Object.keys(G.EVOS).length))}</small></div>
       <div class="evoBook">${Object.keys(G.EVOS).map(id => {
@@ -1109,8 +1147,8 @@
 
   // Ladder: shared ranking and cloud save status
   let ladderBy = 'depth';
-  const LADDER_BY = ['depth', 'power', 'rift', 'today', 'uq', 'mad', 'crowns', 'firsts'];
-  const LADDER_LBL = { depth: 'byDepth', power: 'byPower', rift: 'byRift', today: 'byToday', uq: 'byUq', mad: 'byMad', crowns: 'byCrowns', firsts: 'byFirsts' };
+  const LADDER_BY = ['depth', 'power', 'rift', 'today', 'stars', 'uq', 'mad', 'crowns', 'firsts'];
+  const LADDER_LBL = { depth: 'byDepth', power: 'byPower', rift: 'byRift', today: 'byToday', stars: 'byStars', uq: 'byUq', mad: 'byMad', crowns: 'byCrowns', firsts: 'byFirsts' };
   const nameOf = e => G.Net.displayName(e) || t('anon');
   // Lord crowns: the fastest fresh kill of each lord among everyone
   function crownBoard() {
@@ -1139,6 +1177,7 @@
     if (by === 'rift') return [t('riftName', e.rift || 0), e.rt ? G.fmtTime(e.rt) : ''];
     if (by === 'today') return [t('riftName', (e.rd && e.rd.l) || 0), e.rd && e.rd.t ? G.fmtTime(e.rd.t) : t('riftToday')];
     if (by === 'uq') return [(e.uq || 0) + ' / ' + G.UNIQUE_IDS.length, t('uniques')];
+    if (by === 'stars') return ['\u2605 ' + (e.ls || 0) + ' / ' + 3 * G.REALMS.length, t('byStars')];
     if (by === 'mad') return [G.fmtTime(e.mad || 0), t('byMad')];
     return [t('depthShort') + ' ' + (e.depth + 1), t('gearScore') + ' ' + fmt(e.power || 0)];
   }
@@ -1206,7 +1245,7 @@
       ${(() => { const mine = N.entries.find(e => e.me); return mine && !mine.ok ? `<p class="note warn">${esc(t('myHidden', (mine.problems || []).join(', ')))}</p>` : ''; })()}`;
     if (rf.net._h !== netHtml) { rf.net.innerHTML = netHtml; rf.net._h = netHtml; }
     const list = N.sorted(ladderBy);
-    const key = ladderBy + JSON.stringify(N.entries.map(e => [e.uid, e.depth, e.power, e.lvl, N.displayName(e), N.accountName(e), e.rift, e.rd, e.uq, e.ev, e.fs, e.cr, e.mad])) + JSON.stringify(S.rec.crowns || {});
+    const key = ladderBy + JSON.stringify(N.entries.map(e => [e.uid, e.depth, e.power, e.lvl, N.displayName(e), N.accountName(e), e.rift, e.rd, e.uq, e.ev, e.fs, e.cr, e.mad, e.ls])) + JSON.stringify(S.rec.crowns || {});
     if (key === rf.key && !force) return;
     rf.key = key;
     const suspicious = N.entries.filter(e => !e.ok && !e.me).length;

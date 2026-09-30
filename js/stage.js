@@ -8,7 +8,7 @@
   let cv, ctx, low, lctx, W = 200, H = 150, S = 3, DPR = 1;
   let groundCanvas = null, groundKey = '';
   const parts = [], texts = [], shots = [], beams = [], bolts = [], bullets = [], opening = [], flyers = [];
-  const gibs = [], decals = [], rings = [], coins = [], gems = [];
+  const gibs = [], rings = [], coins = [], gems = [], glowFx = [];
   const vis = new Map(); // chest id -> visual state
   let slots = [];
   let heroVis = [], heroKey = '';
@@ -22,7 +22,7 @@
   const fmtSmall = v => (v < 10 ? String(+v.toFixed(2)) : G.fmt(v));
   // The Button is a spring: every click squashes it and it bounces back
   const btnSpring = { s: 1, v: 0 };
-  const MAXP = 700, MAXG = 650, MAXD = 170;
+  const MAXP = 700, MAXG = 650;
 
   St.init = function (canvas) {
     cv = canvas; ctx = cv.getContext('2d');
@@ -114,6 +114,8 @@
   St.flash = (v, c) => { flash = Math.max(flash, v); flashCol = c || '#ffffff'; };
 
   function rarityCol(r) { return G.RARITIES[r].color; }
+  // Title cards sit under the HUD: lower on narrow screens, where the HUD takes more room
+  const cardY = k => Math.round(H * (W * S < 600 ? k + 0.1 : k));
 
   // ---------- Events ----------
   function listen() {
@@ -234,10 +236,10 @@
       const b = btnPos(); burst(b.x + rand(-14, 14), b.y - 4, ['#ff4f4f', '#ffffff'], m.kind === 'fodder' ? 1 : 3, 40);
     });
     G.on('surge', () => {
-      text(W / 2, H * 0.3, G.t('surge'), '#ff4f4f', 7, { life: 2, max: 2, vy: -4, big: true });
+      text(W / 2, cardY(0.3), G.t('surge'), '#ff4f4f', 7, { life: 2, max: 2, vy: -4, big: true });
       St.shake(3); St.flash(0.18, '#ff3b3b');
     });
-    G.on('rareSpawn', () => text(W / 2, H * 0.3 + 12, G.t('rareComing'), '#ffd84a', 4, { life: 1.8, max: 1.8, vy: -4 }));
+    G.on('rareSpawn', () => text(W / 2, cardY(0.3) + 12, G.t('rareComing'), '#ffd84a', 4, { life: 1.8, max: 1.8, vy: -4 }));
     G.on('buttonBreak', () => {
       const b = btnPos();
       St.shake(6); St.flash(0.5, '#ff3b3b');
@@ -333,14 +335,34 @@
       groundKey = ''; St.flash(0.3, '#000000');
       // a title card for the new land and its rule
       const R_ = G.REALMS[r];
-      text(W / 2, H * 0.26, G.realmName(G.S.depth).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
-      text(W / 2, H * 0.26 + 11, R_.rule + ': ' + R_.ruleDesc, '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
+      text(W / 2, cardY(0.26), G.realmName(G.S.depth).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
+      text(W / 2, cardY(0.26) + 11, R_.rule + ': ' + R_.ruleDesc, '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
+      text(W / 2, cardY(0.26) + 19, G.t('zoneCard', 1, G.ZONE_NAME(G.S.depth)), '#ffffff', 3, { life: 3, max: 3, vy: -3 });
     });
     G.on('ascend', () => { gems.length = 0; });
-    G.on('ascend', () => { groundKey = ''; vis.clear(); mobVis.clear(); decals.length = 0; gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
+    // the first land introduces itself when the Warden takes the field, and again after each ascension
+    G.on('classChosen', () => setTimeout(() => {
+      const d = G.S.depth, R_ = G.REALMS[G.realmIndex(d)];
+      text(W / 2, cardY(0.26), G.realmName(d).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
+      text(W / 2, cardY(0.26) + 11, G.t('zoneCard', G.zoneOf(d) + 1, G.ZONE_NAME(d)), '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
+    }, 700));
+    G.on('ascend', () => { groundKey = ''; vis.clear(); mobVis.clear(); St.clearStain(); gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
     G.on('buy', (kind) => { if (kind === 'hero') heroKey = ''; });
     worldListen();
   }
+
+  function zoneCard(d) {
+    const z = G.zoneOf(d), R_ = G.REALMS[G.realmIndex(d)];
+    text(W / 2, cardY(0.26), G.t('zoneCard', z + 1, G.ZONE_NAME(d)).toUpperCase(), '#ffffff', 5, { life: 2.6, max: 2.6, vy: -3, big: true });
+    if (z === G.REALM_SIZE - 1) text(W / 2, cardY(0.26) + 10, G.t('zoneLord'), '#ff4f7e', 4, { life: 2.6, max: 2.6, vy: -3 });
+    // the kind of mob this zone brings for the first time
+    const now = G.ZONE_MIX[z], before = z ? G.ZONE_MIX[z - 1] : {};
+    for (const k in G.ARCHETYPES) if (now[k] > 0 && !(before[k] > 0) && z > 0) {
+      const A = G.ARCHETYPES[k];
+      text(W / 2, cardY(0.26) + (z === G.REALM_SIZE - 1 ? 19 : 10), G.t('newKind', (R_.mobs && R_.mobs[k]) || A.name) + ' \u2014 ' + A.desc, '#b6ff5a', 3, { life: 3, max: 3, vy: -3 });
+    }
+  }
+  St.zoneCard = zoneCard;
 
   // ---------- Input ----------
   function toLogical(e) {
@@ -513,17 +535,16 @@
   }
   function mobSprite(m, realm) {
     if (m.kind === 'fodder') return SPR.get(realm.fodder);
+    if (G.ARCHETYPES && G.ARCHETYPES[m.kind]) return SPR.arch(m.kind, realm.id);
     if (m.kind === 'hoard') return SPR.get('m_hoard');
     if (m.kind === 'guardian') return SPR.boss(m.lord || realm.lord, true).canvas;
     return SPR.get(realm.minion, m.kind === 'magic' ? { oc: '#3f7fff' } : m.kind === 'rare' ? { oc: '#ffd84a' } : null);
   }
-  const MOB_BAR = { brute: '#e84a4a', magic: '#5a9cff', rare: '#ffd84a' };
-  function drawMob(m) {
-    const realm = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
+  const MOB_BAR = { brute: '#e84a4a', magic: '#5a9cff', rare: '#ffd84a', tank: '#c8c8d4', spitter: '#b6ff5a', bomber: '#ff7a2e' };
+  function drawMob(m, q, realm) {
     const spr = mobSprite(m, realm);
     const v = mobVisOf(m);
-    const q = mobPos(m);
-    const fod = m.kind === 'fodder';
+    const fod = !!G.SMALL[m.kind];
     if (m.kind === 'guardian') { drawGuardian(m, spr, v, q); return; }
     shadow(q.x, q.y - 1, fod ? 6 : 10);
     if (m.br) glow(q.x, q.y - 5, fod ? 4 : 7, '#b36bff', 0.28);
@@ -533,6 +554,13 @@
       if (v.hit > 0 && Math.random() < 0.5 && coins.length < 240) coins.push({ x: q.x, y: q.y - 8, vx: rand(-50, 50), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.4, 0.7), fly: 0 });
     }
     if (m.kind === 'magic') glow(q.x, q.y - 8, 7, '#3f7fff', 0.2 + 0.07 * Math.sin(time * 5 + m.id));
+    // a spitter swells before it spits; a bomber's fuse fizzes, faster as it gets close
+    if (m.kind === 'spitter' && m.p >= (G.TUNE.spitStop || 0.68) && m.atkT < 0.6) glow(q.x, q.y - 5, 5, '#b6ff5a', 0.25 + 0.5 * (0.6 - m.atkT));
+    if (m.kind === 'bomber') {
+      if (Math.random() < 0.3) part(q.x + 2, q.y - 9, pick(['#ffe27a', '#ff7a2e', '#ffffff']), { vx: rand(-10, 10), vy: rand(-30, -10), grav: 40, life: 0.25 });
+      if (m.p > 0.75 && Math.sin(time * (10 + 20 * m.p)) > 0.4) glow(q.x, q.y - 5, 5, '#ff3b3b', 0.35);
+    }
+    if (m.kind === 'runner' && m.p > 0 && Math.random() < 0.15) part(q.x, q.y - 1, '#d8cfb8', { vx: 0, vy: -4, grav: 0, life: 0.3 });
     if (m.kind === 'rare') glow(q.x, q.y - 9, 10, '#ffd84a', 0.24 + 0.08 * Math.sin(time * 6));
     let x = q.x;
     if (v.hit > 0) x += Math.round(rand(-1, 1));
@@ -540,7 +568,7 @@
     blit(spr, x, q.y);
     if (v.hit > 0) { blit(white(spr), x, q.y, 1, Math.min(0.85, v.hit * 10)); v.hit -= fdt; }
     if (!fod && m.hp < m.max) {
-      const w = m.kind === 'rare' || m.kind === 'hoard' ? 16 : 12, k = clamp(m.hp / m.max, 0, 1);
+      const w = m.kind === 'rare' || m.kind === 'hoard' || m.kind === 'tank' ? 16 : m.kind === 'bomber' || m.kind === 'spitter' ? 8 : 12, k = clamp(m.hp / m.max, 0, 1);
       lctx.fillStyle = '#0c0b12'; lctx.fillRect(q.x - w / 2 - 1, q.y - 21, w + 2, 3);
       lctx.fillStyle = MOB_BAR[m.kind] || '#ffd84a'; lctx.fillRect(q.x - w / 2, q.y - 20, Math.max(1, Math.round(w * k)), 1);
     }
@@ -551,6 +579,20 @@
       lctx.fillRect(q.x + r - 2, y - r, 3, 1); lctx.fillRect(q.x + r, y - r, 1, 3);
       lctx.fillRect(q.x - r, y + r, 3, 1); lctx.fillRect(q.x - r, y + r - 2, 1, 3);
       lctx.fillRect(q.x + r - 2, y + r, 3, 1); lctx.fillRect(q.x + r, y + r - 2, 1, 3);
+    }
+  }
+  // Spitters' globs, arcing from the spitter to the Button
+  function drawShotsInFlight() {
+    const sh = G.R.shots;
+    if (!sh || !sh.length) return;
+    const b = btnPos();
+    for (const x of sh) {
+      const q = mobPos({ id: x.m, a: x.a, p: x.p }), k = clamp(1 - x.t / 0.5, 0, 1);
+      const px = Math.round(q.x + (b.x - q.x) * k), py = Math.round(q.y - 8 + (b.y - 6 - q.y + 8) * k - Math.sin(k * Math.PI) * 16);
+      lctx.fillStyle = '#0c0b12'; lctx.fillRect(px - 2, py - 2, 5, 5);
+      lctx.fillStyle = '#b6ff5a'; lctx.fillRect(px - 1, py - 1, 3, 3);
+      lctx.fillStyle = '#ffffff'; lctx.fillRect(px - 1, py - 1, 1, 1);
+      if (Math.random() < 0.4) part(px, py, '#8ad83a', { vx: rand(-6, 6), vy: rand(-4, 4), grav: 30, life: 0.25 });
     }
   }
   function drawGuardian(m, spr, v, q) {
@@ -690,6 +732,11 @@
     godlands:  { blood: '#5f2aa8', style: 'splat' },
     abyss:     { blood: '#e0541c', style: 'embers' },
     void:      { blood: '#2e1c52', style: 'dissolve' },
+    library:   { blood: '#1f3a6a', style: 'ink' },
+    foundry:   { blood: '#3a3028', style: 'sparks' },
+    ember:     { blood: '#1e1210', style: 'embers' },
+    mirror:    { blood: '#9aa2bc', style: 'glass' },
+    sky:       { blood: '#c8b070', style: 'feathers' },
   };
   const chunkCache = new WeakMap();
   // 2x2 blocks of a sprite's opaque pixels, sampled once per sprite
@@ -739,16 +786,25 @@
       });
     }
   }
+  // Blood soaks into the ground: splats are painted once onto a layer over the
+  // ground that slowly fades, so a slaughter leaves the arena stained
+  let stain = null, stainCtx = null, stainFade = 0, stainSweep = 0;
+  function stainLayer() {
+    if (!stain || stain.width !== W || stain.height !== H) { stain = SPR.makeCanvas(W, H); stainCtx = stain.getContext('2d'); }
+    return stainCtx;
+  }
+  St.clearStain = () => { if (stainCtx) stainCtx.clearRect(0, 0, W, H); };
   function decal(x, y, col, r) {
-    if (decals.length >= MAXD) decals.shift();
-    const px = [];
+    const c = stainLayer();
     const n = Math.round(r * 4);
+    x = Math.round(x); y = Math.round(y);
+    c.globalAlpha = 0.5; c.fillStyle = col;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * 6.28, d = Math.pow(Math.random(), 1.6) * r;
-      px.push([Math.round(Math.cos(a) * d), Math.round(Math.sin(a) * d * 0.5)]);
+      c.fillRect(x + Math.round(Math.cos(a) * d), y + Math.round(Math.sin(a) * d * 0.5), 1, 1);
     }
-    for (let i = 0; i < 2; i++) { const a = Math.random() * 6.28; px.push([Math.round(Math.cos(a) * r * 1.6), Math.round(Math.sin(a) * r * 0.8)]); }
-    decals.push({ x: Math.round(x), y: Math.round(y), col, px, life: rand(7, 10), max: 10 });
+    for (let i = 0; i < 2; i++) { const a = Math.random() * 6.28; c.fillRect(x + Math.round(Math.cos(a) * r * 1.6), y + Math.round(Math.sin(a) * r * 0.8), 1, 1); }
+    c.globalAlpha = 1;
   }
   function ring(x, y, rx, ry, col, life, arc) {
     if (rings.length > 40) rings.shift();
@@ -758,18 +814,21 @@
   const aoePx = a => ({ rx: a * W * 0.62, ry: a * W * 0.62 * 0.55 });
 
   const streak = { n: 0, t: 9, pop: 0 };
-  const STREAKS = [[25, 'sk_25'], [50, 'sk_50'], [100, 'sk_100'], [200, 'sk_200'], [400, 'sk_400'], [800, 'sk_800']];
+  let multiCd = 0;
+  const STREAKS = [[50, 'sk_25'], [100, 'sk_50'], [200, 'sk_100'], [400, 'sk_200'], [800, 'sk_400'], [1500, 'sk_800'], [3000, 'sk_3000'], [6000, 'sk_6000'], [10000, 'sk_10000']];
   function gore(m, gold, chest, src) {
     const q = mobPos(m);
     mobVis.delete(m.id);
     const realm = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
     const g = GORE[realm.id] || GORE.meadow;
     const spr = mobSprite(m, realm);
-    const fod = m.kind === 'fodder';
+    const fod = !!G.SMALL[m.kind];
     if (m.kind === 'guardian') { explodeSprite(spr, q.x, q.y, 2, 120, 1.8, g.style); decal(q.x, q.y, g.blood, 14); St.shake(7); hitstop = Math.max(hitstop, 0.2); slowmo = Math.max(slowmo, 0.8); }
     const over = Math.min(3, m.over || 0) + (m.crit ? 1 : 0) + (src === 'boss' ? 1.5 : 0);
     const force = 1 + over * 0.3 + (src === 'click' ? 0.35 : 0);
-    const n = fod ? (gibs.length > MAXG * 0.7 ? 3 : 6) : m.kind === 'brute' ? 20 : 30;
+    const fod2 = G.SMALL[m.kind];
+    // when the Horde dies in heaps, each body throws fewer chunks so the frame keeps up
+    const n = fod2 ? (frameKills > 25 || gibs.length > MAXG * 0.7 ? 2 : 5) : m.kind === 'brute' || m.kind === 'bomber' || m.kind === 'spitter' ? 16 : m.kind === 'tank' ? 36 : 30;
     explodeSprite(spr, q.x, q.y, 1, n, force, g.style);
     decal(q.x, q.y - 1, g.blood, fod ? 2.5 : 4 + Math.min(4, m.w));
     // every land breaks differently
@@ -777,12 +836,17 @@
     if (g.style === 'shatter') burst(c, y, ['#ffffff', '#d8f0ff'], fod ? 3 : 8, 90, { grav: 200, life: 0.35 });
     else if (g.style === 'embers') for (let i = 0; i < (fod ? 3 : 8); i++) part(c + rand(-4, 4), y, pick(['#ffb347', '#ff6a2e', '#ffd84a']), { vx: rand(-15, 15), vy: rand(-50, -20), grav: -30, life: rand(0.5, 1.1) });
     else if (g.style === 'spores') for (let i = 0; i < (fod ? 3 : 7); i++) part(c + rand(-5, 5), y, pick(['#c84ae8', '#ff7ab0', '#f4ecd8']), { vx: rand(-10, 10), vy: rand(-25, -8), grav: -8, life: rand(0.8, 1.5) });
+    else if (g.style === 'ink') for (let i = 0; i < (fod ? 2 : 7); i++) part(c + rand(-4, 4), y, pick(['#1f3a6a', '#2a4a8a', '#f4ecd8']), { vx: rand(-25, 25), vy: rand(-40, -10), grav: 160, life: rand(0.4, 0.8) });
+    else if (g.style === 'sparks') for (let i = 0; i < (fod ? 3 : 9); i++) part(c, y, pick(['#ffd84a', '#ff7a2e', '#ffffff']), { vx: rand(-70, 70), vy: rand(-80, -20), grav: 260, life: rand(0.2, 0.5) });
+    else if (g.style === 'feathers') for (let i = 0; i < (fod ? 2 : 6); i++) part(c + rand(-5, 5), y, pick(['#ffffff', '#fff3d0', '#ffd84a']), { vx: rand(-12, 12), vy: rand(-18, -4), grav: 12, life: rand(0.9, 1.6) });
+    else if (g.style === 'glass') { burst(c, y, ['#ffffff', '#d8e6ff', '#ff7ae6'], fod ? 3 : 9, 100, { grav: 240, life: 0.4 }); }
     else if (g.style === 'dissolve') for (let i = 0; i < (fod ? 4 : 10); i++) part(c + rand(-5, 5), y + rand(-4, 4), pick(['#6b3fc0', '#7fe9ff', '#e0d0ff']), { vx: 0, vy: rand(-30, -10), grav: 0, life: rand(0.4, 0.9) });
     else burst(c, y, g.blood, fod ? 3 : 7, 70, { grav: 220, life: 0.45 });
     if (over >= 1.5 && !fod) ring(c, q.y - 3, 10, 5, '#ffffff', 0.18);
     frameKills++;
     if (fod && gold) { killGold += gold; if (killGoldT <= 0) killGoldT = 0.3; }
     if (m.kind === 'brute') { hitstop = Math.max(hitstop, 0.02); St.shake(1); ring(c, q.y - 3, 10, 5, '#ffffff', 0.15); }
+    if (m.kind === 'tank') { hitstop = Math.max(hitstop, 0.05); St.shake(3); ring(c, q.y - 3, 20, 10, '#ffffff', 0.3); burst(c, y, ['#c8c8d4', '#ffffff'], 12, 90, { grav: 240, life: 0.4 }); }
     if (m.kind === 'magic') { hitstop = Math.max(hitstop, 0.035); St.shake(2); ring(c, q.y - 3, 16, 8, '#5a9cff', 0.3); }
     if (m.kind === 'rare') {
       hitstop = Math.max(hitstop, 0.09); St.shake(5); St.flash(0.18, '#ffd84a');
@@ -791,31 +855,38 @@
       beams.push({ x: c, y: q.y, col: '#ffd84a', life: 1, max: 1, w: 5 });
     }
     // XP crystals: blue for the small fry, green for brutes, red for champions and rares
-    const ng = m.kind === 'rare' ? 6 : m.kind === 'magic' ? 3 : m.kind === 'brute' ? 1 : Math.random() < 0.5 ? 1 : 0;
-    const gc = m.kind === 'fodder' ? '#6fb4ff' : m.kind === 'brute' ? '#56d45a' : '#ff5a7a';
+    const ng = m.kind === 'rare' ? 6 : m.kind === 'magic' ? 3 : m.kind === 'tank' ? 3 : !fod ? 1 : Math.random() < 0.18 ? 1 : 0;
+    const gc = fod ? '#6fb4ff' : m.kind === 'magic' || m.kind === 'rare' ? '#ff5a7a' : '#56d45a';
     for (let i = 0; i < ng && gems.length < 260; i++) gems.push({ x: c + rand(-3, 3), y: q.y - 4, vx: rand(-30, 30), vy: rand(-70, -30), floor: q.y + rand(-2, 3), t: rand(0.3, 0.6), fly: 0, col: gc, big: m.kind !== 'fodder' });
-    const nc = m.kind === 'rare' ? 10 : m.kind === 'magic' ? 4 : m.kind === 'brute' ? 2 : Math.random() < 0.12 ? 1 : 0;
+    const nc = m.kind === 'rare' ? 10 : m.kind === 'magic' ? 4 : m.kind === 'tank' ? 5 : !fod ? 2 : Math.random() < 0.04 ? 1 : 0;
     for (let i = 0; i < nc && coins.length < 220; i++) coins.push({ x: c, y: q.y - 6, vx: rand(-40, 40), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.45, 0.8), fly: 0 });
-    if (gold && !fod && !m.add) text(c, q.y - 16, '+' + G.fmt(gold), m.kind === 'brute' ? '#e8d890' : '#ffd84a', m.kind === 'brute' ? 3 : 4, { life: 0.8, max: 0.8 });
+    if (gold && !fod && !m.add && m.kind !== 'bomber') text(c, q.y - 16, '+' + G.fmt(gold), m.kind === 'brute' ? '#e8d890' : '#ffd84a', m.kind === 'brute' ? 3 : 4, { life: 0.8, max: 0.8 });
     // kill streak
-    streak.n++; streak.t = 0; streak.pop = 0.15;
-    const sk = STREAKS.find(s => s[0] === streak.n);
+    streak.n = G.carnage ? Math.max(G.R.carn, 0) : streak.n + 1; streak.t = 0; streak.pop = 0.15;
+    const sk = streak.n !== streak.last && STREAKS.find(s => s[0] === streak.n);
+    streak.last = streak.n;
     if (sk) {
       for (let i = texts.length - 1; i >= 0; i--) if (texts[i].callout) texts.splice(i, 1);
-      text(W / 2, H * 0.24, G.t(sk[1]), streak.n >= 200 ? '#ff4f7e' : '#ffe27a', streak.n >= 100 ? 8 : 7, { life: 1.8, max: 1.8, vy: -5, big: true, callout: true });
-      St.shake(2 + Math.log2(streak.n / 25));
+      text(W / 2, cardY(0.24), G.t(sk[1]), streak.n >= 3000 ? '#ff4fe0' : streak.n >= 400 ? '#ff4f7e' : '#ffe27a', streak.n >= 200 ? 8 : 7, { life: 1.8, max: 1.8, vy: -5, big: true, callout: true });
+      St.shake(2 + Math.log2(streak.n / 50));
       if (G.Audio && G.Audio.streak) G.Audio.streak(streak.n);
     }
   }
   function drawDecals(dt) {
-    for (let i = decals.length - 1; i >= 0; i--) {
-      const d = decals[i]; d.life -= dt;
-      if (d.life <= 0) { decals.splice(i, 1); continue; }
-      lctx.globalAlpha = 0.55 * Math.min(1, d.life / 2.5);
-      lctx.fillStyle = d.col;
-      for (const p of d.px) lctx.fillRect(d.x + p[0], d.y + p[1], 1, 1);
+    if (!stain) return;
+    // fade the whole layer a little, twice a second (about 20s to vanish)
+    if ((stainFade += dt) >= 0.5) {
+      stainFade = 0;
+      // an 8-bit alpha stops fading at about 3%: every 20s wipe what's left that faint
+      if ((stainSweep += 1) >= 40) {
+        stainSweep = 0;
+        try { const img = stainCtx.getImageData(0, 0, W, H), a = img.data; for (let i = 3; i < a.length; i += 4) if (a[i] < 14) a[i] = 0; stainCtx.putImageData(img, 0, 0); } catch (e) { /* unreadable canvas: leave it */ }
+      }
+      stainCtx.globalCompositeOperation = 'destination-out';
+      stainCtx.globalAlpha = 0.06; stainCtx.fillStyle = '#000'; stainCtx.fillRect(0, 0, W, H);
+      stainCtx.globalCompositeOperation = 'source-over'; stainCtx.globalAlpha = 1;
     }
-    lctx.globalAlpha = 1;
+    lctx.drawImage(stain, 0, 0);
   }
   function stepGibs(dt) {
     for (let i = gibs.length - 1; i >= 0; i--) {
@@ -905,6 +976,15 @@
         lctx.drawImage(spr, -5, -5); lctx.restore();
       }
     }
+  }
+  // quick light blooms (bomb blasts)
+  function drawGlowFx(dt) {
+    for (let i = glowFx.length - 1; i >= 0; i--) {
+      const g = glowFx[i];
+      if ((g.t -= dt) <= 0) { glowFx.splice(i, 1); continue; }
+      glow(g.x, g.y, Math.max(2, Math.round(g.r * (1.2 - g.t / g.T * 0.4))), g.col, 0.5 * g.t / g.T);
+    }
+    if (glowFx.length > 30) glowFx.splice(0, glowFx.length - 30);
   }
   function drawRings(dt) {
     for (let i = rings.length - 1; i >= 0; i--) {
@@ -1198,7 +1278,7 @@
     G.on('drop', onDrop);
     G.on('pickup', onPickup);
     G.on('hoard', m => {
-      text(W / 2, H * 0.3, G.t('hoardComing'), '#ffd84a', 6, { life: 2, max: 2, vy: -4, big: true });
+      text(W / 2, cardY(0.3), G.t('hoardComing'), '#ffd84a', 6, { life: 2, max: 2, vy: -4, big: true });
       St.flash(0.15, '#ffd84a');
       if (G.Audio && G.Audio.hoard) G.Audio.hoard();
     });
@@ -1221,18 +1301,18 @@
       const col = G.SHRINES[s.k].col, b = btnPos(), q = arenaXY(s.a, s.p, 0.5);
       burst(q.x, q.y - 8, [col, '#ffffff'], 40, 100);
       ring(b.x, b.y - 4, 90, 50, col, 0.7); ring(b.x, b.y - 4, 55, 30, '#ffffff', 0.4);
-      text(W / 2, H * 0.3, G.SHRINES[s.k].name, col, 6, { life: 2, max: 2, vy: -4, big: true });
-      text(W / 2, H * 0.3 + 9, G.SHRINES[s.k].desc, '#ffffff', 3, { life: 2, max: 2, vy: -4 });
+      text(W / 2, cardY(0.3), G.SHRINES[s.k].name, col, 6, { life: 2, max: 2, vy: -4, big: true });
+      text(W / 2, cardY(0.3) + 9, G.SHRINES[s.k].desc, '#ffffff', 3, { life: 2, max: 2, vy: -4 });
       St.flash(0.3, col); St.shake(3);
       if (G.Audio && G.Audio.shrine) G.Audio.shrine(1);
     });
     G.on('breach', b => {
-      text(W / 2, H * 0.3, G.t('breachOpen'), '#d8b8ff', 7, { life: 2.2, max: 2.2, vy: -4, big: true });
+      text(W / 2, cardY(0.3), G.t('breachOpen'), '#d8b8ff', 7, { life: 2.2, max: 2.2, vy: -4, big: true });
       St.flash(0.3, '#6b2fb8'); St.shake(4);
       breachKills = 0;
       if (G.Audio && G.Audio.breach) G.Audio.breach();
     });
-    G.on('breachEnd', () => { text(W / 2, H * 0.3, G.t('breachClosed', G.fmt(breachKills)), '#d8b8ff', 5, { life: 2, max: 2, vy: -4 }); });
+    G.on('breachEnd', () => { text(W / 2, cardY(0.3), G.t('breachClosed', G.fmt(breachKills)), '#d8b8ff', 5, { life: 2, max: 2, vy: -4 }); });
     G.on('mobDie', m => { if (m.br) breachKills++; });
     G.on('blast', (m, r) => {
       const q = mobPos(m), a = aoePx(r);
@@ -1240,6 +1320,41 @@
       burst(q.x, q.y - 5, ['#ff7a2e', '#ffd84a', '#ff3b3b'], 8, 70, { life: 0.35 });
       St.shake(1.5);
       if (G.Audio && G.Audio.boom) G.Audio.boom();
+    });
+    G.on('bomb', (m, r) => {
+      const q = mobPos(m), a = aoePx(r);
+      ring(q.x, q.y - 3, a.rx, a.ry, '#ffffff', 0.25); ring(q.x, q.y - 3, a.rx * 0.7, a.ry * 0.7, '#ff7a2e', 0.35);
+      burst(q.x, q.y - 5, ['#ff7a2e', '#ffd84a', '#ffffff', '#3a3a44'], 16, 110, { life: 0.4 });
+      glowFx.push({ x: q.x, y: q.y - 5, r: a.rx * 0.8, col: '#ff9a3a', t: 0.18, T: 0.18 });
+      St.shake(2.5); hitstop = Math.max(hitstop, 0.025);
+      if (G.Audio && G.Audio.boom) G.Audio.boom();
+    });
+    G.on('bomberPop', () => {
+      const b = btnPos();
+      burst(b.x, b.y - 8, ['#ff3b3b', '#ff7a2e', '#ffd84a', '#3a3a44'], 26, 120, { life: 0.5 });
+      ring(b.x, b.y - 4, 34, 18, '#ff7a2e', 0.35);
+      St.shake(4); St.flash(0.15, '#ff3b3b'); btnHurtT = 0.25;
+      text(b.x + rand(-10, 10), b.y - 34, G.t('bomberPop'), '#ff7a2e', 5, { life: 0.8, max: 0.8, vy: -16 });
+      if (G.Audio && G.Audio.boom) G.Audio.boom();
+    });
+    G.on('spitHit', () => { const b = btnPos(); btnHurtT = 0.12; burst(b.x + rand(-12, 12), b.y - 8, ['#b6ff5a', '#8ad83a', '#ffffff'], 6, 50, { life: 0.35 }); });
+    G.on('wave', n => {
+      text(W / 2, cardY(0.3), G.t('waveN', n), '#ff9a3a', 7, { life: 1.8, max: 1.8, vy: -4, big: true, callout: true });
+      text(W / 2, cardY(0.3) + 11, G.t('waveSub'), '#ffe27a', 3, { life: 1.8, max: 1.8, vy: -4 });
+      St.shake(2);
+    });
+    G.on('landStar', (i, bit) => {
+      const R_ = G.REALMS[i], b = btnPos();
+      text(W / 2, cardY(0.2), '\u2605 ' + G.t('landStar', R_.name).toUpperCase(), '#ffd84a', 7, { life: 3, max: 3, vy: -3, big: true });
+      St.flash(0.25, '#ffd84a');
+      burst(b.x, b.y - 20, ['#ffd84a', '#fff3a0', '#ffffff'], 40, 130);
+      ring(b.x, b.y - 6, 50, 26, '#ffd84a', 0.6);
+    });
+    // a new zone: its name, and the new kind of mob it brings
+    G.on('bossWin', (rew, b) => {
+      const d = G.S.depth;
+      if (G.realmIndex(d) !== G.realmIndex(b.d)) return; // the land card covers it
+      setTimeout(() => zoneCard(d), 900);
     });
     G.on('spores', m => { const q = mobPos(m); burst(q.x, q.y - 5, ['#c84ae8', '#ff7ab0', '#f4ecd8'], 10, 40, { grav: -10, life: 0.8 }); });
     G.on('thorns', m => { const q = mobPos(m); burst(q.x, q.y - 6, ['#b36bff', '#ffffff'], 6, 50, { life: 0.3 }); });
@@ -1273,27 +1388,27 @@
     });
     G.on('riftStart', r => {
       groundKey = '';
-      text(W / 2, H * 0.3, G.t('riftName', r.lvl), '#e0c0ff', 9, { life: 2.2, max: 2.2, vy: -4, big: true });
-      text(W / 2, H * 0.3 + 11, G.t('riftGo'), '#ffffff', 3, { life: 2.2, max: 2.2, vy: -4 });
+      text(W / 2, cardY(0.3), G.t('riftName', r.lvl), '#e0c0ff', 9, { life: 2.2, max: 2.2, vy: -4, big: true });
+      text(W / 2, cardY(0.3) + 11, G.t('riftGo'), '#ffffff', 3, { life: 2.2, max: 2.2, vy: -4 });
       const b = btnPos(); ring(b.x, b.y - 4, 100, 56, '#b36bff', 0.8); ring(b.x, b.y - 4, 60, 34, '#ffffff', 0.5);
       St.flash(0.5, '#6b2fb8'); St.shake(5);
       if (G.Audio && G.Audio.rift) G.Audio.rift(0);
     });
     G.on('riftGuardian', m => {
-      text(W / 2, H * 0.3, G.t('riftGuardian'), '#ff3b5c', 7, { life: 2, max: 2, vy: -4, big: true });
+      text(W / 2, cardY(0.3), G.t('riftGuardian'), '#ff3b5c', 7, { life: 2, max: 2, vy: -4, big: true });
       St.flash(0.3, '#ff3b3b'); St.shake(5);
       if (G.Audio && G.Audio.horn) G.Audio.horn();
     });
     G.on('riftEnd', r => {
       groundKey = '';
       if (r.win) {
-        text(W / 2, H * 0.28, G.t('riftCleared'), '#ffd84a', 8, { life: 2.6, max: 2.6, vy: -4, big: true });
-        text(W / 2, H * 0.28 + 11, G.t('riftUp', r.up, r.open, Math.round(r.used)), '#ffffff', 3, { life: 2.6, max: 2.6, vy: -4 });
+        text(W / 2, cardY(0.28), G.t('riftCleared'), '#ffd84a', 8, { life: 2.6, max: 2.6, vy: -4, big: true });
+        text(W / 2, cardY(0.28) + 11, G.t('riftUp', r.up, r.open, Math.round(r.used)), '#ffffff', 3, { life: 2.6, max: 2.6, vy: -4 });
         const b = btnPos(); ring(b.x, b.y - 4, 100, 56, '#ffd84a', 0.8);
         burst(b.x, b.y - 10, ['#ffd84a', '#ffffff', '#b36bff'], 80, 150);
         St.flash(0.4, '#ffd84a'); St.shake(6); slowmo = Math.max(slowmo, 0.6);
       } else {
-        text(W / 2, H * 0.3, G.t(r.why === 'broke' ? 'riftBroke' : 'riftFailed'), '#c8b4ff', 6, { life: 2.2, max: 2.2, vy: -4, big: true });
+        text(W / 2, cardY(0.3), G.t(r.why === 'broke' ? 'riftBroke' : 'riftFailed'), '#c8b4ff', 6, { life: 2.2, max: 2.2, vy: -4, big: true });
         St.flash(0.4, '#1e0e34');
       }
       if (G.Audio && G.Audio.rift) G.Audio.rift(r.win ? 1 : 2);
@@ -1305,7 +1420,16 @@
   St.frame = function (dt) {
     time += dt; fdt = dt || 1 / 60;
     // several kills in one frame weigh more
-    if (frameKills >= 5) { hitstop = Math.max(hitstop, 0.03); St.shake(2); const b = btnPos(); text(b.x + rand(-30, 30), b.y - 40, '×' + frameKills, '#ffe27a', 4, { life: 0.8, max: 0.8, vy: -18 }); }
+    // the Horde dies in heaps all the time now: only a real heap stops the frame
+    if (multiCd > 0) multiCd -= dt;
+    if (frameKills >= 12 && multiCd <= 0) {
+      const big = frameKills >= 40;
+      multiCd = big ? 0.5 : 0.3;
+      hitstop = Math.max(hitstop, big ? 0.05 : 0.02); St.shake(big ? 3 : 1.5);
+      const b = btnPos();
+      text(b.x + rand(-40, 40), b.y - 44 - rand(0, 10), '×' + frameKills, big ? '#ff9a3a' : '#ffe27a', big ? 6 : 4, { life: 0.9, max: 0.9, vy: -20 });
+      if (big && G.Audio && G.Audio.heap) G.Audio.heap(frameKills);
+    }
     frameKills = 0;
     if (killGold > 0 && (killGoldT -= dt) <= 0) { const b = btnPos(); text(b.x + rand(-6, 6), b.y + 16, '+' + fmtSmall(killGold), '#f0c850', 3, { life: 0.8, max: 0.8, vy: -10 }); killGold = 0; killGoldT = 0.3; }
     // hit-stop and slow motion only touch the visuals; the game keeps its own clock
@@ -1319,7 +1443,7 @@
     const S_ = G.S, R = G.R;
     const realm = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
     const gk = realm.id + '|' + W + 'x' + H;
-    if (gk !== groundKey) { groundKey = gk; groundCanvas = buildGround(realm.id); }
+    if (gk !== groundKey) { if (groundKey.split('|')[0] !== realm.id) St.clearStain(); groundKey = gk; groundCanvas = buildGround(realm.id); }
     buildHeroes();
 
     // hold-to-click
@@ -1384,11 +1508,14 @@
     });
     // Mobs and the hero
     if (G.S.hero && G.S.hero.cls) stepHero(dt);
+    const mrealm = realm;
     for (const m of R.mobs || []) {
       const v = mobVisOf(m);
       v.vp = v.vp == null ? m.p : v.vp + (m.p - v.vp) * Math.min(1, vdt * 14);
       const q = mobPos(m);
-      list.push({ y: q.y, draw: () => drawMob(m) });
+      // still walking in from past the edge
+      if (q.x < -12 || q.x > W + 12 || q.y < -4 || q.y > H + 20) continue;
+      list.push({ y: q.y, draw: () => drawMob(m, q, mrealm) });
     }
     if (G.S.hero && G.S.hero.cls) { const hp = heroPos(); list.push({ y: hp.y, draw: () => drawHero(hp) }); }
     if (mobVis.size > (R.mobs || []).length + 20) { const ids = new Set((R.mobs || []).map(m => m.id)); for (const k of [...mobVis.keys()]) if (!ids.has(k)) mobVis.delete(k); }
@@ -1434,7 +1561,8 @@
     list.sort((a, c) => a.y - c.y);
     for (const d of list) d.draw();
     drawLootBeams();
-    drawRings(vdt);
+    drawShotsInFlight();
+    drawRings(vdt); drawGlowFx(vdt);
     stepCoins(vdt);
     stepGems(vdt);
 
@@ -1802,15 +1930,34 @@
       ctx.strokeText(mod, q.x, q.y - 23); ctx.fillStyle = '#c8b4ff'; ctx.fillText(mod, q.x, q.y - 23);
     }
   }
+  let hudBottomH = 0, hudBottomT = 0;
   function drawStreak() {
-    if (streak.n < 10) return;
-    const y = G.R.boss ? Math.ceil(50 / S) + 22 : Math.ceil(50 / S) + 2;
+    const c = G.carnage ? G.carnage() : { n: streak.n, tier: 0 };
+    const n = Math.max(c.n, 0);
+    if (n < 10) return;
+    // the kill counter lives just above the bars at the bottom, clear of the title cards
+    if (!hudBottomH || (hudBottomT -= fdt) <= 0) { hudBottomT = 1; const el = typeof document !== 'undefined' && document.querySelector('.hud.bottom'); hudBottomH = el ? el.offsetHeight : 90; }
+    const y = H - Math.ceil(hudBottomH / S) - 12;
     const pop = streak.pop > 0 ? 1 + streak.pop * 2 : 1;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = crisp(4 * pop) + 'px ' + FONT; ctx.lineWidth = 1.5; ctx.strokeStyle = '#0c0b12';
-    const s = G.t('streak', G.fmt(streak.n));
-    ctx.globalAlpha = Math.min(1, (2 - streak.t) * 2);
-    ctx.strokeText(s, W / 2, y); ctx.fillStyle = streak.n >= 100 ? '#ff7ae6' : streak.n >= 50 ? '#ff7a2e' : '#ffe27a'; ctx.fillText(s, W / 2, y);
+    const s = G.t('streak', G.fmt(n));
+    const fade = Math.min(1, (2.5 - (G.R.carnT || 0)) * 2);
+    ctx.globalAlpha = Math.max(0, fade);
+    const col = c.tier >= 4 ? '#ff4fe0' : c.tier >= 3 ? '#ff4f7e' : c.tier >= 2 ? '#ff7a2e' : c.tier >= 1 ? '#ffb347' : '#ffe27a';
+    ctx.strokeText(s, W / 2, y); ctx.fillStyle = col; ctx.fillText(s, W / 2, y);
+    // Carnage: the streak's bonus, and how far to the next step
+    if (c.tier > 0 || n >= 30) {
+      const y2 = y + 6;
+      ctx.font = crisp(3) + 'px ' + FONT;
+      const s2 = G.t('carnage', (1 + 0.1 * c.tier).toFixed(1));
+      ctx.strokeText(s2, W / 2, y2); ctx.fillStyle = c.tier ? col : '#a8a4b8'; ctx.fillText(s2, W / 2, y2);
+      if (c.next) {
+        const prev = [0, 100, 300, 800, 2000][c.tier] || 0, k = clamp((n - prev) / (c.next - prev), 0, 1), w = 30;
+        ctx.fillStyle = '#0c0b12'; ctx.fillRect(W / 2 - w / 2 - 0.5, y2 + 2.5, w + 1, 2);
+        ctx.fillStyle = col; ctx.fillRect(W / 2 - w / 2, y2 + 3, w * k, 1);
+      }
+    }
     ctx.globalAlpha = 1;
   }
   function drawBossBar() {

@@ -90,7 +90,7 @@ export default {
         const clean = {
           v: 1, name: String(snap.name || '').slice(0, 16), cls: snap.cls, lvl: snap.lvl, depth: snap.depth,
           asc: snap.asc | 0, fame: +snap.fame || 0, mad: snap.mad | 0, gear: snap.gear, ts: Date.now(),
-          rift: snap.rift | 0, rt: snap.rt | 0, rd: snap.rd || null, uq: snap.uq | 0, kills: snap.kills | 0, ev: Array.isArray(snap.ev) ? snap.ev : [], fs: snap.fs || {}, cr: snap.cr || {},
+          rift: snap.rift | 0, rt: snap.rt | 0, rd: snap.rd || null, uq: snap.uq | 0, kills: snap.kills | 0, ls: snap.ls | 0, ev: Array.isArray(snap.ev) ? snap.ev : [], fs: snap.fs || {}, cr: snap.cr || {},
         };
         clean.power = G.ladderPower(clean); // never trust the client's number
         await env.DB.prepare('INSERT INTO ladder (player_id, season, name, cls, lvl, depth, power, snapshot, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ' +

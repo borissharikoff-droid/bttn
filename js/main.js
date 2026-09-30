@@ -20,7 +20,7 @@
     G.S = G.newState();
     G.R.boss = null; G.R.bossReady = false; G.R.combo = 0; G.R.wisp = null;
     if (G.worldClear) G.worldClear();
-    if (G.R.mobs) G.R.mobs.length = 0;
+    if (G.R.mobs) G.R.mobs.length = 0; if (G.R.shots) G.R.shots.length = 0;
     G.recalc(); G.fillQuests(); G.save();
     G.emit('ascend', 0);
   };

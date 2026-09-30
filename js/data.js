@@ -327,29 +327,92 @@
   G.REALMS = [
     { id: 'shore',     name: 'Shoreline',  minion: 'b_crab',   lord: 'l_crab',   fodder: 'f_crab',
       minionName: 'Sand Crab', lordName: 'The Crab King',
+      zones: ['Tide Pools', 'Wreck Cove', 'Salt Flats', 'Coral Maze', 'The Crab King\u2019s Throne'],
+      mobs: { runner: 'Gull', spitter: 'Spitting Clam', bomber: 'Puffer', tank: 'Hermit Shell' },
       rule: 'Treasure Tides', ruleDesc: 'Hoarders come twice as often', hoard: 2 },
     { id: 'meadow',    name: 'Meadows',    minion: 'b_goblin', lord: 'l_goblin', fodder: 'f_goblin',
       minionName: 'Goblin', lordName: 'Goblin Warchief',
+      zones: ['Sunny Fields', 'Goblin Camp', 'The Old Mill', 'Raider Road', 'Warchief\u2019s Hill'],
+      mobs: { runner: 'Warg Pup', spitter: 'Goblin Slinger', bomber: 'Powder Goblin', tank: 'Boar Rider' },
       rule: 'Goblin Raids', ruleDesc: 'Surges come 50% bigger and last longer', surge: 1.5 },
     { id: 'forest',    name: 'Deepwood',   minion: 'b_shroom', lord: 'l_tree',   fodder: 'f_spore',
       minionName: 'Shroomling', lordName: 'Elder Treant',
+      zones: ['Mossy Trail', 'Rotting Hollow', 'Spore Glade', 'Witchroot', 'Heart of the Wood'],
+      mobs: { runner: 'Thornback', spitter: 'Spore Spitter', bomber: 'Puffball', tank: 'Barkhide' },
       rule: 'Sporefall', ruleDesc: 'Big mobs often burst into spores when they die', split: 0.4 },
     { id: 'highlands', name: 'Highlands',  minion: 'b_golem',  lord: 'l_titan',  fodder: 'f_pebble',
       minionName: 'Stone Golem', lordName: 'Mountain Titan',
+      zones: ['Foothills', 'The Quarry', 'Windy Pass', 'Golem Graves', 'Titan\u2019s Seat'],
+      mobs: { runner: 'Rockhound', spitter: 'Pebble Thrower', bomber: 'Blasting Cap', tank: 'Boulder' },
       rule: 'Stoneskin', ruleDesc: 'Brutes take half damage and drop twice the loot', stone: 1 },
     { id: 'tundra',    name: 'Frostlands', minion: 'b_yeti',   lord: 'l_wyrm',   fodder: 'f_snow',
       minionName: 'Yeti', lordName: 'Frost Wyrm',
+      zones: ['Frozen Lake', 'Snowdrift', 'Ice Caves', 'Yeti Den', 'The Wyrm\u2019s Glacier'],
+      mobs: { runner: 'Snow Fox', spitter: 'Frost Spitter', bomber: 'Ice Bomb', tank: 'Glacier Beetle' },
       rule: 'Blizzard', ruleDesc: 'The Horde walks 25% slower, champions come twice as often', slow: 0.75, champ: 2 },
     { id: 'godlands',  name: 'Godlands',   minion: 'b_eye',    lord: 'l_eye',    fodder: 'f_eye',
       minionName: 'Watcher', lordName: 'The All-Seeing Eye',
+      zones: ['Pilgrim Steps', 'The Fallen Temple', 'Hall of Eyes', 'Starfield', 'The Watching Throne'],
+      mobs: { runner: 'Seeker', spitter: 'Gazer', bomber: 'Star Spark', tank: 'Temple Guard' },
       rule: 'Watchful Eyes', ruleDesc: 'Shrines rise twice as often, rares come 60% more', shrine: 2, rare: 1.6 },
     { id: 'abyss',     name: 'Abyss',      minion: 'b_imp',    lord: 'l_demon',  fodder: 'f_bat',
       minionName: 'Fiend', lordName: 'Demon Lord',
+      zones: ['Brimstone Gate', 'The Ash Fields', 'Chain Pits', 'The Burning Keep', 'The Demon\u2019s Seat'],
+      mobs: { runner: 'Hellhound', spitter: 'Fire Spitter', bomber: 'Brimstone Imp', tank: 'Hellforged' },
       rule: 'Hellfire', ruleDesc: 'One mob in four explodes when it dies, and blasts chain', boom: 0.25 },
     { id: 'void',      name: 'The Void',   minion: 'b_wraith', lord: 'l_button', fodder: 'f_shade',
       minionName: 'Void Wraith', lordName: 'The Mad Button',
+      zones: ['Edge of Nothing', 'Hollow Stars', 'The Broken Stair', 'The Unmaking', 'The Mad Button'],
+      mobs: { runner: 'Flicker', spitter: 'Null Spitter', bomber: 'Collapsar', tank: 'Void Hulk' },
       rule: 'Unraveling', ruleDesc: 'Breaches tear open twice as often, loot +25%', breach: 2, loot: 1.25 },
+    // Past the Mad Button: the lands behind the world, depths 40 to 64
+    { id: 'library',   name: 'Sunken Library', minion: 'b_tome', lord: 'l_tome', fodder: 'f_page', outer: 1,
+      minionName: 'Grimoire', lordName: 'The Drowned Archivist',
+      zones: ['Flooded Stacks', 'The Reading Room', 'The Ink Well', 'The Forbidden Wing', 'The Archivist\u2019s Desk'],
+      mobs: { runner: 'Inkling', spitter: 'Ink Spitter', bomber: 'Blotbomb', tank: 'Tome Golem' },
+      rule: 'Ink Storm', ruleDesc: 'Spitters come three times as often, every kill gives 30% more XP', spit: 3, xp: 1.3 },
+    { id: 'foundry',   name: 'Clockwork Foundry', minion: 'b_auto', lord: 'l_auto', fodder: 'f_cog', outer: 1,
+      minionName: 'Automaton', lordName: 'The Gear Tyrant',
+      zones: ['The Loading Bay', 'Conveyor Hall', 'The Smelter', 'The Piston Deep', 'The Tyrant\u2019s Engine'],
+      mobs: { runner: 'Wind-up Mouse', spitter: 'Rivet Gun', bomber: 'Boiler Bot', tank: 'Iron Walker' },
+      rule: 'Assembly Line', ruleDesc: 'The Horde is 40% thicker and tanks come three times as often', thick: 1.4, tanky: 3 },
+    { id: 'ember',     name: 'Ember Wastes', minion: 'b_salam', lord: 'l_salam', fodder: 'f_ember', outer: 1,
+      minionName: 'Salamander', lordName: 'The Ashen Colossus',
+      zones: ['Cinder Road', 'The Glass Dunes', 'Magma Rivers', 'The Burnt Choir', 'The Colossus\u2019 Forge'],
+      mobs: { runner: 'Cinder Hound', spitter: 'Magma Spitter', bomber: 'Ember Bomb', tank: 'Obsidian Brute' },
+      rule: 'Firestorm', ruleDesc: 'Bombers come three times as often and their blasts tear through the Horde', bomb: 3, boomPow: 2 },
+    { id: 'mirror',    name: 'Mirror Maze', minion: 'b_mirror', lord: 'l_mirror', fodder: 'f_glass', outer: 1,
+      minionName: 'Reflection', lordName: 'The Other Warden',
+      zones: ['The Silver Door', 'Hall of Doubles', 'The Cracked Path', 'The Infinite Room', 'The Last Mirror'],
+      mobs: { runner: 'Glint', spitter: 'Prism Eye', bomber: 'Shatterling', tank: 'Looking Glass' },
+      rule: 'Echoes', ruleDesc: 'Runners come twice as often, big mobs shatter into shards', run: 2, split: 0.5 },
+    { id: 'sky',       name: 'Sky Citadel', minion: 'b_seraph', lord: 'l_hand', fodder: 'f_cherub', outer: 1,
+      minionName: 'Seraph', lordName: 'The First Hand',
+      zones: ['Cloud Steps', 'The Gilded Gate', 'The Choir Halls', 'The Throne Bridge', 'The Hand\u2019s Palace'],
+      mobs: { runner: 'Cherub', spitter: 'Sun Lance', bomber: 'Halo Bomb', tank: 'Throne Guard' },
+      rule: 'Thin Air', ruleDesc: 'Champions and rares come twice as often, loot +40%', champ: 2, rare: 2, loot: 1.4 },
   ];
+  // The Horde changes as you go deeper into a land: each zone brings a new kind of mob.
+  // Per zone (0-4), the share of packs led by each kind; fodder swarms fill the rest.
+  G.ARCHETYPES = {
+    runner:  { w: 0.05, spd: 2.5, gold: 1, from: 1, name: 'Runners', desc: 'Fast. They come in streams' },
+    spitter: { w: 0.6, spd: 0.9, gold: 1.3, from: 2, name: 'Spitters', desc: 'Stop at range and spit at the Button' },
+    bomber:  { w: 0.4, spd: 1.5, gold: 1.2, from: 3, name: 'Bombers', desc: 'Blow up when they die, taking the Horde with them' },
+    tank:    { w: 3, spd: 0.55, gold: 1.6, from: 4, name: 'Tanks', desc: 'Slow walls of armour. Big loot' },
+  };
+  G.ZONE_MIX = [
+    { runner: 0.08, spitter: 0,    bomber: 0,    tank: 0 },
+    { runner: 0.22, spitter: 0,    bomber: 0,    tank: 0 },
+    { runner: 0.2,  spitter: 0.12, bomber: 0,    tank: 0 },
+    { runner: 0.2,  spitter: 0.12, bomber: 0.16, tank: 0 },
+    { runner: 0.2,  spitter: 0.14, bomber: 0.16, tank: 0.08 },
+  ];
+  G.ZONE_NAME = d => { const r = G.REALMS[G.realmIndex(d)]; return r.zones[((d % G.REALM_SIZE) + G.REALM_SIZE) % G.REALM_SIZE]; };
+
+  // Land mastery: three stars per land, kept forever. Each one: +2.5% damage and gold
+  G.STAR_BONUS = 0.025;
+  G.STAR_KILLS = i => 10000 * (1 + 0.5 * i);
+  G.STAR_SWIFT = 20;
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------
   G.LEGACY = [

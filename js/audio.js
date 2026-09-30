@@ -129,6 +129,8 @@
       noise(0.03, v * 0.5, 0, 2500 + Math.random() * 2000);
       if (w >= 1 || n >= 6) tone(95 + Math.random() * 30, 0.1 + 0.05 * w, 'square', 0.05 + 0.02 * w, 0, 45);
       if (w >= 3) { tone(60, 0.35, 'sawtooth', 0.09, 0.02, 30); noise(0.25, 0.08, 0.02, 300); }
+      // a bright tick on top that climbs as the Carnage streak does
+      if (throttle('ktick', 45)) { const tier = G.carnage ? G.carnage().tier : 0; tone(note(24 + tier * 2 + Math.floor(Math.random() * 3)), 0.025, 'square', 0.018 + 0.004 * tier); }
     }, 16);
   };
   // A drop hitting the ground; the rare ones ring out like a divine orb in PoE
@@ -178,6 +180,12 @@
     [0, 4, 7, 12, 16, 19].forEach((s, i) => tone(note(19 + s), 0.18, 'square', 0.05, 0.15 + i * 0.05));
   };
   A.breach = function () { noise(0.8, 0.08, 0, 300); tone(70, 1.2, 'sawtooth', 0.08, 0, 45); tone(105, 1.2, 'sawtooth', 0.05, 0.1, 70); };
+  // a heap of the Horde dying in one frame: a deep crunch with a bright top
+  A.heap = function (n) { if (!throttle('heap', 180)) return; thud(0.14, 0.16, 0, 700); noise(0.12, 0.08, 0, 900); tone(note(7 + Math.min(12, Math.log2(n / 10) * 4)), 0.08, 'square', 0.05, 0.02); };
+  A.spit = function () { if (!throttle('spit', 120)) return; tone(420, 0.06, 'triangle', 0.04, 0, 260); noise(0.04, 0.03, 0, 3000); };
+  A.carnage = function (t) { if (!t) return; [0, 5, 9, 12].forEach((s, i) => tone(note(14 + s + t * 2), 0.1, 'square', 0.05, i * 0.04)); };
+  A.star = function () { [0, 4, 7, 12, 16, 19].forEach((s, i) => tone(note(12 + s), 0.22, 'triangle', 0.08, i * 0.07)); thud(0.2, 0.14, 0, 600); };
+  A.wave = function () { tone(98, 0.6, 'sawtooth', 0.07, 0, 131); tone(147, 0.6, 'sawtooth', 0.05, 0.05, 196); thud(0.15, 0.12, 0, 500); };
   A.boom = function () { if (!throttle('boom', 70)) return; thud(0.15, 0.14, 0, 500); tone(80, 0.18, 'square', 0.06, 0, 40); noise(0.08, 0.05, 0, 1500); };
   A.rift = function (n) {
     if (n === 0) { noise(0.9, 0.06, 0, 200); [0, 3, 7, 12].forEach((s, i) => tone(note(7 + s), 0.6, 'sawtooth', 0.04, i * 0.12)); tone(55, 1.4, 'sine', 0.12, 0, 40); }
@@ -229,6 +237,12 @@
     { bass: [0, 0, 1, 1, 0, 0, -2, -2], lead: [12, 13, 16, 13, 12, 10, 8, 7], tempo: 0.22 },
     { bass: [-5, -5, -4, -4, -5, -5, -7, -7], lead: [7, 8, 11, 8, 7, 5, 4, 1], tempo: 0.18 },
     { bass: [-12, -12, -11, -11, -9, -9, -8, -8], lead: [0, 3, 6, 9, 6, 3, 1, -2], tempo: 0.25 },
+    // past the Button
+    { bass: [-5, -5, -2, -2, 0, 0, -2, -7], lead: [7, 10, 14, 12, 10, 7, 5, 2], tempo: 0.24 },
+    { bass: [0, 0, 0, 0, -1, -1, -3, -3], lead: [12, 12, 15, 12, 17, 15, 12, 10], tempo: 0.16 },
+    { bass: [-7, -7, -4, -4, -2, -2, -9, -9], lead: [5, 8, 12, 13, 12, 8, 5, 1], tempo: 0.18 },
+    { bass: [0, 0, 4, 4, 0, 0, 3, 3], lead: [12, 16, 11, 15, 12, 16, 10, 14], tempo: 0.21 },
+    { bass: [0, 0, 5, 5, 9, 9, 7, 7], lead: [19, 21, 24, 21, 19, 16, 19, 12], tempo: 0.22 },
   ];
   let step = 0, musicTimer = null;
   function startMusic() {
@@ -282,6 +296,12 @@
   G.on('rareSpawn', () => tone(note(7), 0.4, 'triangle', 0.06, 0, note(0)));
   G.on('orb', (id, g, res) => A.orb(res));
   G.on('mobBite', () => A.bite());
+  G.on('spit', () => A.spit());
+  G.on('spitHit', () => A.bite());
+  G.on('bomberPop', () => A.boom());
+  G.on('carnage', t => A.carnage(t));
+  G.on('landStar', () => A.star());
+  G.on('wave', () => A.wave());
   G.on('buttonBreak', () => A.overload());
   G.on('perk', () => A.perk());
   G.on('evolve', () => A.evolve());

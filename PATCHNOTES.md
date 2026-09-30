@@ -1,3 +1,114 @@
+# BTTN 1.1 — The Horde
+
+The Horde patch. The arena is never empty now: hundreds of mobs pour in from every side and die in heaps. Each land is a journey of five zones with its own mobs, five new lands wait past the Mad Button, and every land has three stars to earn for good.
+
+## At a glance
+
+- **A real horde.** Up to 600 mobs on screen, about 3× the kills per minute, the same gold and XP per second of play.
+- **Four new kinds of mob,** each with its own silhouette and a name in every land: runners, spitters, bombers and tanks.
+- **Zones.** Every land is five named zones, the last one its lord's. Each zone brings a new kind of mob and is fought in three waves.
+- **Five new lands past the Mad Button** (depths 41–65): the Sunken Library, the Clockwork Foundry, the Ember Wastes, the Mirror Maze and the Sky Citadel, each with its own mobs, rule, ground, music, gore and lord, and a unique of its own.
+- **Land stars.** Three per land, kept forever: slay the lord, slay enough of its Horde, slay the lord fast. Each one: +2.5% damage and gold. A new *Land stars* ladder board.
+- **The world map.** Tap the land name: every land, its zones, your stars and what's left.
+- **Carnage.** The kill streak pays: keep it going and gold and XP climb up to +40%.
+- **Crunch.** Blood soaks into the ground and stays for a while, bombers go off in chains, heaps of kills stop the frame, the kill counter climbs with a bright tick that rises with the streak.
+
+## The Horde, thicker
+
+Before this patch the arena was empty most of the time: the Warden killed each pack the moment it walked into reach, so a median of 2 to 5 mobs were alive at once. Now:
+
+- Fodder weighs a quarter of what it did and comes four times as many, so the gold, XP and clearing progress per second are the same, but the bodies are not. A pack is a leader and a long tail of 25 to 90 small fry that streams in from past the edge of the arena.
+- Up to 600 mobs at once. Surges, Breaches and wave rushes fill the field from every side.
+- Splash, chain lightning, blades, Holy Ground and Nova now cut through crowds, which is what they were for.
+- Drop chances, leech, Sporeheart and the Hand's knock-back were rescaled to the new weights, so none of them got 4× stronger by accident.
+
+## Four new kinds of mob
+
+Each has one silhouette everywhere, so you learn it once, drawn in the colours of the land it's in and named after it (a Gull on the Shoreline, a Warg Pup in the Meadows, a Cinder Hound in the Ember Wastes):
+
+| Kind | What it does | Answer |
+|---|---|---|
+| **Runner** | Twice as fast, comes in streams | Splash and reach |
+| **Spitter** | Stops at range and lobs a glob at the Button every couple of seconds | Tap it: the Warden kills what you tap first |
+| **Bomber** | Its fuse is lit. Killed in the crowd, it blows up the pack around it, and blasts chain. If it reaches the Button, it blows up on it | Kill it early, inside the pack |
+| **Tank** | Slow, three brutes' worth of health, big loot | Focus it |
+
+## Zones and waves
+
+Every land is now five named zones instead of five numbered depths: the Shoreline runs Tide Pools, Wreck Cove, Salt Flats, Coral Maze and the Crab King's Throne. The HUD shows the land, five pips for its zones (the last one the lord's) and the zone's name.
+
+- Each zone brings one more kind of mob: runners from the second zone, spitters from the third, bombers from the fourth, tanks in the lord's zone. A card announces the zone and its newcomer ("NEW: Spitting Clam").
+- Each zone is fought in **three waves**. The clear bar has two notches; crossing one sends in a pair of champions and a rush from two sides.
+- When the boss is ready, the bar says where it leads: "Fight Sand Crab to reach Salt Flats".
+
+## Five new lands past the Mad Button
+
+The Mad Button used to be the end of the road, after which the same lands came round again, corrupted. Now it opens the world behind it, depths 41 to 65. The corrupted cycles start after that, at depth 66.
+
+| Land | Rule | Lord | Unique |
+|---|---|---|---|
+| **Sunken Library** | *Ink Storm*: spitters three times as often, +30% XP | The Drowned Archivist | *The Drowned Codex*: spitters and bombers die to any hit |
+| **Clockwork Foundry** | *Assembly Line*: the Horde is 40% thicker, tanks three times as often | The Gear Tyrant | *Crown of the Gear Tyrant*: tanks, brutes and champions take double damage |
+| **Ember Wastes** | *Firestorm*: bombers three times as often, their blasts twice as strong | The Ashen Colossus | *Ashbringer*: the Warden's kills burst into flame |
+| **Mirror Maze** | *Echoes*: runners twice as often, big mobs shatter into shards | The Other Warden | *The Other Cloak*: one bite in three is turned back on the biter |
+| **Sky Citadel** | *Thin Air*: champions and rares twice as often, loot +40% | The First Hand | *Palm of the First Hand*: every click calls three more bolts (only the First Hand and deep Rifts drop it) |
+
+Each has its own fodder, champion and lord sprites, ground, decor, gore (ink, sparks, embers, glass, feathers), music and named zones. There are now 19 uniques, a new first to race for (*The First Hand*), and new achievements: *Past the Button*, *Hand to Hand*, three for land stars and one for a 2,000-kill streak.
+
+## Land stars and the world map
+
+Every land has three stars, kept forever, ascension included:
+
+1. **Conquered:** slay its lord.
+2. **Slaughter:** slay 10,000 of its Horde (more in later lands), counted across every visit.
+3. **Swift:** slay its lord within 20 seconds.
+
+Each star adds 2.5% damage and gold, up to +97.5% for all 39. Ascending now has one more reason: coming back stronger to take the Swift stars you couldn't. Tap the land name for the **world map**: every land with its rule, its zones as you've cleared them, kill counts and stars; lands you haven't reached are silhouettes. Friends can compare on the new **Land stars** ladder board.
+
+## Carnage
+
+The kill streak is no longer just a number. Keep killing without a 2.5-second pause and gold and XP go up: +10% at 100 kills, +20% at 300, +30% at 800, +40% at 2,000. The counter sits above the bars with a small bar to the next step; the callouts now go up to EXTINCTION, CATACLYSM and GODLIKE at 3,000, 6,000 and 10,000.
+
+## Crunch
+
+- **Blood that stays.** Splats are painted onto a layer over the ground that fades over about 20 seconds, instead of a short list of stains that vanished; a slaughter leaves the arena stained.
+- **Bomber chains** with a flash of light, a shockwave and a small frame stop.
+- **Heaps stop the frame.** A dozen kills in one frame shake the screen; forty or more stop it for a moment with a deep crunch. This used to fire on any five kills, which with the new Horde would have been all the time.
+- **A bright tick** on top of the kill crunch that climbs in pitch with the Carnage step.
+- Tanks break apart with a shockwave; spitters swell before they spit; bombers' fuses fizz faster as they close in.
+- Fewer chunks per body when hundreds die at once, so the frame rate holds: 60 fps with 600 mobs on screen in a headless browser.
+
+## Interface
+
+- The land strip at the top: land name, its stars, five zone pips and the zone's name. Depth and boss sit on the line under it (hidden on phones to save room).
+- The clear bar shows the wave and two notches.
+- Title cards and callouts sit lower on phones, clear of the HUD; the kill counter moved from the top of the stage to just above the bars.
+- New tips for the first spitter, the first bomber and the world map; two new help pages (lands, zones and stars; Carnage).
+- Kill goals were scaled to the thicker Horde: the first Journey step is 300 kills, the daily bounty 12,000, kill quests four times as many.
+
+## Measured
+
+`node tools/playtest.js all 3 90`, 3 seeds per persona, 90 minutes each (the returner plays a week). "Before" is 1.0.
+
+| | Active | Casual | Idle | Returner |
+|---|---|---|---|---|
+| Mobs alive at once, median · 90th percentile | 2 · 20 → **33 · 177** | 5 · 38 → **22 · 178** | 0 · 26 → **18 · 169** | → **2 · 146** |
+| Kills per minute | 718 → **2,043** | 856 → **2,268** | 873 → **2,158** | → **2,032** |
+| Big moments per minute, first 10 min | 8.6 → **9.0** | 4.2 → **4.9** | 4.4 → 4.3 | 4.7 → 4.7 |
+| Time to depth 20 | 13.2 → **11.8 min** | 56.5 → **30.9 min** | 82.8 → **57.7 min** | 30.6 → 31.3 min |
+| Time to depth 40 | 64.9 → **51.1 min** | — | — | 131 → **96.5 min** |
+| Land stars after 90 min | 20 | 11 | 7 | 24 in a week |
+| Button broken | 1 | 0 | 0 | 1 in a week |
+
+"Before" crowd numbers come from a 30-minute run of 1.0 with the same bots. Medians of 3 seeds; the 1.0 columns for depth and moments are from its 4-seed, 2-hour runs.
+
+What got worse: the active player's longest wait between big moments in minutes 10–30 (110 → 184 s) and the casual player's (211 → 290 s). Kill goals take longer now, and the extra speed through the depths comes mostly from land stars, which don't count as a moment after the first few. Worth watching in 1.2.
+
+Tested with: the persona bots above, a render check at 13 depths with 600 mobs (60 fps, no errors), the browser suites from 1.0 on desktop and phone (onboarding, UI, loot, Rifts, bosses, ladder boards, migration from old saves, two devices online), the server tests (15/15), and the ladder verification and regression checks.
+
+
+---
+
 # BTTN 1.0 — Loot & Rifts
 
 The release patch: the one to send to friends. Loot now drops the way it does in Path of Exile, every land plays by its own rule, bosses fight back, and there is an endgame to race each other in. What follows is what changed, why, and what's planned for the next patches.
@@ -230,36 +341,27 @@ What got worse: the returner's longest wait in their first 10 minutes (106 → 1
 
 ## Next patches
 
-What comes after 1.0, in order. Each patch adds lands and changes how progress feels, not just numbers.
+What comes next, in order. The five lands this roadmap used to promise shipped in 1.1; what's left changes how progress feels.
 
-### 1.1 — Trials (about two weeks after release)
+### 1.2 — Trials
 
-- **Trial of the Day.** Everyone plays the same seed with the same fixed Warden for 3 minutes; one ranked attempt a day. Skill with the Hand, perk picks and boss timing decide it, not hours played. Medals set by the in-page bot. Each friend's browser replays and checks the others' runs, so no server is needed.
+- **Trial of the Day.** Everyone plays the same seed with the same fixed Warden for 3 minutes; one ranked attempt a day. Skill with the Hand, perk picks and boss timing decide it, not hours played.
 - **A Wordle-style result line:** one square per boss (first try, after a fail, lord, the one that stopped you), your best drop's colour, your place among friends.
-- **New event land: the Sunken Library** (rotates in weekly). Rule *Loose Pages*: pages float over the field; tap one for a random perk rank for 20 seconds. Lord: **The Archivist**, who shields itself in ink. Unique: *Tome of Many Hands* (clicks strike three times, abilities cost 20% more cooldown).
+- **Loose Pages** in the Sunken Library: pages float over the field; tap one for a random perk rank for 20 seconds.
 
-### 1.2 — Doors and Crowns
+### 1.3 — Doors and Crowns
 
-- **Doors after bosses,** Hades style: pick one of two rewards for the next depth before it starts (gold, champions, a guaranteed Hoarder, a Breach, an extra item, a harder depth for more loot).
+- **Doors after bosses,** Hades style: pick one of two rewards for the next zone before it starts (gold, champions, a guaranteed Hoarder, a Breach, an extra item, a harder zone for more loot).
 - **Lord crowns with a Legend title:** besides the fastest kill, a second crown for the most kills of a lord in 7 days.
-- **New land: the Clockwork Foundry** (depths 41–45 of the first corrupted cycle get it instead of Corrupted Shoreline). Rule *Overclock*: every 30 seconds the Horde speeds up for 8 seconds, and kills during it pay double. Lord: **The Gear Colossus**, whose Shield move needs twice the taps. Unique: *Mainspring* (attack speed ramps up while you keep killing).
 
-### 1.3 — Legion and Ritual
+### 1.4 — Legion and Ritual
 
 - **Frozen Warband** (Highlands, Frostlands): a formation frozen in time; damage piles up for 14 seconds, then everything shatters at once into a loot fountain.
-- **Blood Altar** (Abyss, Godlands): the last 30 kills rise again; their tribute buys one of three rewards, with a reroll.
-- **Land set pieces** instead of a plain surge: a Crab Stampede, a Goblin Raid from three sides, a closing Flower Wall, a Rockslide, an Eye Swarm crossing the field.
-- **New land: the Ember Wastes** (depths 46–50). Rule *Scorched Earth*: burning ground spreads where mobs die; mobs walking through it take damage, the Button doesn't. Lord: **The Cinder Tyrant**. Unique: *Ashbringer* (kills leave burning ground).
+- **Blood Altar** (Abyss, Godlands): the last 30 kills rise again; their tribute buys one of three rewards.
+- **Land set pieces** instead of a plain surge: a Crab Stampede, a Goblin Raid from three sides, a Rockslide, an Eye Swarm crossing the field.
 
-### 1.4 — Season 2
+### 1.5 — Season 2 and Relics
 
-- **Seasons:** a fresh seasonal save for everyone every 6 weeks, with the old Warden moving to a Standard board. Firsts and crowns reset; season cosmetics (Button skins, name colours) stay.
-- **Weekly Friends League:** points from the Trial, the weekly best Rift and crowns; the top three get a cup on their profile.
-- **Profile cards:** tap a name to see their Warden, gear and trophies.
-- **New land: the Mirror Maze** (depths 51–55). Rule *Reflections*: every champion has a mirrored twin; kill both within 3 seconds or the survivor revives the other. Lord: **The Twin Queen** (two health bars). Unique: *Looking Glass* (the Hand's bolt strikes a second, mirrored target).
-
-### 1.5 — Carnage
-
-- **Carnage rank:** a meter that fills with how fast you kill, from I to V. Each rank thickens the Horde and raises its loot, gold and XP; your best rank goes on the ladder.
-- **Relics:** one hidden relic per land, found by a secret feat, each unlocking something permanent (a Hyper mode for beaten lands, Hoarders more often everywhere, loot showing its rarity while still in the air).
-- **New land: the Sky Citadel** (depths 56–60). Rule *Thin Air*: the Horde comes from above in waves, landing all at once. Lord: **The Storm Sovereign**, whose Slam is a lightning strike you break by tapping the clouds. Unique: *Crown of the Tempest* (every 10th click is a storm).
+- **Seasons:** a fresh seasonal save every 6 weeks, the old Warden moving to a Standard board. Firsts and crowns reset; cosmetics stay.
+- **Weekly Friends League:** points from the Trial, the weekly best Rift, crowns and land stars.
+- **Relics:** one hidden relic per land, found by a secret feat, each unlocking something permanent.

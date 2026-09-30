@@ -583,6 +583,11 @@
     voidplate:   { A: '#3a2255', a: '#1a0e2a', t: '#b36bff' },
     reaper:      { B: '#0c0b12', L: '#e8e4d8', H: '#3a3a44' },
     lastbutton:  { Y: '#ff4f4f', y: '#a82424', w: '#ffd0d0', B: '#3a3348' },
+    codex:       { C: '#1f6a60', c: '#4fb8a8', y: '#f4ecd8', W: '#1a1a44' },
+    tyrant:      { Y: '#c8a032', y: '#6e5a2a', r: '#ff7a2e', g: '#9a9aa8', b: '#7fe9ff' },
+    ashbringer:  { L: '#3a3038', D: '#1a1418', G: '#ff7a2e', H: '#ffd84a', P: '#ff3b1a' },
+    othercloak:  { C: '#9aa8d0', c: '#f4f8ff' },
+    firsthand:   { O: '#ffd84a', w: '#ffffff', W: '#ff4f7e' },
   };
   G.UNIQUES && Object.keys(uniques).forEach(q => { const U = G.UNIQUES[q]; if (U) def('u_' + q, uniques[q], T[items[U.base][0]]); });
 
@@ -1338,6 +1343,303 @@
     '......BBBB......',
   ]);
 
+
+  // ================= ARCHETYPES (one silhouette per behaviour, in each land's colours) =================
+  // runners are lean and low, spitters are bulbs with a mouth, bombers carry a lit
+  // fuse, tanks are shelled. The land gives them its palette: a, A, c.
+  const ARCH_PX = {
+    runner: [
+      '......a.',
+      '.....aak',
+      'aaaaaaaa',
+      '.aAccAa.',
+      '.a.a.a.a',
+      'a..a..a.',
+    ],
+    spitter: [
+      '..aaaa..',
+      '.aaccaa.',
+      'aakaakaa',
+      'aaaaaaaa',
+      'aAkkkkAa',
+      '.AkwwkA.',
+      '..AAAA..',
+      '.A.AA.A.',
+    ],
+    bomber: [
+      '.....cy.',
+      '....c...',
+      '..aaaa..',
+      '.aawaaa.',
+      'aawaaaaa',
+      'aakaakaa',
+      '.aaaaaa.',
+      '..AAAA..',
+    ],
+    tank: [
+      '....AAAA....',
+      '..AAaaaaAA..',
+      '.AaaccccaaA.',
+      'AaacAAAAcaaA',
+      'AacAaaaaAcaA',
+      'AacAaaaaAcaA',
+      'AaacAAAAcaaA',
+      '.AaaaaaaaaA.',
+      '..AkAAAAkA..',
+      '.A.A.AA.A.A.',
+      'A..A....A..A',
+    ],
+  };
+  const ARCH_PAL = {
+    shore:     { a: '#5ab4c8', A: '#2a6a80', c: '#ffd84a' },
+    meadow:    { a: '#c8a050', A: '#7a5a2a', c: '#e84a4a' },
+    forest:    { a: '#6ed04a', A: '#2d7a28', c: '#ffe27a' },
+    highlands: { a: '#c08a5a', A: '#7a5230', c: '#7fe9ff' },
+    tundra:    { a: '#9fd8ff', A: '#4f8ad0', c: '#ffffff' },
+    godlands:  { a: '#ffd84a', A: '#b08a20', c: '#ff4f7e' },
+    abyss:     { a: '#ff6a2e', A: '#9e2424', c: '#ffe27a' },
+    void:      { a: '#8a5ae0', A: '#3a2266', c: '#7fe9ff' },
+    library:   { a: '#4fb8a8', A: '#1f6a60', c: '#f4ecd8' },
+    foundry:   { a: '#c8a032', A: '#6e5a2a', c: '#ff7a2e' },
+    ember:     { a: '#ff4f2e', A: '#8a1f10', c: '#ffd84a' },
+    mirror:    { a: '#d8e6ff', A: '#7a8ab8', c: '#ff7ae6' },
+    sky:       { a: '#fff3d0', A: '#c8b070', c: '#6fb4ff' },
+  };
+  for (const land in ARCH_PAL) for (const k in ARCH_PX) def('a_' + k + '_' + land, Object.assign({ k: '#1a1a22', w: '#ffffff', y: '#ffe27a' }, ARCH_PAL[land]), ARCH_PX[k]);
+  SPR.arch = (kind, land) => get('a_' + kind + '_' + (ARCH_PAL[land] ? land : 'meadow'));
+
+  // ================= THE LANDS PAST THE BUTTON =================
+  def('f_page', { w: '#f4ecd8', W: '#4f6a9a', k: '#1a1a22' }, [
+    '.wwwwww.',
+    'wwkwwkww',
+    'wwwwwwww',
+    'wWWWWWWw',
+    'wwwwwwww',
+    '.wWWWWw.',
+    '..w..w..',
+  ]);
+  def('f_cog', { y: '#c8a032', Y: '#7a5a20', k: '#1a1a22', c: '#9a9aa8' }, [
+    '.y.yy.y.',
+    'yyyYYyyy',
+    'yYkyykYy',
+    'yyYYYYyy',
+    '.yyyyyy.',
+    '.c.cc.c.',
+  ]);
+  def('f_ember', { o: '#ff7a2e', y: '#ffd84a', r: '#e03a1a', R: '#8a1f10', k: '#1a1a22' }, [
+    '...o....',
+    '..oyo.o.',
+    '.oyyyoo.',
+    '.okyykr.',
+    '.rooooR.',
+    '..rRRr..',
+    '.r.rr.r.',
+  ]);
+  def('f_glass', { w: '#e8f0ff', c: '#b8c8f0', C: '#7a8ab8', k: '#1a1a22' }, [
+    '...ww...',
+    '..wcCw..',
+    '.wcwwCw.',
+    'wckwwkCw',
+    '.wCwwcw.',
+    '..wCcw..',
+    '...ww...',
+  ]);
+  def('f_cherub', { w: '#ffffff', y: '#ffe27a', s: '#f2c6a0', e: '#1a1a22', p: '#6fb4ff', P: '#3f7bd0' }, [
+    'w..yy..w',
+    'ww.ss.ww',
+    'wwseesww',
+    '.wssssw.',
+    '..pPPp..',
+    '..s..s..',
+  ]);
+  def('b_tome', { b: '#4fb8a8', B: '#1f6a60', w: '#f4ecd8', k: '#1a1a22', y: '#ffd84a' }, [
+    '................',
+    '..bbbbbbbbbbbb..',
+    '.bBBBBBBBBBBBBb.',
+    '.bBwwwwwwwwwwBb.',
+    '.bBwkwwwwwwkwBb.',
+    '.bBwwwwwwwwwwBb.',
+    '.bBwwwwwwwwwwBb.',
+    '.bBkkkkkkkkkkBb.',
+    '.bBkwkwkwkwkkBb.',
+    '.bBkkkkkkkkkkBb.',
+    '.bBwwwwwwwwwwBb.',
+    '.bBBBBBBBBBBBBb.',
+    '..bbbbbbbbbbbb..',
+    '...y........y...',
+    '..b..........b..',
+    '................',
+  ]);
+  def('b_auto', { c: '#c8a032', C: '#7a5a20', y: '#7fe9ff', k: '#1a1a22', o: '#ff7a2e', w: '#9a9aa8' }, [
+    '.....cccccc.....',
+    '....cCCCCCCc....',
+    '....cCyCCyCc....',
+    '....cCCCCCCc....',
+    '.....cCkkCc.....',
+    '...cccccccccc...',
+    '..cCCCoooCCCCc..',
+    '..cCCooyooCCCc..',
+    '..cCCCoooCCCCc..',
+    '..c.cCCCCCCc.c..',
+    '..w.cCCCCCCc.w..',
+    '....cc....cc....',
+    '....cC....Cc....',
+    '....cC....Cc....',
+    '...ccC....Ccc...',
+    '................',
+  ]);
+  def('b_salam', { r: '#ff5a2e', R: '#9e2410', y: '#ffd84a', k: '#1a1a22', o: '#ffb347' }, [
+    '................',
+    '................',
+    '..........rr....',
+    '.........rrrr...',
+    '..o.....rykrrr..',
+    '.oyo...rrrrrrrr.',
+    '.oo...rrrRRrr...',
+    '..rr.rrrrRRr....',
+    '...rrrrrrrrr....',
+    '....rrRRRrrr....',
+    '....rrRRRRrr....',
+    '...r.r....r.r...',
+    '..r..r....r..r..',
+    '.R..R......R..R.',
+    '................',
+    '................',
+  ]);
+  def('b_mirror', { w: '#f4f8ff', C: '#9aa8d0', c: '#c8d6ff', k: '#1a1a22', p: '#ff7ae6' }, [
+    '......wwww......',
+    '.....wCCCCw.....',
+    '.....wCkkCw.....',
+    '.....wCCCCw.....',
+    '......wwww......',
+    '...wwwCCCCwww...',
+    '..wCCwCppCwCCw..',
+    '..wCw.CCCC.wCw..',
+    '..wCw.CccC.wCw..',
+    '..pp..CCCC..pp..',
+    '......CccC......',
+    '.....CC..CC.....',
+    '.....CC..CC.....',
+    '....wCC..CCw....',
+    '................',
+    '................',
+  ]);
+  def('b_seraph', { y: '#ffd84a', s: '#f2c6a0', e: '#1a1a22', w: '#ffffff', W: '#c8d6e8', g: '#e8e0c8', G: '#c8a032' }, [
+    '......yyyy......',
+    '................',
+    '......ssss......',
+    '......sees......',
+    '.ww...ssss...ww.',
+    'wwww.gggggg.wwww',
+    'wWwwwgGyyGgwwwWw',
+    '.wWwwgGGGGgwwWw.',
+    '..wWw.gGGg.wWw..',
+    '...ww.gGGg.ww...',
+    '......gGGg......',
+    '.....gg..gg.....',
+    '.....gg..gg.....',
+    '....yyy..yyy....',
+    '................',
+    '................',
+  ]);
+  def('l_hand', { w: '#ffffff', W: '#c8cce0', k: '#1a1a22', r: '#ff4f7e', g: '#ffd84a', G: '#c98f10' }, [
+    '....ww.ww.ww....',
+    '....wW.wW.wW....',
+    '..wwwW.wW.wW....',
+    '..wWwW.wW.wW.ww.',
+    '..wWwWwwWwwWwwW.',
+    '..wWwwwwwwwwwwW.',
+    '..wwwwwwwwwwwwW.',
+    '...wwwwwwwwwwW..',
+    '...wwwwkwwwwwW..',
+    '...wwwkrkwwwwW..',
+    '...wwwwkwwwwwW..',
+    '....wwwwwwwwW...',
+    '....ggggggggg...',
+    '....gGgGgGgGg...',
+    '....ggggggggg...',
+    '................',
+  ]);
+  // decor for the new lands
+  def('d_books', { r: '#c84a4a', R: '#8a2a2a', g: '#4fa86a', G: '#2d6a40', b: '#4f7ac8', B: '#2a4a8a' }, [
+    '........',
+    '...bb...',
+    '..rrrr..',
+    '..RRRR..',
+    '.gggggg.',
+    '.GGGGGG.',
+    'bbbbbbbb',
+    'BBBBBBBB',
+  ]);
+  def('d_candle', { y: '#ffe27a', o: '#ff7a2e', w: '#f4ecd8', W: '#c8bca0', g: '#c8a032', G: '#7a5a20' }, [
+    '...y....',
+    '..yo....',
+    '...o....',
+    '..ww....',
+    '..wW....',
+    '..wW....',
+    '.gggg...',
+    '.GGGG...',
+  ]);
+  def('d_gear', { y: '#b8a070', Y: '#7a6a4a' }, [
+    '..y..y..',
+    '.yyyyyy.',
+    'yyYYYYyy',
+    '.yY..Yy.',
+    '.yY..Yy.',
+    'yyYYYYyy',
+    '.yyyyyy.',
+    '..y..y..',
+  ]);
+  def('d_pipe', { c: '#9a9aa8', C: '#6e6e7c', s: '#d8d8e0' }, [
+    '........',
+    'cccccccc',
+    'CCCCCCCC',
+    '...cC...',
+    '...cC...',
+    '..ccCC..',
+    '..cCCC..',
+    '...ss...',
+  ]);
+  def('d_mirror', { g: '#c8a032', w: '#d8e6ff', c: '#ffffff' }, [
+    '..gggg..',
+    '.gwwwwg.',
+    'gwcwwwwg',
+    'gwwcwwwg',
+    'gwwwcwwg',
+    'gwwwwcwg',
+    '.gwwwwg.',
+    '..gggg..',
+    '...gg...',
+    '..gggg..',
+  ]);
+  def('d_cloud', { w: '#ffffff', W: '#c8d6e8' }, [
+    '........',
+    '..ww....',
+    '.wwwww..',
+    'wwwwwwww',
+    'wWwwwWww',
+    '.WWWWWW.',
+  ]);
+  def('d_pillar', { g: '#ffd84a', w: '#f4f0e4', W: '#c8c0b0' }, [
+    '.gggggg.',
+    '..wwww..',
+    '..wWww..',
+    '..wWww..',
+    '..wWww..',
+    '..wWww..',
+    '..wWww..',
+    '.gggggg.',
+  ]);
+  def('d_obsidian', { k: '#2a1a2a', K: '#1a0e1a', p: '#8a5ae0' }, [
+    '........',
+    '...kk...',
+    '..kpKk..',
+    '.kpkKKk.',
+    '.kkKKKk.',
+    'kKKKKKKk',
+  ]);
+
   // ================= Rendering =================
   function hexA(h) { return h; }
   function drawDef(ctx, d, ox, oy, recolor) {
@@ -1589,6 +1891,10 @@
       l_goblin: ['b_goblin', { g: '#c8e04a', G: '#8a9a2e', b: '#a82424', B: '#6b1818' }],
       l_titan: ['b_golem', { g: '#7a8aa8', G: '#4f5a78', c: '#ff7a2e', w: '#b0bcd8' }],
       l_demon: ['b_imp', { r: '#c0265a', R: '#781436', y: '#ffe27a', h: '#f4f0e4', k: '#1a0c14', o: '#b36bff', f: '#e0d0ff' }],
+      l_tome: ['b_tome', { b: '#2a3a6a', B: '#141e3a', w: '#d8c8a0', y: '#ff4f7e' }],
+      l_auto: ['b_auto', { c: '#8a8a9a', C: '#4a4a5a', y: '#ff3b3b', o: '#ffd84a' }],
+      l_salam: ['b_salam', { r: '#3a3038', R: '#1a1418', y: '#ff7a2e', o: '#ffd84a' }],
+      l_mirror: ['b_mirror', { w: '#2a2238', C: '#4a3a68', c: '#7a6aa8', p: '#ff3b5c' }],
     };
     if (spriteId === 'l_eye') return { canvas: bigEye(), scale: 2 };
     if (spriteId === 'l_button') return { canvas: button('#3a3348', false, 0, true), scale: 2, isButton: true };
@@ -1611,6 +1917,11 @@
     godlands:  { base: ['#3b3346', '#342d3f', '#453c52', '#2c2636'], detail: '#5a4f6e', decor: ['d_crystal', 'd_bones', 'd_rock', 'd_crystal'] },
     abyss:     { base: ['#2e1a1c', '#261618', '#382022', '#1e1012'], detail: '#ff6a2e', decor: ['d_lava', 'd_bones', 'd_lava', 'd_rock'] },
     void:      { base: ['#15101f', '#110d1a', '#1a1426', '#0d0a14'], detail: '#3a2a5a', decor: ['d_shard', 'd_crystal', 'd_shard'] },
+    library:   { base: ['#3a4a5a', '#34424f', '#405264', '#2c3a48'], detail: '#6fb4c8', decor: ['d_books', 'd_candle', 'd_books', 'd_rock'] },
+    foundry:   { base: ['#4a4038', '#40372f', '#544a40', '#383028'], detail: '#ff7a2e', decor: ['d_gear', 'd_pipe', 'd_gear', 'd_rock'] },
+    ember:     { base: ['#5a3020', '#4e281a', '#663826', '#40200f'], detail: '#ffb347', decor: ['d_lava', 'd_obsidian', 'd_bones', 'd_lava'] },
+    mirror:    { base: ['#b8c0d8', '#aab2cc', '#c6cee4', '#9aa2bc'], detail: '#ffffff', decor: ['d_mirror', 'd_crystal', 'd_mirror'] },
+    sky:       { base: ['#e8f0ff', '#dce6f8', '#f4f8ff', '#c8d6ec'], detail: '#ffd84a', decor: ['d_cloud', 'd_pillar', 'd_cloud', 'd_cloud'] },
   };
   SPR.REALM_GROUND = REALM_GROUND;
   function ground(realmId, w, h, seed) {
@@ -1644,6 +1955,26 @@
         if (rnd() < 0.3) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + 1, ty * 8 + 1, 6, 1); }
       } else if (realmId === 'tundra') {
         if (rnd() < 0.3) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 6), ty * 8 + Math.floor(rnd() * 8), 2, 1); }
+      } else if (realmId === 'library') {
+        // wet planks and puddles
+        if (rnd() < 0.6) { ctx.fillStyle = cfg.base[3]; ctx.fillRect(tx * 8, ty * 8 + 3, 8, 1); }
+        if (rnd() < 0.12) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 5), ty * 8 + Math.floor(rnd() * 7), 3, 1); }
+      } else if (realmId === 'foundry') {
+        // riveted plates
+        ctx.fillStyle = cfg.base[3]; ctx.fillRect(tx * 8, ty * 8 + 7, 8, 1); ctx.fillRect(tx * 8 + 7, ty * 8, 1, 8);
+        if (rnd() < 0.5) { ctx.fillStyle = '#6e6458'; ctx.fillRect(tx * 8 + 1, ty * 8 + 1, 1, 1); ctx.fillRect(tx * 8 + 5, ty * 8 + 5, 1, 1); }
+        if (rnd() < 0.05) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + 2, ty * 8 + 3, 3, 1); }
+      } else if (realmId === 'ember') {
+        if (rnd() < 0.25) {
+          let x = tx * 8 + Math.floor(rnd() * 8), y = ty * 8 + Math.floor(rnd() * 8);
+          for (let k = 0; k < 6; k++) { ctx.fillStyle = k % 2 ? '#ff6a2e' : cfg.detail; ctx.fillRect(x, y, 1, 1); x += rnd() < 0.5 ? 1 : -1; y += 1; }
+        }
+      } else if (realmId === 'mirror') {
+        if (rnd() < 0.35) { ctx.fillStyle = cfg.detail; for (let k = 0; k < 4; k++) ctx.fillRect(tx * 8 + k + 2, ty * 8 + 5 - k, 1, 1); }
+        if (rnd() < 0.08) { ctx.fillStyle = '#ffb0f0'; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
+      } else if (realmId === 'sky') {
+        if (rnd() < 0.25) { ctx.fillStyle = '#ffffff'; ctx.fillRect(tx * 8 + Math.floor(rnd() * 5), ty * 8 + Math.floor(rnd() * 8), 3, 1); }
+        if (rnd() < 0.06) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
       } else if (realmId === 'shore') {
         if (rnd() < 0.3) { ctx.fillStyle = cfg.detail; ctx.fillRect(tx * 8 + Math.floor(rnd() * 8), ty * 8 + Math.floor(rnd() * 8), 1, 1); }
       }

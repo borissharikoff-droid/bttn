@@ -42,6 +42,9 @@
     tip_break: 'Mobs broke the button and the clear bar dropped. Get tougher armour or enchant your weapon.',
     tip_wall: 'This lord is a wall for now. Ascend: you earn fame, a permanent bonus, and come back much stronger. Gear and pets stay.',
     tip_loot: 'Loot falls where mobs die, and its label says what it is. Tap a label to grab it now, or the Warden gathers it in a moment. A beam means something good.',
+    tip_spitter: 'A spitter: it stops at range and lobs globs at the Button. Tap it so the Warden kills it first.',
+    tip_bomber: 'A bomber, fuse lit. Kill it in the crowd and it takes the pack with it. Let it reach the Button and it blows up on it.',
+    tip_map: 'Tap the land name: the world map shows every land, its five zones and three stars to earn.',
     tip_hoard: 'A Hoarder! It never bites, and it runs off with its sack in 16 seconds. Tap it so the Warden chases it: it bursts into loot.',
     tip_shrine: 'A shrine rose from the ground. Tap it for a 15-second blessing, or the Warden claims it.',
     tip_move: 'The boss is winding up a move! Tap it fast to break it: the boss staggers and takes +50% damage.',
@@ -57,7 +60,9 @@
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and the collection stay.',
-    help_8: 'Ladder', help_8t: 'Name your hero in Character and compare depth and power with others.',
+    help_8: 'Ladder', help_8t: 'Name your hero in Character and compare depth, stars and power with friends.',
+    help_9: 'Lands, zones and stars', help_9t: 'Each land has five zones, the last one its lord\u2019s. Every zone brings a new kind of mob and is fought in three waves. Tap the land name for the world map: each land has three stars, kept forever, each worth +2.5% damage and gold.',
+    help_10: 'Carnage', help_10t: 'Kill without pause: the streak climbs and so do gold and XP, up to +40%. Let it lapse for 2.5 seconds and it starts over.',
   });
 
   // ---------- Pointer targets ----------
@@ -104,11 +109,14 @@
     { id: 'move', when: () => G.R.boss && G.R.boss.move, point: P.button, text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
     { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('hero'), text: 'tip_orb', until: () => G.UI.tab() === 'hero' },
     { id: 'rift', when: () => G.riftOpenable() && !G.R.boss, point: () => P.el('#btnRift') || P.tab('rift'), text: 'tip_rift', until: () => G.UI.tab() === 'rift' || !!G.R.rift },
+    { id: 'spitter', when: () => (G.R.mobs || []).some(m => m.kind === 'spitter' && m.p >= G.TUNE.spitStop), point: () => { const m = G.R.mobs.find(x => x.kind === 'spitter' && x.p >= G.TUNE.spitStop); return m && G.Stage.mobPoint(m); }, text: 'tip_spitter', until: () => !(G.R.mobs || []).some(m => m.kind === 'spitter') },
+    { id: 'bomber', when: () => (G.R.mobs || []).some(m => m.kind === 'bomber' && m.p > 0.3), point: () => { const m = G.R.mobs.find(x => x.kind === 'bomber' && x.p > 0.3); return m && G.Stage.mobPoint(m); }, text: 'tip_bomber', until: () => !(G.R.mobs || []).some(m => m.kind === 'bomber') },
+    { id: 'map', when: S => S.depth >= 1 && !G.R.boss, point: () => { const r = document.querySelector('#realmBox').getBoundingClientRect(); return { x: r.right + 14, y: Math.max(50, r.bottom) }; }, text: 'tip_map', until: () => !!G.UI.mapSeen },
     { id: 'wall', when: S => S.scar && S.scar.n >= 3 && G.isLord(S.scar.d) && G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_wall', until: () => G.UI.tab() === 'asc' },
   ];
 
   let tip = null, tipT = 0, lastHl = null, shownT = 0;
-  const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1 };
+  const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1, spitter: 1, bomber: 1 };
 
   function seen() { const S = G.S; S.seen = S.seen || {}; S.seen.tips = S.seen.tips || {}; return S.seen; }
   const veteran = S => S.clicks > 60 || S.ascensions > 0 || S.st.bossKills > 0 || S.maxDepth > 0 || S.goldTotal > 5000;
@@ -321,7 +329,7 @@
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['ic_skull', 4], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8]];
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['ic_skull', 4], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
     G.UI.modal(t('help_title'), html, [

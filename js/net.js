@@ -139,7 +139,7 @@
   // the account behind a row, shown next to the hero name so nobody can pass as someone else
   Net.accountName = e => nameCache[e.uid] || '';
 
-  function ladderKey(s) { return JSON.stringify([s.name, s.cls, s.lvl, s.depth, s.power, s.asc, s.gear, s.rift, s.rt, s.rd, s.uq, s.ev, s.fs, s.cr]); }
+  function ladderKey(s) { return JSON.stringify([s.name, s.cls, s.lvl, s.depth, s.power, s.asc, s.gear, s.rift, s.rt, s.rd, s.uq, s.ev, s.fs, s.cr, s.ls]); }
 
   // Rivalry: who went past whom since the last ladder update
   const CATS = { depth: 'Depth', rift: 'Rift', power: 'Gear score' };
@@ -231,6 +231,7 @@
       : by === 'rift' ? (a, b) => (b.rift || 0) - (a.rift || 0) || (a.rt || 1e9) - (b.rt || 1e9) || pw(a, b)
       : by === 'today' ? (a, b) => (b.rd.l || 0) - (a.rd.l || 0) || (a.rd.t || 1e9) - (b.rd.t || 1e9) || pw(a, b)
       : by === 'uq' ? (a, b) => (b.uq || 0) - (a.uq || 0) || pw(a, b)
+      : by === 'stars' ? (a, b) => (b.ls || 0) - (a.ls || 0) || (b.depth || 0) - (a.depth || 0)
       : by === 'mad' ? (a, b) => a.mad - b.mad
       : (a, b) => (b.depth || 0) - (a.depth || 0) || pw(a, b);
     return list.slice().sort(cmp);

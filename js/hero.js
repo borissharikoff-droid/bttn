@@ -11,6 +11,8 @@
     mobWalk: 9, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
+    // the arena is never empty: lots of small bodies, capped for the frame rate
+    mobMax: 600, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
   });
 
   // ---------- Content ----------
@@ -112,6 +114,12 @@
     voidplate:  { base: 'golden_plate',   minD: 34, name: 'Voidplate',             a: [['hp', 1.2], ['dmg', 0.2]], fx: 'Mobs that bite the Button take ten hits back' },
     reaper:     { base: 'blood_scythe',   minD: 37, name: 'Reaper\u2019s Due',     a: [['dmg', 0.8], ['critd', 0.6]], fx: 'Each kill: +2% attack speed for 6s, up to +80%' },
     lastbutton: { base: 'golden_button',  minD: 39, boss: true, name: 'The Last Button', a: [['dmg', 0.5], ['gold', 0.5], ['luck', 0.3], ['xp', 0.3]], fx: 'Every click strikes twice. Only the Mad Button and deep Rifts drop it' },
+    // past the Button
+    codex:      { base: 'star_codex',     minD: 44, name: 'The Drowned Codex',     a: [['xp', 0.4], ['dmg', 0.45]], fx: 'Spitters and bombers die to any hit' },
+    tyrant:     { base: 'king_crown',     minD: 49, name: 'Crown of the Gear Tyrant', a: [['spd', 0.3], ['dmg', 0.5]], fx: 'Tanks, brutes and champions take double damage' },
+    ashbringer: { base: 'dragon_sword',   minD: 54, name: 'Ashbringer',            a: [['dmg', 1], ['critd', 0.6]], fx: 'The Warden\u2019s kills burst into flame, burning the mobs around them' },
+    othercloak: { base: 'void_cloak',     minD: 59, name: 'The Other Cloak',       a: [['hp', 1.1], ['crit', 0.08]], fx: 'One bite in three is turned back: the mob dies instead' },
+    firsthand:  { base: 'celestial_staff', minD: 64, boss: true, name: 'Palm of the First Hand', a: [['dmg', 1.1], ['spd', 0.3], ['gold', 0.4]], fx: 'Every click calls three more bolts. Only the First Hand and deep Rifts drop it' },
   };
   G.UNIQUE_IDS = Object.keys(G.UNIQUES);
   // Rift level -> the depth its Horde fights at: Rift N fights like depth N
@@ -190,7 +198,7 @@
 
   const R = G.R;
   ensureHero(G.S);
-  Object.assign(R, { mobs: [], mobUid: 0, hordeAcc: 0, surgeT: 20, surge: 0, heroAcc: 0, abilCd: 0, hb: {}, stun: 0, bossAtkT: 2, rift: null, reap: 0, reapT: 0, swing: 0 });
+  Object.assign(R, { mobs: [], shots: [], mobUid: 0, hordeAcc: 0, surgeT: 20, surge: 0, heroAcc: 0, abilCd: 0, hb: {}, stun: 0, bossAtkT: 2, rift: null, reap: 0, reapT: 0, swing: 0, carn: 0, carnT: 0 });
   // The depth the Horde fights at: the campaign's, or the open Rift's
   const dnow = () => (R.rift ? R.rift.d : G.S.depth);
   G.depthNow = dnow;
@@ -416,7 +424,7 @@
     if (!h) return;
     const aff = {};
     for (const slot of G.SLOTS) { const g = h.eq[slot]; if (g) for (const [k, v] of g.a) aff[k] = (aff[k] || 0) + v; }
-    d.goldMult *= 1 + (aff.gold || 0);
+    d.goldMult *= (1 + (aff.gold || 0)) * (1 + G.STAR_BONUS * (G.starCount ? G.starCount() : 0));
     d.luck += (aff.luck || 0) + om().luck;
     d.xpMult = (1 + (aff.xp || 0)) * om().xp;
     d.shardMult = 1 + (aff.shard || 0);
@@ -424,7 +432,7 @@
   G.heroFinish = function (d) {
     const S = G.S, h = S.hero;
     if (!h) return;
-    d.heroMult = (d.heroMult || 1) * (1 + 0.005 * S.fameTotal) * (1 + 0.02 * (d.heroClasses || 0)) * (G.Journey ? G.Journey.bonus() : 1);
+    d.heroMult = (d.heroMult || 1) * (1 + 0.005 * S.fameTotal) * (1 + 0.02 * (d.heroClasses || 0)) * (G.Journey ? G.Journey.bonus() : 1) * (1 + G.STAR_BONUS * (G.starCount ? G.starCount() : 0));
     const c = combat(h.eq, d);
     d.uq = {};
     for (const s of G.SLOTS) if (h.eq[s] && h.eq[s].q) d.uq[h.eq[s].q] = 1;
@@ -457,13 +465,17 @@
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {
-    fodder: { w: 0.03, spd: 1.3, gold: 1 },
+    fodder: { w: 0.008, spd: 1.3, gold: 1 },
     brute:  { w: 1, spd: 1, gold: 1 },
     magic:  { w: 2, spd: 1.05, gold: 1.25 }, // blue champions, they come in pairs
     rare:   { w: 6, spd: 0.9, gold: 1.5 },   // yellow, named, one modifier, a pack of minions
     hoard:  { w: 1, spd: 0, gold: 40, hp: 12 }, // the Hoarder: runs around with a sack of loot, never bites
     guardian: { w: 1, spd: 0.4, gold: 30 },  // a Rift's last foe (js/world.js sets its health)
   };
+  // runners, spitters, bombers and tanks: each zone of a land brings one more (data.js)
+  for (const k in G.ARCHETYPES || {}) G.MOB_KINDS[k] = G.ARCHETYPES[k];
+  // Kinds that count as small fry: no health bar, cheap to draw, many at once
+  G.SMALL = { fodder: 1, runner: 1 };
   G.RARE_MODS = {
     hasted:   { name: 'Hasted' },    // walks 70% faster
     stone:    { name: 'Stoneskin' }, // takes half damage
@@ -511,15 +523,43 @@
   }
   // One pack, all from one direction
   G.makeMob = makeMob;
+  // Which zone of its land the Horde is in (0-4, the 5th is the lord's)
+  const zoneOf = d => ((d % G.REALM_SIZE) + G.REALM_SIZE) % G.REALM_SIZE;
+  G.zoneOf = zoneOf;
+  // The share of packs each archetype leads here: the zone's mix, bent by the land's rule
+  function zoneMix(d) {
+    const z = G.ZONE_MIX ? G.ZONE_MIX[zoneOf(d)] : null, L = land();
+    if (!z) return {};
+    return { runner: z.runner * (L.run || 1), spitter: z.spitter * (L.spit || 1), bomber: z.bomber * (L.bomb || 1), tank: z.tank * (L.tanky || 1) };
+  }
+  G.zoneMix = zoneMix;
+  // One pack, all from one direction: a leader and a long tail of small fry
+  // that streams in behind it (p below 0 is still off the arena)
   function spawnPack(add, at) {
     const d = dnow(), a = at != null ? at + rand(-0.04, 0.04) : G.rng(), roll = G.rng(), L = land();
-    const fodder = (n, spread) => { for (let i = 0; i < n; i++) makeMob('fodder', a + rand(-spread, spread), -rand(0, 0.1), add); };
-    if (add) { fodder(randInt(10, 16), 0.07); return; }
+    if (R.mobs.length >= TUNE.mobMax) return;
+    const room = () => R.mobs.length < TUNE.mobMax;
+    const swarm = (kind, n, spread, tail) => { for (let i = 0; i < n && room(); i++) makeMob(kind, a + rand(-spread, spread), -rand(0, tail || 0.3), add); };
+    if (add) { swarm('fodder', randInt(30, 50), 0.08, 0.25); return; }
     const rc = 0.03 * om().champ * (L.rare || 1), mc = rc + 0.07 * om().champ * (L.champ || 1);
-    if (d >= 1 && roll < rc) { makeMob('rare', a, 0); fodder(16, 0.07); emit('rareSpawn'); }
-    else if (roll < mc) { makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); fodder(10, 0.06); }
-    else if (roll < 0.35) { makeMob('brute', a, 0); fodder(8, 0.06); }
-    else fodder(randInt(14, 26), 0.08);
+    if (d >= 1 && roll < rc) { makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
+    if (roll < mc) { makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); swarm('fodder', 40, 0.07); return; }
+    // the zone's own kinds
+    const mix = zoneMix(d);
+    let r2 = G.rng();
+    for (const k of ['tank', 'bomber', 'spitter', 'runner']) {
+      if (!(mix[k] > 0)) continue;
+      if (r2 < mix[k]) {
+        if (k === 'runner') { swarm('runner', randInt(14, 26), 0.05, 0.6); swarm('fodder', randInt(10, 20), 0.07); }
+        else if (k === 'spitter') { const n = randInt(2, 3); for (let i = 0; i < n; i++) makeMob('spitter', a + rand(-0.05, 0.05), -rand(0, 0.08)); swarm('fodder', randInt(25, 40), 0.08); }
+        else if (k === 'bomber') { swarm('fodder', randInt(35, 55), 0.08); const n = randInt(3, 6); for (let i = 0; i < n; i++) makeMob('bomber', a + rand(-0.06, 0.06), -rand(0, 0.3)); }
+        else { makeMob('tank', a, 0); swarm('fodder', randInt(30, 45), 0.07, 0.4); }
+        return;
+      }
+      r2 -= mix[k];
+    }
+    if (roll < 0.35) { makeMob('brute', a, 0); if (chance(0.4)) makeMob('brute', a + 0.03, -0.05); swarm('fodder', randInt(25, 40), 0.07); }
+    else swarm('fodder', randInt(45, 90), 0.1, 0.35);
   }
   G.spawnPack = spawnPack;
 
@@ -562,19 +602,29 @@
   }
   function dealHit(m, dmg, src, crit) {
     if (m.dead) return;
+    if (uq('codex') && (m.kind === 'spitter' || m.kind === 'bomber')) dmg = m.hp + 1;
+    else if (uq('tyrant') && (m.kind === 'tank' || m.kind === 'brute' || m.kind === 'magic')) dmg *= 2;
     m.hp -= m.mod === 'stone' || m.stone ? dmg * 0.5 : dmg;
     if (m.hp <= 0) { m.over = -m.hp / m.max; m.crit = crit; killMob(m, src); }
   }
+  // Carnage: the kill streak pays. Kill fast enough that it never lapses and
+  // gold and XP climb, up to +40%
+  const CARN = [100, 300, 800, 2000];
+  const carnTier = () => { let t = 0; while (t < CARN.length && R.carn >= CARN[t]) t++; return t; };
+  G.carnage = () => { const t = carnTier(); return { n: R.carn, tier: t, mul: 1 + 0.1 * t, next: CARN[t] || 0 }; };
   function killMob(m, src) {
     const S = G.S, D = G.D, h = S.hero, L = land();
     m.dead = true;
+    if (!m.add) { const t0 = carnTier(); R.carn++; R.carnT = 0; if (R.carn > (S.st.bestStreak || 0)) S.st.bestStreak = R.carn; if (carnTier() > t0) emit('carnage', carnTier()); }
+    const cm = 1 + 0.1 * carnTier();
     const i = R.mobs.indexOf(m);
     if (i >= 0) R.mobs.splice(i, 1);
     const K = G.MOB_KINDS[m.kind];
-    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1) * (1 + 0.2 * perk('greed')) * (evo('midas') ? 2 : 1) * om().gold * (shrine('greed') ? 2 : 1);
+    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1) * (1 + 0.2 * perk('greed')) * (evo('midas') ? 2 : 1) * om().gold * (shrine('greed') ? 2 : 1) * cm;
     G.addGold(gold, 'mob');
-    gainXp(2.5 * (1 + dnow()) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (m.br ? 1.5 : 1) * (shrine('slaughter') ? 2 : 1) * (D.xpMult || 1));
+    gainXp(2.5 * (1 + dnow()) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (m.br ? 1.5 : 1) * (shrine('slaughter') ? 2 : 1) * (D.xpMult || 1) * (L.xp || 1) * cm);
     h.kills++;
+    if (G.landKill && !m.add) G.landKill(m);
     if (m.kind === 'magic' || m.kind === 'rare') h.elites++;
     if (m.kind === 'rare') {
       S.st.rares = (S.st.rares || 0) + 1;
@@ -588,20 +638,29 @@
       const p = m.kind === 'rare' ? 1 : m.kind === 'magic' ? 0.4 * greed : TUNE.mobChest * m.w * greed;
       if (chance(p)) chest = dropBag(m);
     }
-    if (perk('leech')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.003 * perk('leech') * (m.kind === 'fodder' ? 1 : 4) * (evo('bloodpact') ? 4 : 1));
-    if (uq('sporeheart')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.004 * (m.kind === 'fodder' ? 1 : 4));
+    if (perk('leech')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.003 * perk('leech') * (G.SMALL[m.kind] ? 0.3 : 4) * (evo('bloodpact') ? 4 : 1));
+    if (uq('sporeheart')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.004 * (G.SMALL[m.kind] ? 0.3 : 4));
     if (uq('reaper')) { R.reap = Math.min(40, R.reap + 1); R.reapT = 6; }
     G.questProgress('kills', 1);
     if (G.Journey) G.Journey.bountyKill();
     emit('mobDie', m, gold, chest, src);
-    if (m.mod === 'splitter') spores(m, 6);
-    else if (L.split && !m.add && (m.kind === 'brute' || m.kind === 'magic') && chance(L.split)) { spores(m, 5); emit('spores', m); }
+    if (m.mod === 'splitter') spores(m, 22);
+    else if (L.split && !m.add && (m.kind === 'brute' || m.kind === 'magic' || m.kind === 'tank') && chance(L.split)) { spores(m, 18); emit('spores', m); }
+    // a bomber takes the pack around it along
+    if (m.kind === 'bomber' && src !== 'bite') bomb(m);
     // Blasts: Hellstring's kills, the Pincer's critical kills, the Abyss's hellfire. They can chain, a little.
-    const boom = uq('hellstring') && (src === 'auto' || src === 'chain') ? 0.6 : uq('pincer') && m.crit ? 0.5 : L.boom && !m.add && chance(L.boom) ? 0.8 : 0;
+    const boom = uq('hellstring') && (src === 'auto' || src === 'chain') ? 0.6 : uq('ashbringer') && src === 'auto' ? 0.5 : uq('pincer') && m.crit ? 0.5 : L.boom && !m.add && chance(L.boom) ? 0.8 : 0;
     if (boom && (R.boomD || 0) < 3) blast(m, boom);
     if (R.rift && G.riftKill) G.riftKill(m);
   }
-  function spores(m, n) { for (let k = 0; k < n; k++) makeMob('fodder', m.a + rand(-0.03, 0.03), m.p - rand(0, 0.06), m.add); }
+  function spores(m, n) { for (let k = 0; k < n && R.mobs.length < TUNE.mobMax; k++) makeMob('fodder', m.a + rand(-0.04, 0.04), m.p - rand(0, 0.08), m.add); }
+  function bomb(m) {
+    const near = around([m], TUNE.bombR).filter(o => !o.dead);
+    emit('bomb', m, TUNE.bombR);
+    R.boomD = (R.boomD || 0) + 1;
+    if (R.boomD < 8) for (const o of near) dealHit(o, G.D.heroHit * TUNE.bombPow * (land().boomPow || 1), 'bomb', false);
+    R.boomD--;
+  }
   function blast(m, k) {
     const r = 0.13, near = around([m], r).filter(o => !o.dead);
     emit('blast', m, r);
@@ -692,7 +751,7 @@
     if (!ts.length) return true;
     const splash = around(ts, aoe);
     emit('heroAttack', { ids: ts.map(m => m.id), splash: splash.map(m => m.id), aoe, crit, src, dmg });
-    if (src === 'click') for (const m of ts.concat(splash)) m.p = Math.max(-0.05, m.p - 0.05 / Math.sqrt(m.w));
+    if (src === 'click') for (const m of ts.concat(splash)) if (m.p > -0.05) m.p = Math.max(-0.05, m.p - 0.05 / Math.sqrt(Math.max(0.03, m.w)));
     for (const m of ts) dealHit(m, dmg, src, crit);
     for (const m of splash) dealHit(m, dmg * sp, src, crit);
     // Stormcaller: a bolt on another mob with every swing
@@ -708,7 +767,7 @@
     }
     // Heavy Hand: more bolts per click, each on a different pack
     // a full combo overcharges the Button: one more bolt per click
-    const bolts = perk('thunder') + (evo('wrath') ? 3 : 0) + om().thunder + (shrine('storm') ? 3 : 0) + (R.combo >= (D.comboCap || 1e9) ? 1 : 0);
+    const bolts = perk('thunder') + (evo('wrath') ? 3 : 0) + (uq('firsthand') ? 3 : 0) + om().thunder + (shrine('storm') ? 3 : 0) + (R.combo >= (D.comboCap || 1e9) ? 1 : 0);
     if (src === 'click' && bolts && !attack.inThunder) {
       attack.inThunder = true;
       for (let i = 0; i < bolts; i++) {
@@ -740,7 +799,7 @@
     R.stun = 4;
     h.hp = G.D.heroHp;
     for (const m of R.mobs) emit('mobFlee', m);
-    R.mobs.length = 0;
+    R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     S.bossMeter = Math.floor(S.bossMeter * 0.5);
     if (R.boss) G.fleeBoss();
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
@@ -786,6 +845,7 @@
     if (R.abilCd > 0) R.abilCd -= dt;
     if (R.stun > 0) R.stun -= dt;
     if (R.reapT > 0 && (R.reapT -= dt) <= 0) { R.reap = 0; G.dirty(); }
+    if (R.carn && (R.carnT += dt) > 2.5) { R.carn = 0; emit('carnage', 0); }
     // regen
     h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.03 * dt);
     // the horde: a steady flow of packs, with a surge every half a minute
@@ -798,10 +858,24 @@
         else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen * (land().surge || 1); emit('surge'); }
         const surging = R.surge > 0;
         R.hs = hordeScale();
-        const thick = om().horde * (R.rift ? 1.5 : 1) * (shrine('slaughter') ? 2.5 : 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
+        const thick = om().horde * (R.rift ? 1.5 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
         R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * thick);
         const cap = hordeCap(dnow()) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1) * (R.rift || shrine('slaughter') ? 1.5 : 1);
-        if (R.hordeAcc >= 1 && aliveWeight(false) < cap) {
+        // each zone is fought in three waves; the second and third open with champions and a rush
+        if (!R.rift && G.D.bossNeed) {
+          const wv = Math.min(2, Math.floor(3 * S.bossMeter / G.D.bossNeed));
+          // after a load the waves already crossed stay crossed
+          if (R.wave == null || wv < R.wave) R.wave = wv;
+          else if (wv > (R.wave | 0)) {
+            R.wave = wv;
+            const at = G.rng();
+            makeMob('magic', at, 0); makeMob('magic', at + 0.04, -0.05);
+            spawnPack(false, (at + 0.5) % 1); spawnPack(false, (at + 0.25) % 1);
+            R.surge = Math.max(R.surge, TUNE.surgeLen * 0.8);
+            emit('wave', wv + 1);
+          }
+        }
+        if (R.hordeAcc >= 1 && aliveWeight(false) < cap && R.mobs.length < TUNE.mobMax) {
           const w0 = aliveWeight(false);
           spawnPack(false);
           R.hordeAcc -= Math.max(0.5, aliveWeight(false) - w0);
@@ -814,15 +888,33 @@
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
+      // spitters hold at range and lob globs at the Button
+      if (m.kind === 'spitter' && m.p >= TUNE.spitStop) {
+        if ((m.atkT -= dt) <= 0) { m.atkT = TUNE.spitEvery * rand(0.85, 1.15); R.shots.push({ m: m.id, a: m.a, p: m.p, t: 0.5, dmg: atk * m.w * (m.mod === 'frenzied' ? 2 : 1) }); emit('spit', m); }
+        continue;
+      }
       if (m.p < 1) m.p = Math.min(1, m.p + m.sp * dt * slow);
-      else {
+      else if (m.kind === 'bomber') {
+        // a bomber that reaches the Button goes off on it
+        hurtButton(atk * m.w * 6 * (evo('bastion') ? 0.7 : 1)); emit('bomberPop', m);
+        m.dead = true; const i = R.mobs.indexOf(m); if (i >= 0) R.mobs.splice(i, 1);
+        emit('mobFlee', m);
+        if (R.stun > 0) break;
+      } else {
         m.atkT -= dt;
         if (m.atkT <= 0) {
-          m.atkT = 1; hurtButton(atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1)); emit('mobBite', m);
+          m.atkT = 1;
+          if (uq('othercloak') && m.kind !== 'guardian' && m.kind !== 'rare' && chance(1 / 3)) { emit('thorns', m); dealHit(m, 2 * m.hp + 1, 'thorns', false); continue; }
+          hurtButton(atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1)); emit('mobBite', m);
           if (uq('voidplate') && !m.dead) { emit('thorns', m); dealHit(m, D.heroHit * 10, 'thorns', false); }
           if (R.stun > 0) break;
         }
       }
+    }
+    // globs in flight
+    for (let i = R.shots.length - 1; i >= 0; i--) {
+      const sh = R.shots[i];
+      if ((sh.t -= dt) <= 0) { R.shots.splice(i, 1); if (R.stun <= 0) { hurtButton(sh.dmg); emit('spitHit', sh); } }
     }
     // the boss hits the button too
     if (R.boss) {
@@ -891,20 +983,20 @@
     for (let l = h.lvl; l < h.lvl + 5; l++) room += xpNeed(l);
     gainXp(Math.min(room - 1, 2.5 * (1 + S.depth) * w * 0.25 * (D.xpMult || 1)));
     const shards = Math.floor(w * 0.4 * (D.shardMult || 1));
-    const kills = Math.round(w / 0.06);
+    const kills = Math.round(w / 0.02);
     h.shards += shards; // the report counts kills, but only real fights count toward goals
     return { kills, levels: h.lvl - lvl0, perks: h.perkPts || 0, shards };
   };
 
   G.heroBossStart = function () {
     for (const m of R.mobs) emit('mobFlee', m);
-    R.mobs.length = 0;
+    R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     R.bossAtkT = 2; R.hordeAcc = 0.5; R.surge = 0;
   };
   // A slain boss takes its adds with it; a boss that leaves takes them away
   G.heroBossEnd = function (win) {
     for (const m of R.mobs) { m.dead = true; if (win) { m.over = 2; emit('mobDie', m, 0, null, 'boss'); } else emit('mobFlee', m); }
-    R.mobs.length = 0;
+    R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     R.hordeAcc = 0; R.surgeT = Math.max(R.surgeT, 12);
   };
   G.heroReset = function (keepClass) {
@@ -913,7 +1005,7 @@
     h.perks = {}; h.perkPts = 0; h.offer = null;
     if (!keepClass) h.cls = null;
     if (G.worldReset) G.worldReset();
-    R.mobs.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20; R.reap = 0; R.rift = null;
+    R.mobs.length = 0; if (R.shots) R.shots.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20; R.reap = 0; R.rift = null;
     G.S.rec.runStart = Date.now();
     G.dirty(); G.recalc();
     h.hp = G.D.heroHp || TUNE.baseHp;
@@ -935,7 +1027,7 @@
       // the best level reached, so ascending (which starts the level over) doesn't sink you on the ladder
       v: 1, name: (S.profile.name || '').slice(0, 16), cls: h.cls, lvl: Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
       depth: S.bestDepth, asc: S.ascensions, fame: S.fameTotal, mad: Math.round(S.rec.madTime || 0), gear, ts: Date.now(),
-      rift: rf.best | 0, rt: Math.round(rf.bestT || 0), rd: today, uq: Object.keys(S.uq || {}).length, kills: h.kills | 0,
+      rift: rf.best | 0, rt: Math.round(rf.bestT || 0), rd: today, uq: Object.keys(S.uq || {}).length, kills: h.kills | 0, ls: G.starCount ? G.starCount() : 0,
       ev: (S.feed || []).slice(-6), fs: Object.assign({}, S.rec.firsts || {}), cr,
     };
     snap.power = G.ladderPower(snap);
@@ -969,18 +1061,21 @@
     if (typeof snap.name !== 'string' || snap.name.length > 16) bad.push('name');
     if (snap.uq != null && !int(snap.uq, 0, G.UNIQUE_IDS.length)) bad.push('uniques');
     if (snap.kills != null && !int(snap.kills, 0, 1e12)) bad.push('kills');
+    // land stars: three per land, and only in lands this Warden has reached
+    if (snap.ls != null && !(int(snap.ls, 0, 3 * G.REALMS.length) && snap.ls <= 3 * Math.min(G.REALMS.length, Math.floor(reach / G.REALM_SIZE) + 1))) bad.push('stars');
     if (snap.rd != null && (typeof snap.rd !== 'object' || typeof snap.rd.k !== 'string' || snap.rd.k.length > 12 || !int(snap.rd.l, 0, snap.rift | 0) || (snap.rd.t != null && !int(snap.rd.t, 0, 600)))) bad.push('today');
     if (snap.mad != null && snap.mad !== 0 && !(int(snap.mad, 60, 1e9) && (snap.depth | 0) >= 40)) bad.push('mad');
     const numMap = (o, n) => o == null || (typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length <= n && Object.keys(o).every(k => k.length <= 8 && typeof o[k] === 'number' && o[k] > 0));
     // firsts: known milestones only, dated after the release and not in the future, and actually reached
-    const FS = { boss: 0, d5: 0, d10: 0, d20: 0, d30: 0, d40: 0, d50: 0, d60: 0, d80: 0, uq: 0, r4: 0, r5: 0, r6: 0, asc: 0, evo: 0, all14: 0,
+    const FS = { boss: 0, d5: 0, d10: 0, d20: 0, d30: 0, d40: 0, d50: 0, d60: 0, d65: 0, d80: 0, uq: 0, r4: 0, r5: 0, r6: 0, asc: 0, evo: 0, all14: 0,
       rift5: 0, rift15: 0, rift30: 0, rift45: 0, rift60: 0, rift80: 0 };
     const fsOk = k => {
       const v = snap.fs[k];
       if (!(k in FS) || v < 1.75e12 || (typeof snap.ts === 'number' && v > snap.ts + 864e5)) return false;
       if (/^d\d+$/.test(k) && (snap.depth | 0) < +k.slice(1)) return false;
       if (/^rift\d+$/.test(k) && (snap.rift | 0) < +k.slice(4)) return false;
-      return k !== 'all14' || (snap.uq | 0) >= G.UNIQUE_IDS.length;
+      // 'all14' was earned when there were 14 uniques; later ones don't take it away
+      return k !== 'all14' || (snap.uq | 0) >= 14;
     };
     if (!numMap(snap.fs, 24) || (snap.fs && !Object.keys(snap.fs).every(fsOk))) bad.push('firsts');
     // a crown time must be a lord this Warden reached

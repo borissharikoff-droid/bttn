@@ -18,7 +18,7 @@
   const uniques = S => Object.keys(S.uq || {}).length;
   const rift = S => (S.rift && S.rift.best) || 0;
   const STEPS = [
-    { text: 'Slay 100 mobs', cur: S => S.hero.kills, need: 100, rew: { eggs: 1 } },
+    { text: 'Slay 300 mobs', cur: S => S.hero.kills, need: 300, rew: { eggs: 1 } },
     { text: 'Catch a Hoarder', cur: S => S.st.hoards || 0, need: 1, rew: { eggs: 1 }, hint: 'Tap it so the Warden chases it before it runs off' },
     { text: 'Defeat your first boss', cur: S => S.st.bossKills, need: 1, rew: { chest: 2 } },
     { text: 'Pick 5 perks', cur: perkRanks, need: 5, rew: { ess: 5 } },
@@ -38,7 +38,7 @@
     Object.assign(depth(15), { rew: { ess: 40 } }),
     { text: 'Clear Rift 15', cur: rift, need: 15, rew: { chest: 4 } },
     { text: 'Find 4 different uniques', cur: uniques, need: 4, rew: { eggs: 4 } },
-    { text: 'Slay 10,000 mobs', cur: S => S.hero.kills, need: 10000, rew: { chest: 4 } },
+    { text: 'Slay 40,000 mobs', cur: S => S.hero.kills, need: 40000, rew: { chest: 4 } },
     Object.assign(depth(20), { rew: { eggs: 5 } }),
     { text: 'Discover 3 evolutions', cur: evos, need: 3, rew: { chest: 5 } },
     { text: 'Ascend 5 times', cur: S => S.ascensions, need: 5, rew: { fame: 25 } },
@@ -56,19 +56,19 @@
     { text: 'Clear Rift 35', cur: rift, need: 35, rew: { fame: 80 } },
     { text: 'Ascend 10 times', cur: S => S.ascensions, need: 10, rew: { fame: 60 } },
     { text: 'Defeat the Mad Button at depth 40', cur: S => S.bestDepth, need: 40, rew: { fame: 100, chest: 6 } },
-    { text: 'Slay 100,000 mobs', cur: S => S.hero.kills, need: 100000, rew: { eggs: 10 } },
+    { text: 'Slay 400,000 mobs', cur: S => S.hero.kills, need: 400000, rew: { eggs: 10 } },
     Object.assign(depth(45), { rew: { eggs: 10 } }),
     { text: 'Enchant an item to +15', cur: S => maxWorn(S, g => g.e), need: 15, rew: { shards: 1500 } },
     { text: 'Earn 110 collection stars', cur: starsTotal, need: 110, rew: { ess: 1000 } },
     { text: 'Slay 100 rare monsters', cur: S => S.st.rares || 0, need: 100, rew: { chest: 6 } },
     Object.assign(depth(50), { rew: { chest: 6, eggs: 10 } }),
     { text: 'Clear Rift 50', cur: rift, need: 50, rew: { chest: 6, fame: 150 } },
-    { text: 'Find every unique', cur: uniques, need: 14, rew: { fame: 250 } },
+    { text: 'Find every unique', cur: uniques, need: G.UNIQUE_IDS ? G.UNIQUE_IDS.length : 19, rew: { fame: 250 } },
     { text: 'Discover 9 evolutions', cur: evos, need: 9, rew: { fame: 150 } },
     { text: 'Ascend 25 times', cur: S => S.ascensions, need: 25, rew: { fame: 200 } },
     { text: 'Enchant an item to +20', cur: S => maxWorn(S, g => g.e), need: 20, rew: { shards: 3000 } },
     Object.assign(depth(55), { rew: { eggs: 15 } }),
-    { text: 'Slay 1,000,000 mobs', cur: S => S.hero.kills, need: 1e6, rew: { chest: 6, eggs: 15 } },
+    { text: 'Slay 4,000,000 mobs', cur: S => S.hero.kills, need: 4e6, rew: { chest: 6, eggs: 15 } },
     { text: 'Discover every evolution', cur: evos, need: 11, rew: { fame: 250 } },
     { text: 'Earn 160 collection stars', cur: starsTotal, need: 160, rew: { fame: 300 } },
     Object.assign(depth(60), { rew: { chest: 6, eggs: 20 } }),
@@ -137,7 +137,7 @@
   };
 
   // ---------- The daily Bounty ----------
-  J.BOUNTY = 3000;
+  J.BOUNTY = 12000;
   function bounty() {
     const S = G.S, k = G.todayKey();
     if (S.bounty.day !== k) { S.bounty = { day: k, n: 0, done: false }; }

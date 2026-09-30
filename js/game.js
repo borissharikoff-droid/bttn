@@ -45,7 +45,7 @@
       set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1, filter: 1 },
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
-      uq: {}, feed: [], rift: newRift(),
+      uq: {}, feed: [], rift: newRift(), lands: {},
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -757,7 +757,7 @@
       case 'combo': q.n = Math.min(D.comboCap, Math.round(45 + lv * 8)); break;
       case 'mod': q.n = 3; break;
       case 'wisp': q.n = 1; break;
-      case 'kills': q.n = Math.round((40 + lv * 6) * 5 / 25) * 25; break;
+      case 'kills': q.n = Math.round((40 + lv * 6) * 20 / 100) * 100; break;
     }
     const roll = G.rng();
     if (roll < 0.15) { q.rw = 'eggs'; q.rn = 1 + (lv > 30 ? 1 : 0); }
@@ -1012,13 +1012,16 @@
     S.rift = Object.assign(newRift(), data.rift || {});
     S.rift.day = Object.assign({ k: '', l: 0 }, S.rift.day || {});
     if (!S.uq || typeof S.uq !== 'object') S.uq = {};
+    if (!S.lands || typeof S.lands !== 'object') S.lands = {};
+    // saves from before 1.1: past depth 40 the lands changed, so crown times there belong to other lords now
+    if (!('lands' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 40) delete S.rec.crowns[k];
     if (!Array.isArray(S.feed)) S.feed = [];
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
     G.S = S;
     if (G.ensureHero) G.ensureHero(S);
-    if (R.mobs) R.mobs.length = 0;
-    R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null;
+    if (R.mobs) R.mobs.length = 0; if (R.shots) R.shots.length = 0;
+    R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null; R.wave = null;
     if (G.worldClear) G.worldClear();
     // saves from before 1.0: the Journey gained 11 steps in between the old ones
     if (!('uq' in data) && G.Journey && G.Journey.fromV0) S.journey = G.Journey.fromV0(S.journey || 0);

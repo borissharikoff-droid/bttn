@@ -13,7 +13,7 @@
     groundMax: 60,
     // seconds on the ground before the Warden gathers it
     lingerOrb: 1.2, lingerGear: 2.6, lingerGood: 4.5, lingerUnique: 7,
-    dropBrute: 0.12, dropMagic: 0.55, dropFodder: 0.004, orbShare: 0.03,
+    dropBrute: 0.12, dropMagic: 0.55, dropFodder: 0.0011, orbShare: 0.03,
     hoardEvery: 150, hoardFirst: 40, hoardLife: 16,
     shrineEvery: 170, shrineFirst: 100, shrineLife: 12, shrineDur: 15,
     breachEvery: 300, breachFirst: 240, breachDur: 12, breachRate: 2.5,
@@ -119,7 +119,8 @@
     if (m.kind === 'rare') return shower(m, randInt(3, 5), 1, 0.006 * (uq('goldgrin') ? 1.5 : 1), { floorN: 1, spread: 0.05 });
     // the first champion ever always drops an epic
     if (m.kind === 'magic' && !S.st.firstMagic) { S.st.firstMagic = 1; return drop('gear', G.pickItem(3), m); }
-    let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'brute' ? TUNE.dropBrute : TUNE.dropFodder;
+    // everything else drops by its weight: a brute's worth of fodder drops about what a brute does
+    let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
     p *= k;
     if (h.kills < 60 && !S.st.firstRare && chance(0.08)) { S.st.firstRare = 1; return drop('gear', G.pickItem(2), m); }
     let e = null;
@@ -141,8 +142,10 @@
     // the first lord always gives a unique: the Crab King's Pincer
     let q = null;
     if (b.lord && !S.st.firstLordUq) { S.st.firstLordUq = 1; q = S.uq.pincer ? uniqueFor(b.d, false) || 'goldgrin' : 'pincer'; }
-    else if (chance(b.lord ? 0.07 : 0.01)) q = uniqueFor(b.d, b.d % 40 === 39);
+    // boss-only uniques come from their own lord (the Mad Button, the First Hand) in every cycle
+    else if (chance(b.lord ? 0.07 : 0.01)) q = uniqueFor(b.d, b.lord && G.UNIQUE_IDS.some(k => G.UNIQUES[k].boss && G.UNIQUES[k].minD === b.d % (G.REALMS.length * G.REALM_SIZE)));
     if (b.d === 39 && b.lord && !S.uq.lastbutton) q = 'lastbutton';
+    if (b.d === 64 && b.lord && !S.uq.firsthand) q = 'firsthand';
     if (q) drop('uq', q, null, { at, src: 'boss', wait: 1.2 });
   };
 
@@ -184,17 +187,47 @@
   G.on('classChosen', () => {
     const S = S_();
     if (S.hero.kills || S.depth || R.mobs.length) return;
-    for (let i = 0; i < 12; i++) G.makeMob('fodder', 0.32 + i * 0.03 + rand(-0.01, 0.01), rand(0.5, 0.66));
-    for (let i = 0; i < 8; i++) G.makeMob('fodder', 0.72 + i * 0.02, rand(0.3, 0.45));
+    for (let i = 0; i < 36; i++) G.makeMob('fodder', 0.32 + i * 0.01 + rand(-0.015, 0.015), rand(0.45, 0.68));
+    for (let i = 0; i < 24; i++) G.makeMob('fodder', 0.72 + i * 0.007 + rand(-0.01, 0.01), rand(0.25, 0.45));
     G.makeMob('brute', 0.5, 0.4);
     R.hordeAcc = 1;
   });
+  // ---------- Land mastery ----------
+  // Three stars per land, kept forever (ascension too): slay its lord, slay
+  // enough of its Horde, slay its lord fast. Each star: +2.5% damage and gold.
+  // Corrupted cycles count toward the land they twist.
+  const landRec = i => { const L = S_().lands || (S_().lands = {}); return L[i] || (L[i] = { k: 0, s: 0 }); };
+  G.landRec = landRec;
+  G.STAR_BITS = [1, 2, 4];
+  G.starsOf = i => { const s = (S_().lands && S_().lands[i] && S_().lands[i].s) | 0; return (s & 1) + ((s >> 1) & 1) + ((s >> 2) & 1); };
+  G.starCount = () => { let n = 0; for (let i = 0; i < G.REALMS.length; i++) n += G.starsOf(i); return n; };
+  function star(i, bit) {
+    const r = landRec(i);
+    if (r.s & bit) return;
+    r.s |= bit;
+    G.recalc(); G.dirty();
+    emit('landStar', i, bit, G.starCount());
+  }
+  G.landKill = function () {
+    if (R.rift) return; // a Rift's Horde is its own
+    const i = G.realmIndex(S_().depth), r = landRec(i);
+    r.k++;
+    if (!(r.s & 2) && r.k >= G.STAR_KILLS(i)) star(i, 2);
+  };
+  G.on('bossWin', (rew, b) => {
+    if (!b.lord) return;
+    const i = G.realmIndex(b.d);
+    star(i, 1);
+    // a fresh lord only, like a crown: not one worn down by earlier tries
+    if (b.T - b.t <= G.STAR_SWIFT && b.scar === 1 && !b.rally) star(i, 4);
+  });
+
   // Firsts: when this player first reached each milestone, so friends can race for them
   G.FIRSTS = [
     ['boss', 'First boss'], ['d5', 'The Crab King'], ['uq', 'First unique'], ['r4', 'First legendary'], ['d10', 'Depth 10'], ['rift5', 'Rift 5'],
     ['asc', 'First ascension'], ['evo', 'First evolution'], ['r5', 'First mythic'], ['d20', 'Depth 20'], ['rift15', 'Rift 15'], ['d30', 'Depth 30'],
     ['r6', 'First divine'], ['d40', 'The Mad Button'], ['rift30', 'Rift 30'], ['rift45', 'Rift 45'],
-    ['d50', 'Depth 50'], ['d60', 'Depth 60'], ['rift60', 'Rift 60'], ['all14', 'Every unique'], ['d80', 'The Corrupted Mad Button'], ['rift80', 'Rift 80'],
+    ['d50', 'Depth 50'], ['d60', 'Depth 60'], ['d65', 'The First Hand'], ['rift60', 'Rift 60'], ['all14', 'Every unique'], ['d80', 'Depth 80'], ['rift80', 'Rift 80'],
   ];
   G.first = function (k) {
     const S = S_();
@@ -205,7 +238,7 @@
   };
   G.on('bossWin', (rew, b) => {
     G.first('boss');
-    for (const d of [5, 10, 20, 30, 40, 50, 60, 80]) if (b.d + 1 === d && b.lord) G.first('d' + d);
+    for (const d of [5, 10, 20, 30, 40, 50, 60, 65, 80]) if (b.d + 1 === d && b.lord) G.first('d' + d);
     // lord crowns: the fastest kill of a fresh lord (unwounded, no rally), and only at the edge of
     // your progress, so re-clearing old lands after ascending doesn't turn every crown into 0.1s
     const S = S_();
@@ -300,7 +333,7 @@
     lvl = Math.max(1, Math.min(G.riftMax(), lvl | 0));
     if (!G.riftOpenable() || R.boss || R.rift || R.stun > 0) return false;
     for (const m of R.mobs) { m.dead = true; emit('mobFlee', m); }
-    R.mobs.length = 0;
+    R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.breach) closeBreach();
     R.shrine = null;
     R.rift = { lvl, max: G.riftMax(), d: G.riftDepth(lvl), t: TUNE.riftTime, T: TUNE.riftTime, prog: 0, need: TUNE.riftNeed, guard: null, kills: 0 };
@@ -332,7 +365,7 @@
     R.rift = null;
     const used = r.T - r.t;
     for (const m of R.mobs) { m.dead = true; if (win) { m.over = 2; emit('mobDie', m, 0, null, 'boss'); } else emit('mobFlee', m); }
-    R.mobs.length = 0;
+    R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     R.hordeAcc = 0; R.surgeT = Math.max(R.surgeT, 12);
     let up = 0;
     if (win) {

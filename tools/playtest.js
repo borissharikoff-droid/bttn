@@ -21,7 +21,7 @@ const PERSONAS = {
     days: 7, sessions: [[15, 8 * 3600], [15, 16 * 3600]] },
 };
 // "Big" moments are the ones a player would notice as progress
-const BIG = new Set(['boss', 'lord', 'land', 'rarity', 'pet', 'unlock', 'ascend', 'evolve', 'goal', 'unique', 'hoard', 'riftWin']);
+const BIG = new Set(['boss', 'lord', 'land', 'rarity', 'pet', 'unlock', 'ascend', 'evolve', 'goal', 'unique', 'hoard', 'riftWin', 'landStar']);
 
 function run(name, seed, minutes) {
   const P = PERSONAS[name];
@@ -57,6 +57,8 @@ function run(name, seed, minutes) {
   G.on('bossFail', b => Object.assign(attempts[attempts.length - 1] || {}, { res: 'fail', left: +(Math.max(0, b.hp) / b.max).toFixed(2), secs: Math.round(clock.now - attempts[attempts.length - 1].t0) }));
   G.on('bossWin', () => Object.assign(attempts[attempts.length - 1] || {}, { res: 'win', secs: Math.round(clock.now - attempts[attempts.length - 1].t0) }));
   G.on('evolve', () => mark('evolve'));
+  G.on('landStar', () => mark('landStar'));
+  let pops = 0; G.on('bomberPop', () => pops++);
   G.on('bounty', () => mark('bounty'));
   // loot on the ground, events and Rifts
   let drops = 0, orbs = 0, uniques = 0;
@@ -81,6 +83,9 @@ function run(name, seed, minutes) {
   let clickAcc = 0, lastShop = -99, bossSeen = -1, offerSeen = -1, lastBestDepth = 0, lastDepthT = 0, lastAscend = -1e9, lastRift = 0;
   const depthAt = {}, stalls = [];
   const sessions = [];
+  // how crowded the arena is: mobs alive, sampled once a second, and kills per minute
+  const crowd = []; let kills = 0;
+  G.on('mobDie', () => kills++);
   function playFor(seconds, P) {
     const end = clock.now + seconds;
     for (; clock.now < end; clock.now += dt) {
@@ -97,6 +102,7 @@ function run(name, seed, minutes) {
         if (G.R.wisp && r() < P.wisp * dt) G.catchWisp();
       }
       G.tick(dt);
+      if (Math.round(t / dt) % 5 === 0) crowd.push(G.R.mobs.length);
       // events: tap the shrine, chase the Hoarder
       if (P.events && G.R.shrine && r() < P.events * dt * 2) G.useShrine('hand');
       if (P.events && !G.R.focus) { const hd = G.R.mobs.find(m => m.kind === 'hoard'); if (hd && r() < P.events * dt * 3) G.R.focus = hd.id; }
@@ -120,7 +126,7 @@ function run(name, seed, minutes) {
       if (s.bestDepth > lastBestDepth) {
         if (t - lastDepthT > 60) stalls.push([lastDepthT, t - lastDepthT, lastBestDepth]);
         lastBestDepth = s.bestDepth; lastDepthT = t;
-        for (const d of [5, 10, 20, 30, 40, 50]) if (s.bestDepth >= d && !(d in depthAt)) depthAt[d] = t;
+        for (const d of [5, 10, 20, 30, 40, 50, 65]) if (s.bestDepth >= d && !(d in depthAt)) depthAt[d] = t;
       }
       if (Math.round(t * 5) % 25 === 0) for (const k in TABS) if (!seenTab[k] && TABS[k](s)) { seenTab[k] = 1; mark('unlock'); mark('tab_' + k); }
       // ascension
@@ -162,6 +168,8 @@ function run(name, seed, minutes) {
     persona: name, seed, minutes: Math.round(total / 60), cls: s.hero.cls,
     first: Object.fromEntries(['boss', 'lord', 'perk', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'pet', 'tab_stars', 'tab_pets', 'tab_asc', 'ascend', 'break', 'hoardSeen', 'hoard', 'shrine', 'breach', 'unique', 'riftWin'].map(k => [k, first[k] != null ? +(first[k] / 60).toFixed(1) : null])),
     loot: { dropsPerMin: +(drops / (clock.now / 60)).toFixed(1), orbs, uniques, found: Object.keys(S().uq || {}).length, hoards: moments.filter(m => m[1] === 'hoard').length, hoardsSeen: moments.filter(m => m[1] === 'hoardSeen').length, shrines: moments.filter(m => m[1] === 'shrine').length, breaches: moments.filter(m => m[1] === 'breach').length },
+    stars: G.starCount(), breaks: moments.filter(m => m[1] === 'break').length, pops, uqTotal: G.UNIQUE_IDS.length,
+    crowd: (() => { const c = crowd.slice().sort((a, b) => a - b); return { avg: Math.round(c.reduce((a, b) => a + b, 0) / (c.length || 1)), p50: c[c.length >> 1] || 0, p90: c[Math.floor(c.length * 0.9)] || 0, max: c[c.length - 1] || 0, killsPerMin: Math.round(kills / (clock.now / 60)) }; })(),
     rift: { best: riftBest, runs: riftRuns, open: S().rift.open },
     depthAt: Object.fromEntries(Object.entries(depthAt).map(([k, v]) => [k, +(v / 60).toFixed(1)])),
     windows: win, longestStall: stalls.reduce((m, x) => Math.max(m, x[1]), 0) / 60,
@@ -207,7 +215,8 @@ function report(results) {
     if (!ok.length) { lines.push(rs[0].error); continue; }
     const f = k => med(ok.map(r => r.first[k]));
     lines.push(`first (min): boss ${f('boss')} · lord ${f('lord')} · perk ${f('perk')} · epic ${f('r3')} · legendary ${f('r4')} · mythic ${f('r5')} · divine ${f('r6')} · pet ${f('pet')} · stars ${f('tab_stars')} · ascend-tab ${f('tab_asc')} · ascension ${f('ascend')} · first break ${f('break')}`);
-    lines.push(`depth reached at (min): ` + [5, 10, 20, 30, 40, 50].map(d => `d${d} ${med(ok.map(r => r.depthAt[d]))}`).join(' · '));
+    lines.push(`crowd: median alive ${med(ok.map(r => r.crowd.p50))} · p90 ${med(ok.map(r => r.crowd.p90))} · kills/min ${med(ok.map(r => r.crowd.killsPerMin))} · button breaks ${med(ok.map(r => r.breaks))} · bomber pops ${med(ok.map(r => r.pops))} · land stars ${med(ok.map(r => r.stars))}`);
+    lines.push(`depth reached at (min): ` + [5, 10, 20, 30, 40, 50, 65].map(d => `d${d} ${med(ok.map(r => r.depthAt[d]))}`).join(' · '));
     const wins = ok[0].windows.map((w, i) => {
       const gaps = ok.map(r => r.windows[i] && r.windows[i].maxGap).filter(x => x != null);
       const big = ok.map(r => r.windows[i] && r.windows[i].bigPerMin).filter(x => x != null);
@@ -216,7 +225,7 @@ function report(results) {
     lines.push('moments: ' + wins.join(' | '));
     const lt = k => med(ok.map(r => r.loot && r.loot[k]));
     lines.push(`first (min): uncommon ${f('r1')} · rare ${f('r2')} · hoarder seen ${f('hoardSeen')} / slain ${f('hoard')} · shrine ${f('shrine')} · breach ${f('breach')} · unique ${f('unique')} · rift win ${f('riftWin')}`);
-    lines.push(`loot: drops/min ${lt('dropsPerMin')} · orbs ${lt('orbs')} · uniques ${lt('uniques')} (distinct ${lt('found')}/${14}) · hoarders ${lt('hoards')}/${lt('hoardsSeen')} · shrines ${lt('shrines')} · breaches ${lt('breaches')} · rift best ${med(ok.map(r => r.rift && r.rift.best))} (${med(ok.map(r => r.rift && r.rift.runs))} runs)`);
+    lines.push(`loot: drops/min ${lt('dropsPerMin')} · orbs ${lt('orbs')} · uniques ${lt('uniques')} (distinct ${lt('found')}/${ok[0].uqTotal}) · hoarders ${lt('hoards')}/${lt('hoardsSeen')} · shrines ${lt('shrines')} · breaches ${lt('breaches')} · rift best ${med(ok.map(r => r.rift && r.rift.best))} (${med(ok.map(r => r.rift && r.rift.runs))} runs)`);
     lines.push(`journey step ${med(ok.map(r => r.journey || 0))} · evolutions discovered ${med(ok.map(r => r.evos || 0))} · bounties ${med(ok.map(r => r.bounties || 0))}`);
     lines.push(`longest depth stall ${med(ok.map(r => r.longestStall)).toFixed(1)} min · boss fails ${med(ok.map(r => r.bossFails))} (worst streak ${Math.max(...ok.map(r => r.maxFailStreak))}) · ascensions ${med(ok.map(r => r.ascensions))} · best depth ${med(ok.map(r => r.bestDepth))} · lvl ${med(ok.map(r => r.level))} · ach ${ok[0].ach.split('/')[1] ? med(ok.map(r => +r.ach.split('/')[0])) + '/' + ok[0].ach.split('/')[1] : '-'} · pets ${med(ok.map(r => r.pets))} · collection ${med(ok.map(r => +r.collection.split('/')[0]))}/${ok[0].collection.split('/')[1]}`);
     if (ok[0].sessions.length) {
