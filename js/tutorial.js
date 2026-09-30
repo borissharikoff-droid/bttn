@@ -26,7 +26,7 @@
     tu_upg: 'You have the gold! In Upgrades, buy Iron Finger to make clicks stronger.',
     tu_mobs: 'The Horde is here! Your Warden fights on their own, and each click calls lightning on the mobs closest to the Button. Tap a mob to focus it.',
     tu_garrisonWait: "Great! Save 50 gold and we'll hire the first fighter for the garrison.",
-    tu_garrison: 'In Garrison, hire a Rogue. The garrison earns gold even when you are not clicking.',
+    tu_garrison: 'In the Garrison tab, hire a Rogue for the garrison (a fighter, not a new Warden). The garrison earns gold even when you are not clicking.',
     tu_boss: "The orange bar is the clear. Cut down the Horde to fill it, and the land's boss comes.",
     tu_bossReady: 'The boss is ready! Press ⚔ or the skull above the button. You have 30 seconds, click like mad.',
     tu_bossFight: 'Hit the boss! Your clicks strike it too. It brings its own swarm, and if you are too slow it leaves, but it comes back.',
@@ -35,15 +35,16 @@
     tip_wisp: 'A wisp! Catch it before it flies off: it gives a buff or gold.',
     tip_mod: 'Special chest — {0}: {1}.',
     tip_bossReady: 'The boss is ready. Press ⚔ when you are.',
-    tip_ess: 'You have essence! Spend it in the Constellation on bonuses for this run.',
-    tip_ability: 'Your hero has an ability. It casts itself, or press the button on the right or Q.',
+    tip_ess: 'You have essence! Spend it in the Constellation: pick a glowing star, then Learn.',
+    tip_ability: 'Your Warden has an ability. It casts itself, or press the button on the right or Q.',
     tip_asc: "You can ascend! The run restarts, but you earn fame: a permanent bonus to gold and damage. Gear and pets stay.",
     tip_shards: 'Shards piled up. In Character, tap a worn item and enchant it.',
     tip_break: 'Mobs broke the button and the clear bar dropped. Get tougher armour or enchant your weapon.',
-    tip_wall: 'This lord is a wall for now. Ascend: you earn fame, a permanent bonus, and come back much stronger. Gear and pets stay.',
+    tip_wall: 'This boss is a wall for now. Every try rallies the Warden (+15-20% damage on it), or ascend: you earn fame, a permanent bonus, and come back much stronger. Gear and pets stay.',
     tip_loot: 'Loot falls where mobs die, and its label says what it is. Tap a label to grab it now, or the Warden gathers it in a moment. A beam means something good.',
     tip_spitter: 'A spitter: it stops at range and lobs globs at the Button. Tap it so the Warden kills it first.',
     tip_bomber: 'A bomber, fuse lit. Kill it in the crowd and it takes the pack with it. Let it reach the Button and it blows up on it.',
+    tip_carnage: 'Carnage! Kill without a 2.5-second pause and gold and XP climb: +10% at 100 kills, up to +40% at 2,000.',
     tip_map: 'Tap the land name: the world map shows every land, its five zones and three stars to earn.',
     tip_hoard: 'A Hoarder! It never bites, and it runs off with its sack in 16 seconds. Tap it so the Warden chases it: it bursts into loot.',
     tip_shrine: 'A shrine rose from the ground. Tap it for a 15-second blessing, or the Warden claims it.',
@@ -56,12 +57,12 @@
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
     help_2: 'Loot', help_2t: 'Mobs drop loot where they fall, and its label and beam tell you what it is: tap it to grab it, or the Warden gathers it. Orbs change your gear in the Character tab, and uniques have rules of their own. The Button spills chests too; special ones (storm, frozen, mimics…) each work their own way.',
     help_3: 'Your Warden', help_3t: 'The Horde drops XP crystals; every level you pick one of three perks (they last until you ascend). 4 gear slots: weapon, ability, armour, ring; your class weapon type deals +50%. A stronger Warden faces a bigger Horde and clears lands faster.',
-    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, brutes, blue champions and named yellow rares with a modifier, and it surges every half minute. Fill the clear bar and the land's boss comes; beat it to go deeper.",
+    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and the collection stay.',
     help_8: 'Ladder', help_8t: 'Name your hero in Character and compare depth, stars and power with friends.',
-    help_9: 'Lands, zones and stars', help_9t: 'Each land has five zones, the last one its lord\u2019s. Every zone brings a new kind of mob and is fought in three waves. Tap the land name for the world map: each land has three stars, kept forever, each worth +2.5% damage and gold.',
+    help_9: 'Lands, zones and stars', help_9t: 'Each land has five zones, the last one its lord\u2019s. Every zone brings a new kind of mob and is fought in three waves. Tap the land name for the world map: each land has three stars, kept forever, each worth +2.5% damage and gold. The Swift star needs a fresh try at the lord, not one after it escaped.',
     help_10: 'Carnage', help_10t: 'Kill without pause: the streak climbs and so do gold and XP, up to +40%. Let it lapse for 2.5 seconds and it starts over.',
   });
 
@@ -84,7 +85,7 @@
     { id: 'gear', text: 'tu_gear', point: () => P.tab('hero'), done: () => G.UI.tab() === 'hero' },
     { id: 'doll', text: 'tu_doll', point: () => P.inTab('hero', '.doll'), manual: true },
     { id: 'upg', text: S => (S.gold >= 15 || S.upg.finger ? 'tu_upg' : 'tu_upgWait'), point: S => (S.gold >= 15 ? P.inTab('upg', '.row[data-u="finger"]') : P.button()), done: S => (S.upg.finger || 0) >= 1 },
-    { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), done: S => S.hero.kills - (seen().tutK || 0) >= 40 },
+    { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), minT: 7000, done: S => S.hero.kills - (seen().tutK || 0) >= 40 },
     { id: 'garrison', text: S => (S.gold >= 50 ? 'tu_garrison' : 'tu_garrisonWait'), point: S => (S.gold >= 50 ? P.inTab('heroes', '.row[data-h="rogue"]') : P.button()), done: S => (S.heroes.rogue || 0) >= 1 },
     { id: 'boss', text: () => (G.R.boss ? 'tu_bossFight' : G.R.bossReady ? 'tu_bossReady' : 'tu_boss'),
       point: () => (G.R.boss ? P.button() : G.R.bossReady ? (P.el('#btnFight') || P.button()) : P.el('#bossRow')), done: S => S.st.bossKills >= 1 },
@@ -99,7 +100,7 @@
     { id: 'mod', when: S => S.chests.some(c => c.mod), point: () => { const c = G.S.chests.find(x => x.mod); return c && G.Stage.chestPoint(c); },
       text: () => { const c = G.S.chests.find(x => x.mod); const m = c && G.MOD_BY_ID[c.mod]; return m ? t('tip_mod', G.L(m.name), G.L(m.desc)) : ''; }, raw: true, until: S => !S.chests.some(c => c.mod) },
     { id: 'bossReady', when: () => G.R.bossReady && !G.R.boss, point: () => P.el('#btnFight'), text: 'tip_bossReady', until: () => !G.R.bossReady },
-    { id: 'ess', when: S => S.essence >= 1, point: () => P.tab('stars'), text: 'tip_ess', until: () => G.UI.tab() === 'stars' },
+    { id: 'ess', when: S => S.essence >= 1 && !Object.keys(S.nodes).length, point: () => P.inTab('stars', '[data-detail] [data-buy]'), text: 'tip_ess', until: S => Object.keys(S.nodes).length > 0 },
     { id: 'ability', when: S => S.hero.eq.ability, point: () => P.el('#btnAbil'), text: 'tip_ability' },
     { id: 'shards', when: S => S.hero.shards >= 40, point: () => P.tab('hero'), text: 'tip_shards', until: () => G.UI.tab() === 'hero' },
     { id: 'asc', when: () => G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_asc', until: () => G.UI.tab() === 'asc' },
@@ -112,10 +113,12 @@
     { id: 'spitter', when: () => (G.R.mobs || []).some(m => m.kind === 'spitter' && m.p >= G.TUNE.spitStop), point: () => { const m = G.R.mobs.find(x => x.kind === 'spitter' && x.p >= G.TUNE.spitStop); return m && G.Stage.mobPoint(m); }, text: 'tip_spitter', until: () => !(G.R.mobs || []).some(m => m.kind === 'spitter') },
     { id: 'bomber', when: () => (G.R.mobs || []).some(m => m.kind === 'bomber' && m.p > 0.3), point: () => { const m = G.R.mobs.find(x => x.kind === 'bomber' && x.p > 0.3); return m && G.Stage.mobPoint(m); }, text: 'tip_bomber', until: () => !(G.R.mobs || []).some(m => m.kind === 'bomber') },
     { id: 'map', when: S => S.depth >= 1 && !G.R.boss, point: () => { const r = document.querySelector('#realmBox').getBoundingClientRect(); return { x: r.right + 14, y: Math.max(50, r.bottom) }; }, text: 'tip_map', until: () => !!G.UI.mapSeen },
-    { id: 'wall', when: S => S.scar && S.scar.n >= 3 && G.isLord(S.scar.d) && G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_wall', until: () => G.UI.tab() === 'asc' },
+    { id: 'carnage', when: () => G.carnage && G.carnage().tier >= 1, point: null, text: 'tip_carnage' },
+    { id: 'wall', when: S => S.scar && S.scar.n >= 3 && G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_wall', until: () => G.UI.tab() === 'asc' },
   ];
 
   let tip = null, tipT = 0, lastHl = null, shownT = 0;
+  const stepAt = { i: -1, t: 0 };
   const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1, spitter: 1, bomber: 1 };
 
   function seen() { const S = G.S; S.seen = S.seen || {}; S.seen.tips = S.seen.tips || {}; return S.seen; }
@@ -136,7 +139,7 @@
         if (active() && STEPS[S.tut] && STEPS[G.S.tut].manual) complete();
       }
     });
-    G.on('buttonBreak', () => { if (!active()) showTip({ id: 'break', text: 'tip_break' }); });
+    G.on('buttonBreak', () => { if (!active() && !seen().tips.break && !G.R.rift) showTip({ id: 'break', text: 'tip_break' }); });
     G.on('potion', () => { if (!active() && !seen().tips.potion) showTip({ id: 'potion', text: 'tip_potion' }); });
     window.addEventListener('resize', () => place());
     Tut.maybeIntro();
@@ -180,16 +183,22 @@
       return;
     }
     if (active()) {
-      const ev = TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && tp.when(S));
-      if (ev) { showTip(ev); return; }
       const st = STEPS[S.tut];
+      if (stepAt.i !== S.tut) { stepAt.i = S.tut; stepAt.t = performance.now(); }
+      const target = val(st.point, S);
+      const inPanel = !!(target && target.el && target.el.closest('#panel'));
+      const ev = !inPanel && TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && tp.when(S));
+      if (ev) { showTip(ev); return; }
       if (st.skip && st.skip(S)) { S.tut++; if (!active()) S.tut = -1; return; }
-      if (!st.manual && st.done(S)) { complete(); return; }
+      // a step that finishes on its own still stays up long enough to be read
+      if (!st.manual && st.done(S) && performance.now() - stepAt.t > (st.minT || 3500)) { complete(); return; }
       render(st.id, t(val(st.text, S)), t('tu_step', S.tut + 1, STEPS.length), st.manual);
       point(val(st.point, S));
       return;
     }
     if (G.Stage.busyCelebrating && G.Stage.busyCelebrating()) return; // don't talk over a big drop
+    // the wall tip comes back for each new wall
+    if (S.scar && S.scar.n >= 3 && seen().tips.wall && seen().wallD !== S.scar.d) { delete seen().tips.wall; seen().wallD = S.scar.d; }
     for (const tp of TIPS) {
       if (seen().tips[tp.id]) continue;
       if (tp.when(S)) { showTip(tp); return; }
@@ -223,7 +232,7 @@
   }
   // The bubble sits above the meters by default and moves out of the way when
   // the pointer's target would be underneath it (small screens, top-of-stage targets).
-  let aim = null, placedY = null;
+  let aim = null, placedY = null, aimEl = null;
   function place() {
     const c = $('#coach'), w = $('#stageWrap');
     if (!c || c.hidden || !w) return;
@@ -242,6 +251,8 @@
     const clear = y => off(aim, y) && off(btn, y);
     let y = placedY !== null && spots.includes(placedY) && clear(placedY) ? placedY : spots.find(clear);
     if (y === undefined) y = spots.find(y2 => off(aim, y2));
+    // what it points at is in the panel: keep the panel clear, even if the bubble has to cover part of the stage
+    if (aimEl && aimEl.closest('#panel') && y === spots[2]) y = spots.slice(0, 2).find(y2 => off(btn, y2)) || spots[0];
     if (y === undefined) y = spots[0];
     if (y !== placedY) shownT = performance.now();
     placedY = y;
@@ -250,7 +261,7 @@
   function point(p) {
     const el = $('#pointer');
     if (lastHl && (!p || p.el !== lastHl)) { lastHl.classList.remove('tut-hl'); lastHl = null; }
-    if (!p) { el.hidden = true; aim = null; place(); return; }
+    if (!p) { el.hidden = true; aim = null; aimEl = null; place(); return; }
     if (p.el && !lastHl) {
       lastHl = p.el; lastHl.classList.add('tut-hl');
       const body = p.el.closest('.tabBody');
@@ -260,7 +271,7 @@
     el.hidden = false;
     el.style.transform = `translate(${Math.round(p.x - 25)}px, ${Math.round(p.y - 50)}px)`;
     // Arrow plus the thing it points at
-    aim = { top: p.y - 58, bottom: p.y + 44 };
+    aim = { top: p.y - 58, bottom: p.y + 44 }; aimEl = p.el || null;
     if (p.el) { const er = p.el.getBoundingClientRect(); aim.top = Math.min(aim.top, er.top); aim.bottom = Math.max(aim.bottom, er.bottom); }
     place();
   }

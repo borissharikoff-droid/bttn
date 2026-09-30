@@ -23,7 +23,7 @@
   // ---------- Collection bonus types (per star, before rarity multiplier) ----------
   G.BONUS = {
     click: { v: 0.02,  name: 'Click gold',  pct: true },
-    gps:   { v: 0.01,  name: 'Hero income', pct: true },
+    gps:   { v: 0.01,  name: 'Garrison income', pct: true },
     gold:  { v: 0.01,  name: 'All gold',    pct: true },
     crit:  { v: 0.001, name: 'Crit chance', pct: true },
     critd: { v: 0.1,   name: 'Crit power',  pct: false, x: true },
@@ -141,7 +141,7 @@
       fx: (L, D) => { D.clickMult *= Math.pow(1.5, L); } },
     { id: 'echo', icon: 'ic_echo', base: 100000.0, growth: 15, max: 10,
       name: 'Echo Strike',
-      desc: 'Each click adds +1% of hero income per level',
+      desc: 'Each click adds +1% of garrison income per level',
       fx: (L, D) => { D.clickGpsPct += 0.01 * L; } },
     { id: 'keen', icon: 'ic_eye', base: 200, growth: 2.5, max: 20,
       name: 'Keen Eye',
@@ -213,14 +213,14 @@
       (L, D) => { D.critMult += 1 * L; }),
     C('c_flow', 0, -3, 'click', ['c_prec', 'c_brut'], 3, 12, 2.2, 'Flow', 'Max combo +40',
       (L, D) => { D.comboCap += 40 * L; }),
-    C('c_echo', -1, -4, 'click', ['c_flow'], 5, 30, 2, 'Resonance', 'Clicks +1% of hero income',
+    C('c_echo', -1, -4, 'click', ['c_flow'], 5, 30, 2, 'Resonance', 'Clicks +1% of garrison income',
       (L, D) => { D.clickGpsPct += 0.01 * L; }),
     C('c_frenzy', 1, -4, 'click', ['c_flow'], 3, 25, 2, 'Rapture', 'Wisp buffs last 25% longer',
       (L, D) => { D.buffDur += 0.25 * L; }),
     C('c_thunder', 0, -5, 'click', ['c_echo', 'c_frenzy'], 1, 200, 1, 'Thunder Palm', 'Every 25th click is a MEGA click ×30',
       (L, D) => { D.mega = L > 0; }),
     // Idle arm (right)
-    C('i_guild', 1, 0, 'idle', ['spark'], 5, 2, 1.7, 'Guild Hall', 'Hero income +15%',
+    C('i_guild', 1, 0, 'idle', ['spark'], 5, 2, 1.7, 'Guild Hall', 'Garrison income +15%',
       (L, D) => { D.gpsMult *= 1 + 0.15 * L; }),
     C('i_vet', 2, -1, 'idle', ['i_guild'], 3, 10, 2.5, 'Veterans', 'Heroes +0.5% per 10 heroes owned',
       (L, D) => { D.vet += 0.005 * L; }),
@@ -228,7 +228,7 @@
       (L, D) => { D.scout += 0.1 * L; }),
     C('i_watch', 3, 0, 'idle', ['i_vet', 'i_scout'], 5, 12, 2, 'Night Watch', 'Offline income +10% and +1h cap',
       (L, D) => { D.offEff += 0.1 * L; D.offCap += 3600 * L; }),
-    C('i_banner', 4, -1, 'idle', ['i_watch'], 5, 40, 2.2, 'War Banner', 'Hero income +25%',
+    C('i_banner', 4, -1, 'idle', ['i_watch'], 5, 40, 2.2, 'War Banner', 'Garrison income +25%',
       (L, D) => { D.gpsMult *= 1 + 0.25 * L; }),
     C('i_clock', 4, 1, 'idle', ['i_watch'], 5, 35, 2.2, 'Clockmaker', '+1 auto click per second',
       (L, D) => { D.autoCps += L; }),
@@ -276,7 +276,7 @@
       (L, D) => { D.wispRate *= 1 + 0.2 * L; }),
     C('a_nest', -4, -1, 'arcane', ['a_bond'], 2, 60, 4, 'Great Nest', '+1 pet slot',
       (L, D) => { D.petSlots += L; }),
-    C('a_hunt', -4, 1, 'arcane', ['a_time'], 1, 30, 1, 'The Hunt', 'Bosses auto-challenge, boss meter -20%',
+    C('a_hunt', -4, 1, 'arcane', ['a_time'], 1, 30, 1, 'The Hunt', 'Bosses start on their own when the Warden can take them; the clear bar needs 20% fewer kills',
       (L, D) => { if (L) { D.autoBoss = true; D.bossNeed *= 0.8; } }),
     C('a_astral', -5, 0, 'arcane', ['a_nest', 'a_hunt', 'a_wisp'], 1, 220, 1, 'Astral', 'Potion cap +5, potion power +50%',
       (L, D) => { if (L) { D.potCap += 5; D.potPow *= 1.5; } }),
@@ -286,11 +286,11 @@
 
   // ---------- Stat potions (reset on ascension, like a hero's death) ----------
   G.POTIONS = [
-    { id: 'att',  short: 'ATT', color: '#e04cf0', name: 'Attack',    desc: 'Hero damage and clicks +5%' },
+    { id: 'att',  short: 'ATT', color: '#e04cf0', name: 'Attack',    desc: 'Warden damage and clicks +5%' },
     { id: 'def',  short: 'DEF', color: '#9a9aa6', name: 'Defense',   desc: 'Button toughness +8%' },
     { id: 'spd',  short: 'SPD', color: '#41d65b', name: 'Speed',     desc: 'Auto clicks and golem +5%' },
     { id: 'dex',  short: 'DEX', color: '#ff9b2d', name: 'Dexterity', desc: 'Crit chance +0.5%' },
-    { id: 'vit',  short: 'VIT', color: '#e0413b', name: 'Vitality',  desc: 'Hero income +5%' },
+    { id: 'vit',  short: 'VIT', color: '#e0413b', name: 'Vitality',  desc: 'Garrison income +5%' },
     { id: 'wis',  short: 'WIS', color: '#3fa0ff', name: 'Wisdom',    desc: 'Essence +5%' },
     { id: 'life', short: 'LIFE', color: '#ff7aa8', name: 'Life',     desc: 'All gold +3%' },
     { id: 'mana', short: 'MANA', color: '#6a7bff', name: 'Mana',     desc: 'Pet power +4%' },
@@ -308,7 +308,7 @@
     { id: 'slime',   tier: 0, cps: 1,   name: 'Goop',        desc: 'Auto clicks' },
     { id: 'bat',     tier: 0, cps: 0,   name: 'Nibbles',     desc: 'Crit chance',                  fx: (p, D) => { D.crit += 0.004 * p; } },
     { id: 'frog',    tier: 0, cps: 0,   name: 'Croaky',      desc: 'Luck',                         fx: (p, D) => { D.luck += 0.01 * p; } },
-    { id: 'beetle',  tier: 0, cps: 0,   name: 'Scarab',      desc: 'Hero income',                  fx: (p, D) => { D.gpsMult *= 1 + 0.05 * p; } },
+    { id: 'beetle',  tier: 0, cps: 0,   name: 'Scarab',      desc: 'Garrison income',                  fx: (p, D) => { D.gpsMult *= 1 + 0.05 * p; } },
     { id: 'owl',     tier: 1, cps: 0,   name: 'Hoot',        desc: 'Essence',                      fx: (p, D) => { D.essMult *= 1 + 0.04 * p; } },
     { id: 'boo',     tier: 1, cps: 1.5, name: 'Boo',         desc: 'Auto clicks, modifier chance', fx: (p, D) => { D.modChance += 0.003 * p; } },
     { id: 'imp',     tier: 1, cps: 0,   name: 'Ember',       desc: 'Boss damage',                  fx: (p, D) => { D.bossMult *= 1 + 0.08 * p; } },
@@ -411,16 +411,16 @@
 
   // Land mastery: three stars per land, kept forever. Each one: +2.5% damage and gold
   G.STAR_BONUS = 0.025;
-  G.STAR_KILLS = i => 10000 * (1 + 0.5 * i);
+  G.STAR_KILLS = i => 12000 * (1 + 0.1 * i);
   G.STAR_SWIFT = 20;
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------
   G.LEGACY = [
-    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: 'Ancestral Might', desc: 'Clicks and hero damage +40%',
+    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: 'Ancestral Might', desc: 'Clicks and Warden damage +40%',
       fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; D.heroMult *= 1 + 0.4 * L; } },
-    { id: 'lg_guild', base: 1, growth: 1.6, max: 25, name: 'Ancestral Guild', desc: 'Hero income +40%',
+    { id: 'lg_guild', base: 1, growth: 1.6, max: 25, name: 'Ancestral Guild', desc: 'Garrison income +40%',
       fx: (L, D) => { D.gpsMult *= 1 + 0.4 * L; } },
-    { id: 'lg_start', base: 2, growth: 2, max: 8, name: 'Head Start', desc: 'Start with 100 × 10^lvl gold',
+    { id: 'lg_start', base: 2, growth: 2, max: 8, name: 'Head Start', desc: 'Start each run with 1K gold, ×10 per level',
       fx: () => {} },
     { id: 'lg_luck', base: 3, growth: 1.8, max: 10, name: 'Lucky Star', desc: 'Luck +3%',
       fx: (L, D) => { D.luck += 0.03 * L; } },

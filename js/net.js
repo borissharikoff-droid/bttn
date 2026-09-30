@@ -27,11 +27,16 @@
         return s.exists ? s.data() : null;
       },
       async pushSave(body) { await saveRef.set(body); },
+      // the cloud save a player chose not to load is kept one step back, so a mis-tap can be undone
+      async backupSave(body) { await db.doc('data/users/' + uid + '/save_prev').set(body); },
+      async loadBackup() { const s = await db.doc('data/users/' + uid + '/save_prev').get(); return s.exists ? s.data() : null; },
       async pushLadder(snap) { await ladderRef.set(snap); },
+      // only the owner may do this (the ladder's access rules)
+      async removeRow(id) { await db.doc('ladder/' + id).delete(); },
       subscribe(cb) {
         return db.collection('ladder').orderBy('depth', 'desc').limit(300).onSnapshot(
           qs => cb(qs.docs.map(d => Object.assign({ uid: d.id }, d.data()))),
-          e => { Net.error = e.code; G.emit('net'); });
+          e => { Net.error = e.code; if (Net.status === 'connecting') Net.status = 'error'; G.emit('net'); });
       },
       async names(ids) {
         if (!user || !user.profiles) return {};
@@ -91,15 +96,19 @@
         const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
         const uid = user && user.id ? await user.id() : null;
         try { const me = user && user.me ? await user.me() : null; Net.myName = (me && me.name) || ''; } catch (e) { Net.myName = ''; }
-        if (!db || !uid) { Net.status = 'off'; G.emit('net'); return; }
-        const can = user.can ? await user.can('data.write') : null;
-        Net.readOnly = can === false;
-        backend = artifactBackend(db, user, uid);
+        // no db: signed out, or not let in. Say so instead of pretending to be offline
+        if (!db) { Net.status = 'signin'; G.emit('net'); return; }
+        try { Net.isOwner = user && user.isOwner ? !!(await user.isOwner()) : false; } catch (e) { Net.isOwner = false; }
+        const can = user && user.can ? await user.can('data.write') : null;
+        Net.readOnly = can === false || !uid; // without an id you can still watch the ladder
+        backend = artifactBackend(db, user, uid || 'none');
         Net.uid = uid;
       } else { Net.status = 'off'; G.emit('net'); return; }
       Net.mode = backend.name;
-      Net.status = 'online';
-      backend.subscribe(list => { Net.entries = prepare(list); resolveNames(); rivals(); G.emit('ladder'); });
+      // online once the ladder has actually answered
+      if (backend.name === 'http') Net.status = 'online';
+      backend.subscribe(list => { if (Net.status !== 'online') { Net.status = 'online'; Net.error = ''; setTimeout(() => Net.tick(true), 0); } Net.entries = prepare(list); resolveNames(); rivals(); G.emit('ladder'); });
+      if (!Net.uid) { G.emit('net'); return; }
       // Cloud save: offer it when it is newer than what this browser has
       const cloud = await backend.loadSave().catch(() => null);
       if (cloud && cloud.data) {
@@ -186,7 +195,7 @@
         const key = ladderKey(snap);
         // never lower your own row from a device that is behind (another one got further)
         const mine = Net.entries.find(e => e.me);
-        const behind = mine && ((mine.depth || 0) > snap.depth || (mine.rift || 0) > snap.rift);
+        const behind = mine && mine.ok && ((mine.depth || 0) > snap.depth || (mine.rift || 0) > snap.rift);
         if (behind) Net.behind = true;
         else { Net.behind = false; if (key !== lastLadderKey) { await backend.pushLadder(snap); lastLadderKey = key; } Net.lastLadderAt = now; }
       } catch (e) { note(e); }
@@ -214,7 +223,20 @@
   };
   Net.pushNow = () => Net.tick(true);
   // "keep this one": the player chose this browser's save over the cloud's, so stop asking about that cloud save
-  Net.keepLocal = function (c) { lastPushTs = Math.max(lastPushTs, (c && c.ts) || 0, Date.now()); Net.hold = false; Net.tick(true); };
+  Net.keepLocal = async function (c) {
+    lastPushTs = Math.max(lastPushTs, (c && c.ts) || 0, Date.now());
+    if (c && c.data && backend && backend.backupSave) { try { await backend.backupSave(c); } catch (e) { /* a failed backup must not block the choice */ } }
+    Net.hold = false; Net.tick(true);
+  };
+  Net.restoreBackup = async function () {
+    const b = backend && backend.loadBackup ? await backend.loadBackup().catch(() => null) : null;
+    return b && b.data ? G.importSave(b.data) : false;
+  };
+  Net.removeRow = async function (id) { if (!backend || !backend.removeRow) return false; await backend.removeRow(id); return true; };
+  // What a save holds, for the choice between two of them
+  Net.saveSummary = function (str) {
+    try { const s = typeof str === 'string' ? JSON.parse(str) : str; const h = s.hero || {}; return { cls: h.cls, lvl: h.lvl || 1, depth: (s.bestDepth || 0) + 1, gold: s.goldTotal || 0, asc: s.ascensions || 0 }; } catch (e) { return null; }
+  };
   Net.loadCloud = function () {
     if (!Net.cloud || !Net.cloud.data) return false;
     return G.importSave(Net.cloud.data);
@@ -226,6 +248,10 @@
     const today = G.utcDayKey();
     if (by === 'today') list = list.filter(e => e.rd && e.rd.k === today && e.rd.l > 0);
     if (by === 'mad') list = list.filter(e => (e.mad || 0) > 0);
+    // nobody ranks on a board they haven't started: zeros stay off it (your own row too)
+    if (by === 'rift') list = list.filter(e => (e.rift || 0) > 0);
+    if (by === 'uq') list = list.filter(e => (e.uq || 0) > 0);
+    if (by === 'stars') list = list.filter(e => (e.ls || 0) > 0);
     const pw = (a, b) => (b.power || 0) - (a.power || 0);
     const cmp = by === 'power' ? pw
       : by === 'rift' ? (a, b) => (b.rift || 0) - (a.rift || 0) || (a.rt || 1e9) - (b.rt || 1e9) || pw(a, b)

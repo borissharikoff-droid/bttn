@@ -48,15 +48,18 @@
     S.seen.tabs.upg = 1; S.seen.tabs._u_upg = 1;
     UI.render();
     UI.update(true);
-    $('#perks').addEventListener('click', e => { if (performance.now() - (+$('#perks').dataset.t || 0) < 600) return; const c = e.target.closest('[data-perk]'); if (c && G.pickPerk(c.dataset.perk)) { G.Audio && G.Audio.buy(); UI.update(true); } });
+    $('#perks').addEventListener('click', e => { if (performance.now() - (+$('#perks').dataset.shownAt || 0) < 600) return; const c = e.target.closest('[data-perk]'); if (c && G.pickPerk(c.dataset.perk)) { G.Audio && G.Audio.buy(); UI.update(true); } });
     if (G.Tut) G.Tut.init();
     if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
   UI.tab = () => tab;
+  // the game's own link, for the brag line
+  G.SHARE_URL = 'https://claude.ai/artifact/WcSxtLrabwMuEt2YcyxpWh';
+  G.uiBusy = () => !$('#modal').hidden || !$('#intro').hidden;
 
   function buildTabs() {
     const nav = $('#tabs');
-    nav.innerHTML = TABS.map((x, i) => `<button class="tab" data-tab="${x.id}" aria-label="${esc(t('tab_' + x.id))}" title="${esc(t('tab_' + x.id))} (${i + 1})">${img(x.icon, '', 3)}<span class="dot" hidden></span></button>`).join('');
+    nav.innerHTML = TABS.map((x, i) => `<button class="tab" data-tab="${x.id}" aria-label="${esc(t('tab_' + x.id))}" title="${esc(t('tab_' + x.id))}${i < 10 ? ` (${(i + 1) % 10})` : ''}">${img(x.icon, '', 3)}<span class="dot" hidden></span></button>`).join('');
     nav.addEventListener('click', e => {
       const b = e.target.closest('.tab'); if (!b) return;
       const id = b.dataset.tab;
@@ -107,7 +110,7 @@
   function listen() {
     G.on('achievement', a => { UI.toast(`<span>${esc(t('achievement'))}: <b>${esc(L(a.name))}</b></span>`, 'ach', 'ic_trophy'); if (tab === 'ach') UI.render(); });
     G.on('questDone', q => UI.toast(`<b>${esc(t('questDone'))}</b>`, '', 'ic_scroll'));
-    G.on('landStar', (i, bit, n) => { zoneKey = ''; UI.toast(`<span><b style="color:#ffd84a">\u2605 ${esc(G.REALMS[i].name)} · ${esc(t('starName_' + bit))}</b><br><small>${esc(t('starBonus', n, '+' + Math.round(n * G.STAR_BONUS * 100) + '%'))}</small></span>`, 'ach', 'ic_star'); });
+    G.on('landStar', (i, bit, n) => { zoneKey = ''; UI.toast(`<span><b style="color:#ffd84a">\u2605 ${esc(G.REALMS[i].name)} · ${esc(t('starName_' + bit))}</b><br><small>${esc(t('starBonus', n === 1 ? t('star1') : t('starsN', n), '+' + +(n * G.STAR_BONUS * 100).toFixed(1) + '%'))}</small></span>`, 'ach', 'ic_star'); });
     G.on('realm', r => UI.toast(`<span>${esc(t('newLands', G.realmName(G.S.depth)))} · <b>${esc(G.REALMS[r].rule)}</b></span>`, 'ach', 'ic_star'));
     G.on('potion', p => UI.toast(`<span>${esc(t('potionDrink', L(p.name)))} <b>${esc(p.short)} ${G.S.pots[p.id]}/${G.D.potCap}</b></span>`, '', 'pot_' + p.id));
     G.on('chestOpen', loot => {
@@ -175,6 +178,8 @@
   // ---------- Update loop ----------
   let goalKey = '';
   let zoneKey = '';
+  const goldHist = [];
+  G.on('ascend', () => { goldHist.length = 0; });
   // The world map: every land, its zones and its three stars
   UI.worldMap = function () {
     UI.mapSeen = true;
@@ -192,15 +197,16 @@
       return head + `<div class="wmRow ${i === here ? 'here' : ''} ${cleared ? 'clear' : ''}">${img(R_.fodder, '', 3)}<div><b>${esc(R_.name)}${i === here ? ` <em>${esc(t('landHere'))}</em>` : ''}</b>
         <small>${esc(R_.rule)}: ${esc(R_.ruleDesc)}</small>
         <div class="wmZones">${zones}</div>
-        <small>${esc(t('landKills', fmt(Math.min(rec.k | 0, need)), fmt(need)))} · ${esc(R_.lordName)}</small></div><span class="lstars">${stars}</span></div>`;
+        <small>${esc(t('landKills', Math.min(rec.k | 0, need).toLocaleString('en-US'), Math.round(need).toLocaleString('en-US')))} · ${esc(R_.lordName)}</small></div><span class="lstars">${stars}</span></div>`;
     }).join('');
-    UI.modal(t('worldMap'), `<p class="note">${esc(t('worldHint'))}</p><p class="note">${esc(t('starReqs', fmt(G.STAR_KILLS(here)), G.STAR_SWIFT))}</p><p class="wmTotal">\u2605 ${n} / ${3 * G.REALMS.length} · +${Math.round(n * G.STAR_BONUS * 100)}%</p><div class="wmList">${rows}</div>`, [{ label: t('close') || 'Close', cls: '' }]);
+    UI.modal(t('worldMap'), `<p class="note">${esc(t('worldHint'))}</p><p class="note">${esc(t('starReqs', Math.round(G.STAR_KILLS(here)).toLocaleString('en-US'), G.STAR_SWIFT))}</p><p class="wmTotal">\u2605 ${n} / ${3 * G.REALMS.length} · +${+(n * G.STAR_BONUS * 100).toFixed(1)}%</p><div class="wmList">${rows}</div>`, [{ label: t('close') || 'Close', cls: '' }]);
   };
   function updateGoal() {
     const S = G.S, box = $('#goal');
     const on = !!(S.hero && S.hero.cls);
     box.hidden = !on;
-    setText($('#omenLine'), on ? t('omenLine', G.omen().name) : '');
+    // the day's twist, and what it does
+    setText($('#omenLine'), on ? t('omenLine', G.omen().name) + ' · ' + G.omen().desc : '');
     // where you stand among friends, right on the play screen
     const N = G.Net, rl = $('#rivalLine');
     const list = on && N && N.entries.length > 1 ? N.sorted('depth') : [];
@@ -238,7 +244,7 @@
           const P = G.PERKS[id], lv = h.perks[id] || 0;
           return `<button class="card" data-perk="${id}" style="animation-delay:${i * 0.07}s">${img(P.icon, '', 4)}<b>${esc(P.name)}</b><span class="lv">${esc(lv ? t('perkLv', lv + ' → ' + (lv + 1)) : t('perkNew'))}</span><small>${esc(P.desc)}</small></button>`;
         }).join('')}</div><p class="auto" data-auto></p>`;
-        box.hidden = false; box.dataset.t = performance.now();
+        box.hidden = false; box.dataset.shownAt = performance.now();
       }
     }
     if (offer) setText(box.querySelector('[data-auto]'), (h.autoPerk ? t('perkAuto', Math.max(0, Math.ceil(12 - (h.offerT || 0)))) + ' · ' : '') + t('perkHint'));
@@ -252,7 +258,11 @@
     UI._goldLast = S.gold;
     UI._gold = Math.abs(gShow - S.gold) < Math.max(1, S.gold * 0.001) ? S.gold : gShow;
     setText($('#goldNum'), fmt(UI._gold));
-    setText($('#gpsNum'), fmt(D.gps, true));
+    // gold per second from everything (the Horde, clicks, the garrison), averaged over the last 10 seconds
+    const nowS = performance.now() / 1000;
+    if (!goldHist.length || nowS - goldHist[goldHist.length - 1][0] >= 1) { goldHist.push([nowS, S.goldTotal]); while (goldHist.length > 11) goldHist.shift(); }
+    const g0 = goldHist[0], rate = goldHist.length > 2 && S.goldTotal >= g0[1] ? (S.goldTotal - g0[1]) / Math.max(1, nowS - g0[0]) : 0;
+    setText($('#gpsNum'), fmt(Math.max(D.gps, rate), true));
     setText($('#clickNum'), fmt(D.click, true));
     setText($('#essNum'), fmt(S.essence, true));
     setText($('#eggNum'), fmt(S.eggs));
@@ -286,10 +296,12 @@
     if (tabOpen('quests') && (S.quests.some(q => q.done) || G.dailyAvailable())) qDot.hidden = false;
     // HUD
     const realm = G.REALMS[G.realmIndex(S.depth)];
-    setText($('#realmName'), G.realmName(S.depth));
+    // in a Rift the HUD names the Rift's land, not the campaign's
+    const hd = R.rift ? R.rift.d : S.depth;
+    setText($('#realmName'), G.realmName(hd));
     // where you are in this land: five zones, the last one the lord's
-    const li = G.realmIndex(S.depth), z = G.zoneOf(S.depth);
-    const zk = S.depth + '|' + (G.starsOf ? G.starsOf(li) : 0);
+    const li = G.realmIndex(hd), z = G.zoneOf(hd);
+    const zk = hd + '|' + (G.starsOf ? G.starsOf(li) : 0) + '|' + !!R.rift;
     if (zk !== zoneKey) {
       zoneKey = zk;
       let pips = '';
@@ -298,8 +310,10 @@
       const n = G.starsOf ? G.starsOf(li) : 0;
       $('#landStars').innerHTML = [0, 1, 2].map(i => `<i class="${i < n ? 'on' : ''}">\u2605</i>`).join('');
     }
-    setText($('#zoneName'), G.ZONE_NAME(S.depth));
-    setText($('#realmSub'), t('depth') + ' ' + (S.depth + 1) + ' · ' + (G.isLord(S.depth) ? t('lordTitle') + ': ' : t('bossTitle') + ': ') + L(G.bossName(S.depth)));
+    $('#zonePips').hidden = !!R.rift;
+    setText($('#zoneName'), R.rift ? t('riftName', R.rift.lvl) : G.ZONE_NAME(S.depth) + (innerWidth < 600 ? ' · ' + t('depthShort') + (S.depth + 1) : ''));
+    if (R.rift) setText($('#realmSub'), t('riftName', R.rift.lvl) + ' · ' + t('depth') + ' ' + (R.rift.d + 1));
+    else setText($('#realmSub'), t('depth') + ' ' + (S.depth + 1) + ' · ' + (G.isLord(S.depth) ? t('lordTitle') + ': ' : t('bossTitle') + ': ') + L(G.bossName(S.depth)));
     const cm = $('#chestMeter');
     cm.style.width = Math.min(100, S.chestMeter / D.chestNeed * 100) + '%';
     const comboK = R.combo / (D.comboCap || 1);
@@ -308,6 +322,7 @@
     setText($('#comboText'), t('combo') + ' ' + Math.floor(R.combo) + ' · ×' + (1 + R.combo * D.comboPer).toFixed(2));
     setText($('#chestText'), t('nextChest') + ' ' + Math.floor(S.chestMeter / D.chestNeed * 100) + '%');
     const bossShown = !!(S.hero && S.hero.cls);
+    setClass($('#stageWrap'), 'fighting', !!R.boss);
     $('#bossRow').hidden = !bossShown;
     $('#btnRift').hidden = !(bossShown && !R.boss && !R.rift && G.riftOpenable());
     if (bossShown && R.rift) {
@@ -330,7 +345,9 @@
         $('#bossMeter').style.width = Math.min(100, S.bossMeter / need * 100) + '%';
         const hs = G.hordeScale(), weak = hs <= 0.45;
         const wave = Math.min(3, 1 + Math.floor(3 * S.bossMeter / need));
-        setText($('#bossText'), R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
+        const odds = R.bossReady && G.bossOdds ? G.bossOdds() : 1;
+        const narrow = innerWidth < 600;
+        setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
         setClass($('#bossWrap'), 'waves', true);
         setClass($('#bossWrap'), 'weak', weak && !R.bossReady);
         $('#btnFight').hidden = !R.bossReady; $('#btnRetreat').hidden = true;
@@ -380,7 +397,7 @@
   // ---------- Render tabs ----------
   const renderers = {}, updaters = {};
   function applyStatic() {
-    $$('[data-t]').forEach(el => setText(el, t(el.dataset.t)));
+    $$('[data-i18n]').forEach(el => setText(el, t(el.dataset.i18n)));
     $$('[data-depth-label]').forEach(el => setText(el, t('depth')));
   }
   UI.render = function () {
@@ -501,7 +518,7 @@
   // Constellation
   renderers.stars = function (body) {
     const S = G.S;
-    const width = Math.max(260, body.clientWidth - 8);
+    const width = Math.max(260, body.clientWidth - 24);
     const cell = Math.floor(Math.min(48, (width - 8) / 11));
     const cellY = Math.round(cell * 1.12);
     const mw = cell * 11 + 8, mh = cellY * 12 + 12;
@@ -514,19 +531,21 @@
     }
     body.innerHTML = `
       <p class="note">${esc(t('starsHint'))}</p>
+      <div class="detail" data-detail></div>
       <div class="starmap" style="width:${mw}px;height:${mh}px">
         <svg viewBox="0 0 ${mw} ${mh}" aria-hidden="true">${lines}</svg>
         ${G.NODES.map(n => { const p = pos(n); const sz = n.max === 1 && n.cost >= 150 ? nodeSize + 6 : nodeSize; return `<button class="node${sz > nodeSize ? ' big' : ''}" data-n="${n.id}" style="left:${p.x}px;top:${p.y}px;width:${sz}px;height:${sz}px;--c:${G.BRANCH_COLORS[n.br]}" aria-label="${esc(L(n.name))}"><i></i></button>`; }).join('')}
-      </div>
-      <div class="detail" data-detail></div>`;
+      </div>`;
     refs.nodes = $$('.node', body).map(el => ({ el, n: G.NODE_BY_ID[el.dataset.n], lbl: el.querySelector('i') }));
     refs.lines = $$('line', body);
     refs.detail = body.querySelector('[data-detail]');
     body.querySelector('.starmap').addEventListener('click', e => {
       const b = e.target.closest('.node'); if (!b) return;
-      if (selNode === b.dataset.n) { if (!G.buyNode(selNode)) G.Audio.error(); }
+      // a second click buys with a mouse; on touch screens only the Learn button does, so nothing is bought unseen
+      if (selNode === b.dataset.n && !matchMedia('(pointer: coarse)').matches) { if (!G.buyNode(selNode)) G.Audio.error(); }
       selNode = b.dataset.n;
       renderDetail(true);
+      if (refs.detail) refs.detail.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       UI.update(true);
     });
     renderDetail(true);
@@ -791,7 +810,7 @@
     const got = Object.keys(S.ach).length;
     const stats = [
       ['st_goldTotal', fmt(S.goldTotal)], ['st_clicks', fmt(S.clicks)], ['st_chests', fmt(S.st.chests)], ['st_boss', fmt(S.st.bossKills)],
-      ['st_lords', fmt(S.st.lordKills)], ['st_best', S.bestDepth], ['st_crits', fmt(S.st.crits)], ['st_combo', Math.floor(S.st.maxCombo)],
+      ['st_lords', fmt(S.st.lordKills)], ['st_best', S.bestDepth + 1], ['st_crits', fmt(S.st.crits)], ['st_combo', Math.floor(S.st.maxCombo)],
       ['st_wisps', fmt(S.st.wisps)], ['st_merges', fmt(S.st.merges)], ['st_divine', fmt(S.st.divine)], ['st_asc', S.ascensions], ['st_time', G.fmtTime(S.st.playTime)],
     ];
     body.innerHTML = `
@@ -855,8 +874,8 @@
     const S = G.S;
     if (!refs.gain) return;
     const g = G.fameGain();
-    setText(refs.gain, g >= 1 ? '+' + fmt(g) + ' ★' : t('ascNeed'));
-    setText(refs.passive, t('famePassive', fmt(S.fameTotal), fmt(S.fameTotal)));
+    setText(refs.gain, g >= 1 ? '+' + fmt(g) + ' ' + t('fame').toLowerCase() : t('ascNeed'));
+    setText(refs.passive, t('famePassive', fmt(S.fameTotal), fmt(S.fameTotal), fmt(S.fameTotal * 0.5)));
     refs.ascBtn.disabled = g < 1;
     for (const r of refs.rows) {
       const L_ = S.legacy[r.l.id] || 0, maxed = L_ >= r.l.max, c = G.legacyCost(r.l);
@@ -866,7 +885,7 @@
       setClass(r.el, 'can', !maxed && S.fame >= c);
       setClass(r.el, 'cant', !maxed && S.fame < c);
     }
-    setText($('#tabSub'), fmt(S.fame) + ' ★');
+    setText($('#tabSub'), fmt(S.fame) + ' ' + t('fame').toLowerCase());
   };
 
   // Character: paper doll, stats, bag, enchanting and records
@@ -934,7 +953,7 @@
       <div class="sect">${esc(t('orbs'))} <small style="color:var(--dim)">${esc(t('orbHint'))}</small></div>
       <div data-orbs></div>
       <div class="statList heroStats" data-stats></div>
-      <div class="sect">${esc(t('bag'))} <span data-bagn></span> · ${img('ic_ess', 'inl', 2)} <span data-shards></span> ${esc(t('shards'))}</div>
+      <div class="sect">${esc(t('bag'))} <span data-bagn></span> · ${img('ic_shard', 'inl', 2)} <span data-shards></span> ${esc(t('shards'))}</div>
       <div class="bag" data-bag></div>
       <div class="setList" style="margin-top:8px">
         <div class="setRow"><span>${esc(t('autoEquip'))}</span><button class="toggle ${h.auto ? 'on' : ''}" data-ht="auto" aria-label="${esc(t('autoEquip'))}"></button></div>
@@ -960,10 +979,11 @@
       if (sb) { h.salv = +sb.dataset.r; $$('[data-salv] button', body).forEach(x => x.classList.toggle('on', x === sb)); return; }
       if (e.target.closest('[data-salvall]')) {
         const r = G.salvageBelow(Math.max(1, h.salv || 2));
-        UI.toast(esc(t('salvaged', r.n, fmt(r.v))), '', 'ic_ess'); refs.hero.key = ''; return;
+        UI.toast(esc(t('salvaged', r.n, fmt(r.v))), '', 'ic_shard'); refs.hero.key = ''; return;
       }
       const gt = e.target.closest('[data-g]');
-      if (gt) { selGear = +gt.dataset.g; refs.hero.key = ''; updaters.hero(true); return; }
+      // the item's details sit above the bag: bring them into view, or on a phone nothing seems to happen
+      if (gt) { selGear = +gt.dataset.g; refs.hero.key = ''; updaters.hero(true); if (refs.hero.gd) refs.hero.gd.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
       const ds = e.target.closest('.dslot');
       if (ds && !e.target.closest('[data-g]')) { const g = h.eq[ds.dataset.slot]; if (g) { selGear = g.u; refs.hero.key = ''; updaters.hero(true); } return; }
       const ob = e.target.closest('[data-orb]');
@@ -983,7 +1003,7 @@
         if (a === 'equip') G.equip(f.g);
         else if (a === 'unequip') G.unequip(f.worn);
         else if (a === 'enchant') { if (!G.enchant(f.g)) G.Audio.error(); }
-        else if (a === 'salvage') { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_ess'); selGear = null; } }
+        else if (a === 'salvage') { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_shard'); selGear = null; } }
         refs.hero.key = ''; updaters.hero(true);
       }
     });
@@ -1044,7 +1064,7 @@
     ];
     rf.stats.innerHTML = rows.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('');
     // Records (ladder material)
-    const rec = [['rec_depth', S.bestDepth], ['gsLadder', fmt(G.ladderSnapshot().power)], ['rec_power', fmt(S.rec.maxPower)], ['rec_level', S.rec.maxLevel], ['rec_mad', S.rec.madTime ? G.fmtTime(S.rec.madTime) : '—'], ['rec_rift', S.rift.best || '—']];
+    const rec = [['rec_depth', S.bestDepth + 1], ['gsLadder', fmt(G.ladderSnapshot().power)], ['rec_power', fmt(S.rec.maxPower)], ['rec_level', S.rec.maxLevel], ['rec_mad', S.rec.madTime ? G.fmtTime(S.rec.madTime) : '—'], ['rec_rift', S.rift.best || '—']];
     rf.rec.innerHTML = rec.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('');
     // Detail
     const f = selGear ? findGear(selGear) : null;
@@ -1063,7 +1083,7 @@
       ${cmp !== null ? `<p>${esc(t('vsWorn'))}: <b style="color:${cmp >= 0 ? 'var(--good)' : 'var(--bad)'}">${cmp >= 0 ? '+' : ''}${fmt(cmp)} ${esc(t('power').toLowerCase())}</b></p>` : ''}
       <div class="act">
         ${f.worn ? `<button class="btn" data-act="unequip">${esc(t('unequip'))}</button>` : `<button class="btn gold" data-act="equip">${esc(t('equip'))}</button>`}
-        <button class="btn ${canE ? 'gold' : ''}" data-act="enchant" ${g.e >= G.ENCHANT_MAX ? 'disabled' : ''}>${esc(t('enchant'))} ${g.e >= G.ENCHANT_MAX ? t('max') : `${img('ic_ess', '', 2)}${fmt(ec.shards)} ${img('ic_coin', '', 2)}${fmt(ec.gold)}`}</button>
+        <button class="btn ${canE ? 'gold' : ''}" data-act="enchant" ${g.e >= G.ENCHANT_MAX ? 'disabled' : ''}>${esc(t('enchant'))} ${g.e >= G.ENCHANT_MAX ? t('max') : `${img('ic_shard', '', 2)}${fmt(ec.shards)} ${img('ic_coin', '', 2)}${fmt(ec.gold)}`}</button>
         ${f.worn ? '' : `<button class="btn red" data-act="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))}</button>`}
       </div>`;
   };
@@ -1078,7 +1098,7 @@
     const m = UI.modal(t('pickClass'), html, [], true);
     m.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => {
       G.chooseClass(b.dataset.c);
-      if (!G.S.profile.name && G.Net && G.Net.myName) G.S.profile.name = G.Net.myName.slice(0, 16);
+      if (!G.S.profile.name && G.Net && G.Net.myName) { G.S.profile.name = G.Net.myName.trim().split(/\s+/)[0].slice(0, 16); setTimeout(() => UI.toast(esc(t('onLadderAs', G.S.profile.name)), '', 'ic_crown'), 4000); }
       m.hidden = true; m.innerHTML = '';
       UI.render();
     }));
@@ -1129,7 +1149,7 @@
     const might = (D.heroDps || 0) / G.mobHp(d);
     setText(r.lv, String(riftSel));
     const col = might >= 6 ? 'var(--good)' : might >= 2.5 ? '#ffe27a' : 'var(--bad)';
-    const info = `${esc(t('riftHere', d + 1, G.realmName(d)))} <b style="color:${col}">${esc(t('riftCan', might >= 100 ? fmt(might) : might.toFixed(1)))}</b>`;
+    const info = `${esc(t('riftHere', d + 1, G.realmName(d)))} <b style="color:${col}">${esc(t('riftCan', t(might >= 6 ? 'riftEasy' : might >= 2.5 ? 'riftEven' : 'riftHard')))}</b>`;
     if (r.info._h !== info) { r.info.innerHTML = info; r.info._h = info; }
     setText(r.open, R.rift ? t('riftName', R.rift.lvl) + ' · ' + Math.ceil(R.rift.t) + 's' : t('riftOpenBtn', riftSel));
     r.open.disabled = !!(R.rift || R.boss);
@@ -1154,7 +1174,8 @@
   function crownBoard() {
     const N = G.Net, list = N.entries.filter(e => e.ok || e.me), S = G.S;
     const rows = [];
-    for (let d = G.REALM_SIZE - 1; d <= Math.max(S.bestDepth, ...list.map(e => e.depth || 0)); d += G.REALM_SIZE) {
+    const top = Math.max(S.bestDepth, ...list.filter(e => e.ok).flatMap(e => Object.keys(e.cr || {}).map(Number)).filter(n => n < 100000));
+    for (let d = G.REALM_SIZE - 1; d <= top; d += G.REALM_SIZE) {
       const best = list.filter(e => e.cr && e.cr[d]).sort((a, b) => a.cr[d] - b.cr[d])[0];
       const mine = S.rec.crowns && S.rec.crowns[d];
       rows.push(`<div class="lrow crow ${best && best.me ? 'me' : ''}"><b class="rk">${best ? '\u{1F451}' : '·'}</b>
@@ -1185,9 +1206,10 @@
     const cls = G.CLASS_BY_ID[e.cls] || G.CLASSES[0], N = G.Net;
     const nm = N.displayName(e) || t('anon'), v = ladderVal(e, by);
     const acc = N.accountName(e);
-    return `<div class="lrow ${e.me ? 'me' : ''} ${e.ok ? '' : 'bad'}" data-uid="${esc(e.uid)}" role="button" tabindex="0">
+    const age = e.ts ? (Date.now() - e.ts) / 1000 : 0, stale = age > 14 * 86400;
+    return `<div class="lrow ${e.me ? 'me' : ''} ${e.ok ? '' : 'bad'} ${stale ? 'stale' : ''}" data-uid="${esc(e.uid)}" role="button" tabindex="0">
         <b class="rk">${i + 1}</b><img class="ldoll" src="${G.Doll.portrait(G.Doll.fromSnapshot(e), 2, true)}" alt="">
-        <span class="nm">${esc(nm)}${e.me ? ' · ' + esc(t('you')) : ''}<small>${esc(L(cls.name))} · ${esc(t('lvl'))} ${e.lvl}${acc && acc !== nm ? ' · ' + esc(acc) : ''}${e.ok ? '' : ' · ' + esc(t('unverified'))}</small></span>
+        <span class="nm">${esc(nm)}${e.me ? ' · ' + esc(t('you')) : ''}<small>${esc(L(cls.name))} · ${esc(t('lvl'))} ${e.lvl}${acc && acc !== nm ? ' · ' + esc(acc) : ''}${!e.me && age > 3600 ? ' · ' + esc(t('seenAgo', G.fmtTime(Math.floor(age / 3600) * 3600))) : ''}${e.ok ? '' : ' · ' + esc(t('unverified'))}</small></span>
         <span class="v"><b>${esc(v[0])}</b><small>${esc(v[1])}</small></span>
       </div>`;
   }
@@ -1218,9 +1240,15 @@
       if (e.target.closest('[data-brag]')) {
         const h = S.hero, snap = G.ladderSnapshot(), crowns = Object.keys(S.rec.crowns || {}).filter(d => { const mine = S.rec.crowns[d]; return !N.entries.some(e => !e.me && e.cr && e.cr[d] && e.cr[d] < mine); }).length;
         const grid = G.UNIQUE_IDS.map(q => S.uq[q] ? '\u{1F7E7}' : '\u2B1B').join('');
-        const txt = t('bragText', L((G.CLASS_BY_ID[h.cls] || G.CLASSES[0]).name), snap.lvl, S.bestDepth + 1, S.rift.best, Object.keys(S.uq).length, fmt(snap.power), crowns, G.UNIQUE_IDS.length, grid);
-        const ok = () => UI.toast(esc(t('bragged')), 'ach', 'ic_crown');
-        try { navigator.clipboard.writeText(txt).then(ok, () => UI.toast(esc(txt), '', 'ic_crown')); } catch (err) { UI.toast(esc(txt), '', 'ic_crown'); }
+        // only what's worth saying: zeros stay out
+        const parts = ['\u2694 ' + t('depth') + ' ' + (S.bestDepth + 1)];
+        if (S.rift.best) parts.push('\u25c8 ' + t('riftName', S.rift.best));
+        if (snap.ls) parts.push('\u2605 ' + snap.ls + ' ' + t('byStars').toLowerCase());
+        if (crowns) parts.push('\u{1F451} ' + crowns);
+        const txt = t('bragText', L((G.CLASS_BY_ID[h.cls] || G.CLASSES[0]).name), snap.lvl, fmt(snap.power), parts.join(' · '), Object.keys(S.uq).length, G.UNIQUE_IDS.length, grid) + '\n' + t('bragJoin', G.SHARE_URL);
+        // a box to copy from, since the clipboard may be refused inside the page
+        const m = UI.modal(t('bragTitle'), `<textarea class="bragBox" readonly rows="6">${esc(txt)}</textarea>`, [{ label: t('bragCopy'), cls: 'gold', fn: () => { try { navigator.clipboard.writeText(txt).then(() => UI.toast(esc(t('bragged')), 'ach', 'ic_crown'), () => {}); } catch (err) { /* the text stays selectable */ } } }, { label: t('close') }]);
+        const ta = m.querySelector('textarea'); if (ta) { ta.focus(); ta.select(); }
         return;
       }
       if (e.target.closest('[data-cloud]')) { askCloud(N.cloud); return; }
@@ -1232,15 +1260,17 @@
   updaters.ladder = function (force) {
     const N = G.Net, rf = refs.lad, S = G.S;
     if (!rf) return;
-    const ago = ts => ts ? G.fmtTime((Date.now() - ts) / 1000) : '—';
+    const ago = ts => ts ? t('agoT', G.fmtTime((Date.now() - ts) / 1000)) : t('notYet');
     const statusText = N.status === 'online' ? (N.mode === 'http' ? t('netHttp') : t('netArtifact'))
-      : N.status === 'connecting' ? t('netConnecting') : N.status === 'error' ? t('netError', N.error) : t('netOff');
+      : N.status === 'connecting' ? t('netConnecting') : N.status === 'error' ? t('netDown') : N.status === 'signin' ? t('netSignin') : t('netOff');
     const netHtml = `<h3>${esc(statusText)}</h3>
-      ${N.status === 'online' ? `<p>${esc(N.readOnly ? t('netReadOnly') + ' ' + t('readOnlyHow') : t('netSynced', ago(N.lastSaveAt), ago(N.lastLadderAt)))}</p>` : `<p>${esc(t('netOffHint'))}</p>`}
+      ${N.isOwner ? `<div class="invite"><b>${esc(t('inviteTitle'))}</b><p>${esc(t('inviteHow'))}</p></div>` : ''}
+      ${N.status === 'online' ? `<p>${esc(N.readOnly ? t('netReadOnly') + ' ' + t('readOnlyHow') : t('netSynced', ago(N.lastSaveAt), ago(N.lastLadderAt)))}</p>`
+        : `<p>${esc(N.status === 'error' ? t('netDownHint') : N.status === 'signin' ? t('netSigninHint') : N.status === 'connecting' ? '' : t('netOffHint'))}</p>`}
       ${S.profile.name ? '' : `<p>${esc(t('noNameYet'))} <button class="btn" data-name>${esc(t('setName'))}</button></p>`}
       <div class="act">${N.status === 'online' && !N.readOnly ? `<button class="btn gold" data-push>${esc(t('syncNow'))}</button>` : ''}
         ${N.cloud ? `<button class="btn" data-cloud>${esc(t('loadCloud'))}</button>` : ''}</div>
-      ${N.error && N.status === 'online' ? `<p style="color:var(--bad)">${esc(t('netError', N.error))}</p>` : ''}
+      ${N.error && N.status === 'online' && !N.readOnly ? `<p style="color:var(--bad)">${esc(N.error === 'unavailable' ? t('netDown') : t('netError', N.error))}</p>` : ''}
       ${N.behind ? `<p class="note warn">${esc(t('netBehind'))}</p>` : ''}
       ${(() => { const mine = N.entries.find(e => e.me); return mine && !mine.ok ? `<p class="note warn">${esc(t('myHidden', (mine.problems || []).join(', ')))}</p>` : ''; })()}`;
     if (rf.net._h !== netHtml) { rf.net.innerHTML = netHtml; rf.net._h = netHtml; }
@@ -1253,7 +1283,7 @@
     if (rf.feed._h !== fh) { rf.feed.innerHTML = fh; rf.feed._h = fh; }
     if (ladderBy === 'crowns' || ladderBy === 'firsts') { rf.list.innerHTML = ladderBy === 'crowns' ? crownBoard() : firstsBoard(); return; }
     if (ladderBy === 'mad' && !list.length) { rf.list.innerHTML = `<p class="note">${esc(t('madHint'))}</p>`; return; }
-    if (!list.length) { rf.list.innerHTML = `<p class="note">${esc(N.status === 'online' ? t('ladderEmpty') : t('ladderOffline'))}</p>`; return; }
+    if (!list.length) { rf.list.innerHTML = `<p class="note">${esc(N.status !== 'online' ? t('ladderOffline') : ['rift', 'uq', 'stars'].includes(ladderBy) ? t('beFirst') : t('ladderEmpty'))}</p>` + (suspicious ? `<p class="note">${esc(t('hiddenBad', suspicious))}</p>` : ''); return; }
     rf.list.innerHTML = list.slice(0, 100).map((e, i) => ladderRow(e, i, ladderBy)).join('') + (suspicious ? `<p class="note">${esc(t('hiddenBad', suspicious))}</p>` : '');
     const myIdx = list.findIndex(e => e.me);
     setText($('#tabSub'), myIdx >= 0 ? t('yourRank', myIdx + 1, list.length) : '');
@@ -1273,19 +1303,30 @@
     }).join('');
     const d = (e.power || 0) - (mine.power || 0);
     const html = `<div class="insHead"><img src="${G.Doll.portrait(G.Doll.fromSnapshot(e), 4)}" alt=""><div>
-        <p><b>${esc(N.displayName(e) || t('anon'))}</b>${N.accountName(e) ? ' · ' + esc(N.accountName(e)) : ''}</p>
+        <p><b>${esc(N.displayName(e) || t('anon'))}</b>${N.accountName(e) && N.accountName(e) !== N.displayName(e) ? ' · ' + esc(N.accountName(e)) : ''}</p>
         <p>${esc(L((G.CLASS_BY_ID[e.cls] || G.CLASSES[0]).name))} · ${esc(t('lvl'))} ${e.lvl} · ${esc(t('depthShort'))} ${(e.depth || 0) + 1} · ${esc(t('riftName', e.rift || 0))} · ${esc(t('uniques'))} ${e.uq || 0}</p>
         <p>${esc(t('gearScore'))} <b>${fmt(e.power || 0)}</b>${e.me ? '' : ` <small style="color:${d > 0 ? 'var(--bad)' : 'var(--good)'}">(${d > 0 ? '+' : ''}${fmt(d)} ${esc(t('inspectVs'))})</small>`}</p></div></div>
       <div class="insGear">${rows}</div>`;
-    UI.modal(N.displayName(e) || t('anon'), html, [{ label: t('ok'), cls: 'gold' }]);
+    const acts = [{ label: t('ok'), cls: 'gold' }];
+    // the owner can take a row off the ladder (a cheat, or someone who left)
+    if (N.isOwner && !e.me) acts.push({ label: t('removeRow'), fn: () => N.removeRow(e.uid).then(() => UI.toast(esc(t('removed')), '', 'ic_skull'), err => UI.toast(esc(t('netError', err.code || err.message)), '', 'ic_skull')) });
+    UI.modal(N.displayName(e) || t('anon'), html, acts);
   }
   function askCloud(cloud) {
     if (!cloud) return;
     const when = new Date(cloud.ts || 0).toLocaleString();
-    UI.modal(t('cloudTitle'), `<p>${esc(t('cloudText', when))}</p>`, [
+    // say what each side holds, so nobody picks blind
+    const sum = x => x && x.cls ? t('cloudSum', L((G.CLASS_BY_ID[x.cls] || G.CLASSES[0]).name), x.lvl, x.depth, fmt(x.gold)) : t('cloudNew');
+    const there = G.Net.saveSummary(cloud.data), here = G.Net.saveSummary(G.S);
+    const keep = () => { G.Net.keepLocal(cloud); if (G.Tut) G.Tut.maybeIntro(); };
+    const weaker = there && (!here || !here.cls || here.gold < there.gold);
+    UI.modal(t('cloudTitle'), `<p>${esc(t('cloudText', when))}</p><div class="sumList"><div><b>${esc(t('cloudThere'))}</b><span>${esc(sum(there))}</span></div><div><b>${esc(t('cloudThis'))}</b><span>${esc(sum(here))}</span></div></div>`, [
       { label: t('cloudLoad'), cls: 'gold', fn: () => { G.Net.hold = false; if (G.Net.loadCloud()) { UI.toast(esc(t('imported')), 'ach', 'ic_scroll'); UI.render(); } else UI.toast(esc(t('badSave')), '', 'ic_skull'); } },
-      { label: t('cloudKeep'), fn: () => { G.Net.keepLocal(cloud); if (G.Tut) G.Tut.maybeIntro(); } },
-    ]);
+      { label: t('cloudKeep'), fn: () => {
+        if (!weaker) { keep(); return; }
+        setTimeout(() => UI.modal(t('cloudTitle'), `<p>${esc(t('cloudSure', sum(there)))}</p>`, [{ label: t('cloudLoad'), cls: 'gold', fn: () => askCloud(cloud) }, { label: t('cloudSureYes'), fn: keep }], true), 50);
+      } },
+    ], true); // only the two buttons close it: a stray tap must not leave the save on hold
   }
 
   // Settings
@@ -1306,6 +1347,7 @@
         <button class="btn" data-copy>${esc(t('copy'))}</button>
         <button class="btn gold" data-imp>${esc(t('import'))}</button>
         <button class="btn" data-save>${esc(t('saveNow'))}</button>
+        ${G.Net && G.Net.mode === 'artifact' && G.Net.uid ? `<button class="btn" data-restore>${esc(t('restoreBackup'))}</button>` : ''}
       </div>
       <div class="sect">&nbsp;</div>
       <button class="btn red" data-reset>${esc(t('resetBtn'))}</button>
@@ -1315,6 +1357,7 @@
       const tgB = e.target.closest('[data-t]');
       if (tgB) { const k = tgB.dataset.t; s[k] = s[k] ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.render(); return; }
       if (e.target.closest('[data-exp]')) { $('#saveBox').value = G.exportSave(); return; }
+      if (e.target.closest('[data-restore]')) { G.Net.restoreBackup().then(ok => { UI.toast(esc(ok ? t('imported') : t('noBackup')), ok ? 'ach' : '', 'ic_scroll'); if (ok) UI.render(); }); return; }
       if (e.target.closest('[data-copy]')) {
         const v = $('#saveBox').value || G.exportSave(); $('#saveBox').value = v;
         const ok = () => UI.toast(esc(t('copied')), '', 'ic_scroll');
@@ -1394,10 +1437,10 @@
       </div>
       ${r.warden && r.warden.kills ? `<p>${esc(t('wardenAway'))}</p><div class="sumList">
         <div>${img('ic_sword', '', 3)}<span>${esc(t('offKills', fmt(r.warden.kills)))}</span></div>
-        ${r.warden.levels ? `<div>${img('ic_star', '', 3)}<span style="color:#a8dcff">${esc(t('offLevels', r.warden.levels))}</span></div>` : ''}
-        ${r.warden.perks ? `<div>${img('ic_bolt', '', 3)}<span style="color:#ffe27a">${esc(t('offPerks', r.warden.perks))}</span></div>` : ''}
-        ${r.warden.shards ? `<div>${img('ic_ess', '', 3)}<span>${esc(t('offShards', fmt(r.warden.shards)))}</span></div>` : ''}
+        ${r.warden.levels ? `<div>${img('ic_star', '', 3)}<span style="color:#a8dcff">${esc(r.warden.levels === 1 ? t('offLevel1') : t('offLevels', r.warden.levels))}</span></div>` : ''}
+        ${r.warden.perks ? `<div>${img('ic_bolt', '', 3)}<span style="color:#ffe27a">${esc(r.warden.perks === 1 ? t('offPerk1') : t('offPerks', r.warden.perks))}</span></div>` : ''}
+        ${r.warden.shards ? `<div>${img('ic_shard', '', 3)}<span>${esc(t('offShards', fmt(r.warden.shards)))}</span></div>` : ''}
       </div>` : ''}`;
-    UI.modal(t('welcomeBack'), html, [{ label: t('collect'), cls: 'gold' }]);
+    UI.modal(t('welcomeBack'), html + (r.rested ? `<p style="color:#8ae07a">${esc(t('restedNote'))}</p>` : ''), [{ label: t('collect'), cls: 'gold' }]);
   };
 })(globalThis.G = globalThis.G || {});

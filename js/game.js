@@ -10,7 +10,7 @@
     depthGold: 1.08,        // gold multiplier per depth
     bossBase: 400,          // boss hp at depth 0
     bossGrowth: 2.5,        // boss hp growth per depth
-    lordHp: 4,
+    lordHp: 3,
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
     maxManualCps: 25,
@@ -456,7 +456,7 @@
   G.realmIndex = realmIndex;
   G.cycle = d => Math.floor(Math.max(0, d) / SPAN());
   const ROMAN = ['', '', ' II', ' III', ' IV', ' V', ' VI', ' VII', ' VIII', ' IX', ' X'];
-  G.corrupt = (name, d) => { const c = G.cycle(d); return c ? 'Corrupted ' + name + (ROMAN[c] || ' ' + c) : name; };
+  G.corrupt = (name, d) => { const c = G.cycle(d); return c ? 'Corrupted ' + name.replace(/^The /, '') + (c in ROMAN ? ROMAN[c] : ' ' + c) : name; };
   G.realmName = d => G.corrupt(G.REALMS[realmIndex(d)].name, d);
   function isLord(d) { return d % G.REALM_SIZE === G.REALM_SIZE - 1; }
   G.isLord = isLord;
@@ -513,8 +513,9 @@
     const max = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
     // a boss that got away comes back with the wounds it took
     const scar = S.scar && S.scar.d === d ? S.scar.k : 1;
-    // every failed try at a lord rallies the Warden: +20% damage on it, up to +100%
-    const rally = lord && S.scar && S.scar.d === d ? 0.2 * Math.min(5, S.scar.n || 0) : 0;
+    // every failed try rallies the Warden: +20% damage on a lord (+15% on a boss), up to five tries,
+    // and after a long rest the first fight is fought rested (+40%)
+    const rally = (S.scar && S.scar.d === d ? (lord ? 0.2 : 0.15) * Math.min(5, S.scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
     R.boss = { d, lord, hp, max, scar, rally, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
@@ -524,6 +525,15 @@
     return true;
   }
   G.startBoss = startBoss;
+  // How much of this depth's boss the Warden would take down in the time limit, without clicking (1 = all of it)
+  function bossOdds() {
+    const S = G.S, d = S.depth, lord = isLord(d);
+    const scar = S.scar && S.scar.d === d ? S.scar : null;
+    const hp = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1) * (scar ? scar.k : 1);
+    const rally = (scar ? (lord ? 0.2 : 0.15) * Math.min(5, scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
+    return (D.heroDps || 0) * (D.bossMult || 1) * (1 + rally) * (D.bossTime + (lord ? 15 : 0)) / Math.max(1e-9, hp);
+  }
+  G.bossOdds = bossOdds;
 
   function hitBoss(dmg) {
     const b = R.boss;
@@ -559,7 +569,7 @@
     const tier = b.lord ? Math.min(6, 1 + Math.floor(d / 8)) : Math.min(5, Math.floor(d / 8));
     const count = (b.lord ? 2 : 1) * om;
     if (G.heroBossEnd) G.heroBossEnd(true); // its swarm dies with it, still in this land
-    S.scar = null;
+    S.scar = null; S.rested = 0;
     S.depth++;
     if (S.depth > S.maxDepth) S.maxDepth = S.depth;
     if (S.depth > S.bestDepth) S.bestDepth = S.depth;
@@ -581,7 +591,10 @@
     // it keeps 70% of the damage it took, and never comes back weaker than 25%
     const left = Math.max(0, b.hp / b.max);
     // only a try that actually hurt the boss counts toward Rally
-    S.scar = { d: b.d, k: Math.max(0.25, left + (1 - left) * 0.3), n: (S.scar && S.scar.d === b.d ? S.scar.n || 0 : 0) + (left < 0.95 ? 1 : 0) };
+    // and it heals back less after each try, so a wall always gives way to someone who keeps at it
+    const n0 = S.scar && S.scar.d === b.d ? S.scar.n || 0 : 0;
+    S.scar = { d: b.d, k: Math.max(0.15, left + (1 - left) * 0.3 / (1 + n0)), n: n0 + (left < 0.95 ? 1 : 0) };
+    S.rested = 0;
     b.wound = 1 - S.scar.k;
     if (G.heroBossEnd) G.heroBossEnd(false);
     S.bossMeter = Math.floor(D.bossNeed * 0.5);
@@ -882,6 +895,8 @@
     recalc();
     const t = Math.min(sec, D.offCap);
     const gold = D.gpsBase * t * D.offEff;
+    // back after a long rest: the next boss fight hits harder
+    if (sec >= 4 * 3600) G.S.rested = 1;
     addGold(gold);
     // Scouts and the golem keep finding chests while away (opened virtually).
     const rate = D.scout + (D.autoOpen ? Math.min(1 / D.autoOpen, 2) * 0.25 : 0);
@@ -892,7 +907,7 @@
       items += l.items.length; ess += l.ess; extraGold += l.gold;
     }
     const warden = G.heroOffline ? G.heroOffline(t) : null;
-    return { sec, t, gold: gold + extraGold, chests: n, items, ess, warden };
+    return { sec, t, gold: gold + extraGold, chests: n, items, ess, warden, rested: !!G.S.rested };
   }
   G.applyOffline = applyOffline;
 
@@ -940,7 +955,8 @@
       }
     } else if (S.bossMeter >= D.bossNeed) {
       if (!R.bossReady) { R.bossReady = true; emit('bossReady'); }
-      if (D.autoBoss && S.set.autoBoss) startBoss();
+      // the Hunt only calls a boss it can beat, or tries again after a minute and a half so Rally can build
+      if (D.autoBoss && S.set.autoBoss && (bossOdds() >= 1 || (R.autoWait = (R.autoWait || 0) + dt) > 90)) { R.autoWait = 0; startBoss(); }
     }
     // Golem auto-opener
     if (D.autoOpen) {

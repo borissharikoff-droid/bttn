@@ -46,7 +46,18 @@
   }
   function uniqueFor(depth, boss) {
     const ok = G.UNIQUE_IDS.filter(q => { const U = G.UNIQUES[q]; return U.minD <= depth && (!U.boss || boss); });
-    return ok.length ? ok[Math.floor(G.rng() * ok.length)] : null;
+    // half the time it's one you don't have yet, if there is one
+    const fresh = ok.filter(q => !S_().uq[q]);
+    const from = fresh.length && chance(0.5) ? fresh : ok;
+    return from.length ? from[Math.floor(G.rng() * from.length)] : null;
+  }
+  // Bad-luck protection for uniques: the 25th chance in a row without one is a sure thing
+  const UQ_PITY = 25;
+  function uqChance_(p, src) {
+    const st = S_().st;
+    if (src === 'rift') return chance(p);
+    st.dryQ = (st.dryQ || 0) + 1;
+    return st.dryQ >= UQ_PITY || chance(p);
   }
   // floor: the lowest rarity it can be; rolls: best of n rarity rolls
   function rollGear(floor, rolls) {
@@ -72,7 +83,7 @@
     // item level is fixed where it falls: Rift loot keeps the Rift's depth
     if (kind === 'gear') { e.it = what; e.r = what.r; e.il = d + (chance(0.35) ? 1 : 0); }
     else if (kind === 'orb') { e.orb = what; e.r = what === 'grace' ? 6 : what === 'ascent' ? 4 : what === 'ruin' ? 3 : 1; }
-    else { e.q = what; e.r = 7; e.il = d + 1; }
+    else { e.q = what; e.r = 7; e.il = d + 1; S.st.dryQ = 0; }
     place(e, m, (o && o.spread) || 0.025);
     if (o && o.at) { e.a = G.clamp(o.at.a + rand(-0.16, 0.16), 0, 1); e.p = G.clamp(o.at.p + rand(-0.22, 0.18), 0.2, 0.95); }
     e.life = kind === 'orb' ? TUNE.lingerOrb : kind === 'uq' ? TUNE.lingerUnique : what.r >= 3 ? TUNE.lingerGood : TUNE.lingerGear;
@@ -94,7 +105,7 @@
     // only the first floorN items are promised the floor; the rest roll on their own
     const fn = o.floorN != null ? o.floorN : n;
     for (let i = 0; i < n; i++) items.push(i >= fn && chance(TUNE.orbShare) ? ['orb', rollOrb()] : ['gear', rollGear(i < fn ? floor : Math.max(0, floor - 2), i < fn ? o.rolls : 1)]);
-    if (uqChance && chance(uqChance)) { const q = uniqueFor(d, o.boss); if (q) items.push(['uq', q]); }
+    if (uqChance && uqChance_(uqChance, o.src)) { const q = uniqueFor(d, o.boss); if (q) items.push(['uq', q]); }
     const val = ([k, w]) => k === 'uq' ? 9 : k === 'orb' ? (w === 'grace' ? 8 : 1) : w.r;
     items.sort((a, b) => val(a) - val(b));
     let first = null;
@@ -143,7 +154,7 @@
     let q = null;
     if (b.lord && !S.st.firstLordUq) { S.st.firstLordUq = 1; q = S.uq.pincer ? uniqueFor(b.d, false) || 'goldgrin' : 'pincer'; }
     // boss-only uniques come from their own lord (the Mad Button, the First Hand) in every cycle
-    else if (chance(b.lord ? 0.07 : 0.01)) q = uniqueFor(b.d, b.lord && G.UNIQUE_IDS.some(k => G.UNIQUES[k].boss && G.UNIQUES[k].minD === b.d % (G.REALMS.length * G.REALM_SIZE)));
+    else if (uqChance_(b.lord ? 0.07 : 0.01, 'boss')) q = uniqueFor(b.d, b.lord && G.UNIQUE_IDS.some(k => G.UNIQUES[k].boss && G.UNIQUES[k].minD === b.d % (G.REALMS.length * G.REALM_SIZE)));
     if (b.d === 39 && b.lord && !S.uq.lastbutton) q = 'lastbutton';
     if (b.d === 64 && b.lord && !S.uq.firsthand) q = 'firsthand';
     if (q) drop('uq', q, null, { at, src: 'boss', wait: 1.2 });

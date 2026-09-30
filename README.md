@@ -2,7 +2,7 @@
 
 A pixel-art incremental about a Button, the Horde that wants it broken, and you. Your Warden cuts through swarms of mobs in the style of Vampire Survivors, while you click the Button: every click spills gold and loot and calls lightning down on the Horde. Mobs burst into pieces and drop loot the way Path of Exile does, with label plates, beams and a sound for every tier, and the game goes on to bosses that fight back, lands with rules of their own, uniques and currency, timed Rifts to race your friends in, pets from an incubator, a skill constellation, and ascension for fame.
 
-**What's new in 1.0 (Loot & Rifts): see [PATCHNOTES.md](PATCHNOTES.md)**, including the plan for the next patches.
+**What's new in 1.2 (Ready for friends) and 1.1 (The Horde): see [PATCHNOTES.md](PATCHNOTES.md)**, including the plan for the next patches.
 
 ## The setting
 
@@ -96,7 +96,7 @@ New systems the original didn't have:
 - **Omen of the day and the daily bounty.** Every day the Horde gets a twist, the same for everyone (Blood Moon, Gold Rush, The Swarm, Champions' Day, Storm Day, Night of Giants, Fortune), and a bounty pays eggs and a chest for slaying 12,000 of today's Horde. A missed day pauses the daily login streak instead of resetting it.
 - **Clearing the land.** Slain mobs fill the clear bar by their weight, and when it is full the land's boss arrives. If mobs reach the Button and break it, clearing progress drops by half.
 - **The garrison.** 12 classes to hire (rogue, archer, wizard, priestess … summoner). They stand on the stage and shoot the button; every 10/25/50/100… of a class doubles its income.
-- **Bosses and depths.** A boss has 30 seconds, fires bullet rings and brings its own swarm. A boss that gets away keeps 70% of the damage it took ("Wounded −N%") for the next attempt, and after three failures at a lord a tip explains the wall and points to ascension. A win opens the next depth (+8% to all gold) and drops chests, essence, potions and eggs. Every 5th boss is a land's lord.
+- **Bosses and depths.** A boss has 30 seconds (a lord 45), fires bullet rings and brings its own swarm. The bar tells you how much of it the Warden would take down alone. A boss that gets away keeps most of the damage it took ("Wounded −N%"), heals back less after each try, and every failed try rallies the Warden (+15% damage on a boss, +20% on a lord, up to five tries); after three failures a tip explains the wall and points to ascension. A win opens the next depth (+8% to all gold) and drops chests, essence, potions and eggs. Every 5th boss is a land's lord.
 - **Stat potions.** 8 stats (ATT, DEF, SPD, DEX, VIT, WIS, LIFE, MANA) with a cap, dropped by bosses. As in RotMG, they're lost when the hero "dies" (on ascension).
 - **Combo, crits and MEGA clicks.** Fast clicking builds a combo up to ×3+, with crits, and every 25th click is a MEGA click once the Thunder Palm node is learned.
 - **Wandering wisps.** Every 1–2 minutes a wisp flies by: Frenzy (gold ×7), Chest Rain, a sack of gold, Click Storm (×77) or a pet egg.
@@ -163,7 +163,7 @@ Builds `dist/bttn.html` (a self-contained page with fonts inlined), `dist/artifa
 
 ## Multiplayer and the ladder
 
-The Ladder tab has nine boards (depth, power, best Rift, today's Rift, land stars, uniques, the Mad Button race, lord crowns and firsts), a feed of everyone's big moments, rival notices, and a share line for the group chat; progress is saved to the cloud. In the version published on claude.ai, everyone invited **by email with edit access** can join the ladder; people opening a public link can only watch. For your own site there's a server in `server/` (instructions in `server/README.md`).
+The Ladder tab has nine boards (depth, power, best Rift, today's Rift, land stars, uniques, the Mad Button race, lord crowns and firsts), a feed of everyone's big moments, rival notices, and a share line for the group chat; progress is saved to the cloud. In the version published on claude.ai, invite each friend **by email as Editor** and keep link sharing off: while "Anyone with the link" is on, even invited friends can only watch. Friends open the link signed in to claude.ai; each can only write their own ladder row, and the owner can remove any row. For your own site there's a server in `server/` (instructions in `server/README.md`).
 
 The plan for a fair ladder, seasons, a world boss, an arena and guilds is in [MULTIPLAYER.md](MULTIPLAYER.md). The code is already prepared for it: the logic runs without a browser, randomness is reproducible from a seed (`SEED=42 node tools/sim.js 8` gives the same result every time), and `G.ladderSnapshot()` returns a snapshot of the hero.
 

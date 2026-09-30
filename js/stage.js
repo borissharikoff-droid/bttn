@@ -116,6 +116,30 @@
   function rarityCol(r) { return G.RARITIES[r].color; }
   // Title cards sit under the HUD: lower on narrow screens, where the HUD takes more room
   const cardY = k => Math.round(H * (W * S < 600 ? k + 0.1 : k));
+  // Title cards take turns: each card's lines appear together, the next card when this one is done
+  const cardQ = [];
+  let cardT = 0;
+  function cardText(off, str, col, size, o) {
+    o = o || {};
+    let g = cardQ[cardQ.length - 1];
+    if (off === 0 || !g || g.shown) { g = { items: [], life: 0, callout: !!o.callout, age: 0 }; cardQ.push(g); }
+    g.items.push({ off, str, col, size, o });
+    g.life = Math.max(g.life, o.life || 1.1);
+    // streak callouts are only worth showing on time
+    while (cardQ.length > 5) { const i = cardQ.findIndex(x => x.callout); cardQ.splice(i >= 0 ? i : 0, 1); }
+  }
+  function stepCards(dt) {
+    for (const g of cardQ) g.age += dt;
+    if (cardT > 0) { cardT -= dt; return; }
+    while (cardQ.length && cardQ[0].callout && cardQ[0].age > 1) cardQ.shift();
+    const g = cardQ.shift();
+    if (!g) return;
+    g.shown = true;
+    const y0 = cardY(0.27);
+    for (const it of g.items) text(W / 2, y0 + it.off, it.str, it.col, it.size, Object.assign({}, it.o, { life: g.life, max: g.life }));
+    cardT = g.life * 0.8;
+  }
+  St.cardBusy = () => cardT > 0;
 
   // ---------- Events ----------
   function listen() {
@@ -236,10 +260,10 @@
       const b = btnPos(); burst(b.x + rand(-14, 14), b.y - 4, ['#ff4f4f', '#ffffff'], m.kind === 'fodder' ? 1 : 3, 40);
     });
     G.on('surge', () => {
-      text(W / 2, cardY(0.3), G.t('surge'), '#ff4f4f', 7, { life: 2, max: 2, vy: -4, big: true });
+      cardText(0, G.t('surge'), '#ff4f4f', 7, { life: 2, max: 2, vy: -4, big: true });
       St.shake(3); St.flash(0.18, '#ff3b3b');
     });
-    G.on('rareSpawn', () => text(W / 2, cardY(0.3) + 12, G.t('rareComing'), '#ffd84a', 4, { life: 1.8, max: 1.8, vy: -4 }));
+    G.on('rareSpawn', () => cardText(12, G.t('rareComing'), '#ffd84a', 4, { life: 1.8, max: 1.8, vy: -4 }));
     G.on('buttonBreak', () => {
       const b = btnPos();
       St.shake(6); St.flash(0.5, '#ff3b3b');
@@ -335,16 +359,16 @@
       groundKey = ''; St.flash(0.3, '#000000');
       // a title card for the new land and its rule
       const R_ = G.REALMS[r];
-      text(W / 2, cardY(0.26), G.realmName(G.S.depth).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
-      text(W / 2, cardY(0.26) + 11, R_.rule + ': ' + R_.ruleDesc, '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
-      text(W / 2, cardY(0.26) + 19, G.t('zoneCard', 1, G.ZONE_NAME(G.S.depth)), '#ffffff', 3, { life: 3, max: 3, vy: -3 });
+      cardText(0, G.realmName(G.S.depth).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
+      cardText(11, R_.rule + ': ' + R_.ruleDesc, '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
+      cardText(19, G.t('zoneCard', 1, G.ZONE_NAME(G.S.depth)), '#ffffff', 3, { life: 3, max: 3, vy: -3 });
     });
     G.on('ascend', () => { gems.length = 0; });
     // the first land introduces itself when the Warden takes the field, and again after each ascension
     G.on('classChosen', () => setTimeout(() => {
       const d = G.S.depth, R_ = G.REALMS[G.realmIndex(d)];
-      text(W / 2, cardY(0.26), G.realmName(d).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
-      text(W / 2, cardY(0.26) + 11, G.t('zoneCard', G.zoneOf(d) + 1, G.ZONE_NAME(d)), '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
+      cardText(0, G.realmName(d).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
+      cardText(11, G.t('zoneCard', G.zoneOf(d) + 1, G.ZONE_NAME(d)), '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
     }, 700));
     G.on('ascend', () => { groundKey = ''; vis.clear(); mobVis.clear(); St.clearStain(); gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
     G.on('buy', (kind) => { if (kind === 'hero') heroKey = ''; });
@@ -353,13 +377,15 @@
 
   function zoneCard(d) {
     const z = G.zoneOf(d), R_ = G.REALMS[G.realmIndex(d)];
-    text(W / 2, cardY(0.26), G.t('zoneCard', z + 1, G.ZONE_NAME(d)).toUpperCase(), '#ffffff', 5, { life: 2.6, max: 2.6, vy: -3, big: true });
-    if (z === G.REALM_SIZE - 1) text(W / 2, cardY(0.26) + 10, G.t('zoneLord'), '#ff4f7e', 4, { life: 2.6, max: 2.6, vy: -3 });
+    cardText(0, G.t('zoneCard', z + 1, G.ZONE_NAME(d)).toUpperCase(), '#ffffff', 5, { life: 2.6, max: 2.6, vy: -3, big: true });
+    if (z === G.REALM_SIZE - 1) cardText(10, G.t('zoneLord'), '#ff4f7e', 4, { life: 2.6, max: 2.6, vy: -3 });
     // the kind of mob this zone brings for the first time
     const now = G.ZONE_MIX[z], before = z ? G.ZONE_MIX[z - 1] : {};
     for (const k in G.ARCHETYPES) if (now[k] > 0 && !(before[k] > 0) && z > 0) {
       const A = G.ARCHETYPES[k];
-      text(W / 2, cardY(0.26) + (z === G.REALM_SIZE - 1 ? 19 : 10), G.t('newKind', (R_.mobs && R_.mobs[k]) || A.name) + ' \u2014 ' + A.desc, '#b6ff5a', 3, { life: 3, max: 3, vy: -3 });
+      const o = z === G.REALM_SIZE - 1 ? 19 : 10;
+      cardText(o, G.t('newKind', (R_.mobs && R_.mobs[k]) || A.name), '#b6ff5a', 4, { life: 3.2, vy: -3 });
+      cardText(o + 8, A.desc, '#e8f8d0', 3, { life: 3.2, vy: -3 });
     }
   }
   St.zoneCard = zoneCard;
@@ -867,7 +893,7 @@
     streak.last = streak.n;
     if (sk) {
       for (let i = texts.length - 1; i >= 0; i--) if (texts[i].callout) texts.splice(i, 1);
-      text(W / 2, cardY(0.24), G.t(sk[1]), streak.n >= 3000 ? '#ff4fe0' : streak.n >= 400 ? '#ff4f7e' : '#ffe27a', streak.n >= 200 ? 8 : 7, { life: 1.8, max: 1.8, vy: -5, big: true, callout: true });
+      cardText(0, G.t(sk[1]), streak.n >= 3000 ? '#ff4fe0' : streak.n >= 400 ? '#ff4f7e' : '#ffe27a', streak.n >= 200 ? 8 : 7, { life: 1.8, max: 1.8, vy: -5, big: true, callout: true });
       St.shake(2 + Math.log2(streak.n / 50));
       if (G.Audio && G.Audio.streak) G.Audio.streak(streak.n);
     }
@@ -1278,7 +1304,7 @@
     G.on('drop', onDrop);
     G.on('pickup', onPickup);
     G.on('hoard', m => {
-      text(W / 2, cardY(0.3), G.t('hoardComing'), '#ffd84a', 6, { life: 2, max: 2, vy: -4, big: true });
+      cardText(0, G.t('hoardComing'), '#ffd84a', 6, { life: 2, max: 2, vy: -4, big: true });
       St.flash(0.15, '#ffd84a');
       if (G.Audio && G.Audio.hoard) G.Audio.hoard();
     });
@@ -1301,18 +1327,18 @@
       const col = G.SHRINES[s.k].col, b = btnPos(), q = arenaXY(s.a, s.p, 0.5);
       burst(q.x, q.y - 8, [col, '#ffffff'], 40, 100);
       ring(b.x, b.y - 4, 90, 50, col, 0.7); ring(b.x, b.y - 4, 55, 30, '#ffffff', 0.4);
-      text(W / 2, cardY(0.3), G.SHRINES[s.k].name, col, 6, { life: 2, max: 2, vy: -4, big: true });
-      text(W / 2, cardY(0.3) + 9, G.SHRINES[s.k].desc, '#ffffff', 3, { life: 2, max: 2, vy: -4 });
+      cardText(0, G.SHRINES[s.k].name, col, 6, { life: 2, max: 2, vy: -4, big: true });
+      cardText(9, G.SHRINES[s.k].desc, '#ffffff', 3, { life: 2, max: 2, vy: -4 });
       St.flash(0.3, col); St.shake(3);
       if (G.Audio && G.Audio.shrine) G.Audio.shrine(1);
     });
     G.on('breach', b => {
-      text(W / 2, cardY(0.3), G.t('breachOpen'), '#d8b8ff', 7, { life: 2.2, max: 2.2, vy: -4, big: true });
+      cardText(0, G.t('breachOpen'), '#d8b8ff', 7, { life: 2.2, max: 2.2, vy: -4, big: true });
       St.flash(0.3, '#6b2fb8'); St.shake(4);
       breachKills = 0;
       if (G.Audio && G.Audio.breach) G.Audio.breach();
     });
-    G.on('breachEnd', () => { text(W / 2, cardY(0.3), G.t('breachClosed', G.fmt(breachKills)), '#d8b8ff', 5, { life: 2, max: 2, vy: -4 }); });
+    G.on('breachEnd', () => { cardText(0, G.t('breachClosed', G.fmt(breachKills)), '#d8b8ff', 5, { life: 2, max: 2, vy: -4 }); });
     G.on('mobDie', m => { if (m.br) breachKills++; });
     G.on('blast', (m, r) => {
       const q = mobPos(m), a = aoePx(r);
@@ -1339,13 +1365,13 @@
     });
     G.on('spitHit', () => { const b = btnPos(); btnHurtT = 0.12; burst(b.x + rand(-12, 12), b.y - 8, ['#b6ff5a', '#8ad83a', '#ffffff'], 6, 50, { life: 0.35 }); });
     G.on('wave', n => {
-      text(W / 2, cardY(0.3), G.t('waveN', n), '#ff9a3a', 7, { life: 1.8, max: 1.8, vy: -4, big: true, callout: true });
-      text(W / 2, cardY(0.3) + 11, G.t('waveSub'), '#ffe27a', 3, { life: 1.8, max: 1.8, vy: -4 });
+      cardText(0, G.t('waveN', n), '#ff9a3a', 7, { life: 1.8, max: 1.8, vy: -4, big: true, callout: true });
+      cardText(11, G.t('waveSub'), '#ffe27a', 3, { life: 1.8, max: 1.8, vy: -4 });
       St.shake(2);
     });
     G.on('landStar', (i, bit) => {
       const R_ = G.REALMS[i], b = btnPos();
-      text(W / 2, cardY(0.2), '\u2605 ' + G.t('landStar', R_.name).toUpperCase(), '#ffd84a', 7, { life: 3, max: 3, vy: -3, big: true });
+      cardText(0, '\u2605 ' + G.t('landStar', R_.name).toUpperCase(), '#ffd84a', 7, { life: 3, max: 3, vy: -3, big: true });
       St.flash(0.25, '#ffd84a');
       burst(b.x, b.y - 20, ['#ffd84a', '#fff3a0', '#ffffff'], 40, 130);
       ring(b.x, b.y - 6, 50, 26, '#ffd84a', 0.6);
@@ -1388,27 +1414,27 @@
     });
     G.on('riftStart', r => {
       groundKey = '';
-      text(W / 2, cardY(0.3), G.t('riftName', r.lvl), '#e0c0ff', 9, { life: 2.2, max: 2.2, vy: -4, big: true });
-      text(W / 2, cardY(0.3) + 11, G.t('riftGo'), '#ffffff', 3, { life: 2.2, max: 2.2, vy: -4 });
+      cardText(0, G.t('riftName', r.lvl), '#e0c0ff', 9, { life: 2.2, max: 2.2, vy: -4, big: true });
+      cardText(11, G.t('riftGo'), '#ffffff', 3, { life: 2.2, max: 2.2, vy: -4 });
       const b = btnPos(); ring(b.x, b.y - 4, 100, 56, '#b36bff', 0.8); ring(b.x, b.y - 4, 60, 34, '#ffffff', 0.5);
       St.flash(0.5, '#6b2fb8'); St.shake(5);
       if (G.Audio && G.Audio.rift) G.Audio.rift(0);
     });
     G.on('riftGuardian', m => {
-      text(W / 2, cardY(0.3), G.t('riftGuardian'), '#ff3b5c', 7, { life: 2, max: 2, vy: -4, big: true });
+      cardText(0, G.t('riftGuardian'), '#ff3b5c', 7, { life: 2, max: 2, vy: -4, big: true });
       St.flash(0.3, '#ff3b3b'); St.shake(5);
       if (G.Audio && G.Audio.horn) G.Audio.horn();
     });
     G.on('riftEnd', r => {
       groundKey = '';
       if (r.win) {
-        text(W / 2, cardY(0.28), G.t('riftCleared'), '#ffd84a', 8, { life: 2.6, max: 2.6, vy: -4, big: true });
-        text(W / 2, cardY(0.28) + 11, G.t('riftUp', r.up, r.open, Math.round(r.used)), '#ffffff', 3, { life: 2.6, max: 2.6, vy: -4 });
+        cardText(0, G.t('riftCleared'), '#ffd84a', 8, { life: 2.6, max: 2.6, vy: -4, big: true });
+        cardText(11, G.t(r.up === 1 ? 'riftUp1' : 'riftUp', r.up, r.open, Math.round(r.used)), '#ffffff', 3, { life: 2.6, max: 2.6, vy: -4 });
         const b = btnPos(); ring(b.x, b.y - 4, 100, 56, '#ffd84a', 0.8);
         burst(b.x, b.y - 10, ['#ffd84a', '#ffffff', '#b36bff'], 80, 150);
         St.flash(0.4, '#ffd84a'); St.shake(6); slowmo = Math.max(slowmo, 0.6);
       } else {
-        text(W / 2, cardY(0.3), G.t(r.why === 'broke' ? 'riftBroke' : 'riftFailed'), '#c8b4ff', 6, { life: 2.2, max: 2.2, vy: -4, big: true });
+        cardText(0, G.t(r.why === 'broke' ? 'riftBroke' : 'riftFailed'), '#c8b4ff', 6, { life: 2.2, max: 2.2, vy: -4, big: true });
         St.flash(0.4, '#1e0e34');
       }
       if (G.Audio && G.Audio.rift) G.Audio.rift(r.win ? 1 : 2);
@@ -1427,10 +1453,11 @@
       multiCd = big ? 0.5 : 0.3;
       hitstop = Math.max(hitstop, big ? 0.05 : 0.02); St.shake(big ? 3 : 1.5);
       const b = btnPos();
-      text(b.x + rand(-40, 40), b.y - 44 - rand(0, 10), '×' + frameKills, big ? '#ff9a3a' : '#ffe27a', big ? 6 : 4, { life: 0.9, max: 0.9, vy: -20 });
+      if (cardT <= 0) text(b.x + rand(-40, 40), b.y + 30 + rand(0, 6), '×' + frameKills, big ? '#ff9a3a' : '#ffe27a', big ? 6 : 4, { life: 0.9, max: 0.9, vy: -20 });
       if (big && G.Audio && G.Audio.heap) G.Audio.heap(frameKills);
     }
     frameKills = 0;
+    stepCards(dt);
     if (killGold > 0 && (killGoldT -= dt) <= 0) { const b = btnPos(); text(b.x + rand(-6, 6), b.y + 16, '+' + fmtSmall(killGold), '#f0c850', 3, { life: 0.8, max: 0.8, vy: -10 }); killGold = 0; killGoldT = 0.3; }
     // hit-stop and slow motion only touch the visuals; the game keeps its own clock
     const vdt = dt * (hitstop > 0 ? 0.08 : slowmo > 0 ? 0.3 : 1);
@@ -1611,8 +1638,8 @@
       const px = s.sx + (s.tx - s.sx) * Math.max(0, k - 0.12), py = s.sy + (s.ty - s.sy) * Math.max(0, k - 0.12) - Math.sin(Math.max(0, k - 0.12) * Math.PI) * arc;
       lctx.fillRect(Math.round(px), Math.round(py), 1, 1);
       lctx.globalAlpha = 1;
-      if (shots.length > 120) shots.splice(0, 20);
     }
+    if (shots.length > 120) shots.splice(0, shots.length - 120);
     // Boss bullets (RotMG-style rings)
     for (let i = bullets.length - 1; i >= 0; i--) {
       const bl = bullets[i]; bl.life -= dt;
@@ -1900,6 +1927,9 @@
       const a = Math.min(1, t.life / t.max * 2.2);
       ctx.globalAlpha = a;
       ctx.font = crisp(t.size * pop) + 'px ' + FONT;
+      // a line wider than the stage shrinks to fit
+      if (t.fitW == null) t.fitW = ctx.measureText(t.str).width / pop;
+      if (t.fitW > W - 8) ctx.font = (crisp(t.size * pop) * (W - 8) / t.fitW) + 'px ' + FONT;
       ctx.lineWidth = Math.max(1, t.size * 0.35);
       ctx.strokeStyle = '#0c0b12';
       ctx.lineJoin = 'round';
@@ -1934,7 +1964,7 @@
   function drawStreak() {
     const c = G.carnage ? G.carnage() : { n: streak.n, tier: 0 };
     const n = Math.max(c.n, 0);
-    if (n < 10) return;
+    if (n < 10 || (G.S.hero && G.S.hero.offer)) return;
     // the kill counter lives just above the bars at the bottom, clear of the title cards
     if (!hudBottomH || (hudBottomT -= fdt) <= 0) { hudBottomT = 1; const el = typeof document !== 'undefined' && document.querySelector('.hud.bottom'); hudBottomH = el ? el.offsetHeight : 90; }
     const y = H - Math.ceil(hudBottomH / S) - 12;
@@ -1950,7 +1980,7 @@
     if (c.tier > 0 || n >= 30) {
       const y2 = y + 6;
       ctx.font = crisp(3) + 'px ' + FONT;
-      const s2 = G.t('carnage', (1 + 0.1 * c.tier).toFixed(1));
+      const s2 = c.tier ? G.t('carnage', (1 + 0.1 * c.tier).toFixed(1)) : G.t('carnageAt', '1.1', c.next);
       ctx.strokeText(s2, W / 2, y2); ctx.fillStyle = c.tier ? col : '#a8a4b8'; ctx.fillText(s2, W / 2, y2);
       if (c.next) {
         const prev = [0, 100, 300, 800, 2000][c.tier] || 0, k = clamp((n - prev) / (c.next - prev), 0, 1), w = 30;
@@ -1962,7 +1992,10 @@
   }
   function drawBossBar() {
     const b = G.R.boss;
-    const w = Math.min(W - 20, 170), x = Math.round((W - w) / 2), y = Math.ceil(50 / S);
+    const w = Math.min(W - 20, 170), x = Math.round((W - w) / 2);
+    // on narrow screens the bar would run into the land strip: it goes under it
+    let y = Math.ceil(50 / S);
+    if (x * S < 230) { const el = document.querySelector('#realmBox'), r = el && el.getBoundingClientRect(), c = cv.getBoundingClientRect(); if (r && r.height) y = Math.max(y, Math.ceil((r.bottom - c.top + 8) / S)); }
     ctx.fillStyle = '#0c0b12'; ctx.fillRect(x - 1, y - 1, w + 2, 7);
     ctx.fillStyle = '#3a1a1e'; ctx.fillRect(x, y, w, 5);
     const k = clamp(b.hp / b.max, 0, 1);

@@ -26,7 +26,13 @@
   };
 
   let last = 0, uiT = 0, saveT = 15;
+  // A render or UI error must never stop the game: the next frame is always booked first
+  let frameErr = 0;
   function frame(now) {
+    requestAnimationFrame(frame);
+    try { step(now); } catch (e) { if (frameErr++ < 3) console.error(e); }
+  }
+  function step(now) {
     let dt = (now - last) / 1000; last = now;
     if (dt > 60) {
       const r = G.applyOffline(dt);
@@ -45,7 +51,6 @@
     if (uiT <= 0) { uiT = 0.12; G.UI.update(); }
     saveT -= dt;
     if (saveT <= 0) { saveT = 15; G.save(); if (G.Net) G.Net.tick(); }
-    requestAnimationFrame(frame);
   }
 
   function boot(data) {

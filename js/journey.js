@@ -96,7 +96,7 @@
     const S = G.S, D = G.D, got = [];
     if (rew.eggs) { G.addEggs(rew.eggs); got.push(['ic_egg', rew.eggs]); }
     if (rew.ess) { G.addEssence(rew.ess * (D.essMult || 1)); got.push(['ic_ess', Math.round(rew.ess * (D.essMult || 1))]); }
-    if (rew.shards) { S.hero.shards += rew.shards; got.push(['ic_ess', rew.shards]); }
+    if (rew.shards) { S.hero.shards += rew.shards; got.push(['ic_shard', rew.shards]); }
     if (rew.fame) { S.fame += rew.fame; S.fameTotal += rew.fame; got.push(['ic_fame', rew.fame]); }
     if (rew.chest != null) { const tier = Math.min(6, rew.chest); G.openChest(G.makeChest(tier, 'ghost'), 'journey'); got.push(['chest_' + tier, 1]); }
     return got;
@@ -123,7 +123,7 @@
     { id: 'bloodmoon', name: 'Blood Moon', desc: '+50% XP, but mobs are 25% tougher', xp: 1.5, mobHp: 1.25 },
     { id: 'goldrush', name: 'Gold Rush', desc: '+60% gold from the Horde', gold: 1.6 },
     { id: 'swarm', name: 'The Swarm', desc: 'The Horde comes 60% thicker, +30% XP', horde: 1.6, xp: 1.3 },
-    { id: 'champions', name: 'Champions’ Day', desc: 'Champions and rares 3× as common, loot bags +50%', champ: 3, loot: 1.5 },
+    { id: 'champions', name: 'Champions’ Day', desc: 'Champions and rares 3× as common, +50% loot', champ: 3, loot: 1.5 },
     { id: 'storm', name: 'Storm Day', desc: 'Every click calls one more bolt', thunder: 1 },
     { id: 'giants', name: 'Night of Giants', desc: 'Bosses 30% tougher, their rewards doubled', bossHp: 1.3, bossRew: 2 },
     { id: 'fortune', name: 'Fortune', desc: '+25% luck, wisps come twice as often', luck: 0.25, wisp: 2 },

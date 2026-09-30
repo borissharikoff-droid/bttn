@@ -800,7 +800,8 @@
     h.hp = G.D.heroHp;
     for (const m of R.mobs) emit('mobFlee', m);
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
-    S.bossMeter = Math.floor(S.bossMeter * 0.5);
+    // a Rift's Horde never fills the clear bar, so a broken Rift doesn't take from it either
+    if (!R.rift) S.bossMeter = Math.floor(S.bossMeter * 0.5);
     if (R.boss) G.fleeBoss();
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
     emit('buttonBreak');
@@ -875,6 +876,8 @@
             emit('wave', wv + 1);
           }
         }
+        // the arena is never empty: fewer than 20 on the field brings the next pack now
+        if (R.hordeAcc < 1) { let vis = 0; for (const m of R.mobs) if (!m.add && m.p >= 0 && ++vis >= 20) break; if (vis < 20) R.hordeAcc = 1; }
         if (R.hordeAcc >= 1 && aliveWeight(false) < cap && R.mobs.length < TUNE.mobMax) {
           const w0 = aliveWeight(false);
           spawnPack(false);
@@ -888,10 +891,11 @@
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
-      // spitters hold at range and lob globs at the Button
-      if (m.kind === 'spitter' && m.p >= TUNE.spitStop) {
+      // spitters lob globs at the Button as soon as they're in range, then hold there
+      if (m.kind === 'spitter' && m.p >= 0.3) {
+        if (!m.spit) { m.spit = 1; m.atkT = rand(0.3, 0.9); }
         if ((m.atkT -= dt) <= 0) { m.atkT = TUNE.spitEvery * rand(0.85, 1.15); R.shots.push({ m: m.id, a: m.a, p: m.p, t: 0.5, dmg: atk * m.w * (m.mod === 'frenzied' ? 2 : 1) }); emit('spit', m); }
-        continue;
+        if (m.p >= TUNE.spitStop) continue;
       }
       if (m.p < 1) m.p = Math.min(1, m.p + m.sp * dt * slow);
       else if (m.kind === 'bomber') {
@@ -912,9 +916,11 @@
       }
     }
     // globs in flight
+    // (a glob can break the Button, which clears the list under this loop)
     for (let i = R.shots.length - 1; i >= 0; i--) {
       const sh = R.shots[i];
-      if ((sh.t -= dt) <= 0) { R.shots.splice(i, 1); if (R.stun <= 0) { hurtButton(sh.dmg); emit('spitHit', sh); } }
+      if (!sh) continue;
+      if ((sh.t -= dt) <= 0) { R.shots.splice(i, 1); if (R.stun <= 0) { hurtButton(sh.dmg); emit('spitHit', sh); } if (R.stun > 0) break; }
     }
     // the boss hits the button too
     if (R.boss) {
@@ -952,7 +958,8 @@
       if (R.boss) G.hitBoss(hit * pow * D.bossMult);
     }
     // a pending level-up choice is made for the player if they leave it
-    if (h.offer && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[0]);
+    // (the clock stops while a window covers the cards, so they can't be picked for you unseen)
+    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[0]);
     // hero attacks
     R.heroAcc += dt * D.heroRate;
     let guard = 0;
@@ -1058,6 +1065,9 @@
     const lootReach = Math.max(reach, (snap.rift | 0) > 0 ? G.riftDepth((snap.rift | 0) + 6) : 0);
     // levels come from kills, so a patient player can outlevel their depth by a lot; this only stops the absurd
     if (!int(snap.lvl, 1, 60 + 2 * reach)) bad.push('level');
+    // depth has to go with gear: mob health grows 60% a depth, so a Warden this weak could never have got there.
+    // The weakest honest player measured stays a million times above this line.
+    if (reach >= 20) { const need = G.mobHp(reach); if (!isFinite(need) || !(snap.power > 0) || snap.power / need < 1e-12) bad.push('depth'); }
     if (typeof snap.name !== 'string' || snap.name.length > 16) bad.push('name');
     if (snap.uq != null && !int(snap.uq, 0, G.UNIQUE_IDS.length)) bad.push('uniques');
     if (snap.kills != null && !int(snap.kills, 0, 1e12)) bad.push('kills');

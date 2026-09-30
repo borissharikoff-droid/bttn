@@ -701,6 +701,17 @@
     '..pPPP..',
     '...PP...',
   ]);
+  // shards: broken blue crystal (not essence's purple drop)
+  def('ic_shard', { c: '#7fe9ff', C: '#2f8fb8', w: '#e8fcff' }, [
+    '....c...',
+    '...cwc..',
+    '..cwcC..',
+    '.cwccC.c',
+    '.ccCC.cw',
+    'cCCC..cC',
+    '.CC..cC.',
+    '......C.',
+  ]);
   def('ic_fame', { y: '#ffa033', Y: '#c96a10', w: '#fff0c0' }, [
     '...yy...',
     '...wy...',

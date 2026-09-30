@@ -1,3 +1,82 @@
+# BTTN 1.2 — Ready for friends
+
+The patch that gets BTTN ready to hand to friends. Six audits went over the game the way a friend would meet it: a new player's first 15 minutes on desktop, three phones (portrait, small, landscape), a bug hunt with thousands of simulated hours, pacing over days of casual play, playing together on the ladder, and every word on screen. Each finding was then checked again by a second, skeptical pass. Everything below was confirmed and fixed.
+
+## Crashes and lost progress
+
+- **The game no longer freezes** after the tab sits in the background for 20–60 seconds. Catching up drew too many shots and broke the render loop for good. The loop now books the next frame first and survives any drawing error.
+- **Spitter globs that break the Button** no longer crash the game (1 in 7 ten-minute runs hit it with a slightly weak Warden).
+- **Cloud save:** tapping outside the "Cloud save" prompt used to leave a new device with no Warden and stop syncing for the session. The prompt now only closes with its buttons. It shows what each side holds ("Cloud: Knight lv 42, depth 21 · This browser: a new game"). Keeping the weaker one asks first, and the replaced cloud save is kept as a backup you can restore in Settings.
+- **Losing a Rift** no longer halves the campaign's clear bar.
+
+## Playing with friends
+
+- **How to invite, in the game.** The owner sees an "Invite your friends" box on the Ladder tab: invite each friend by email as Editor, and keep "Anyone with the link" off, because while the public link is on, invited friends can only watch. Friends who can only watch are told exactly that, not a raw network error.
+- **Honest status lines:** "Sign in to claude.ai to join the ladder", "Can't reach the ladder right now: your progress is safe", "Cloud save: 12s ago · ladder: not yet". The game only says online once the ladder has answered.
+- **Cheats from the console are caught:** a depth the Warden's gear could never reach is rejected (the weakest honest player measured is a million times above the line). The crowns board no longer draws thousands of empty lords for a forged entry. The owner can remove any row from the ladder from its inspect window. Each friend can only ever write their own row.
+- **Boards without zeros:** the Rift, Land stars and Uniques boards only rank people who have started on them ("Nobody on this board yet. Be the first!").
+- **Rows show when that friend was last seen**, and fade after two weeks away.
+- **The brag line** opens in a box you can copy from, says gear score like the boards do, leaves out zeros, and ends with the game's link and "ask me for an invite".
+- New players are named after the first word of their account name, and told so once ("You're on the ladder as Anna. Rename in Character").
+
+## Pacing
+
+Casual and idle players spent 40–45% of their time losing boss fights, mostly at lords that took 4 to 9 tries. Regular bosses could turn into walls that healed back from 12% to 39% after every loss.
+
+- **Lords have 3× a boss's health, not 4×.**
+- **Every boss rallies the Warden now,** not just lords: +15% damage on it per failed try (+20% on a lord), up to five. A boss that escapes heals back less after each try, so a wall always gives way to someone who keeps at it.
+- **The boss bar says how the fight would go:** "Fight Sand Crab to reach Salt Flats · Warden alone: 60%". The Hunt (auto-boss) waits for a fight the Warden can win, or tries again after 90 seconds so Rally can build.
+- **Rested:** back after 4 hours or more, your first boss fight hits 40% harder.
+- **Uniques have bad-luck protection:** the 25th chance in a row without one is a sure thing, and half the time it's one you don't have yet. "Find 4 different uniques" no longer blocks the Journey for 30–50 minutes.
+- **The arena is never empty:** with fewer than 20 mobs on the field the next pack comes right away. This matters for Wizards and Archers at a new depth, who used to face a median of 0–8 mobs.
+- **Spitters spit** from the moment they're in range instead of dying before their first glob.
+- **Slaughter stars are reachable:** 12,000 kills in the Shoreline up to 26,400 in the Sky Citadel, instead of 10,000 up to 70,000.
+- The wall tip comes back for each new wall, bosses included.
+
+## Screens and controls
+
+- **All 12 tabs fit on screen** on desktop and every phone. The Ladder and Settings tabs were off the edge, even on desktop.
+- **Phones on their side** get the stage and panel side by side, and the intro fits.
+- **Level-up cards on phones** come up as a sheet from the bottom, so the Button and the HUD stay clear. Their timer stops while another window covers them.
+- **Switching tabs during a level-up** no longer wipes the cards and leaves a stray number on screen.
+- **Title cards take turns** instead of piling up: land, zone, wave, land star and event cards queue, long lines shrink to fit, and the heap counter moved below the Button.
+- **During a boss fight** the boss bar has the top of the stage; the goal box, omen and toasts step aside.
+- **The coach** no longer covers the panel row it points at, steps that finish on their own stay up long enough to read, and event tips don't cut into panel steps.
+- **Toasts on phones** sit at the top, one at a time, clear of the Fight button.
+- **Tapping loot in the bag** scrolls its details into view.
+- **The Constellation:** the details and Learn button come first, affordable stars glow, and on touch screens only the Learn button buys.
+- **iPhones** don't zoom in when you type your Warden's name.
+- **Bigger touch targets** for the boss buttons, pickers and HUD icons.
+- **In a Rift** the HUD names the Rift's land.
+- **Gold per second** counts everything you earn (averaged over 10 s), not just the garrison.
+- The land strip has a dark plate so it reads on bright ground. The omen line says what today's omen does. Phones show the depth next to the zone name.
+
+## Words
+
+- Depth numbers now agree everywhere ("Reach depth 5" means the depth the HUD shows).
+- The Ascension screen says what you keep (gear, orbs, uniques, land stars, collection, pets, Rift levels) and what resets (including your Warden's level and perks, and the class). It also says that fame gives Warden damage as well as gold.
+- "Hero" meant both the Warden and the garrison. Now it's the Warden or the garrison ("Garrison income", "Warden name", "hire a Rogue for the garrison").
+- Shards have their own icon instead of essence's; fame is written as fame, not a ★.
+- The Swift star says it needs a fresh try. Corrupted lands read "Corrupted Shoreline", not "Corrupted Shoreline 1" or "Corrupted The Crab King". Plurals fixed, jargon replaced ("Start each run with 1K gold, ×10 per level"; the Rift tab says easy, a fair fight or hard).
+- The help page explains runners, spitters, bombers, tanks and Carnage. A one-time tip explains Carnage when it first kicks in.
+
+## Measured
+
+`node tools/playtest.js all 3 90`, 1.1 → 1.2 (medians of 3 seeds, 90 minutes):
+
+| | Active | Casual | Idle | Returner (a week) |
+|---|---|---|---|---|
+| Mobs alive at once, median | 33 → **108** | 22 → **54** | 18 → **66** | 2 → **49** |
+| Longest wait between big moments, 10–30 min | 184 → **86 s** | 290 → 289 s | 218 → **164 s** | 243 → 285 s |
+| Time to depth 20 | 11.8 → **9.6 min** | 30.9 → 31.8 min | 57.7 → **36 min** | 31.3 → **18.3 min** |
+| Time to depth 40 | 51.1 → **41.7 min** | — | — | 96.5 → **80.8 min** |
+| Best depth after 90 min | 54 → 60 | 29 → **34** | 24 → **29** | 63 → 64 (d65 reached) |
+| Uniques found (different ones) | 11 (7) → 26 (15) | 5 (2) → 7 (4) | 2 (2) → 9 (7) | 13 (6) → 24 (14) |
+
+Tested with those bots, fresh regression checks for every fix (`/tmp` scripts: freezes, cloud save, Rift breaks, Rally, unique pity, ladder plausibility, Rested, names, the visible floor), the browser suites on desktop, three phone sizes and landscape, two devices online against the local server, and the server tests (15/15).
+
+---
+
 # BTTN 1.1 — The Horde
 
 The Horde patch. The arena is never empty now: hundreds of mobs pour in from every side and die in heaps. Each land is a journey of five zones with its own mobs, five new lands wait past the Mad Button, and every land has three stars to earn for good.
