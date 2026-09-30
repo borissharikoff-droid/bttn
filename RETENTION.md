@@ -67,10 +67,53 @@ Same bots, same seeds, same metrics; "before" is the previous commit.
 
 What's still open: casual and idle bots spend their last 10–20 minutes before an ascension stuck at a lord. That's the prestige wall the genre is built on, and the new tip now tells a real player what to do; the bots just follow their fixed "ascend after N minutes stuck" rule.
 
+
+## Release 1.0: what the loot, land and social research said
+
+For the release, four research passes looked at loot feel, the first minutes, competing with friends, and land design, and five audits went through the build (feel, loot, progression, online, the first five minutes in a real browser). The main sources:
+
+| Source | What it says | What BTTN took |
+|---|---|---|
+| [NeverSink's loot filter for Path of Exile](https://github.com/NeverSinkDev/NeverSink-Filter) and [PoE's filter spec](https://www.pathofexile.com/item-filter/about) | Value is told before pickup: label plates by tier, font size, a sound per tier, beams that stay for the top tiers, cheap loot hidden | Ground loot with 8 label styles, lasting beams for legendary and up, a sound per tier, a filter for commons |
+| [PoE's currency economy](https://www.gamedeveloper.com/design/path-of-exile-economy-currency-trading) | Every orb is useful by itself; currency is the steady drip under the jackpots | Five orbs that change gear, with a corruption gamble |
+| [Destiny's engrams](https://www.gamedeveloper.com/design/psychology-and-destiny-s-loot-system) | A colour cue that promises a minimum must never lie; uncertainty makes the reveal better | Showers where the best lands last; a drop that can only upgrade in mid-air, never downgrade |
+| [Vampire Survivors' first chests](https://jboger.substack.com/p/the-secret-sauce-of-vampire-survivors) | The first rewards are scripted to set expectations, then the odds take over | Scripted first drops, the first lord's guaranteed unique, bad-luck protection |
+| [Diablo 3's treasure goblins](https://www.diablowiki.net/Treasure_Goblin) | A harmless runner that escapes creates an instant "drop everything and chase" | The Hoarder |
+| [Diablo 3's Greater Rifts](https://maxroll.gg/d3/resources/greater-rift-explained) | Timed runs, progress then a guardian, faster clears open more levels; the ladder ranks level then time | Rifts and the Rift ladder |
+| [Vampire Survivors' stages](https://vampire.survivors.wiki/w/Stages) | Each stage has a rule that changes play, not just new art | A rule for every land |
+| [Telegraphing enemy attacks](https://www.gamedeveloper.com/design/enemy-attacks-and-telegraphing) | Every attack needs a readable wind-up; colour coding and exaggeration read best | Boss moves with a colour, a bar and taps to break them |
+| [Cookie Clicker's source](https://orteil.dashnet.org/cookieclicker/main.js), [Juicing your cameras](https://gdcvault.com/play/1023146/Math-for-Game-Programmers-Juicing), [Juice it or lose it](https://www.gdcvault.com/play/1016487/Juice-It-or-Lose) | Springy targets, never-repeating click sounds, freeze frames scaled to the event | The Button spring, click variants and the freeze ladder |
+| [Peggle's sound](https://www.audiogang.org/peggle2-sonic-joy/) | Hits climb a scale that fits the music; a fever state at the top | Clicks climb as the combo builds; a full combo overcharges |
+| [Spelunky's Daily Challenge](https://www.gamedeveloper.com/design/the-understated-genius-of-the-i-spelunky-i-daily-challenge) | One shared run a day makes a fair daily race among friends | Today's Rift board now; a seeded Trial of the Day next (1.1) |
+| [Strava notifications](https://support.strava.com/hc/en-us/articles/216918367-Strava-Notifications) and [Local Legends](https://www.dcrainmaker.com/2020/06/strava-legends-feature.html) | Losing a title you held pulls people back harder than reminders | Lord crowns and rival notices |
+| [Wordle](https://en.wikipedia.org/wiki/Wordle) | A spoiler-free result grid is what spreads in group chats | The brag line with a uniques grid |
+| [PoE league races](https://pathofexile.fandom.com/wiki/Races) | Being first to a milestone is its own status | The Firsts board |
+| [RuneScape's announcements](https://runescape.fandom.com/wiki/Server-wide_Announcements) | Rare drops announced to everyone start a wave of reactions | The Recent feed on the ladder |
+
+The audits found problems the research alone wouldn't have: for the first five seconds after picking a class the arena was empty and clicks killed nothing; about half of all clicks called no lightning because mobs died before reaching the Hand's range; a full chest room silently sold every new drop; the event bus dropped the fourth argument, so click kills never broke mobs harder; animation timers ran on frames, not time. All of these are fixed in 1.0.
+
+### 1.0 before and after
+
+Same bots and seeds as above; "before" is the build this file described up to now.
+
+| | Active | Casual | Idle | Returner |
+|---|---|---|---|---|
+| Big moments per minute, first 10 min | 5.7 → **8.5** | 3.4 → **4.1** | 2.7 → **4.0** | 3.5 → **4.4** |
+| Big moments per minute, 10–30 min | 3.95 → **4.95** | 0.6 → **1.05** | 0.55 → **0.95** | 0.7 → **1.25** |
+| Longest dry spell, 10–30 min | 127 → 139 s | 323 → **237 s** | 424 → **258 s** | 380 → **272 s** |
+| Longest dry spell, 30–60 min | 160 → **113 s** | 600 → **390 s** | 573 → **409 s** | 474 → **410 s** |
+| Time to depth 20 | 20 → **12 min** | 73 → **54 min** | 106 → **90 min** | 47 → **36 min** |
+| Bosses lost in 2 h | 7 → 6 | 43 → **41** | 57 → **48** | 57 → **51** |
+| Uniques in 2 h (different) | 14 (9) | 5 (4) | 3 (2) | 18 (8) in a week |
+
+Big moments now also count uniques, Hoarders slain and Rifts cleared. The full table and the first-minutes timeline are in [PATCHNOTES.md](PATCHNOTES.md#measured).
+
 ## Next, in order of expected effect
 
-1. **Seasons** (see MULTIPLAYER.md): a fresh seasonal Warden every 4–6 weeks with cosmetic rewards. Path of Exile leagues and Diablo seasons bring their players back several times a year.
-2. **Ancient and Primal gear** (Diablo 3): rare rolls with a boosted main stat and perfect affixes, a gear chase that never completes.
-3. **More evolutions and a second evolution tier** (two evolved perks combining), so the recipe book keeps growing.
-4. **A weekly Trial** on a shared seed with its own ladder, the first step of the fair ladder plan.
-5. **Event lands** that rotate weekly with their own mobs and a unique drop.
+The patch plan with dates, lands and progression is in [PATCHNOTES.md](PATCHNOTES.md#next-patches). In short:
+
+1. **Trial of the Day** (1.1): a shared seed and a fixed Warden, one ranked attempt a day, replays checked by every friend's browser. The fairest race among friends who started at different times.
+2. **Doors after bosses and Legend crowns** (1.2): a choice every one or two minutes, and a title for consistency, not just speed.
+3. **Frozen Warband, Blood Altar and land set pieces** (1.3): more events that break up the middle of a session, where the casual and idle bots still wait longest.
+4. **Seasons and a weekly Friends League** (1.4): a fresh start every 6 weeks, the thing that brings Path of Exile and Diablo players back.
+5. **Carnage rank and relics** (1.5): a visible reward for playing fast, and secrets per land.

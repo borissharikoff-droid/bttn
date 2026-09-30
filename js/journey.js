@@ -15,21 +15,29 @@
   const evos = S => Object.keys(S.rec.evos || {}).length;
   const starsTotal = S => G.ITEMS.reduce((a, it) => a + G.stars(S.coll[it.id] || 0), 0);
   const depth = n => ({ text: 'Clear depth ' + n, cur: S => S.bestDepth, need: n });
+  const uniques = S => Object.keys(S.uq || {}).length;
+  const rift = S => (S.rift && S.rift.best) || 0;
   const STEPS = [
     { text: 'Slay 100 mobs', cur: S => S.hero.kills, need: 100, rew: { eggs: 1 } },
+    { text: 'Catch a Hoarder', cur: S => S.st.hoards || 0, need: 1, rew: { eggs: 1 }, hint: 'Tap it so the Warden chases it before it runs off' },
     { text: 'Defeat your first boss', cur: S => S.st.bossKills, need: 1, rew: { chest: 2 } },
     { text: 'Pick 5 perks', cur: perkRanks, need: 5, rew: { ess: 5 } },
     { text: 'Wear a rare item', cur: S => maxWorn(S, g => g.r >= 2 ? 1 : 0), need: 1, rew: { shards: 30 } },
     Object.assign(depth(5), { text: 'Clear depth 5 and slay its lord', rew: { eggs: 2 } }),
+    { text: 'Find a unique', cur: uniques, need: 1, rew: { chest: 3 }, hint: 'Lords, rares, Hoarders and Rift Guardians drop them' },
+    { text: 'Collect 5 orbs', cur: S => S.st.orbs || 0, need: 5, rew: { ess: 8 }, hint: 'Use them in the Character tab: pick an item, then an orb' },
     { text: 'Hatch 3 different pets', cur: S => Object.keys(S.pets).length, need: 3, rew: { eggs: 2 } },
     { text: 'Enchant an item to +5', cur: S => maxWorn(S, g => g.e), need: 5, rew: { ess: 10 } },
     Object.assign(depth(10), { rew: { eggs: 3 } }),
+    { text: 'Clear a Rift', cur: rift, need: 1, rew: { chest: 3 } },
     { text: 'Ascend for the first time', cur: S => S.ascensions, need: 1, rew: { fame: 5 } },
     { text: 'Find a legendary item', cur: S => bestRarity(S) >= 4 ? 1 : 0, need: 1, rew: { chest: 3 } },
     { text: 'Max out a perk', cur: maxedPerk, need: 1, rew: { eggs: 2 } },
     { text: 'Evolve a perk', cur: evos, need: 1, rew: { chest: 4 }, hint: 'Max a perk while wearing the gear its evolution needs (see Collection)' },
     { text: 'Slay 10 rare monsters', cur: S => S.st.rares || 0, need: 10, rew: { eggs: 3 } },
     Object.assign(depth(15), { rew: { ess: 40 } }),
+    { text: 'Clear Rift 15', cur: rift, need: 15, rew: { chest: 4 } },
+    { text: 'Find 4 different uniques', cur: uniques, need: 4, rew: { eggs: 4 } },
     { text: 'Slay 10,000 mobs', cur: S => S.hero.kills, need: 10000, rew: { chest: 4 } },
     Object.assign(depth(20), { rew: { eggs: 5 } }),
     { text: 'Discover 3 evolutions', cur: evos, need: 3, rew: { chest: 5 } },
@@ -37,12 +45,15 @@
     { text: 'Enchant an item to +10', cur: S => maxWorn(S, g => g.e), need: 10, rew: { shards: 300 } },
     { text: 'Find a mythic item', cur: S => bestRarity(S) >= 5 ? 1 : 0, need: 1, rew: { eggs: 5 } },
     Object.assign(depth(25), { rew: { chest: 5 } }),
+    { text: 'Clear Rift 25', cur: rift, need: 25, rew: { chest: 5 } },
     { text: 'Hatch every pet', cur: S => Object.keys(S.pets).length, need: 12, rew: { eggs: 10 } },
     Object.assign(depth(30), { rew: { ess: 200 } }),
     { text: 'Discover 6 evolutions', cur: evos, need: 6, rew: { chest: 6 } },
     { text: 'Find a divine item', cur: S => bestRarity(S) >= 6 ? 1 : 0, need: 1, rew: { eggs: 8 } },
     { text: 'Earn 60 collection stars', cur: starsTotal, need: 60, rew: { ess: 300 }, hint: 'Every copy of an item counts; stars come at 1, 10, 100, 1,000 and 10,000' },
     Object.assign(depth(35), { rew: { chest: 6 } }),
+    { text: 'Find 8 different uniques', cur: uniques, need: 8, rew: { chest: 6 } },
+    { text: 'Clear Rift 35', cur: rift, need: 35, rew: { fame: 80 } },
     { text: 'Ascend 10 times', cur: S => S.ascensions, need: 10, rew: { fame: 60 } },
     { text: 'Defeat the Mad Button at depth 40', cur: S => S.bestDepth, need: 40, rew: { fame: 100, chest: 6 } },
     { text: 'Slay 100,000 mobs', cur: S => S.hero.kills, need: 100000, rew: { eggs: 10 } },
@@ -51,6 +62,8 @@
     { text: 'Earn 110 collection stars', cur: starsTotal, need: 110, rew: { ess: 1000 } },
     { text: 'Slay 100 rare monsters', cur: S => S.st.rares || 0, need: 100, rew: { chest: 6 } },
     Object.assign(depth(50), { rew: { chest: 6, eggs: 10 } }),
+    { text: 'Clear Rift 50', cur: rift, need: 50, rew: { chest: 6, fame: 150 } },
+    { text: 'Find every unique', cur: uniques, need: 14, rew: { fame: 250 } },
     { text: 'Discover 9 evolutions', cur: evos, need: 9, rew: { fame: 150 } },
     { text: 'Ascend 25 times', cur: S => S.ascensions, need: 25, rew: { fame: 200 } },
     { text: 'Enchant an item to +20', cur: S => maxWorn(S, g => g.e), need: 20, rew: { shards: 3000 } },
@@ -68,6 +81,9 @@
     return Object.assign(depth(n), { rew: { chest: 6, eggs: 5 + Math.floor(n / 20), fame: n } });
   };
   J.count = STEPS.length;
+  // where each step of the pre-1.0 road (44 steps) sits on this one
+  const V0 = [0, 2, 3, 4, 5, 8, 9, 10, 12, 13, 14, 15, 16, 17, 20, 21, 22, 23, 24, 25, 26, 28, 29, 30, 31, 32, 33, 36, 37, 38, 39, 40, 41, 42, 43, 46, 47, 48, 49, 50, 51, 52, 53, 54];
+  J.fromV0 = k => (k = Math.max(0, k | 0)) < V0.length ? V0[k] : k + (STEPS.length - V0.length);
   J.current = () => J.step(G.S.journey || 0);
   J.progress = function () {
     const st = J.current(), S = G.S;
@@ -115,7 +131,7 @@
   const DEF = { xp: 1, mobHp: 1, gold: 1, horde: 1, champ: 1, loot: 1, thunder: 0, bossHp: 1, bossRew: 1, luck: 0, wisp: 1 };
   function hashDay(k) { let h = 7; for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) >>> 0; return h; }
   G.omen = function () {
-    const k = G.todayKey();
+    const k = G.utcDayKey ? G.utcDayKey() : G.todayKey();
     if (G.omen._k !== k) { G.omen._k = k; G.omen._v = Object.assign({}, DEF, G.OMENS[hashDay(k) % G.OMENS.length]); }
     return G.omen._v;
   };

@@ -25,6 +25,7 @@
     { id: 'pets', icon: 'egg_2', unlock: S => S.eggs > 0 || Object.keys(S.pets).length > 0 },
     { id: 'ach', icon: 'ic_trophy', unlock: S => Object.keys(S.ach).length > 0 },
     { id: 'asc', icon: 'ic_tomb', unlock: S => S.maxDepth >= 5 || S.ascensions > 0 },
+    { id: 'rift', icon: 'ic_rift', unlock: S => S.bestDepth >= 5 || S.rift.runs > 0 },
     { id: 'ladder', icon: 'ic_crown', unlock: () => true },
     { id: 'set', icon: 'ic_gear', unlock: () => true },
   ];
@@ -47,7 +48,7 @@
     S.seen.tabs.upg = 1; S.seen.tabs._u_upg = 1;
     UI.render();
     UI.update(true);
-    $('#perks').addEventListener('click', e => { const c = e.target.closest('[data-perk]'); if (c && G.pickPerk(c.dataset.perk)) { G.Audio && G.Audio.buy(); UI.update(true); } });
+    $('#perks').addEventListener('click', e => { if (performance.now() - (+$('#perks').dataset.t || 0) < 600) return; const c = e.target.closest('[data-perk]'); if (c && G.pickPerk(c.dataset.perk)) { G.Audio && G.Audio.buy(); UI.update(true); } });
     if (G.Tut) G.Tut.init();
     if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
@@ -76,7 +77,8 @@
     $('#btnSound img').src = ic('ic_note', 3);
     $('#btnMusic img').src = ic('ic_echo', 3);
     $('#btnFight').addEventListener('click', () => { G.Audio.unlock(); G.startBoss(); });
-    $('#btnRetreat').addEventListener('click', () => G.fleeBoss());
+    $('#btnRetreat').addEventListener('click', () => { if (G.R.rift) G.riftEnd(false, 'left'); else G.fleeBoss(); });
+    $('#btnRift').addEventListener('click', () => { G.Audio.unlock(); UI.go('rift'); });
     $('#btnAbil').addEventListener('click', () => { G.Audio.unlock(); if (!G.castAbility()) G.Audio.error(); });
   }
 
@@ -103,12 +105,12 @@
   function listen() {
     G.on('achievement', a => { UI.toast(`<span>${esc(t('achievement'))}: <b>${esc(L(a.name))}</b></span>`, 'ach', 'ic_trophy'); if (tab === 'ach') UI.render(); });
     G.on('questDone', q => UI.toast(`<b>${esc(t('questDone'))}</b>`, '', 'ic_scroll'));
-    G.on('realm', r => UI.toast(`<span>${esc(t('newLands', L(G.REALMS[r].name)))}</span>`, 'ach', 'ic_star'));
+    G.on('realm', r => UI.toast(`<span>${esc(t('newLands', G.realmName(G.S.depth)))} · <b>${esc(G.REALMS[r].rule)}</b></span>`, 'ach', 'ic_star'));
     G.on('potion', p => UI.toast(`<span>${esc(t('potionDrink', L(p.name)))} <b>${esc(p.short)} ${G.S.pots[p.id]}/${G.D.potCap}</b></span>`, '', 'pot_' + p.id));
     G.on('chestOpen', loot => {
       if (loot.source === 'offline') return;
       const top = loot.items.reduce((a, b) => (b.it.r > a.it.r ? b : a), loot.items[0]);
-      if (top.it.r >= 4) UI.banner(top.it);
+      if (top.it.r >= 4 && (top.isNew || top.it.r >= 6)) UI.banner(top.it);
       else if (top.isNew) UI.toast(`<span style="color:${G.RARITIES[top.it.r].color}">${esc(L(top.it.name))}</span>&nbsp;<b>${esc(t('newPet'))}</b>`, '', 'it_' + top.it.id);
       dirtyTab('coll'); dirtyTab('quests');
     });
@@ -130,10 +132,37 @@
       G.Audio && G.Audio.achievement();
     });
     G.on('pets', () => { if (tab === 'pets') UI.render(); });
-    G.on('ladder', () => { if (tab === 'ladder') updaters.ladder(); });
+    G.on('ladder', () => { if (tab === 'ladder') updaters.ladder(); if (tab === 'rift') updaters.rift(); });
     G.on('net', () => { if (tab === 'ladder') updaters.ladder(); });
     G.on('cloudNewer', c => { const ask = () => { if ($('#modal').hidden) askCloud(c); else setTimeout(ask, 1500); }; setTimeout(ask, 1200); });
-    G.on('gear', (g, equipped) => { if (equipped && g.r >= 2) UI.toast(`<span>${esc(t('equipped'))}: <b style="color:${G.RARITIES[g.r].color}">${esc(L(G.ITEM_BY_ID[g.id].name))}</b></span>`, '', 'it_' + g.id); });
+    G.on('pickup', (e, how, res) => {
+      if (e.k === 'uq') { UI.bannerU(e.q, res && res.first); dirtyTab('coll'); dirtyTab('hero'); return; }
+      if (e.k !== 'gear' || !res) return;
+      // the big banner is for news: a first find, a divine, or an upgrade the Warden put on
+      if (e.it.r >= 4 && (res.isNew || e.it.r >= 6 || (res.g && G.SLOTS.some(s => G.S.hero.eq[s] === res.g)))) UI.banner(e.it);
+      else if (res.isNew) UI.toast(`<span style="color:${G.RARITIES[e.it.r].color}">${esc(L(e.it.name))}</span>&nbsp;<b>${esc(t('newPet'))}</b>`, '', 'it_' + e.it.id);
+      dirtyTab('coll');
+    });
+    G.on('riftEnd', r => {
+      if (tab === 'rift') UI.render();
+      if (r.win && r.lvl >= r.best && G.Net) G.Net.pushNow();
+    });
+    G.on('feed', () => { if (G.Net) setTimeout(() => G.Net.pushNow(), 1500); });
+    G.on('crownTime', (d, secs) => {
+      const N = G.Net, others = N ? N.entries.filter(e => !e.me && (e.ok) && e.cr && e.cr[d]) : [];
+      const best = others.sort((a, b) => a.cr[d] - b.cr[d])[0];
+      if (!best || secs < best.cr[d]) { UI.toast(`<b>${esc(t('crownTaken', G.bossName(d), secs))}</b>`, 'ach', 'ic_crown'); if (best) G.feed('crown', G.bossName(d)); }
+      if (N) setTimeout(() => N.pushNow(), 1500);
+    });
+    G.on('first', k => {
+      const f = G.FIRSTS.find(x => x[0] === k), N = G.Net;
+      if (!f || !N || N.status !== 'online') return;
+      // announce it only when no friend got there before you
+      if (N.entries.length > 1 && !N.entries.some(e => !e.me && e.ok && e.fs && e.fs[k])) UI.toast(`<b>${esc(t('firstGot', f[1]))}</b>`, 'ach', 'ic_trophy');
+      setTimeout(() => N.pushNow(), 2000);
+    });
+    G.on('rival', ev => UI.toast(esc(ev.up ? t('rivalUp', ev.name, ev.cat, ev.rank) : t('rivalDown', ev.name, ev.cat)), ev.up ? 'ach' : '', 'ic_crown'));
+    G.on('gear', (g, equipped) => { if (equipped && (g.r >= 2 || g.q)) UI.toast(`<span>${esc(t('equipped'))}: <b style="color:${gearCol(g)}">${esc(gearName(g))}</b></span>`, '', G.gearSpr(g)); });
     G.on('levelUp', () => { const xb = $('#xpBar'); xb.classList.remove('up'); void xb.offsetWidth; xb.classList.add('up'); });
     G.on('buttonBreak', () => UI.toast(`<b>${esc(t('overload'))}</b> ${esc(t('overloadHint'))}`, '', 'ic_skull'));
   }
@@ -147,6 +176,15 @@
     const on = !!(S.hero && S.hero.cls);
     box.hidden = !on;
     setText($('#omenLine'), on ? t('omenLine', G.omen().name) : '');
+    // where you stand among friends, right on the play screen
+    const N = G.Net, rl = $('#rivalLine');
+    const list = on && N && N.entries.length > 1 ? N.sorted('depth') : [];
+    const i = list.findIndex(e => e.me);
+    rl.hidden = i < 0;
+    if (i >= 0) {
+      const up = list[i - 1], gap = up ? (up.depth || 0) - (list[i].depth || 0) : 0;
+      setText(rl, up ? t('rivalAhead', i + 1, list.length, N.displayName(up) || t('anon'), gap === 1 ? t('rivalDepth1') : gap > 1 ? t('rivalDepths', gap) : fmt((up.power || 0) - (list[i].power || 0)) + ' ' + t('gearScore').toLowerCase()) : t('rivalTop', list.length));
+    }
     if (!on) return;
     const p = G.Journey.progress();
     const key = (S.journey || 0) + '|' + p.st.text;
@@ -175,14 +213,20 @@
           const P = G.PERKS[id], lv = h.perks[id] || 0;
           return `<button class="card" data-perk="${id}" style="animation-delay:${i * 0.07}s">${img(P.icon, '', 4)}<b>${esc(P.name)}</b><span class="lv">${esc(lv ? t('perkLv', lv + ' → ' + (lv + 1)) : t('perkNew'))}</span><small>${esc(P.desc)}</small></button>`;
         }).join('')}</div><p class="auto" data-auto></p>`;
-        box.hidden = false;
+        box.hidden = false; box.dataset.t = performance.now();
       }
     }
     if (offer) setText(box.querySelector('[data-auto]'), (h.autoPerk ? t('perkAuto', Math.max(0, Math.ceil(12 - (h.offerT || 0)))) + ' · ' : '') + t('perkHint'));
   }
   UI.update = function (force) {
     const S = G.S, D = G.D, R = G.R;
-    setText($('#goldNum'), fmt(S.gold));
+    // the gold number rolls toward the real value and bumps on a real gain
+    const gShow = UI._gold == null ? S.gold : UI._gold + (S.gold - UI._gold) * 0.45;
+    const now = performance.now();
+    if (UI._goldLast != null && S.gold - UI._goldLast > Math.max(1, UI._goldLast * 0.05) && now - (UI._bumpT || 0) > 400) { UI._bumpT = now; const g = $('#goldNum'); g.classList.remove('bump'); void g.offsetWidth; g.classList.add('bump'); }
+    UI._goldLast = S.gold;
+    UI._gold = Math.abs(gShow - S.gold) < Math.max(1, S.gold * 0.001) ? S.gold : gShow;
+    setText($('#goldNum'), fmt(UI._gold));
     setText($('#gpsNum'), fmt(D.gps, true));
     setText($('#clickNum'), fmt(D.click, true));
     setText($('#essNum'), fmt(S.essence, true));
@@ -217,7 +261,7 @@
     if (tabOpen('quests') && (S.quests.some(q => q.done) || G.dailyAvailable())) qDot.hidden = false;
     // HUD
     const realm = G.REALMS[G.realmIndex(S.depth)];
-    setText($('#realmName'), L(realm.name));
+    setText($('#realmName'), G.realmName(S.depth));
     setText($('#depthNum'), String(S.depth + 1));
     setText($('#realmSub'), (G.isLord(S.depth) ? t('lordTitle') + ': ' : t('bossTitle') + ': ') + L(G.bossName(S.depth)));
     const cm = $('#chestMeter');
@@ -229,7 +273,15 @@
     setText($('#chestText'), t('nextChest') + ' ' + Math.floor(S.chestMeter / D.chestNeed * 100) + '%');
     const bossShown = !!(S.hero && S.hero.cls);
     $('#bossRow').hidden = !bossShown;
-    if (bossShown) {
+    $('#btnRift').hidden = !(bossShown && !R.boss && !R.rift && G.riftOpenable());
+    if (bossShown && R.rift) {
+      const r = R.rift, g = r.guard ? R.mobs.find(m => m.id === r.guard) : null;
+      $('#bossMeter').style.width = (g ? Math.max(0, g.hp / g.max) : Math.min(1, r.prog / r.need)) * 100 + '%';
+      setClass($('#bossWrap'), 'hp', !!g); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true);
+      setText($('#bossText'), t('riftName', r.lvl) + ' · ' + Math.ceil(r.t) + 's · ' + (g ? t('riftGuardian') : Math.floor(Math.min(1, r.prog / r.need) * 100) + '%'));
+      $('#btnFight').hidden = true; $('#btnRetreat').hidden = false;
+    } else if (bossShown) {
+      setClass($('#bossWrap'), 'rift', false);
       if (R.boss) {
         const k = Math.max(0, R.boss.hp / R.boss.max);
         $('#bossMeter').style.width = k * 100 + '%';
@@ -275,7 +327,8 @@
     }
     // Buffs
     const bh = S.buffs.map(b => `<span class="buff ${b.id}">${esc(t(b.id))} ${Math.ceil(b.t)}s</span>`).join('')
-      + Object.keys(R.hb || {}).filter(k => R.hb[k] > 0).map(k => `<span class="buff storm">${esc(L(G.ABILITIES[k].name))} ${Math.ceil(R.hb[k])}s</span>`).join('');
+      + Object.keys(R.hb || {}).filter(k => R.hb[k] > 0).map(k => `<span class="buff ${k === 'hh' ? 'hunt' : 'storm'}">${esc(k === 'hh' ? G.UNIQUES.headhunter.name : L(G.ABILITIES[k].name))} ${Math.ceil(R.hb[k])}s</span>`).join('')
+      + (R.shr && R.shr.t > 0 ? `<span class="buff shrine" style="--c:${G.SHRINES[R.shr.k].col}">${esc(t('shrineBuff', G.SHRINES[R.shr.k].name, Math.ceil(R.shr.t)))}</span>` : '');
     const bEl = $('#buffs');
     if (bEl._h !== bh) { bEl.innerHTML = bh; bEl._h = bh; }
     if (G.Tut) G.Tut.update();
@@ -295,7 +348,9 @@
   UI.render = function () {
     applyStatic();
     refs = {};
-    const body = $('#tabBody');
+    // a fresh element per render, so the old tab's click handlers go with it
+    const old = $('#tabBody'), body = old.cloneNode(false);
+    old.replaceWith(body);
     const title = $('#tabTitle');
     title.innerHTML = `<span>${esc(t('tab_' + tab))}</span><small id="tabSub"></small>`;
     body.innerHTML = '';
@@ -492,6 +547,11 @@
       ${G.RARITIES.map((r, ri) => `
         <div class="rarLabel" style="color:${r.color}"><span>${esc(L(r.name))}</span><span style="color:var(--dim)">${G.ITEMS_BY_RARITY[ri].filter(it => S.coll[it.id]).length}/6</span></div>
         <div class="rarRow">${G.ITEMS_BY_RARITY[ri].map(it => `<button class="slot r${ri}" data-i="${it.id}" aria-label="${esc(L(it.name))}">${img('it_' + it.id, '', 4)}<span class="stars"></span><span class="n"></span></button>`).join('')}</div>`).join('')}
+      <div class="sect">${esc(t('uniques'))} <small style="color:var(--dim)">${esc(t('uqFound', Object.keys(S.uq).length, G.UNIQUE_IDS.length))}</small></div>
+      <div class="evoBook uqBook">${G.UNIQUE_IDS.map(q => {
+        const U = G.UNIQUES[q], n = S.uq[q] || 0;
+        return `<div class="evoRow ${n ? 'uq' : 'off'}">${img('u_' + q, '', 3, n ? null : { dark: true })}<div><b>${esc(n ? U.name : '???')}${n > 1 ? ` <small>×${n}</small>` : ''}</b><small>${esc(U.boss ? t('uqDropsBoss') : t('uqDrops', U.minD + 1))}</small>${n ? `<small class="d">${esc(U.fx)}</small>` : ''}</div></div>`;
+      }).join('')}</div>
       <div class="sect">${esc(t('evoBook'))} <small style="color:var(--dim)">${esc(t('evoFound', Object.keys(S.rec.evos || {}).length, Object.keys(G.EVOS).length))}</small></div>
       <div class="evoBook">${Object.keys(G.EVOS).map(id => {
         const E = G.EVOS[id], got = S.rec.evos && S.rec.evos[id];
@@ -505,7 +565,7 @@
       <div class="modList">${G.MODIFIERS.map(m => `<div class="modItem ${D.mods[m.id] ? '' : 'off'}"><b style="color:${m.color}">${esc(L(m.name))}</b><span>${esc(D.mods[m.id] ? L(m.desc) : t('modLocked'))}</span></div>`).join('')}</div>`;
     refs.slots = $$('.slot', body).map(el => ({ el, it: G.ITEM_BY_ID[el.dataset.i], n: el.querySelector('.n'), st: el.querySelector('.stars'), img: el.querySelector('img') }));
     refs.item = body.querySelector('[data-item]');
-    refs.found = found;
+    refs.found = found + 100 * Object.keys(S.uq).length;
     body.addEventListener('click', e => {
       const s = e.target.closest('.slot'); if (!s) return;
       selItem = s.dataset.i; updaters.coll(true);
@@ -515,7 +575,7 @@
   updaters.coll = function (force) {
     const S = G.S;
     if (!refs.slots) return;
-    const found = G.ITEMS.filter(it => (S.coll[it.id] || 0) > 0).length;
+    const found = G.ITEMS.filter(it => (S.coll[it.id] || 0) > 0).length + 100 * Object.keys(S.uq).length;
     if (found !== refs.found) { UI.render(); return; }
     if (!force) return;
     for (const s of refs.slots) {
@@ -780,7 +840,8 @@
     const g = h.bag.find(x => x.u === u);
     return g ? { g, worn: null } : null;
   }
-  function gearName(g) { return L(G.ITEM_BY_ID[g.id].name) + (g.e ? ' +' + g.e : ''); }
+  function gearName(g) { return (g.q ? G.UNIQUES[g.q].name : L(G.ITEM_BY_ID[g.id].name)) + (g.e ? ' +' + g.e : ''); }
+  const gearCol = g => (g.q ? G.UNIQUE_COL : G.RARITIES[g.r].color);
   function mainLine(g) {
     const slot = G.slotOf(g.id), type = G.ITEM_TYPE[g.id], v = G.mainStat(g);
     if (slot === 'weapon') return t('g_weapon', L(G.WEAPONS[type].name), fmt(v, true), G.WEAPONS[type].targets);
@@ -788,13 +849,27 @@
     if (slot === 'ring') return t('g_ring', G.fmtPct(v));
     return t('g_ability', G.fmtPct(v), L(G.ABILITIES[type].name), L(G.ABILITIES[type].desc));
   }
-  function affLine(a) {
+  // how good a roll is inside its range: T1 for the top fifth, a star for a near-perfect one
+  function affLine(a, g) {
     const d = G.AFFIXES[a[0]];
-    return `<li>${esc(L(d.name))} <b>${d.x ? '+' + a[1].toFixed(2) + '×' : G.fmtPct(a[1])}</b></li>`;
+    let tag = '';
+    if (g && !g.q) {
+      const k = 1 + 0.35 * g.r, q = (a[1] / k - d.v[0]) / (d.v[1] - d.v[0]);
+      tag = q >= 0.95 ? ' <em class="t1">★ T1</em>' : q >= 0.8 ? ' <em class="t1">T1</em>' : '';
+    }
+    return `<li>${esc(L(d.name))} <b>${d.x ? '+' + a[1].toFixed(2) + '×' : G.fmtPct(a[1])}</b>${tag}</li>`;
   }
   function gearTile(g, extra) {
-    const r = G.RARITIES[g.r];
-    return `<button class="gear r${g.r} ${extra || ''}" data-g="${g.u}" style="--rc:${r.color}" aria-label="${esc(gearName(g))}">${img('it_' + g.id, '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u></button>`;
+    return `<button class="gear r${g.r} ${g.q ? 'uq' : ''} ${g.c ? 'corr' : ''} ${extra || ''}" data-g="${g.u}" style="--rc:${gearCol(g)}" aria-label="${esc(gearName(g))}">${img(G.gearSpr(g), '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u></button>`;
+  }
+  // The currency strip: tap an orb to use it on the selected item
+  function orbBar(g) {
+    const h = G.S.hero;
+    return `<div class="orbBar">${G.ORB_IDS.map(id => {
+      const O = G.ORBS[id], n = h.orbs[id] || 0, why = G.orbBlock(id, g);
+      const tip = O.name + ': ' + O.desc + (n && why ? ' (' + t('orbNo_' + why, G.ENCHANT_MAX) + ')' : '');
+      return `<button class="orb ${n ? '' : 'none'} ${n && !why ? 'can' : ''}" data-orb="${id}" title="${esc(tip)}" aria-label="${esc(O.name)}" style="--oc:${O.col}">${img('orb_' + id, '', 3)}<b>${fmt(n)}</b></button>`;
+    }).join('')}</div>`;
   }
   renderers.hero = function (body) {
     const S = G.S, h = S.hero;
@@ -818,6 +893,8 @@
       <div class="perkList" data-perks></div>
       <div class="doll">${G.SLOTS.map(s => `<div class="dslot" data-slot="${s}"><span class="lbl">${esc(t('slot_' + s))}</span><div data-in></div></div>`).join('')}</div>
       <div class="detail" data-gd></div>
+      <div class="sect">${esc(t('orbs'))} <small style="color:var(--dim)">${esc(t('orbHint'))}</small></div>
+      <div data-orbs></div>
       <div class="statList heroStats" data-stats></div>
       <div class="sect">${esc(t('bag'))} <span data-bagn></span> · ${img('ic_ess', 'inl', 2)} <span data-shards></span> ${esc(t('shards'))}</div>
       <div class="bag" data-bag></div>
@@ -835,7 +912,7 @@
       lvl: body.querySelector('[data-lvl]'), xp: body.querySelector('[data-xp]'), xpt: body.querySelector('[data-xpt]'), pow: body.querySelector('[data-pow]'),
       slots: $$('.dslot', body), gd: body.querySelector('[data-gd]'), stats: body.querySelector('[data-stats]'), bag: body.querySelector('[data-bag]'),
       bagn: body.querySelector('[data-bagn]'), shards: body.querySelector('[data-shards]'), rec: body.querySelector('[data-rec]'), key: '',
-      role: body.querySelector('[data-role]'), perks: body.querySelector('[data-perks]'),
+      role: body.querySelector('[data-role]'), perks: body.querySelector('[data-perks]'), orbs: body.querySelector('[data-orbs]'),
     };
     $('#heroName', body).addEventListener('change', e => { S.profile.name = e.target.value.trim().slice(0, 16); });
     body.addEventListener('click', e => {
@@ -851,6 +928,16 @@
       if (gt) { selGear = +gt.dataset.g; refs.hero.key = ''; updaters.hero(true); return; }
       const ds = e.target.closest('.dslot');
       if (ds && !e.target.closest('[data-g]')) { const g = h.eq[ds.dataset.slot]; if (g) { selGear = g.u; refs.hero.key = ''; updaters.hero(true); } return; }
+      const ob = e.target.closest('[data-orb]');
+      if (ob) {
+        const f = findGear(selGear), id = ob.dataset.orb;
+        if (!(h.orbs[id] > 0)) { G.Audio.error(); return; }
+        const why = G.orbBlock(id, f && f.g);
+        if (why) { G.Audio.error(); UI.toast(esc(t('orbNo_' + why, G.ENCHANT_MAX)), '', 'orb_' + id); return; }
+        const res = G.useOrb(id, f.g);
+        if (res) UI.toast(`<b style="color:${G.ORBS[id].col}">${esc(t('orbDone_' + res))}</b>`, res.startsWith('ruin') && res !== 'ruin_none' ? 'ach' : '', 'orb_' + id);
+        refs.hero.key = ''; updaters.hero(true); return;
+      }
       const act = e.target.closest('[data-act]');
       if (act) {
         const f = findGear(selGear); if (!f) return;
@@ -887,7 +974,7 @@
     ];
     const roleHtml = role.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('') + (alone > limit * 2 ? `<p class="note warn">${esc(t('roleWeak'))}</p>` : '');
     if (rf.role.innerHTML !== roleHtml) rf.role.innerHTML = roleHtml;
-    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks]);
+    const key = JSON.stringify([h.eq, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks, h.orbs]);
     if (key === rf.key && !force) return;
     const pk = Object.keys(h.perks || {}).filter(k => h.perks[k] > 0);
     rf.perks.innerHTML = pk.length ? pk.map(k => {
@@ -919,20 +1006,22 @@
     ];
     rf.stats.innerHTML = rows.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('');
     // Records (ladder material)
-    const rec = [['rec_depth', S.bestDepth], ['rec_power', fmt(S.rec.maxPower)], ['rec_level', S.rec.maxLevel], ['rec_mad', S.rec.madTime ? G.fmtTime(S.rec.madTime) : '—'], ['rec_id', S.profile.id]];
+    const rec = [['rec_depth', S.bestDepth], ['gsLadder', fmt(G.ladderSnapshot().power)], ['rec_power', fmt(S.rec.maxPower)], ['rec_level', S.rec.maxLevel], ['rec_mad', S.rec.madTime ? G.fmtTime(S.rec.madTime) : '—'], ['rec_rift', S.rift.best || '—']];
     rf.rec.innerHTML = rec.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('');
     // Detail
     const f = selGear ? findGear(selGear) : null;
-    if (!f) { rf.gd.innerHTML = `<p>${esc(t('tapItem'))}</p>`; return; }
-    const g = f.g, r = G.RARITIES[g.r], slot = G.slotOf(g.id);
+    if (!f) { rf.gd.innerHTML = `<p>${esc(t('tapItem'))}</p>`; rf.orbs.innerHTML = orbBar(null); return; }
+    const g = f.g, r = G.RARITIES[g.r], slot = G.slotOf(g.id), U = g.q ? G.UNIQUES[g.q] : null;
     const cmp = f.worn ? null : G.powerWith(slot, g) - G.powerWith(slot, h.eq[slot]);
     const ec = G.enchantCost(g);
     const canE = g.e < G.ENCHANT_MAX && h.shards >= ec.shards && S.gold >= ec.gold;
+    rf.orbs.innerHTML = orbBar(g);
     rf.gd.innerHTML = `
-      <h3 style="color:${r.color}">${esc(gearName(g))}</h3>
-      <p>${esc(L(r.name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}</p>
+      <h3 style="color:${gearCol(g)}">${esc(gearName(g))}</h3>
+      <p>${U ? `<b style="color:${G.UNIQUE_COL}">${esc(t('unique'))}</b> · ${esc(L(G.ITEM_BY_ID[g.id].name))}` : esc(L(r.name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${g.c ? ` · <b style="color:#ff5a4a">${esc(t('corrupted'))}</b>` : ''}</p>
       <p>${esc(mainLine(g))}</p>
-      ${g.a.length ? `<ul class="affs">${g.a.map(affLine).join('')}</ul>` : ''}
+      ${g.a.length ? `<ul class="affs">${g.a.map(a => affLine(a, g)).join('')}</ul>` : ''}
+      ${U ? `<p class="uqfx">${esc(U.fx)}</p>` : ''}
       ${cmp !== null ? `<p>${esc(t('vsWorn'))}: <b style="color:${cmp >= 0 ? 'var(--good)' : 'var(--bad)'}">${cmp >= 0 ? '+' : ''}${fmt(cmp)} ${esc(t('power').toLowerCase())}</b></p>` : ''}
       <div class="act">
         ${f.worn ? `<button class="btn" data-act="unequip">${esc(t('unequip'))}</button>` : `<button class="btn gold" data-act="equip">${esc(t('equip'))}</button>`}
@@ -951,28 +1040,154 @@
     const m = UI.modal(t('pickClass'), html, [], true);
     m.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => {
       G.chooseClass(b.dataset.c);
+      if (!G.S.profile.name && G.Net && G.Net.myName) G.S.profile.name = G.Net.myName.slice(0, 16);
       m.hidden = true; m.innerHTML = '';
       UI.render();
     }));
   };
 
+
+  // Rifts: pick a level, open it, see how friends are doing
+  let riftSel = null;
+  renderers.rift = function (body) {
+    const S = G.S, rf = S.rift;
+    if (!G.riftOpenable()) { body.innerHTML = `<p class="note">${esc(t('riftLocked'))}</p>`; return; }
+    if (riftSel == null || riftSel > G.riftMax()) {
+      // start on the highest level the Warden can clear comfortably, or one past the best
+      const D = G.D, mx = G.riftMax();
+      let pick = 1;
+      for (let L = mx; L >= 1; L--) if ((D.heroDps || 0) / G.mobHp(G.riftDepth(L)) >= 6) { pick = L; break; }
+      riftSel = Math.min(mx, Math.max(pick, rf.best ? rf.best + 1 : 1));
+    }
+    body.innerHTML = `
+      <div class="detail riftBox">
+        <p class="note">${esc(t('riftIntro', G.TUNE.riftTime))}</p>
+        <div class="riftPick">
+          <button class="btn" data-rl="-5">-5</button><button class="btn" data-rl="-1">-</button>
+          <span class="rl"><small>${esc(t('riftLevel'))}</small><b data-rlv></b></span>
+          <button class="btn" data-rl="1">+</button><button class="btn" data-rl="max">${esc(t('max'))}</button>
+        </div>
+        <p data-rinfo></p>
+        <button class="btn gold big" data-ropen></button>
+      </div>
+      <div class="statList" data-rstats></div>
+      <div class="sect">${esc(t('riftFriends'))}</div>
+      <div class="ladder" data-rlist></div>`;
+    refs.rift = { lv: body.querySelector('[data-rlv]'), info: body.querySelector('[data-rinfo]'), open: body.querySelector('[data-ropen]'), stats: body.querySelector('[data-rstats]'), list: body.querySelector('[data-rlist]'), key: '' };
+    body.addEventListener('click', e => {
+      const b = e.target.closest('[data-rl]');
+      if (b) { const v = b.dataset.rl; riftSel = v === 'max' ? G.riftMax() : Math.max(1, Math.min(G.riftMax(), riftSel + +v)); updaters.rift(true); return; }
+      if (e.target.closest('[data-ropen]')) {
+        G.Audio.unlock();
+        if (!G.riftStart(riftSel)) { G.Audio.error(); UI.toast(esc(t('riftBusy')), '', 'ic_rift'); return; }
+        updaters.rift(true);
+      }
+    });
+  };
+  updaters.rift = function (force) {
+    const S = G.S, D = G.D, rf = S.rift, r = refs.rift, R = G.R;
+    if (!r) return;
+    const d = G.riftDepth(riftSel), realm = G.REALMS[G.realmIndex(d)];
+    const might = (D.heroDps || 0) / G.mobHp(d);
+    setText(r.lv, String(riftSel));
+    const col = might >= 6 ? 'var(--good)' : might >= 2.5 ? '#ffe27a' : 'var(--bad)';
+    const info = `${esc(t('riftHere', d + 1, G.realmName(d)))} <b style="color:${col}">${esc(t('riftCan', might >= 100 ? fmt(might) : might.toFixed(1)))}</b>`;
+    if (r.info._h !== info) { r.info.innerHTML = info; r.info._h = info; }
+    setText(r.open, R.rift ? t('riftName', R.rift.lvl) + ' · ' + Math.ceil(R.rift.t) + 's' : t('riftOpenBtn', riftSel));
+    r.open.disabled = !!(R.rift || R.boss);
+    const today = rf.day.k === G.utcDayKey() ? rf.day.l : 0;
+    const stats = [[t('riftBest'), rf.best ? rf.best + ' · ' + G.fmtTime(rf.bestT) : '—'], [t('riftToday'), today || '—'], [t('riftLevel') + ' max', G.riftMax()], [t('riftRuns'), fmt(rf.runs)]];
+    const sh = stats.map(([k, v]) => `<span>${esc(k)}</span><b>${esc(v)}</b>`).join('');
+    if (r.stats._h !== sh) { r.stats.innerHTML = sh; r.stats._h = sh; }
+    setText($('#tabSub'), t('riftBest') + ' ' + (rf.best || '—'));
+    const N = G.Net, list = N ? N.sorted('rift').filter(e => (e.rift || 0) > 0) : [];
+    const key = JSON.stringify(list.map(e => [e.uid, e.rift, e.rt, e.rd]));
+    if (key === r.key && !force) return;
+    r.key = key;
+    r.list.innerHTML = list.length ? list.slice(0, 30).map((e, i) => ladderRow(e, i, 'rift')).join('') : `<p class="note">${esc(t('riftNoFriends'))}</p>`;
+  };
+
   // Ladder: shared ranking and cloud save status
   let ladderBy = 'depth';
+  const LADDER_BY = ['depth', 'power', 'rift', 'today', 'uq', 'mad', 'crowns', 'firsts'];
+  const LADDER_LBL = { depth: 'byDepth', power: 'byPower', rift: 'byRift', today: 'byToday', uq: 'byUq', mad: 'byMad', crowns: 'byCrowns', firsts: 'byFirsts' };
+  const nameOf = e => G.Net.displayName(e) || t('anon');
+  // Lord crowns: the fastest fresh kill of each lord among everyone
+  function crownBoard() {
+    const N = G.Net, list = N.entries.filter(e => e.ok || e.me), S = G.S;
+    const rows = [];
+    for (let d = G.REALM_SIZE - 1; d <= Math.max(S.bestDepth, ...list.map(e => e.depth || 0)); d += G.REALM_SIZE) {
+      const best = list.filter(e => e.cr && e.cr[d]).sort((a, b) => a.cr[d] - b.cr[d])[0];
+      const mine = S.rec.crowns && S.rec.crowns[d];
+      rows.push(`<div class="lrow crow ${best && best.me ? 'me' : ''}"><b class="rk">${best ? '\u{1F451}' : '·'}</b>
+        <span class="nm">${esc(G.bossName(d))}<small>${esc(t('depthShort'))} ${d + 1}${mine ? ' · ' + esc(t('crownYours', mine)) : ''}</small></span>
+        <span class="v"><b>${best ? esc(nameOf(best)) : esc(t('noCrown'))}</b><small>${best ? best.cr[d] + 's' : ''}</small></span></div>`);
+    }
+    return `<p class="note">${esc(t('crownsHint'))}</p>` + rows.join('');
+  }
+  // Firsts: the first three to reach each milestone
+  function firstsBoard() {
+    const N = G.Net, list = N.entries.filter(e => e.ok || e.me);
+    const medal = ['\u{1F947}', '\u{1F948}', '\u{1F949}'];
+    return `<p class="note">${esc(t('firstsHint'))}</p>` + G.FIRSTS.map(([k, label]) => {
+      const top = list.filter(e => e.fs && e.fs[k]).sort((a, b) => a.fs[k] - b.fs[k]).slice(0, 3);
+      return `<div class="lrow first"><span class="nm">${esc(label)}</span><span class="v fsv">${top.length ? top.map((e, i) => `<small class="${e.me ? 'me' : ''}">${medal[i]} ${esc(nameOf(e))}</small>`).join('') : `<small>${esc(t('noCrown'))}</small>`}</span></div>`;
+    }).join('');
+  }
+  // What the row shows on the right for each ranking
+  function ladderVal(e, by) {
+    if (by === 'rift') return [t('riftName', e.rift || 0), e.rt ? G.fmtTime(e.rt) : ''];
+    if (by === 'today') return [t('riftName', (e.rd && e.rd.l) || 0), e.rd && e.rd.t ? G.fmtTime(e.rd.t) : t('riftToday')];
+    if (by === 'uq') return [(e.uq || 0) + ' / ' + G.UNIQUE_IDS.length, t('uniques')];
+    if (by === 'mad') return [G.fmtTime(e.mad || 0), t('byMad')];
+    return [t('depthShort') + ' ' + (e.depth + 1), t('gearScore') + ' ' + fmt(e.power || 0)];
+  }
+  function ladderRow(e, i, by) {
+    const cls = G.CLASS_BY_ID[e.cls] || G.CLASSES[0], N = G.Net;
+    const nm = N.displayName(e) || t('anon'), v = ladderVal(e, by);
+    const acc = N.accountName(e);
+    return `<div class="lrow ${e.me ? 'me' : ''} ${e.ok ? '' : 'bad'}" data-uid="${esc(e.uid)}" role="button" tabindex="0">
+        <b class="rk">${i + 1}</b><img class="ldoll" src="${G.Doll.portrait(G.Doll.fromSnapshot(e), 2, true)}" alt="">
+        <span class="nm">${esc(nm)}${e.me ? ' · ' + esc(t('you')) : ''}<small>${esc(L(cls.name))} · ${esc(t('lvl'))} ${e.lvl}${acc && acc !== nm ? ' · ' + esc(acc) : ''}${e.ok ? '' : ' · ' + esc(t('unverified'))}</small></span>
+        <span class="v"><b>${esc(v[0])}</b><small>${esc(v[1])}</small></span>
+      </div>`;
+  }
+  // Everyone's recent big moments, newest first
+  function feedHtml() {
+    const N = G.Net, rows = [];
+    for (const e of N.entries) { if (!e.ok && !e.me) continue; for (const f of Array.isArray(e.ev) ? e.ev : []) if (Array.isArray(f) && typeof f[1] === 'string' && f[1] && typeof f[0] === 'number') rows.push({ e, ts: f[0], k: f[1], s: String(f[2] || '') }); }
+    rows.sort((a, b) => b.ts - a.ts);
+    if (!rows.length) return `<p class="note">${esc(t('feedEmpty'))}</p>`;
+    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown' };
+    return rows.slice(0, 12).map(r => `<div class="feedRow">${img(icon[r.k] || 'ic_star', '', 2)}<span><b>${esc(N.displayName(r.e) || t('anon'))}</b> ${esc(t('feed' + r.k[0].toUpperCase() + r.k.slice(1), r.s))}</span><small>${esc(G.fmtTime(Math.max(1, (Date.now() - r.ts) / 1000)))}</small></div>`).join('');
+  }
   renderers.ladder = function (body) {
     const S = G.S, N = G.Net;
     body.innerHTML = `
       <div class="detail" data-net></div>
       <div class="tabTitle" style="padding:8px 4px"><small>${esc(t('rankBy'))}</small>
-        <span class="seg" data-by><button data-b="depth" class="${ladderBy === 'depth' ? 'on' : ''}">${esc(t('byDepth'))}</button><button data-b="power" class="${ladderBy === 'power' ? 'on' : ''}">${esc(t('byPower'))}</button></span></div>
+        <span class="seg" data-by>${LADDER_BY.map(b => `<button data-b="${b}" class="${ladderBy === b ? 'on' : ''}">${esc(t(LADDER_LBL[b]))}</button>`).join('')}</span></div>
       <div class="ladder" data-list></div>
+      <div class="sect">${esc(t('recent'))} <button class="btn" data-brag style="float:right">${esc(t('brag'))}</button></div>
+      <div class="feed" data-feed></div>
       <p class="note">${esc(t('ladderRules'))}</p>`;
-    refs.lad = { net: body.querySelector('[data-net]'), list: body.querySelector('[data-list]'), key: '' };
+    refs.lad = { net: body.querySelector('[data-net]'), list: body.querySelector('[data-list]'), feed: body.querySelector('[data-feed]'), key: '' };
     body.addEventListener('click', e => {
       const b = e.target.closest('[data-b]');
       if (b) { ladderBy = b.dataset.b; $$('[data-by] button', body).forEach(x => x.classList.toggle('on', x === b)); refs.lad.key = ''; updaters.ladder(true); return; }
       if (e.target.closest('[data-push]')) { N.pushNow(); UI.toast(esc(t('synced')), '', 'ic_crown'); return; }
+      if (e.target.closest('[data-brag]')) {
+        const h = S.hero, snap = G.ladderSnapshot(), crowns = Object.keys(S.rec.crowns || {}).filter(d => { const mine = S.rec.crowns[d]; return !N.entries.some(e => !e.me && e.cr && e.cr[d] && e.cr[d] < mine); }).length;
+        const grid = G.UNIQUE_IDS.map(q => S.uq[q] ? '\u{1F7E7}' : '\u2B1B').join('');
+        const txt = t('bragText', L((G.CLASS_BY_ID[h.cls] || G.CLASSES[0]).name), snap.lvl, S.bestDepth + 1, S.rift.best, Object.keys(S.uq).length, fmt(snap.power), crowns, G.UNIQUE_IDS.length, grid);
+        const ok = () => UI.toast(esc(t('bragged')), 'ach', 'ic_crown');
+        try { navigator.clipboard.writeText(txt).then(ok, () => UI.toast(esc(txt), '', 'ic_crown')); } catch (err) { UI.toast(esc(txt), '', 'ic_crown'); }
+        return;
+      }
       if (e.target.closest('[data-cloud]')) { askCloud(N.cloud); return; }
-      if (e.target.closest('[data-name]')) { UI.go('hero'); setTimeout(() => { const i = $('#heroName'); if (i) i.focus(); }, 50); }
+      if (e.target.closest('[data-name]')) { UI.go('hero'); setTimeout(() => { const i = $('#heroName'); if (i) i.focus(); }, 50); return; }
+      const row = e.target.closest('.lrow[data-uid]');
+      if (row) inspect(row.dataset.uid);
     });
   };
   updaters.ladder = function (force) {
@@ -982,36 +1197,55 @@
     const statusText = N.status === 'online' ? (N.mode === 'http' ? t('netHttp') : t('netArtifact'))
       : N.status === 'connecting' ? t('netConnecting') : N.status === 'error' ? t('netError', N.error) : t('netOff');
     const netHtml = `<h3>${esc(statusText)}</h3>
-      ${N.status === 'online' ? `<p>${esc(N.readOnly ? t('netReadOnly') : t('netSynced', ago(N.lastSaveAt), ago(N.lastLadderAt)))}</p>` : `<p>${esc(t('netOffHint'))}</p>`}
+      ${N.status === 'online' ? `<p>${esc(N.readOnly ? t('netReadOnly') + ' ' + t('readOnlyHow') : t('netSynced', ago(N.lastSaveAt), ago(N.lastLadderAt)))}</p>` : `<p>${esc(t('netOffHint'))}</p>`}
       ${S.profile.name ? '' : `<p>${esc(t('noNameYet'))} <button class="btn" data-name>${esc(t('setName'))}</button></p>`}
       <div class="act">${N.status === 'online' && !N.readOnly ? `<button class="btn gold" data-push>${esc(t('syncNow'))}</button>` : ''}
         ${N.cloud ? `<button class="btn" data-cloud>${esc(t('loadCloud'))}</button>` : ''}</div>
-      ${N.error && N.status === 'online' ? `<p style="color:var(--bad)">${esc(t('netError', N.error))}</p>` : ''}`;
+      ${N.error && N.status === 'online' ? `<p style="color:var(--bad)">${esc(t('netError', N.error))}</p>` : ''}
+      ${N.behind ? `<p class="note warn">${esc(t('netBehind'))}</p>` : ''}
+      ${(() => { const mine = N.entries.find(e => e.me); return mine && !mine.ok ? `<p class="note warn">${esc(t('myHidden', (mine.problems || []).join(', ')))}</p>` : ''; })()}`;
     if (rf.net._h !== netHtml) { rf.net.innerHTML = netHtml; rf.net._h = netHtml; }
     const list = N.sorted(ladderBy);
-    const key = ladderBy + JSON.stringify(list.map(e => [e.uid, e.depth, e.power, e.lvl, e.name]));
+    const key = ladderBy + JSON.stringify(N.entries.map(e => [e.uid, e.depth, e.power, e.lvl, N.displayName(e), N.accountName(e), e.rift, e.rd, e.uq, e.ev, e.fs, e.cr, e.mad])) + JSON.stringify(S.rec.crowns || {});
     if (key === rf.key && !force) return;
     rf.key = key;
     const suspicious = N.entries.filter(e => !e.ok && !e.me).length;
+    const fh = feedHtml();
+    if (rf.feed._h !== fh) { rf.feed.innerHTML = fh; rf.feed._h = fh; }
+    if (ladderBy === 'crowns' || ladderBy === 'firsts') { rf.list.innerHTML = ladderBy === 'crowns' ? crownBoard() : firstsBoard(); return; }
+    if (ladderBy === 'mad' && !list.length) { rf.list.innerHTML = `<p class="note">${esc(t('madHint'))}</p>`; return; }
     if (!list.length) { rf.list.innerHTML = `<p class="note">${esc(N.status === 'online' ? t('ladderEmpty') : t('ladderOffline'))}</p>`; return; }
-    rf.list.innerHTML = list.slice(0, 100).map((e, i) => {
-      const cls = G.CLASS_BY_ID[e.cls] || G.CLASSES[0];
-      const nm = N.displayName(e) || t('anon');
-      return `<div class="lrow ${e.me ? 'me' : ''} ${e.ok ? '' : 'bad'}">
-        <b class="rk">${i + 1}</b><img class="ldoll" src="${G.Doll.portrait(G.Doll.fromSnapshot(e), 2, true)}" alt="">
-        <span class="nm">${esc(nm)}${e.me ? ' · ' + esc(t('you')) : ''}<small>${esc(L(cls.name))} · ${esc(t('lvl'))} ${e.lvl}${e.ok ? '' : ' · ' + esc(t('unverified'))}</small></span>
-        <span class="v"><b>${esc(t('depthShort'))} ${e.depth + 1}</b><small>${esc(t('power'))} ${fmt(e.power || 0)}</small></span>
-      </div>`;
-    }).join('') + (suspicious ? `<p class="note">${esc(t('hiddenBad', suspicious))}</p>` : '');
+    rf.list.innerHTML = list.slice(0, 100).map((e, i) => ladderRow(e, i, ladderBy)).join('') + (suspicious ? `<p class="note">${esc(t('hiddenBad', suspicious))}</p>` : '');
     const myIdx = list.findIndex(e => e.me);
     setText($('#tabSub'), myIdx >= 0 ? t('yourRank', myIdx + 1, list.length) : '');
   };
+  // A friend's Warden up close: their doll, their four items and how they compare with yours
+  function inspect(uid) {
+    const N = G.Net, e = N.entries.find(x => x.uid === uid);
+    if (!e) return;
+    const mine = G.S.hero.cls ? G.ladderSnapshot() : { power: 0 };
+    const rows = G.SLOTS.map(s => {
+      const g = e.gear && e.gear[s];
+      if (!g || !G.ITEM_BY_ID[g.id]) return `<div class="insRow"><span class="empty">—</span><b>${esc(t('slot_' + s))}</b></div>`;
+      const U = g.q && G.UNIQUES[g.q], col = U ? G.UNIQUE_COL : (G.RARITIES[g.r] || G.RARITIES[0]).color;
+      const name = (U ? U.name : L(G.ITEM_BY_ID[g.id].name)) + (g.e ? ' +' + g.e : '');
+      return `<div class="insRow">${img(U ? 'u_' + g.q : 'it_' + g.id, '', 3)}<div><b style="color:${col}">${esc(name)}</b><small>${esc(t('ilvl', g.il))}${g.c ? ' · ' + esc(t('corrupted')) : ''}</small>
+        <ul class="affs">${(Array.isArray(g.a) ? g.a : []).filter(a => Array.isArray(a) && G.AFFIXES[a[0]] && typeof a[1] === 'number').map(a => affLine(a, g)).join('')}</ul>${U ? `<small class="uqfx">${esc(U.fx)}</small>` : ''}</div></div>`;
+    }).join('');
+    const d = (e.power || 0) - (mine.power || 0);
+    const html = `<div class="insHead"><img src="${G.Doll.portrait(G.Doll.fromSnapshot(e), 4)}" alt=""><div>
+        <p><b>${esc(N.displayName(e) || t('anon'))}</b>${N.accountName(e) ? ' · ' + esc(N.accountName(e)) : ''}</p>
+        <p>${esc(L((G.CLASS_BY_ID[e.cls] || G.CLASSES[0]).name))} · ${esc(t('lvl'))} ${e.lvl} · ${esc(t('depthShort'))} ${(e.depth || 0) + 1} · ${esc(t('riftName', e.rift || 0))} · ${esc(t('uniques'))} ${e.uq || 0}</p>
+        <p>${esc(t('gearScore'))} <b>${fmt(e.power || 0)}</b>${e.me ? '' : ` <small style="color:${d > 0 ? 'var(--bad)' : 'var(--good)'}">(${d > 0 ? '+' : ''}${fmt(d)} ${esc(t('inspectVs'))})</small>`}</p></div></div>
+      <div class="insGear">${rows}</div>`;
+    UI.modal(N.displayName(e) || t('anon'), html, [{ label: t('ok'), cls: 'gold' }]);
+  }
   function askCloud(cloud) {
     if (!cloud) return;
     const when = new Date(cloud.ts || 0).toLocaleString();
     UI.modal(t('cloudTitle'), `<p>${esc(t('cloudText', when))}</p>`, [
       { label: t('cloudLoad'), cls: 'gold', fn: () => { G.Net.hold = false; if (G.Net.loadCloud()) { UI.toast(esc(t('imported')), 'ach', 'ic_scroll'); UI.render(); } else UI.toast(esc(t('badSave')), '', 'ic_skull'); } },
-      { label: t('cloudKeep'), fn: () => { G.Net.hold = false; G.Net.pushNow(); if (G.Tut) G.Tut.maybeIntro(); } },
+      { label: t('cloudKeep'), fn: () => { G.Net.keepLocal(cloud); if (G.Tut) G.Tut.maybeIntro(); } },
     ]);
   }
 
@@ -1023,7 +1257,7 @@
       <div class="setList">
         ${tg('sound', t('sound'))}${tg('music', t('music'))}
         <div class="setRow"><span>${esc(t('volume'))}</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${s.vol}"></div>
-        ${tg('hold', t('hold'))}${tg('shake', t('shake'))}${tg('autoBoss', t('autoBoss'))}
+        ${tg('hold', t('hold'))}${tg('shake', t('shake'))}${tg('autoBoss', t('autoBoss'))}${tg('filter', t('lootFilter'))}
       </div>
       <div class="sect">${esc(t('saveTitle'))}</div>
       <p class="note">${esc(t('importHint'))}</p>
@@ -1090,6 +1324,13 @@
     el.hidden = false; el.classList.remove('out');
     clearTimeout(bannerT);
     bannerT = setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; }, 400); }, it.r >= 6 ? 2600 : 1700);
+  };
+  UI.bannerU = function (q, first) {
+    const el = $('#banner'), U = G.UNIQUES[q];
+    el.innerHTML = `<div class="inner uqb" style="color:${G.UNIQUE_COL}"><h2>${esc(first ? t('uqNew') : t('uqBanner'))}</h2><img class="ico" src="${ic('u_' + q, 10)}" alt=""><p>${esc(U.name)}</p><p style="font-size:15px;color:#ffe0c0">${esc(U.fx)}</p></div>`;
+    el.hidden = false; el.classList.remove('out');
+    clearTimeout(bannerT);
+    bannerT = setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; }, 400); }, 3200);
   };
   UI.modal = function (title, html, actions, locked) {
     const m = $('#modal');

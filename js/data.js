@@ -16,6 +16,8 @@
   ];
   // Base chest tier weights before luck.
   G.CHEST_WEIGHTS = [1000, 280, 80, 22, 6, 1.5, 0.3];
+  // The Horde drops far more pieces than the Button spills chests, so each one is stingier at the top
+  G.DROP_WEIGHTS = [1000, 300, 80, 18, 3.5, 0.6, 0.08];
   G.STAR_THRESHOLDS = [1, 10, 100, 1000, 10000];
 
   // ---------- Collection bonus types (per star, before rarity multiplier) ----------
@@ -324,21 +326,29 @@
   G.REALM_SIZE = 5; // depths per realm; the 5th depth is the realm lord
   G.REALMS = [
     { id: 'shore',     name: 'Shoreline',  minion: 'b_crab',   lord: 'l_crab',   fodder: 'f_crab',
-      minionName: 'Sand Crab', lordName: 'The Crab King' },
+      minionName: 'Sand Crab', lordName: 'The Crab King',
+      rule: 'Treasure Tides', ruleDesc: 'Hoarders come twice as often', hoard: 2 },
     { id: 'meadow',    name: 'Meadows',    minion: 'b_goblin', lord: 'l_goblin', fodder: 'f_goblin',
-      minionName: 'Goblin', lordName: 'Goblin Warchief' },
+      minionName: 'Goblin', lordName: 'Goblin Warchief',
+      rule: 'Goblin Raids', ruleDesc: 'Surges come 50% bigger and last longer', surge: 1.5 },
     { id: 'forest',    name: 'Deepwood',   minion: 'b_shroom', lord: 'l_tree',   fodder: 'f_spore',
-      minionName: 'Shroomling', lordName: 'Elder Treant' },
+      minionName: 'Shroomling', lordName: 'Elder Treant',
+      rule: 'Sporefall', ruleDesc: 'Big mobs often burst into spores when they die', split: 0.4 },
     { id: 'highlands', name: 'Highlands',  minion: 'b_golem',  lord: 'l_titan',  fodder: 'f_pebble',
-      minionName: 'Stone Golem', lordName: 'Mountain Titan' },
+      minionName: 'Stone Golem', lordName: 'Mountain Titan',
+      rule: 'Stoneskin', ruleDesc: 'Brutes take half damage and drop twice the loot', stone: 1 },
     { id: 'tundra',    name: 'Frostlands', minion: 'b_yeti',   lord: 'l_wyrm',   fodder: 'f_snow',
-      minionName: 'Yeti', lordName: 'Frost Wyrm' },
+      minionName: 'Yeti', lordName: 'Frost Wyrm',
+      rule: 'Blizzard', ruleDesc: 'The Horde walks 25% slower, champions come twice as often', slow: 0.75, champ: 2 },
     { id: 'godlands',  name: 'Godlands',   minion: 'b_eye',    lord: 'l_eye',    fodder: 'f_eye',
-      minionName: 'Watcher', lordName: 'The All-Seeing Eye' },
+      minionName: 'Watcher', lordName: 'The All-Seeing Eye',
+      rule: 'Watchful Eyes', ruleDesc: 'Shrines rise twice as often, rares come 60% more', shrine: 2, rare: 1.6 },
     { id: 'abyss',     name: 'Abyss',      minion: 'b_imp',    lord: 'l_demon',  fodder: 'f_bat',
-      minionName: 'Fiend', lordName: 'Demon Lord' },
+      minionName: 'Fiend', lordName: 'Demon Lord',
+      rule: 'Hellfire', ruleDesc: 'One mob in four explodes when it dies, and blasts chain', boom: 0.25 },
     { id: 'void',      name: 'The Void',   minion: 'b_wraith', lord: 'l_button', fodder: 'f_shade',
-      minionName: 'Void Wraith', lordName: 'The Mad Button' },
+      minionName: 'Void Wraith', lordName: 'The Mad Button',
+      rule: 'Unraveling', ruleDesc: 'Breaches tear open twice as often, loot +25%', breach: 2, loot: 1.25 },
   ];
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------

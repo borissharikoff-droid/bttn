@@ -19,6 +19,8 @@
   G.hardReset = function () {
     G.S = G.newState();
     G.R.boss = null; G.R.bossReady = false; G.R.combo = 0; G.R.wisp = null;
+    if (G.worldClear) G.worldClear();
+    if (G.R.mobs) G.R.mobs.length = 0;
     G.recalc(); G.fillQuests(); G.save();
     G.emit('ascend', 0);
   };
@@ -60,8 +62,10 @@
     if (offline) G.UI.offline(offline);
     if (G.Net) G.Net.start();
     window.addEventListener('resize', () => { G.Stage.resize(); if (document.querySelector('.starmap')) G.UI.render(); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) { G.save(); if (G.Net) G.Net.tick(true); } });
-    window.addEventListener('pagehide', () => G.save());
+    // loot still on the ground goes into the bag before the tab goes away
+    const gather = () => { if (G.pickupAll) G.pickupAll(); };
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { gather(); G.save(); if (G.Net) G.Net.tick(true); } });
+    window.addEventListener('pagehide', () => { gather(); G.save(); });
     const hot = window.claude && window.claude.hot;
     if (hot && hot.snapshot) { try { hot.snapshot(() => ({ save: G.serialize() })); } catch (e) { /* optional */ } }
     last = performance.now();

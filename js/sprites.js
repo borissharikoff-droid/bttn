@@ -567,6 +567,110 @@
   };
   Object.keys(items).forEach(id => def('it_' + id, items[id][1], T[items[id][0]]));
 
+  // Uniques: the base item's shape in a palette of their own
+  const uniques = {
+    pincer:      { G: '#d8642a', g: '#ff4f4f', w: '#ffe0d0' },
+    goldgrin:    { Y: '#ffe27a', y: '#b07a10', r: '#ffffff', g: '#ffffff', b: '#ffffff' },
+    windripper:  { B: '#7fe9ff', W: '#ffffff' },
+    cleaver:     { L: '#ffd0b0', D: '#c0402a', G: '#6b4020', H: '#3a2a1a', P: '#ff7a2e' },
+    sporeheart:  { R: '#c84ae8', r: '#7a2596', w: '#f4ecd8' },
+    stormcaller: { O: '#7fe9ff', w: '#ffffff', W: '#3f63d9' },
+    nightfang:   { L: '#e0d0ff', D: '#6b2fb8', G: '#1a1a22', H: '#2a1a3a', P: '#b36bff' },
+    headhunter:  { G: '#5a3a22', g: '#ffd84a', w: '#fff3a0' },
+    frostwalk:   { B: '#9fd8ff', b: '#e0f4ff', S: '#3f7bff' },
+    watcher:     { O: '#ffffff', o: '#3fd65b', w: '#e0ffe0', S: '#1a3a1a' },
+    hellstring:  { B: '#e0541c', W: '#ffd84a' },
+    voidplate:   { A: '#3a2255', a: '#1a0e2a', t: '#b36bff' },
+    reaper:      { B: '#0c0b12', L: '#e8e4d8', H: '#3a3a44' },
+    lastbutton:  { Y: '#ff4f4f', y: '#a82424', w: '#ffd0d0', B: '#3a3348' },
+  };
+  G.UNIQUES && Object.keys(uniques).forEach(q => { const U = G.UNIQUES[q]; if (U) def('u_' + q, uniques[q], T[items[U.base][0]]); });
+
+  // Currency orbs
+  const ORB_PX = [
+    '..OOOO..',
+    '.OwwOOO.',
+    'OwwOkOOo',
+    'OwOkOkoo',
+    'OOOkkOoo',
+    'OOOOOooo',
+    '.OOoooo.',
+    '..oooo..',
+  ];
+  def('orb_whet', { S: '#9aa6b8', s: '#5a6474', w: '#e6ebf2' }, [
+    '........',
+    '........',
+    '..SSSSS.',
+    '.SwwwSSs',
+    'SSSSSSss',
+    '.sssssss',
+    '........',
+    '........',
+  ]);
+  def('orb_flux', { O: '#ffd84a', o: '#c98f10', w: '#fffbe0', k: '#8a4a00' }, ORB_PX);
+  def('orb_ruin', { O: '#e8413c', o: '#8a1414', w: '#ffc0b0', k: '#1a0606' }, ORB_PX);
+  def('orb_ascent', { O: '#ffe8b0', o: '#c9a060', w: '#ffffff', k: '#ffffff' }, [
+    '..OOOO..',
+    '.OwwkOO.',
+    'OwwkkkOo',
+    'OwkOkOko',
+    'OOOOkOoo',
+    'OOOOkooo',
+    '.OOoooo.',
+    '..oooo..',
+  ]);
+  def('orb_grace', { O: '#ffffff', o: '#c8d0e8', w: '#ffffff', k: '#ffd84a' }, [
+    '..OOOO..',
+    '.OwkkOO.',
+    'OwkOOkOo',
+    'OkOwwOko',
+    'OkOwwOko',
+    'OOkOOkoo',
+    '.OOkkoo.',
+    '..oooo..',
+  ]);
+
+  def('ic_rift', { p: '#b36bff', P: '#6b2fb8', w: '#f0d8ff', k: '#1e0e34' }, [
+    '..pppp..',
+    '.pPPPPp.',
+    'pPkkkkPp',
+    'pPkwwkPp',
+    'pPkwwkPp',
+    'pPkkkkPp',
+    '.pPPPPp.',
+    '..pppp..',
+  ]);
+  // The Hoarder: a goblin with a sack full of loot
+  def('m_hoard', { g: '#6ec24a', G: '#4a8a30', e: '#1a1a22', S: '#a07040', y: '#ffd84a', b: '#8a5a2e', B: '#c9a032' }, [
+    '......SS..',
+    '.....SyyS.',
+    '..gg.SyyyS',
+    '.gGGgSyyyS',
+    '.gegegSSS.',
+    '..gggg.S..',
+    '.bbBBbb...',
+    'g.bBBb.g..',
+    '..b..b....',
+    '.gg..gg...',
+  ]);
+  // Shrines: a stone pillar with a crystal of their colour
+  const SHRINE_PX = [
+    '...CC...',
+    '..CccC..',
+    '..CccC..',
+    '...CC...',
+    '..gggg..',
+    '.gGGGGg.',
+    '..gGGg..',
+    '..gGGg..',
+    '..gGGg..',
+    '..gGGg..',
+    '.gGGGGg.',
+    'gggggggg',
+  ];
+  [['frenzy', '#ff7a2e', '#ffc080'], ['greed', '#ffd84a', '#fff3a0'], ['storm', '#7fe9ff', '#e0fbff'], ['slaughter', '#ff4f7e', '#ffc0d0']]
+    .forEach(([k, C, c]) => def('shrine_' + k, { C, c, g: '#6e6e7c', G: '#9a9aa8' }, SHRINE_PX));
+
   // ================= POTIONS / EGGS / MISC ICONS (8x8) =================
   G.POTIONS && G.POTIONS.forEach(p => def('pot_' + p.id, { c: '#8b5a2b', G: '#d8ecff', L: p.color, w: '#ffffff' }, T.potion));
   const EGGS = [['#e8dcc0', '#b8a888'], ['#9fd0ff', '#4fa8ff'], ['#ffc06b', '#ff9a2e'], ['#ffffff', '#c8d0ff']];

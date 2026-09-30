@@ -16,7 +16,12 @@
   let bossVis = null, bossHitT = 0, bossBulletT = 0;
   let hoverChest = null, pointer = { x: -99, y: -99, over: false };
   let holdTimer = 0, holding = false;
-  let hitstop = 0, slowmo = 0;
+  let hitstop = 0, slowmo = 0, kick = 0, btnFlashT = 0, fdt = 1 / 60;
+  // clicks in a quick run add up into one growing number; kill gold is summed and shown at the Button
+  let clickTxt = null, killGold = 0, killGoldT = 0, frameKills = 0, comboTier = 0;
+  const fmtSmall = v => (v < 10 ? String(+v.toFixed(2)) : G.fmt(v));
+  // The Button is a spring: every click squashes it and it bounces back
+  const btnSpring = { s: 1, v: 0 };
   const MAXP = 700, MAXG = 650, MAXD = 170;
 
   St.init = function (canvas) {
@@ -115,12 +120,26 @@
     G.on('click', ev => {
       const b = bossVis ? bossPos() : btnPos();
       btnPress = 0.09;
+      btnSpring.v -= ev.crit || ev.mega ? 0.3 : 0.17; kick = 1;
+      if (ev.crit || ev.mega) { hitstop = Math.max(hitstop, 0.03); btnFlashT = 0.08; }
       const x = b.x + rand(-16, 16), y = b.y - 14 - rand(0, 8);
       const combo = ev.combo;
       const col = ev.mega ? '#7fe9ff' : ev.crit ? '#ff7a2e' : combo >= 150 ? '#ff7ae6' : combo >= 60 ? '#ffe27a' : '#ffffff';
       const size = ev.mega ? 9 : ev.crit ? 7 : 5;
       if (!ev.crit && !ev.mega && texts.length > 26) texts.splice(texts.findIndex(q => !q.big), 1);
-      text(x, y, '+' + G.fmt(ev.gain), col, size, ev.crit || ev.mega ? { life: 1.3, max: 1.3, big: true } : { life: 0.8, max: 0.8 });
+      const live = clickTxt && texts.includes(clickTxt) && clickTxt.max - clickTxt.life < 0.35;
+      if (!ev.crit && !ev.mega && live) {
+        clickTxt.sum += ev.gain; clickTxt.str = '+' + fmtSmall(clickTxt.sum); clickTxt.col = col;
+        clickTxt.life = clickTxt.max = 0.8; clickTxt.pop = 0.12; clickTxt.size = Math.min(8, 5 + Math.log10(1 + clickTxt.n++));
+      } else {
+        text(x, y, '+' + fmtSmall(ev.gain), col, size, ev.crit || ev.mega ? { life: 1.3, max: 1.3, big: true } : { life: 0.8, max: 0.8 });
+        if (!ev.crit && !ev.mega) { clickTxt = texts[texts.length - 1]; clickTxt.sum = ev.gain; clickTxt.n = 1; }
+      }
+      ring(b.x, b.y - 2, 22, 8, ev.crit ? '#ff7a2e' : '#ffffff', 0.16);
+      // combo tiers: a quarter, half and full of the cap each announce themselves once
+      const cap = G.D.comboCap || 50, tier = combo >= cap ? 3 : combo >= cap / 2 ? 2 : combo >= cap / 4 ? 1 : 0;
+      if (tier > comboTier) { text(b.x, b.y - 46, tier === 3 ? G.t('overcharged') : G.t('comboUp', (1 + combo * G.D.comboPer).toFixed(2)), tier === 3 ? '#ff7ae6' : '#ffe27a', tier === 3 ? 6 : 4, { life: 1.2, max: 1.2, vy: -14, big: true }); ring(b.x, b.y - 4, 40, 20, tier === 3 ? '#ff7ae6' : '#ffe27a', 0.4); if (G.Audio && G.Audio.comboUp) G.Audio.comboUp(tier); }
+      comboTier = tier;
       if (ev.crit) { text(x, y - 9, G.t('crit'), '#ff4f4f', 5, { vy: -30 }); St.shake(2); }
       if (ev.mega) { text(x, y - 12, 'MEGA ×30', '#7fe9ff', 7, { vy: -30, life: 1.5, max: 1.5 }); St.shake(5); St.flash(0.25, '#7fe9ff'); }
       const n = ev.crit ? 10 : 4;
@@ -227,6 +246,8 @@
     });
     G.on('levelUp', lvl => {
       const hp = heroPos();
+      hitstop = Math.max(hitstop, 0.06);
+      for (const g of gems) g.t = Math.min(g.t, 0); // every crystal on the field flies in
       burst(hp.x, hp.y - 12, ['#a8dcff', '#ffffff', '#4f8cff', '#ffe27a'], 34, 80);
       ring(hp.x, hp.y - 4, 26, 12, '#a8dcff', 0.5); ring(hp.x, hp.y - 4, 16, 8, '#ffffff', 0.35);
       beams.push({ x: hp.x, y: hp.y, col: '#a8dcff', life: 0.9, max: 0.9, w: 9 });
@@ -308,10 +329,17 @@
       if (amount) text(w.x, w.y, '+' + G.fmt(amount), '#ffd84a', 5);
       St.flash(0.25, '#fff3a0');
     });
-    G.on('realm', () => { groundKey = ''; St.flash(0.3, '#000000'); });
+    G.on('realm', r => {
+      groundKey = ''; St.flash(0.3, '#000000');
+      // a title card for the new land and its rule
+      const R_ = G.REALMS[r];
+      text(W / 2, H * 0.26, G.realmName(G.S.depth).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
+      text(W / 2, H * 0.26 + 11, R_.rule + ': ' + R_.ruleDesc, '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
+    });
     G.on('ascend', () => { gems.length = 0; });
     G.on('ascend', () => { groundKey = ''; vis.clear(); mobVis.clear(); decals.length = 0; gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
     G.on('buy', (kind) => { if (kind === 'hero') heroKey = ''; });
+    worldListen();
   }
 
   // ---------- Input ----------
@@ -338,14 +366,17 @@
     return Math.abs(p.x - b.x) <= rx && Math.abs(p.y - (b.y - 4)) <= ry;
   }
   function hitReady(p) {
-    if (!G.R.bossReady || G.R.boss) return false;
+    if (!G.R.bossReady || G.R.boss || G.R.rift) return false;
     const b = btnPos();
-    return Math.abs(p.x - b.x) < 14 && Math.abs(p.y - (b.y - 34)) < 8;
+    return Math.abs(p.x - b.x) < 12 && Math.abs(p.y - (b.y - 44)) < 6;
   }
   function doPress(p) {
     G.Audio && G.Audio.unlock();
     if (hitWisp(p)) { G.catchWisp(); return 'wisp'; }
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
+    const ge = hitLoot(p);
+    if (ge) { G.pickup(ge, 'hand'); return 'loot'; }
+    if (hitShrine(p)) { G.useShrine('hand'); return 'shrine'; }
     const c = hitChest(p);
     if (c) { G.clickChest(c); return 'chest'; }
     const m = hitMob(p);
@@ -363,12 +394,13 @@
     const end = () => { holding = false; };
     cv.addEventListener('pointerup', end);
     cv.addEventListener('pointercancel', end);
-    cv.addEventListener('pointerleave', () => { end(); pointer.over = false; hoverChest = null; });
+    cv.addEventListener('pointerleave', () => { end(); pointer.over = false; hoverChest = null; hoverLoot = null; });
     cv.addEventListener('pointermove', e => {
       const p = toLogical(e);
       pointer.x = p.x; pointer.y = p.y; pointer.over = true;
       hoverChest = hitChest(p);
-      cv.style.cursor = (hoverChest || hitMob(p) || hitButton(p) || hitWisp(p) || hitReady(p)) ? 'pointer' : 'default';
+      hoverLoot = hitLoot(p);
+      cv.style.cursor = (hoverLoot || hitShrine(p) || hoverChest || hitMob(p) || hitButton(p) || hitWisp(p) || hitReady(p)) ? 'pointer' : 'default';
     });
     cv.addEventListener('contextmenu', e => e.preventDefault());
   }
@@ -481,27 +513,36 @@
   }
   function mobSprite(m, realm) {
     if (m.kind === 'fodder') return SPR.get(realm.fodder);
+    if (m.kind === 'hoard') return SPR.get('m_hoard');
+    if (m.kind === 'guardian') return SPR.boss(m.lord || realm.lord, true).canvas;
     return SPR.get(realm.minion, m.kind === 'magic' ? { oc: '#3f7fff' } : m.kind === 'rare' ? { oc: '#ffd84a' } : null);
   }
   const MOB_BAR = { brute: '#e84a4a', magic: '#5a9cff', rare: '#ffd84a' };
   function drawMob(m) {
-    const realm = G.REALMS[G.realmIndex(G.S.depth)];
+    const realm = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
     const spr = mobSprite(m, realm);
     const v = mobVisOf(m);
     const q = mobPos(m);
     const fod = m.kind === 'fodder';
+    if (m.kind === 'guardian') { drawGuardian(m, spr, v, q); return; }
     shadow(q.x, q.y - 1, fod ? 6 : 10);
+    if (m.br) glow(q.x, q.y - 5, fod ? 4 : 7, '#b36bff', 0.28);
+    if (m.kind === 'hoard') {
+      glow(q.x, q.y - 7, 9, '#ffd84a', 0.28 + 0.1 * Math.sin(time * 8));
+      if (Math.random() < 0.35) part(q.x + rand(-4, 4), q.y - rand(2, 10), pick(['#ffd84a', '#fff3a0']), { vy: -10, vx: rand(-8, 8), grav: 60, life: 0.5 });
+      if (v.hit > 0 && Math.random() < 0.5 && coins.length < 240) coins.push({ x: q.x, y: q.y - 8, vx: rand(-50, 50), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.4, 0.7), fly: 0 });
+    }
     if (m.kind === 'magic') glow(q.x, q.y - 8, 7, '#3f7fff', 0.2 + 0.07 * Math.sin(time * 5 + m.id));
     if (m.kind === 'rare') glow(q.x, q.y - 9, 10, '#ffd84a', 0.24 + 0.08 * Math.sin(time * 6));
     let x = q.x;
     if (v.hit > 0) x += Math.round(rand(-1, 1));
-    if (v.lunge > 0) { x += Math.sign(btnPos().x - q.x) * 2; v.lunge -= 1 / 60; }
+    if (v.lunge > 0) { x += Math.sign(btnPos().x - q.x) * 2; v.lunge -= fdt; }
     blit(spr, x, q.y);
-    if (v.hit > 0) { blit(white(spr), x, q.y, 1, Math.min(0.85, v.hit * 10)); v.hit -= 1 / 60; }
+    if (v.hit > 0) { blit(white(spr), x, q.y, 1, Math.min(0.85, v.hit * 10)); v.hit -= fdt; }
     if (!fod && m.hp < m.max) {
-      const w = m.kind === 'rare' ? 16 : 12, k = clamp(m.hp / m.max, 0, 1);
+      const w = m.kind === 'rare' || m.kind === 'hoard' ? 16 : 12, k = clamp(m.hp / m.max, 0, 1);
       lctx.fillStyle = '#0c0b12'; lctx.fillRect(q.x - w / 2 - 1, q.y - 21, w + 2, 3);
-      lctx.fillStyle = MOB_BAR[m.kind]; lctx.fillRect(q.x - w / 2, q.y - 20, Math.max(1, Math.round(w * k)), 1);
+      lctx.fillStyle = MOB_BAR[m.kind] || '#ffd84a'; lctx.fillRect(q.x - w / 2, q.y - 20, Math.max(1, Math.round(w * k)), 1);
     }
     if (G.R.focus === m.id) {
       lctx.fillStyle = '#ffffff';
@@ -511,6 +552,16 @@
       lctx.fillRect(q.x - r, y + r, 3, 1); lctx.fillRect(q.x - r, y + r - 2, 1, 3);
       lctx.fillRect(q.x + r - 2, y + r, 3, 1); lctx.fillRect(q.x + r, y + r - 2, 1, 3);
     }
+  }
+  function drawGuardian(m, spr, v, q) {
+    const sc = 2;
+    shadow(q.x, q.y - 1, Math.round(spr.width * sc * 0.7));
+    glow(q.x, q.y - spr.height * sc / 2, Math.round(spr.width * sc / 2.5), '#ff3b5c', 0.18 + 0.07 * Math.sin(time * 5));
+    let x = q.x;
+    if (v.hit > 0) x += Math.round(rand(-1, 1));
+    blit(spr, x, q.y, sc);
+    if (v.hit > 0) { blit(white(spr), x, q.y, sc, Math.min(0.6, v.hit * 8)); v.hit -= fdt; }
+    if (Math.random() < 0.4) part(q.x + rand(-10, 10), q.y - rand(0, spr.height * sc), pick(['#b36bff', '#ff3b5c']), { vx: 0, vy: -20, grav: 0, life: 0.5 });
   }
   function drawHero(hp) {
     const h = G.S.hero;
@@ -586,7 +637,9 @@
       const x0 = t.x + rand(-12, 12), path = [[x0, -4]];
       for (let i = 1; i < 6; i++) path.push([x0 + (t.x - x0) * i / 6 + rand(-4, 4), -4 + (ty + 4) * i / 6]);
       path.push([t.x, ty]);
-      bolts.push({ pts: path, life: 0.11, cols: ['#ffffff', '#ffe27a'] });
+      bolts.push({ pts: path, life: 0.16, cols: ['#ffffff', '#ffe27a'], wide: true });
+      glow(t.x, ty, 5, '#ffffff', 0.5);
+      if (Math.random() < 0.5) decal(t.x, t.y, '#2a2418', 2);
       const r = aoePx(G.TUNE.smiteR);
       ring(t.x, t.y - 3, r.rx, r.ry, '#ffe27a', 0.22);
       burst(t.x, ty, ['#ffffff', '#ffe27a'], 5, 60, { life: 0.3 });
@@ -709,10 +762,11 @@
   function gore(m, gold, chest, src) {
     const q = mobPos(m);
     mobVis.delete(m.id);
-    const realm = G.REALMS[G.realmIndex(G.S.depth)];
+    const realm = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
     const g = GORE[realm.id] || GORE.meadow;
     const spr = mobSprite(m, realm);
     const fod = m.kind === 'fodder';
+    if (m.kind === 'guardian') { explodeSprite(spr, q.x, q.y, 2, 120, 1.8, g.style); decal(q.x, q.y, g.blood, 14); St.shake(7); hitstop = Math.max(hitstop, 0.2); slowmo = Math.max(slowmo, 0.8); }
     const over = Math.min(3, m.over || 0) + (m.crit ? 1 : 0) + (src === 'boss' ? 1.5 : 0);
     const force = 1 + over * 0.3 + (src === 'click' ? 0.35 : 0);
     const n = fod ? (gibs.length > MAXG * 0.7 ? 3 : 6) : m.kind === 'brute' ? 20 : 30;
@@ -726,6 +780,9 @@
     else if (g.style === 'dissolve') for (let i = 0; i < (fod ? 4 : 10); i++) part(c + rand(-5, 5), y + rand(-4, 4), pick(['#6b3fc0', '#7fe9ff', '#e0d0ff']), { vx: 0, vy: rand(-30, -10), grav: 0, life: rand(0.4, 0.9) });
     else burst(c, y, g.blood, fod ? 3 : 7, 70, { grav: 220, life: 0.45 });
     if (over >= 1.5 && !fod) ring(c, q.y - 3, 10, 5, '#ffffff', 0.18);
+    frameKills++;
+    if (fod && gold) { killGold += gold; if (killGoldT <= 0) killGoldT = 0.3; }
+    if (m.kind === 'brute') { hitstop = Math.max(hitstop, 0.02); St.shake(1); ring(c, q.y - 3, 10, 5, '#ffffff', 0.15); }
     if (m.kind === 'magic') { hitstop = Math.max(hitstop, 0.035); St.shake(2); ring(c, q.y - 3, 16, 8, '#5a9cff', 0.3); }
     if (m.kind === 'rare') {
       hitstop = Math.max(hitstop, 0.09); St.shake(5); St.flash(0.18, '#ffd84a');
@@ -747,6 +804,7 @@
       for (let i = texts.length - 1; i >= 0; i--) if (texts[i].callout) texts.splice(i, 1);
       text(W / 2, H * 0.24, G.t(sk[1]), streak.n >= 200 ? '#ff4f7e' : '#ffe27a', streak.n >= 100 ? 8 : 7, { life: 1.8, max: 1.8, vy: -5, big: true, callout: true });
       St.shake(2 + Math.log2(streak.n / 25));
+      if (G.Audio && G.Audio.streak) G.Audio.streak(streak.n);
     }
   }
   function drawDecals(dt) {
@@ -814,7 +872,7 @@
       } else {
         k.fly += dt;
         const dx = tx - k.x, dy = ty - k.y, d = Math.hypot(dx, dy), sp = 70 + k.fly * 600;
-        if (d < 4) { gems.splice(i, 1); part(tx + rand(-4, 4), ty + rand(-4, 4), k.col, { vx: 0, vy: -15, grav: 0, life: 0.25 }); continue; }
+        if (d < 4) { gems.splice(i, 1); part(tx + rand(-4, 4), ty + rand(-4, 4), k.col, { vx: 0, vy: -15, grav: 0, life: 0.25 }); if (G.Audio && G.Audio.gem) G.Audio.gem(); continue; }
         k.x += dx / d * Math.min(d, sp * dt); k.y += dy / d * Math.min(d, sp * dt);
       }
       const x = Math.round(k.x), y = Math.round(k.y);
@@ -900,18 +958,366 @@
     lctx.globalAlpha = 1;
   }
 
+  // ---------- Loot on the ground, events and Rifts (js/world.js) ----------
+  // Label plates by value, loot-filter style: they say what fell before you
+  // pick it up. Index = rarity; uniques and orbs have their own looks.
+  // sz: 2 small, 3 medium, 5 large (the font snaps to 8/16/24 device px)
+  const LSTYLE = [
+    { fg: '#c7b299', sz: 2, dim: true },
+    { fg: '#63d85b', bg: 'rgba(6,14,6,0.82)', sz: 2 },
+    { fg: '#9ccfff', bg: 'rgba(4,10,26,0.9)', bd: '#4fa8ff', sz: 2 },
+    { fg: '#f2e2ff', bg: '#4a1f80', bd: '#b36bff', sz: 3, beam: '#b36bff', temp: true },
+    { fg: '#1a0c00', bg: '#ffa033', bd: '#fff0c0', sz: 3, beam: '#ffa033' },
+    { fg: '#ffffff', bg: '#d8264e', bd: '#ffffff', sz: 3, beam: '#ff4f7e' },
+    { fg: '#e01010', bg: '#ffffff', bd: '#e01010', sz: 5, beam: '#ffffff', halo: '#ff2020' },
+  ];
+  const USTYLE = { fg: '#ffffff', bg: '#af6025', bd: '#ffd28a', sz: 3, beam: '#e8903a' };
+  const OSTYLE = {
+    whet:   { fg: '#dfe8f6', bg: 'rgba(10,12,22,0.88)', bd: '#8898b8', sz: 2 },
+    flux:   { fg: '#1a1200', bg: '#f2c21a', bd: '#fff3a0', sz: 2 },
+    ruin:   { fg: '#ffffff', bg: '#9a1414', bd: '#ff6a5a', sz: 3, beam: '#ff3b3b', temp: true },
+    ascent: { fg: '#1a1000', bg: '#ffe0a0', bd: '#ffffff', sz: 3, beam: '#ffe0a0' },
+    grace:  { fg: '#e01010', bg: '#ffffff', bd: '#e01010', sz: 5, beam: '#ffffff', halo: '#ff2020' },
+  };
+  const lstyle = e => e.k === 'uq' ? USTYLE : e.k === 'orb' ? OSTYLE[e.orb] : LSTYLE[e.r];
+  const lname = e => e.k === 'uq' ? G.UNIQUES[e.q].name : e.k === 'orb' ? G.ORBS[e.orb].name : G.L(e.it.name);
+  const lspr = e => e.k === 'uq' ? 'u_' + e.q : e.k === 'orb' ? 'orb_' + e.orb : 'it_' + e.it.id;
+  // how loud a drop is: 0 (junk) .. 8 (top tier)
+  const loud = e => e.k === 'uq' ? 7 : e.k === 'orb' ? { whet: 1, flux: 2, ruin: 4, ascent: 5, grace: 8 }[e.orb] : e.r >= 6 ? 8 : e.r;
+  St.lootStyle = e => lstyle(e);
+  // arena position (a, p) -> stage pixels, on the same paths the mobs walk
+  function arenaXY(a, p, j) {
+    const b = btnPos();
+    const ang = -Math.PI / 2 + 0.55 + a * (Math.PI * 2 - 1.1);
+    const sx = b.x + Math.cos(ang) * W * 0.6, sy = b.y + Math.sin(ang) * H * 0.56;
+    const ex = b.x + Math.cos(ang) * (21 + (j || 0) * 10), ey = b.y + Math.sin(ang) * (11 + (j || 0) * 6) + 4;
+    return { x: sx + (ex - sx) * p, y: sy + (ey - sy) * p };
+  }
+  const gvis = new Map();
+  let labels = [], hoverLoot = null, lootPitch = 0, lootPitchT = 0;
+  function onDrop(e, m) {
+    const j = ((e.id * 37) % 19) / 19;
+    const q = arenaXY(e.a, Math.min(0.9, e.p), j);
+    const land = onField(q.x, q.y);
+    let s;
+    if (m && !m.gone) { const mp = mobPos(m); s = { x: mp.x, y: mp.y - 8 }; }
+    else if (e.src === 'boss' || e.src === 'rift') { const b = bossVis ? bossPos() : btnPos(); s = { x: b.x, y: b.y - 16 }; }
+    else s = { x: land.x, y: land.y - 30 };
+    const L = loud(e);
+    gvis.set(e.id, { x: land.x, y: land.y, sx: s.x, sy: s.y, t: -(e.wait || 0), dur: 0.34 + 0.05 * L, pk: 10 + 3 * L, landed: false, up: e.from != null, pop: 0, bob: Math.random() * 6 });
+  }
+  function onLand(e, v) {
+    const st = lstyle(e), L = loud(e);
+    v.landed = true; v.pop = 0.18; v.age = 0;
+    burst(v.x, v.y - 1, ['#c8b89a', '#8a7a60'], 4, 28, { grav: 60, life: 0.3 });
+    if (v.up) { text(v.x, v.y - 18, G.t('upgrade'), st.fg === '#1a0c00' ? '#ffa033' : st.bd || st.fg, 4, { life: 1.1, max: 1.1, vy: -14 }); burst(v.x, v.y - 5, [st.bd || '#ffffff', '#ffffff'], 12, 60); }
+    if (st.beam) { v.beam = st.temp ? 1.2 : 1e9; v.bt = 0; }
+    if (L >= 4) ring(v.x, v.y - 1, 12 + L * 2, 6 + L, st.beam || st.fg, 0.5);
+    if (L >= 5) { St.shake(2 + L * 0.4); hitstop = Math.max(hitstop, 0.03 * (L - 3)); }
+    if (L >= 7) { St.flash(0.3, st.beam || '#ffffff'); slowmo = Math.max(slowmo, 0.25); }
+    // rising pitch while a shower is coming down
+    if (lootPitchT > 0) lootPitch = Math.min(12, lootPitch + 1); else lootPitch = 0;
+    lootPitchT = 0.5;
+    if (G.Audio && G.Audio.loot) G.Audio.loot(e.k, L, lootPitch);
+  }
+  function stepGround(dt) {
+    if (lootPitchT > 0) lootPitchT -= dt;
+    const live = G.R.ground || [];
+    if (gvis.size > live.length + 8) { const ids = new Set(live.map(e => e.id)); for (const k of [...gvis.keys()]) if (!ids.has(k)) gvis.delete(k); }
+    for (const e of live) {
+      let v = gvis.get(e.id);
+      if (!v) { onDrop(e, null); v = gvis.get(e.id); v.t = v.dur; }
+      if (!v.landed) { v.t += dt; if (v.t >= v.dur) onLand(e, v); }
+      else { v.age += dt; if (v.pop > 0) v.pop -= dt; if (v.beam) v.bt += dt; }
+    }
+  }
+  function drawGroundItem(e, v) {
+    const spr = SPR.get(lspr(e)) || SPR.get('ic_bag');
+    const st = lstyle(e), L = loud(e);
+    if (v.t < 0) return;
+    if (!v.landed) {
+      const k = clamp(v.t / v.dur, 0, 1), ek = 1 - (1 - k) * (1 - k);
+      const x = v.sx + (v.x - v.sx) * ek, y = v.sy + (v.y - v.sy) * k - Math.sin(k * Math.PI) * v.pk;
+      const flip = Math.floor(v.t * 16) % 2;
+      if (flip) { lctx.save(); lctx.translate(Math.round(x), 0); lctx.scale(-1, 1); blit(spr, 0, y); lctx.restore(); } else blit(spr, x, y);
+      if (L >= 3 && Math.random() < 0.7) part(x + rand(-2, 2), y - 4, v.up && k < 0.8 ? '#ffffff' : st.beam || st.fg, { vx: 0, vy: 0, grav: 0, life: 0.3 });
+      return;
+    }
+    shadow(v.x, v.y - 1, 8);
+    if (L >= 3) glow(v.x, v.y - 3, 5 + Math.min(4, L - 2), st.beam || st.bd || st.fg, 0.18 + 0.07 * Math.sin(time * 5 + e.id));
+    const hover = e.k === 'orb' ? Math.round(Math.sin(time * 4 + v.bob) * 1.2) - 1 : 0;
+    const sq = v.pop > 0.09 ? 1 : 0;
+    blit(spr, v.x, v.y + sq + hover);
+    if (hoverLoot === e) { lctx.globalAlpha = 0.35; blit(white(spr), v.x, v.y + hover); lctx.globalAlpha = 1; }
+    if (e.k === 'uq' && Math.random() < 0.3) part(v.x + rand(-5, 5), v.y - rand(3, 10), pick(['#ffd28a', '#e8903a', '#ffffff']), { vy: -14, vx: 0, grav: 0, life: 0.6 });
+  }
+  function drawLootBeams() {
+    for (const e of G.R.ground || []) {
+      const v = gvis.get(e.id);
+      if (!v || !v.beam || !v.landed) continue;
+      const st = lstyle(e);
+      const left = v.beam - v.bt;
+      if (left <= 0) { v.beam = 0; continue; }
+      const grow = Math.min(1, v.bt / 0.12), fade = Math.min(1, left / 0.4);
+      const top = Math.round(v.y - 2 - (v.y - 2) * grow);
+      const w = st.halo ? 9 : loud(e) >= 5 ? 7 : 5;
+      const a = (0.2 + 0.08 * Math.sin(time * 5 + e.id)) * fade;
+      lctx.globalAlpha = a;
+      lctx.fillStyle = st.halo || st.beam;
+      lctx.fillRect(Math.round(v.x - w / 2), top, w, Math.round(v.y - 2 - top));
+      lctx.globalAlpha = 0.65 * fade;
+      lctx.fillStyle = st.beam;
+      lctx.fillRect(Math.round(v.x - 1), top, 2, Math.round(v.y - 2 - top));
+      lctx.globalAlpha = 1;
+      if (Math.random() < 0.1) part(v.x + rand(-w / 2, w / 2), v.y - rand(2, 30), st.beam, { vx: 0, vy: -20, grav: 0, life: 0.6 });
+    }
+  }
+  // Plates on the hi-res layer, stacked so they never overlap
+  function drawLabels() {
+    labels = [];
+    const list = (G.R.ground || []).map(e => ({ e, v: gvis.get(e.id) })).filter(o => o.v && o.v.landed);
+    list.sort((a, b) => loud(b.e) - loud(a.e) || a.e.id - b.e.id);
+    const filter = G.S.set.filter;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const busy = list.length > 16;
+    const free = (x, y, w, h) => !labels.some(r => x < r.x + r.w + 1 && x + w + 1 > r.x && y < r.y + r.h + 1 && y + h + 1 > r.y);
+    for (const { e, v } of list) {
+      const st = lstyle(e);
+      if (st.dim && filter) continue;
+      // a crowded floor shows the plates that matter; the rest waits for a hover
+      if (busy && loud(e) < 2 && hoverLoot !== e) continue;
+      const sz = crisp(st.sz);
+      ctx.font = sz + 'px ' + FONT;
+      const txt = lname(e);
+      const w = Math.ceil(ctx.measureText(txt).width) + 4, h = Math.ceil(sz) + 2;
+      const x0 = clamp(Math.round(v.x - w / 2), 1, W - w - 1), y0 = Math.round(v.y - 10 - h);
+      // try beside it first, then stack upwards
+      let x = x0, y = y0, ok = false;
+      const top = 16; // under the HUD strip
+      for (let row = 0; row < 8 && !ok; row++) {
+        for (const dx of [0, w * 0.55 + 2, -(w * 0.55 + 2)]) {
+          const cx = clamp(Math.round(x0 + dx), 1, W - w - 1), cy = y0 - row * (h + 1);
+          if (cy >= top && free(cx, cy, w, h)) { x = cx; y = cy; ok = true; break; }
+        }
+      }
+      // no room above (near the top edge): try under the item
+      for (let row = 0; row < 6 && !ok; row++) {
+        const cy = Math.round(v.y + 2 + row * (h + 1)), cx = x0;
+        if (cy + h < H - 2 && free(cx, cy, w, h)) { x = cx; y = cy; ok = true; }
+      }
+      if (!ok) continue;
+      const pop = v.pop > 0 ? 1 + v.pop * 1.5 : 1;
+      labels.push({ x, y, w, h, e });
+      ctx.save();
+      if (pop > 1) { ctx.translate(x + w / 2, y + h / 2); ctx.scale(pop, pop); ctx.translate(-(x + w / 2), -(y + h / 2)); }
+      if (st.bg) { ctx.fillStyle = st.bg; ctx.fillRect(x, y, w, h); }
+      if (st.bd) { ctx.strokeStyle = st.bd; ctx.lineWidth = hoverLoot === e ? 1 : 0.6; ctx.strokeRect(x + 0.3, y + 0.3, w - 0.6, h - 0.6); }
+      if (!st.bg) { ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12'; ctx.strokeText(txt, x + w / 2, y + h / 2 + 0.3); }
+      ctx.fillStyle = st.fg;
+      ctx.fillText(txt, x + w / 2, y + h / 2 + 0.3);
+      if (hoverLoot === e) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(x, y, w, h); }
+      ctx.restore();
+    }
+  }
+  function hitLoot(p) {
+    for (let i = labels.length - 1; i >= 0; i--) { const r = labels[i]; if (p.x >= r.x - 1 && p.x <= r.x + r.w + 1 && p.y >= r.y - 1 && p.y <= r.y + r.h + 1) return r.e; }
+    let best = null, bd = 60;
+    for (const e of G.R.ground || []) { const v = gvis.get(e.id); if (!v || !v.landed) continue; const d = (p.x - v.x) ** 2 + (p.y - v.y + 4) ** 2; if (d < bd) { bd = d; best = e; } }
+    return best;
+  }
+  function onPickup(e, how, res) {
+    if (loud(e) >= 4) St.celebrate = time + 2.5;
+    const v = gvis.get(e.id);
+    gvis.delete(e.id);
+    if (!v || !v.landed) return;
+    const tgt = e.k === 'orb' ? btnPos() : heroPos();
+    flyers.push({ x: v.x, y: v.y, tx: tgt.x, ty: tgt.y - 8, t: 0, dur: how === 'hand' ? 0.22 : 0.4, spr: lspr(e) });
+    const st = lstyle(e);
+    if (how === 'hand') burst(v.x, v.y - 4, [st.bd || st.fg, '#ffffff'], 6, 40, { life: 0.3 });
+    if (e.k === 'orb' && loud(e) >= 2) text(tgt.x + rand(-10, 10), tgt.y - 24, '+1 ' + G.ORBS[e.orb].name, G.ORBS[e.orb].col, 3, { life: 1, max: 1, vy: -14 });
+    if (G.Audio && G.Audio.pick) G.Audio.pick(e.k);
+  }
+  // Shrines stand on the field until touched (or the Warden claims them)
+  function shrinePos() { const s = G.R.shrine; if (!s) return null; const q = arenaXY(s.a, s.p, 0.5); return onField(q.x, q.y); }
+  function drawShrine() {
+    const s = G.R.shrine, q = shrinePos();
+    if (!s || !q) return;
+    const col = G.SHRINES[s.k].col;
+    glow(q.x, q.y - 6, 9, col, 0.22 + 0.1 * Math.sin(time * 5));
+    shadow(q.x, q.y - 1, 12);
+    blit(SPR.get('shrine_' + s.k) || SPR.get('ic_star'), q.x, q.y + Math.round(Math.sin(time * 2) * 0.5));
+    if (Math.random() < 0.4) part(q.x + rand(-4, 4), q.y - rand(8, 16), col, { vx: 0, vy: -18, grav: 0, life: 0.5 });
+    // the ring fills as the Warden walks over to claim it
+    const k = clamp(1 - s.t / G.TUNE.shrineLife, 0, 1), n = 24;
+    lctx.fillStyle = col;
+    for (let j = 0; j < Math.round(n * k); j++) { const a = -Math.PI / 2 + j / n * Math.PI * 2; lctx.fillRect(Math.round(q.x + Math.cos(a) * 9), Math.round(q.y - 2 + Math.sin(a) * 4), 1, 1); }
+  }
+  function hitShrine(p) { const q = shrinePos(); return q && Math.abs(p.x - q.x) < 9 && Math.abs(p.y - (q.y - 7)) < 11; }
+  // The Breach: a purple tear at the edge of the field
+  function breachPos() { const b = G.R.breach; if (!b) return null; const q = arenaXY(b.a, 0.08, 0); return onField(q.x, q.y); }
+  function drawBreach() {
+    const b = G.R.breach, q = breachPos();
+    if (!b || !q) return;
+    const k = clamp(b.t / b.T, 0, 1), rx = 14 + 4 * Math.sin(time * 3), ry = 7;
+    lctx.globalAlpha = 0.35; lctx.fillStyle = '#2a0e4a';
+    for (let dy = -ry; dy <= ry; dy++) { const w = Math.round(rx * Math.sqrt(1 - (dy / ry) * (dy / ry))); lctx.fillRect(q.x - w, q.y + dy, w * 2, 1); }
+    lctx.globalAlpha = 0.9; lctx.fillStyle = '#b36bff';
+    const n = 40;
+    for (let j = 0; j < n; j++) { if ((j + Math.floor(time * 12)) % 4 === 0) continue; const a = j / n * Math.PI * 2 + time; lctx.fillRect(Math.round(q.x + Math.cos(a) * rx), Math.round(q.y + Math.sin(a) * ry), 1, 1); }
+    lctx.globalAlpha = 1;
+    for (let i = 0; i < 2; i++) { const a = Math.random() * 6.28; part(q.x + Math.cos(a) * rx, q.y + Math.sin(a) * ry, pick(['#b36bff', '#e0d0ff', '#6b2fb8']), { vx: -Math.cos(a) * 20, vy: -Math.sin(a) * 10 - 10, grav: 0, life: 0.5 }); }
+    // timer under it
+    lctx.fillStyle = '#0c0b12'; lctx.fillRect(q.x - 11, q.y + ry + 2, 22, 3);
+    lctx.fillStyle = '#b36bff'; lctx.fillRect(q.x - 10, q.y + ry + 3, Math.round(20 * k), 1);
+  }
+  // Rift: a purple edge on the world (its bar and clock are in the HUD row)
+  function drawRiftTint() {
+    const r = G.R.rift;
+    if (!r) return;
+    lctx.globalAlpha = 0.1 + 0.03 * Math.sin(time * 2);
+    lctx.fillStyle = '#6b2fb8';
+    lctx.fillRect(0, 0, W, 3); lctx.fillRect(0, H - 3, W, 3); lctx.fillRect(0, 0, 3, H); lctx.fillRect(W - 3, 0, 3, H);
+    lctx.globalAlpha = 1;
+    if (Math.random() < 0.5) part(rand(0, W), H - 2, pick(['#b36bff', '#6b2fb8', '#e0d0ff']), { vx: 0, vy: rand(-30, -10), grav: 0, life: 0.8 });
+  }
+  function drawEventNames() {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12';
+    const s = G.R.shrine, q = shrinePos();
+    if (s && q) {
+      const S_ = G.SHRINES[s.k];
+      ctx.font = crisp(3) + 'px ' + FONT;
+      ctx.strokeText(S_.name, q.x, q.y - 22); ctx.fillStyle = S_.col; ctx.fillText(S_.name, q.x, q.y - 22);
+    }
+    const bq = breachPos();
+    if (bq) { ctx.font = crisp(3) + 'px ' + FONT; ctx.strokeText(G.t('breach'), bq.x, bq.y - 12); ctx.fillStyle = '#d8b8ff'; ctx.fillText(G.t('breach'), bq.x, bq.y - 12); }
+  }
+  St.busyCelebrating = () => (St.celebrate || 0) > time;
+  St.lootPoint = e => { const v = gvis.get(e.id); return v && v.landed ? St.toScreen(v.x, v.y - 14) : null; };
+  St.shrinePoint = () => { const q = shrinePos(); return q ? St.toScreen(q.x, q.y - 16) : null; };
+  function worldListen() {
+    G.on('drop', onDrop);
+    G.on('pickup', onPickup);
+    G.on('hoard', m => {
+      text(W / 2, H * 0.3, G.t('hoardComing'), '#ffd84a', 6, { life: 2, max: 2, vy: -4, big: true });
+      St.flash(0.15, '#ffd84a');
+      if (G.Audio && G.Audio.hoard) G.Audio.hoard();
+    });
+    G.on('hoardDie', m => {
+      const q = mobPos(m);
+      for (let i = 0; i < 40 && coins.length < 260; i++) coins.push({ x: q.x, y: q.y - 6, vx: rand(-70, 70), vy: rand(-150, -60), floor: q.y + rand(-3, 4), t: rand(0.6, 1), fly: 0 });
+      text(q.x, q.y - 28, G.t('jackpot'), '#ffd84a', 7, { life: 1.8, max: 1.8, vy: -12, big: true });
+      ring(q.x, q.y - 3, 34, 18, '#ffd84a', 0.6); ring(q.x, q.y - 3, 22, 12, '#ffffff', 0.4);
+      St.shake(6); St.flash(0.3, '#ffd84a'); slowmo = Math.max(slowmo, 0.6); hitstop = Math.max(hitstop, 0.12);
+      if (G.Audio && G.Audio.jackpot) G.Audio.jackpot();
+    });
+    G.on('hoardFlee', m => {
+      const q = mobPos(m);
+      ring(q.x, q.y - 4, 14, 7, '#b36bff', 0.5);
+      burst(q.x, q.y - 6, ['#b36bff', '#e0d0ff'], 20, 60);
+      text(q.x, q.y - 24, G.t('hoardFled', Math.max(1, Math.round(m.hp / m.max * 100))), '#c8b4ff', 4, { life: 2, max: 2, vy: -10 });
+    });
+    G.on('shrine', () => { const q = shrinePos(); if (q) { ring(q.x, q.y - 3, 20, 10, G.SHRINES[G.R.shrine.k].col, 0.6); } if (G.Audio && G.Audio.shrine) G.Audio.shrine(0); });
+    G.on('shrineUse', (s, how) => {
+      const col = G.SHRINES[s.k].col, b = btnPos(), q = arenaXY(s.a, s.p, 0.5);
+      burst(q.x, q.y - 8, [col, '#ffffff'], 40, 100);
+      ring(b.x, b.y - 4, 90, 50, col, 0.7); ring(b.x, b.y - 4, 55, 30, '#ffffff', 0.4);
+      text(W / 2, H * 0.3, G.SHRINES[s.k].name, col, 6, { life: 2, max: 2, vy: -4, big: true });
+      text(W / 2, H * 0.3 + 9, G.SHRINES[s.k].desc, '#ffffff', 3, { life: 2, max: 2, vy: -4 });
+      St.flash(0.3, col); St.shake(3);
+      if (G.Audio && G.Audio.shrine) G.Audio.shrine(1);
+    });
+    G.on('breach', b => {
+      text(W / 2, H * 0.3, G.t('breachOpen'), '#d8b8ff', 7, { life: 2.2, max: 2.2, vy: -4, big: true });
+      St.flash(0.3, '#6b2fb8'); St.shake(4);
+      breachKills = 0;
+      if (G.Audio && G.Audio.breach) G.Audio.breach();
+    });
+    G.on('breachEnd', () => { text(W / 2, H * 0.3, G.t('breachClosed', G.fmt(breachKills)), '#d8b8ff', 5, { life: 2, max: 2, vy: -4 }); });
+    G.on('mobDie', m => { if (m.br) breachKills++; });
+    G.on('blast', (m, r) => {
+      const q = mobPos(m), a = aoePx(r);
+      ring(q.x, q.y - 3, a.rx, a.ry, '#ff7a2e', 0.3); ring(q.x, q.y - 3, a.rx * 0.6, a.ry * 0.6, '#ffd84a', 0.2);
+      burst(q.x, q.y - 5, ['#ff7a2e', '#ffd84a', '#ff3b3b'], 8, 70, { life: 0.35 });
+      St.shake(1.5);
+      if (G.Audio && G.Audio.boom) G.Audio.boom();
+    });
+    G.on('spores', m => { const q = mobPos(m); burst(q.x, q.y - 5, ['#c84ae8', '#ff7ab0', '#f4ecd8'], 10, 40, { grav: -10, life: 0.8 }); });
+    G.on('thorns', m => { const q = mobPos(m); burst(q.x, q.y - 6, ['#b36bff', '#ffffff'], 6, 50, { life: 0.3 }); });
+    G.on('headhunter', m => { const hp = heroPos(); text(hp.x, hp.y - 34, G.t('headhunter'), '#e8903a', 4, { life: 1.6, max: 1.6, vy: -12 }); ring(hp.x, hp.y - 4, 30, 15, '#e8903a', 0.5); });
+    G.on('bossMove', b => {
+      const M = G.BOSS_MOVES[b.move.k], p = bossPos();
+      ring(p.x, p.y - 10, 50, 28, M.col, 0.5);
+      St.flash(0.12, M.col);
+      if (G.Audio && G.Audio.windup) G.Audio.windup(b.move.k);
+    });
+    G.on('bossStagger', (b, k) => {
+      const p = bossPos();
+      text(p.x, p.y - 44, G.t('staggered'), '#ffffff', 7, { life: 1.4, max: 1.4, vy: -10, big: true });
+      ring(p.x, p.y - 10, 80, 44, '#ffffff', 0.5); ring(p.x, p.y - 10, 50, 28, G.BOSS_MOVES[k].col, 0.4);
+      burst(p.x, p.y - 14, ['#ffffff', G.BOSS_MOVES[k].col, '#ffe27a'], 40, 120);
+      hitstop = Math.max(hitstop, 0.1); St.shake(5); St.flash(0.3, '#ffffff'); bossHitT = 0.2;
+      if (G.Audio && G.Audio.stagger) G.Audio.stagger();
+    });
+    G.on('bossMoveLand', (b, k) => {
+      const p = bossPos(), bp = btnPos();
+      if (k === 'slam') { St.shake(8); St.flash(0.35, '#ff3b3b'); ring(bp.x, bp.y - 2, 70, 38, '#ff3b3b', 0.5); burst(bp.x, bp.y - 4, ['#ff3b3b', '#3a3a44', '#ffffff'], 40, 110); }
+      if (k === 'summon') { ring(p.x, p.y - 10, 90, 50, '#b36bff', 0.6); St.flash(0.2, '#6b2fb8'); }
+      text(p.x, p.y - 44, G.BOSS_MOVES[k].name + '!', G.BOSS_MOVES[k].col, 6, { life: 1.2, max: 1.2, vy: -10 });
+      if (G.Audio && G.Audio.boom) G.Audio.boom();
+    });
+    G.on('bossRage', () => {
+      const p = bossPos();
+      text(p.x, p.y - 40, G.t('enraged'), '#ff3b3b', 7, { life: 1.8, max: 1.8, vy: -8, big: true });
+      St.flash(0.35, '#ff3b3b'); St.shake(6);
+      if (G.Audio && G.Audio.horn) G.Audio.horn();
+    });
+    G.on('riftStart', r => {
+      groundKey = '';
+      text(W / 2, H * 0.3, G.t('riftName', r.lvl), '#e0c0ff', 9, { life: 2.2, max: 2.2, vy: -4, big: true });
+      text(W / 2, H * 0.3 + 11, G.t('riftGo'), '#ffffff', 3, { life: 2.2, max: 2.2, vy: -4 });
+      const b = btnPos(); ring(b.x, b.y - 4, 100, 56, '#b36bff', 0.8); ring(b.x, b.y - 4, 60, 34, '#ffffff', 0.5);
+      St.flash(0.5, '#6b2fb8'); St.shake(5);
+      if (G.Audio && G.Audio.rift) G.Audio.rift(0);
+    });
+    G.on('riftGuardian', m => {
+      text(W / 2, H * 0.3, G.t('riftGuardian'), '#ff3b5c', 7, { life: 2, max: 2, vy: -4, big: true });
+      St.flash(0.3, '#ff3b3b'); St.shake(5);
+      if (G.Audio && G.Audio.horn) G.Audio.horn();
+    });
+    G.on('riftEnd', r => {
+      groundKey = '';
+      if (r.win) {
+        text(W / 2, H * 0.28, G.t('riftCleared'), '#ffd84a', 8, { life: 2.6, max: 2.6, vy: -4, big: true });
+        text(W / 2, H * 0.28 + 11, G.t('riftUp', r.up, r.open, Math.round(r.used)), '#ffffff', 3, { life: 2.6, max: 2.6, vy: -4 });
+        const b = btnPos(); ring(b.x, b.y - 4, 100, 56, '#ffd84a', 0.8);
+        burst(b.x, b.y - 10, ['#ffd84a', '#ffffff', '#b36bff'], 80, 150);
+        St.flash(0.4, '#ffd84a'); St.shake(6); slowmo = Math.max(slowmo, 0.6);
+      } else {
+        text(W / 2, H * 0.3, G.t(r.why === 'broke' ? 'riftBroke' : 'riftFailed'), '#c8b4ff', 6, { life: 2.2, max: 2.2, vy: -4, big: true });
+        St.flash(0.4, '#1e0e34');
+      }
+      if (G.Audio && G.Audio.rift) G.Audio.rift(r.win ? 1 : 2);
+    });
+  }
+  let breachKills = 0;
+
   // ---------- Frame ----------
   St.frame = function (dt) {
-    time += dt;
+    time += dt; fdt = dt || 1 / 60;
+    // several kills in one frame weigh more
+    if (frameKills >= 5) { hitstop = Math.max(hitstop, 0.03); St.shake(2); const b = btnPos(); text(b.x + rand(-30, 30), b.y - 40, '×' + frameKills, '#ffe27a', 4, { life: 0.8, max: 0.8, vy: -18 }); }
+    frameKills = 0;
+    if (killGold > 0 && (killGoldT -= dt) <= 0) { const b = btnPos(); text(b.x + rand(-6, 6), b.y + 16, '+' + fmtSmall(killGold), '#f0c850', 3, { life: 0.8, max: 0.8, vy: -10 }); killGold = 0; killGoldT = 0.3; }
     // hit-stop and slow motion only touch the visuals; the game keeps its own clock
     const vdt = dt * (hitstop > 0 ? 0.08 : slowmo > 0 ? 0.3 : 1);
     if (hitstop > 0) hitstop -= dt;
     if (slowmo > 0) slowmo -= dt;
     streak.t += dt;
+    if (comboTier && G.R.combo < (G.D.comboCap || 50) / 4) comboTier = 0;
     if (streak.t > 2) streak.n = 0;
     if (streak.pop > 0) streak.pop -= dt;
     const S_ = G.S, R = G.R;
-    const realm = G.REALMS[G.realmIndex(S_.depth)];
+    const realm = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
     const gk = realm.id + '|' + W + 'x' + H;
     if (gk !== groundKey) { groundKey = gk; groundCanvas = buildGround(realm.id); }
     buildHeroes();
@@ -926,6 +1332,9 @@
     stepGibs(vdt);
     drawGibs(true);
     drawPerkFx();
+    drawBreach();
+    drawRiftTint();
+    stepGround(vdt);
 
     // Collect drawables sorted by y
     const list = [];
@@ -946,6 +1355,9 @@
       const ids = new Set(S_.chests.map(c => c.id));
       for (const k of [...vis.keys()]) if (!ids.has(k)) vis.delete(k);
     }
+    // Loot on the ground and the shrine
+    for (const e of R.ground || []) { const v = gvis.get(e.id); if (v) list.push({ y: v.landed ? v.y : v.y + 20, draw: () => drawGroundItem(e, v) }); }
+    if (R.shrine) { const q = shrinePos(); if (q) list.push({ y: q.y, draw: drawShrine }); }
     // Heroes
     for (const hv of heroVis) {
       hv.fire -= dt;
@@ -994,7 +1406,7 @@
       list.push({ y: bp.y + 6, draw: () => drawBoss(bp) });
       bossBulletT -= dt;
       if (bossBulletT <= 0 && R.boss) {
-        bossBulletT = bossVis.lord ? 0.9 : 1.4;
+        bossBulletT = bossVis.lord ? (R.boss.rage ? 0.45 : 0.9) : 1.4;
         const n = bossVis.lord ? 14 : 9, off = Math.random() * 6.28;
         const col = bossVis.lord ? '#ff4f7e' : '#ffe27a';
         for (let i = 0; i < n; i++) {
@@ -1021,6 +1433,7 @@
 
     list.sort((a, c) => a.y - c.y);
     for (const d of list) d.draw();
+    drawLootBeams();
     drawRings(vdt);
     stepCoins(vdt);
     stepGems(vdt);
@@ -1084,6 +1497,12 @@
     for (let i = bolts.length - 1; i >= 0; i--) {
       const bo = bolts[i]; bo.life -= dt;
       if (bo.life <= 0) { bolts.splice(i, 1); continue; }
+      if (bo.wide) { // ink edges, a coloured body and a white core, so it reads on sand too
+        lctx.fillStyle = '#0c0b12';
+        for (let j = 0; j < bo.pts.length - 1; j++) { line(bo.pts[j][0] - 1, bo.pts[j][1], bo.pts[j + 1][0] - 1, bo.pts[j + 1][1]); line(bo.pts[j][0] + 1, bo.pts[j][1], bo.pts[j + 1][0] + 1, bo.pts[j + 1][1]); }
+        lctx.fillStyle = bo.cols[1];
+        for (let j = 0; j < bo.pts.length - 1; j++) line(bo.pts[j][0] + (j % 2 ? 1 : -1) * 0, bo.pts[j][1], bo.pts[j + 1][0], bo.pts[j + 1][1]);
+      }
       lctx.fillStyle = Math.random() < 0.5 ? '#ffffff' : bo.cols ? bo.cols[1] : '#7fe9ff';
       for (let j = 0; j < bo.pts.length - 1; j++) line(bo.pts[j][0], bo.pts[j][1], bo.pts[j + 1][0], bo.pts[j + 1][1]);
     }
@@ -1120,6 +1539,7 @@
     // ---- Blit to display ----
     let ox = 0, oy = 0;
     if (shake > 0) { ox = Math.round(rand(-shake, shake)); oy = Math.round(rand(-shake, shake)); shake = Math.max(0, shake - dt * 30); }
+    if (kick > 0) { oy += 1; kick = 0; } // a one-frame downward kick on every click
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#0c0b12';
@@ -1139,9 +1559,12 @@
     // ---- Hi-res layer: text & bars ----
     ctx.setTransform(k, 0, 0, k, ox * k, oy * k);
     drawNames();
+    drawEventNames();
+    drawLabels();
     drawTexts(dt);
     drawStreak();
-    if (bossVis && R.boss) drawBossBar();
+    if (R.rift) { /* the Rift's bar and clock live in the HUD row under the field */ }
+    else if (bossVis && R.boss) { drawBossBar(); drawMoveName(); }
     else if (R.bossReady) drawReady(b);
     if (hoverChest) drawChestTip(hoverChest);
     drawHeroPlate();
@@ -1271,7 +1694,7 @@
   function drawButton(b) {
     const skin = G.SKINS.find(s => s.id === G.S.skin) || G.SKINS[0];
     const pressed = btnPress > 0;
-    if (btnPress > 0) btnPress -= 1 / 60;
+    if (btnPress > 0) btnPress -= fdt;
     const combo = G.R.combo, cap = G.D.comboCap || 50;
     if (combo > 10 && Math.random() < 0.25 + 0.5 * combo / cap) {
       const a = Math.random() * 6.28;
@@ -1279,8 +1702,12 @@
     }
     shadow(b.x, b.y + 1, 36);
     const spr = SPR.button(skin.base, pressed, time * 120 % 360);
-    blit(spr, b.x, b.y + 4);
-    if (btnHurtT > 0) { blit(white(spr), b.x, b.y + 4, 1, btnHurtT * 3); btnHurtT -= 1 / 60; }
+    btnSpring.v += (1 - btnSpring.s) * 0.35; btnSpring.v *= 0.7; btnSpring.s += btnSpring.v;
+    const sy = clamp(btnSpring.s, 0.8, 1.15), sx = 1 + (1 - sy) * 0.9;
+    const bw = Math.round(spr.width * sx), bh = Math.round(spr.height * sy);
+    lctx.drawImage(spr, Math.round(b.x - bw / 2), Math.round(b.y + 4 - bh), bw, bh);
+    if (btnFlashT > 0) { lctx.globalAlpha = Math.min(0.7, btnFlashT * 9); lctx.drawImage(white(spr), Math.round(b.x - bw / 2), Math.round(b.y + 4 - bh), bw, bh); lctx.globalAlpha = 1; btnFlashT -= fdt; }
+    if (btnHurtT > 0) { blit(white(spr), b.x, b.y + 4, 1, btnHurtT * 3); btnHurtT -= fdt; }
     if (G.R.stun > 0) {
       lctx.globalAlpha = 0.45; blit(SPR.button('#3a3348', true, 0), b.x, b.y + 4); lctx.globalAlpha = 1;
       if (Math.random() < 0.5) part(b.x + rand(-14, 14), b.y - rand(0, 12), pick(['#7fe9ff', '#ffffff']), { vx: rand(-30, 30), vy: rand(-40, -10), life: 0.3 });
@@ -1297,6 +1724,24 @@
     if (skin.id === 'gold' && Math.random() < 0.12) part(b.x + rand(-14, 14), b.y - rand(8, 20), '#fff3a0', { vy: -10, vx: 0, grav: 0, life: 0.6 });
   }
 
+  function drawBossMove(bp) {
+    const b = G.R.boss, sp = bossVis.sprite, sc = bossScale(), h = sp.canvas.height * sc;
+    if (b.move) {
+      const M = G.BOSS_MOVES[b.move.k], k = clamp(b.move.t / b.move.T, 0, 1);
+      if (b.move.k === 'shield') {
+        lctx.globalAlpha = 0.18 + 0.08 * Math.sin(time * 10); lctx.fillStyle = M.col;
+        const rx = sp.canvas.width * sc * 0.65, ry = h * 0.6;
+        for (let dy = -ry; dy <= ry; dy++) { const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (dy / ry) * (dy / ry)))); lctx.fillRect(Math.round(bp.x - w), Math.round(bp.y - h / 2 + dy), w * 2, 1); }
+        lctx.globalAlpha = 1;
+      } else if (Math.floor(time * 12) % 2) glow(bp.x, bp.y - h / 2, Math.round(sp.canvas.width * sc / 2), M.col, 0.25);
+      // wind-up bar and taps left
+      const w = 30, y = Math.round(bp.y - h - 10);
+      lctx.fillStyle = '#0c0b12'; lctx.fillRect(bp.x - w / 2 - 1, y - 1, w + 2, 4);
+      lctx.fillStyle = M.col; lctx.fillRect(bp.x - w / 2, y, Math.round(w * k), 2);
+      for (let i = 0; i < b.move.need; i++) { lctx.fillStyle = i < b.move.n ? '#ffffff' : '#3a3a44'; lctx.fillRect(Math.round(bp.x - b.move.need * 2 + i * 4), y + 4, 3, 2); }
+    }
+    if (b.stagger > 0 && Math.random() < 0.5) part(bp.x + rand(-12, 12), bp.y - h - rand(0, 6), pick(['#ffe27a', '#ffffff']), { vx: rand(-20, 20), vy: -10, grav: 0, life: 0.4 });
+  }
   function drawBoss(bp) {
     const sp = bossVis.sprite, sc = bossScale();
     const bob = Math.round(Math.sin(bossVis.t * 3) * 1.5);
@@ -1305,14 +1750,16 @@
     if (bossVis.lord) glow(bp.x, bp.y - sp.canvas.height * sc / 2, Math.round(sp.canvas.width * sc / 3), '#ff4f7e', 0.12 + 0.06 * Math.sin(time * 5));
     const x = bp.x + (bossHitT > 0 ? Math.round(rand(-1, 1)) : 0), y = bp.y + bob + enterY;
     blit(sp.canvas, x, y, sc);
-    if (bossHitT > 0) { blit(white(sp.canvas), x, y, sc, Math.min(0.45, bossHitT * 6)); bossHitT -= 1 / 60; }
+    if (bossHitT > 0) { blit(white(sp.canvas), x, y, sc, Math.min(0.45, bossHitT * 6)); bossHitT -= fdt; }
     if (sp.crown) blit(SPR.get('crown_small'), x, y - sp.canvas.height * sc + 2, 1);
+    if (G.R.boss) drawBossMove(bp);
   }
 
   // ---------- Hi-res text layer (drawn in logical coords, crisp font) ----------
   const FONT = '"Press Start 2P", "BTTN Body", monospace';
   // Press Start 2P is only crisp on an 8px device grid, so snap logical sizes to it.
-  function crisp(size) { const k = S * DPR; return Math.max(8, Math.round(size * k / 8) * 8) / k; }
+  // at least 8 CSS px on any screen, on the 8-device-px grid
+  function crisp(size) { const k = S * DPR, g = 8 * Math.ceil(DPR); return Math.max(g, Math.round(size * k / 8) * 8) / k; }
   function drawTexts(dt) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -1338,6 +1785,15 @@
   function drawNames() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12';
     for (const m of G.R.mobs || []) {
+      if (m.kind === 'hoard' || m.kind === 'guardian') {
+        const q = mobPos(m), hoard = m.kind === 'hoard', y = hoard ? q.y - 25 : q.y - 44;
+        const nm = G.t(hoard ? 'hoarder' : 'riftGuardian');
+        ctx.font = crisp(hoard ? 3 : 4) + 'px ' + FONT;
+        ctx.strokeText(nm, q.x, y); ctx.fillStyle = hoard ? '#ffd84a' : '#ff9ab4'; ctx.fillText(nm, q.x, y);
+        if (hoard) { const k = clamp(m.life / G.TUNE.hoardLife, 0, 1); ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - 9, y + 3, 18, 2); ctx.fillStyle = k > 0.3 ? '#b36bff' : '#ff4f4f'; ctx.fillRect(q.x - 9, y + 3, 18 * k, 1); }
+        else { const k = clamp(m.hp / m.max, 0, 1); ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - 21, y + 3, 42, 3); ctx.fillStyle = '#ff3b5c'; ctx.fillRect(q.x - 20, y + 4, 40 * k, 1.5); }
+        continue;
+      }
       if (m.kind !== 'rare') continue;
       const q = mobPos(m);
       ctx.font = crisp(3) + 'px ' + FONT;
@@ -1371,14 +1827,27 @@
     ctx.strokeText(name, x, y + 8); ctx.fillStyle = b.lord ? '#ff9ab4' : '#ffffff'; ctx.fillText(name, x, y + 8);
     ctx.textAlign = 'right';
     const tt = Math.ceil(b.t) + 's';
-    if (b.scar < 1) { ctx.textAlign = 'center'; ctx.strokeText(G.t('wounded', Math.round((1 - b.scar) * 100)), x + w / 2, y + 8); ctx.fillStyle = '#ff9a7a'; ctx.fillText(G.t('wounded', Math.round((1 - b.scar) * 100)), x + w / 2, y + 8); ctx.textAlign = 'right'; }
+    if (b.scar < 1) {
+      const ws = G.t('wounded', Math.round((1 - b.scar) * 100)) + (b.rally ? ' · ' + G.t('rally', Math.round(b.rally * 100)) : '');
+      ctx.textAlign = 'center'; ctx.strokeText(ws, x + w / 2, y + 8); ctx.fillStyle = '#ff9a7a'; ctx.fillText(ws, x + w / 2, y + 8); ctx.textAlign = 'right';
+    }
     ctx.strokeText(tt, x + w, y + 8); ctx.fillStyle = b.t < 6 ? '#ff4f4f' : '#ffe27a'; ctx.fillText(tt, x + w, y + 8);
     const hpT = G.fmt(Math.max(0, b.hp)) + ' / ' + G.fmt(b.max);
     ctx.textAlign = 'center'; ctx.font = crisp(3) + 'px ' + FONT;
     ctx.fillStyle = '#ffffff'; ctx.fillText(hpT, x + w / 2, y + 1);
   }
+  function drawMoveName() {
+    const b = G.R.boss;
+    if (!b || !b.move || !bossVis) return;
+    const M = G.BOSS_MOVES[b.move.k], bp = bossPos(), h = bossVis.sprite.canvas.height * bossScale();
+    ctx.font = crisp(4) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 1.5; ctx.strokeStyle = '#0c0b12';
+    const s = M.name + ' · ' + G.t('tapIt', b.move.need - b.move.n);
+    const y = bp.y - h - 18 + (Math.floor(time * 8) % 2);
+    ctx.strokeText(s, bp.x, y); ctx.fillStyle = M.col; ctx.fillText(s, bp.x, y);
+  }
   function drawReady(b) {
-    const y = b.y - 34 + Math.sin(time * 5) * 1.5;
+    const y = b.y - 44 + Math.sin(time * 5) * 1.5;
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(SPR.get('ic_skull'), Math.round(b.x - 5), Math.round(y - 5));
@@ -1395,7 +1864,7 @@
     ctx.font = crisp(3) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12';
     const s = (G.S.profile.name || G.L(G.CLASS_BY_ID[h.cls].name)) + ' · ' + G.t('lvl') + ' ' + h.lvl;
-    const y = (hero.top != null ? hero.top : hp.y - 22) - 6;
+    const y = hp.y + 5;
     ctx.strokeText(s, hp.x, y); ctx.fillStyle = '#ffe27a'; ctx.fillText(s, hp.x, y);
   }
   function drawChestTip(c) {

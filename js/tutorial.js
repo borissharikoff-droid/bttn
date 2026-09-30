@@ -19,7 +19,7 @@
     tu_guide: 'Buttonling', tu_step: 'Tutorial {0}/{1}', tu_skip: 'Skip the tutorial', tu_ok: 'Got it', tu_reward: 'Done! Reward: {0}',
     tu_click: "I'm Buttonling, the Button's voice. You're the Hand now: press the Button! Every click spills gold and fills the chest bar below.",
     tu_chestWait: 'Almost! When the green Chest bar fills up, a chest drops nearby.',
-    tu_chest: 'Loot! Tap it to open. The Button spills chests, and mobs drop bags where they fall.',
+    tu_chest: 'A chest! Tap it to open. The Button spills chests; mobs drop loot straight on the ground, with a label that says what it is.',
     tu_gear: "There was gear inside. Open the Character tab and meet your Warden.",
     tu_doll: 'This is your Warden with 4 slots: weapon, ability, armour and ring. Better items are equipped automatically. Scrap spares into shards and enchant your gear with them.',
     tu_upgWait: "Click up 15 gold and we'll buy the first upgrade.",
@@ -41,11 +41,17 @@
     tip_shards: 'Shards piled up. In Character, tap a worn item and enchant it.',
     tip_break: 'Mobs broke the button and the clear bar dropped. Get tougher armour or enchant your weapon.',
     tip_wall: 'This lord is a wall for now. Ascend: you earn fame, a permanent bonus, and come back much stronger. Gear and pets stay.',
+    tip_loot: 'Loot falls where mobs die, and its label says what it is. Tap a label to grab it now, or the Warden gathers it in a moment. A beam means something good.',
+    tip_hoard: 'A Hoarder! It never bites, and it runs off with its sack in 16 seconds. Tap it so the Warden chases it: it bursts into loot.',
+    tip_shrine: 'A shrine rose from the ground. Tap it for a 15-second blessing, or the Warden claims it.',
+    tip_move: 'The boss is winding up a move! Tap it fast to break it: the boss staggers and takes +50% damage.',
+    tip_orb: 'You found currency. In the Character tab, pick an item, then an orb: reroll its affixes, add one, or gamble with an Orb of Ruin.',
+    tip_rift: 'Rifts are open: timed runs at the level you choose, with better loot. Friends see your best Rift on the ladder.',
     tip_evo: 'Evolution ready! A maxed perk plus the right gear turns into something much stronger. Look for the golden card.',
     tip_potion: 'A potion! It raises a stat until you ascend. See them in the Garrison tab.',
     help_title: 'How to play', help_intro: 'Show the intro', help_tut: 'Replay the tutorial',
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
-    help_2: 'Loot', help_2t: 'Mobs drop bags where they fall and the Button spills chests: gold, essence and gear of 7 rarities. Special chests (storm, frozen, mimics…) each work their own way.',
+    help_2: 'Loot', help_2t: 'Mobs drop loot where they fall, and its label and beam tell you what it is: tap it to grab it, or the Warden gathers it. Orbs change your gear in the Character tab, and uniques have rules of their own. The Button spills chests too; special ones (storm, frozen, mimics…) each work their own way.',
     help_3: 'Your Warden', help_3t: 'The Horde drops XP crystals; every level you pick one of three perks (they last until you ascend). 4 gear slots: weapon, ability, armour, ring; your class weapon type deals +50%. A stronger Warden faces a bigger Horde and clears lands faster.',
     help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, brutes, blue champions and named yellow rares with a modifier, and it surges every half minute. Fill the clear bar and the land's boss comes; beat it to go deeper.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
@@ -73,7 +79,7 @@
     { id: 'gear', text: 'tu_gear', point: () => P.tab('hero'), done: () => G.UI.tab() === 'hero' },
     { id: 'doll', text: 'tu_doll', point: () => P.inTab('hero', '.doll'), manual: true },
     { id: 'upg', text: S => (S.gold >= 15 || S.upg.finger ? 'tu_upg' : 'tu_upgWait'), point: S => (S.gold >= 15 ? P.inTab('upg', '.row[data-u="finger"]') : P.button()), done: S => (S.upg.finger || 0) >= 1 },
-    { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), done: S => S.hero.kills >= 40 },
+    { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), done: S => S.hero.kills - (seen().tutK || 0) >= 40 },
     { id: 'garrison', text: S => (S.gold >= 50 ? 'tu_garrison' : 'tu_garrisonWait'), point: S => (S.gold >= 50 ? P.inTab('heroes', '.row[data-h="rogue"]') : P.button()), done: S => (S.heroes.rogue || 0) >= 1 },
     { id: 'boss', text: () => (G.R.boss ? 'tu_bossFight' : G.R.bossReady ? 'tu_bossReady' : 'tu_boss'),
       point: () => (G.R.boss ? P.button() : G.R.bossReady ? (P.el('#btnFight') || P.button()) : P.el('#bossRow')), done: S => S.st.bossKills >= 1 },
@@ -92,10 +98,17 @@
     { id: 'ability', when: S => S.hero.eq.ability, point: () => P.el('#btnAbil'), text: 'tip_ability' },
     { id: 'shards', when: S => S.hero.shards >= 40, point: () => P.tab('hero'), text: 'tip_shards', until: () => G.UI.tab() === 'hero' },
     { id: 'asc', when: () => G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_asc', until: () => G.UI.tab() === 'asc' },
+    { id: 'loot', when: () => (G.R.ground || []).some(e => e.t > 0.6 && (e.k !== 'gear' || e.r >= 1)), point: () => { const e = (G.R.ground || []).find(x => x.t > 0.6 && (x.k !== 'gear' || x.r >= 1)); return e && G.Stage.lootPoint(e); }, text: 'tip_loot', until: () => !(G.R.ground || []).length },
+    { id: 'hoard', when: () => (G.R.mobs || []).some(m => m.kind === 'hoard'), point: () => { const m = G.R.mobs.find(x => x.kind === 'hoard'); return m && G.Stage.mobPoint(m); }, text: 'tip_hoard', until: () => !(G.R.mobs || []).some(m => m.kind === 'hoard') },
+    { id: 'shrine', when: () => G.R.shrine, point: () => G.Stage.shrinePoint(), text: 'tip_shrine', until: () => !G.R.shrine },
+    { id: 'move', when: () => G.R.boss && G.R.boss.move, point: P.button, text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
+    { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('hero'), text: 'tip_orb', until: () => G.UI.tab() === 'hero' },
+    { id: 'rift', when: () => G.riftOpenable() && !G.R.boss, point: () => P.el('#btnRift') || P.tab('rift'), text: 'tip_rift', until: () => G.UI.tab() === 'rift' || !!G.R.rift },
     { id: 'wall', when: S => S.scar && S.scar.n >= 3 && G.isLord(S.scar.d) && G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_wall', until: () => G.UI.tab() === 'asc' },
   ];
 
-  let tip = null, tipT = 0, lastHl = null;
+  let tip = null, tipT = 0, lastHl = null, shownT = 0;
+  const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1 };
 
   function seen() { const S = G.S; S.seen = S.seen || {}; S.seen.tips = S.seen.tips || {}; return S.seen; }
   const veteran = S => S.clicks > 60 || S.ascensions > 0 || S.st.bossKills > 0 || S.maxDepth > 0 || S.goldTotal > 5000;
@@ -107,6 +120,8 @@
     if (S.tut === 0 && veteran(S)) S.tut = -1;
     $('#btnHelp').addEventListener('click', Tut.help);
     $('#coach').addEventListener('click', e => {
+      // the bubble can appear under a finger that is busy clicking: ignore taps for a moment
+      if (performance.now() - shownT < 500) return;
       if (e.target.closest('[data-skip]')) { G.S.tut = -1; hide(); return; }
       if (e.target.closest('[data-ok]')) {
         if (tip) { finishTip(); return; }
@@ -137,6 +152,8 @@
     else { G.S.eggs += 1; G.UI.toast(esc(t('tu_reward', '1 ' + t('eggs').toLowerCase())), 'ach', 'ic_egg'); }
     S.tut = i + 1;
     while (active() && STEPS[S.tut].skip && STEPS[S.tut].skip(S)) S.tut++;
+    // the welcome pack kills plenty before this step comes up, so count from here
+    if (active() && STEPS[S.tut].id === 'mobs') seen().tutK = S.hero.kills;
     if (!active()) S.tut = -1;
     if (G.Audio) G.Audio.achievement();
   }
@@ -147,7 +164,16 @@
     const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
     if (!S || !$('#coach') || busy) { hidePointer(); if (busy) $('#coach').hidden = true; return; }
     if (!S.hero || !S.hero.cls) { hide(); return; }
+    // tips for things that come and go (a Hoarder, loot, a shrine, a boss move) may cut into the tutorial
+    if (tip) {
+      tipT -= 0.12;
+      if (tipT <= 0 || (tip.until && tip.until(S))) { finishTip(); return; }
+      point(tip.point ? tip.point() : null);
+      return;
+    }
     if (active()) {
+      const ev = TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && tp.when(S));
+      if (ev) { showTip(ev); return; }
       const st = STEPS[S.tut];
       if (st.skip && st.skip(S)) { S.tut++; if (!active()) S.tut = -1; return; }
       if (!st.manual && st.done(S)) { complete(); return; }
@@ -155,13 +181,7 @@
       point(val(st.point, S));
       return;
     }
-    // tips
-    if (tip) {
-      tipT -= 0.12;
-      if (tipT <= 0 || (tip.until && tip.until(S))) { finishTip(); return; }
-      point(tip.point ? tip.point() : null);
-      return;
-    }
+    if (G.Stage.busyCelebrating && G.Stage.busyCelebrating()) return; // don't talk over a big drop
     for (const tp of TIPS) {
       if (seen().tips[tp.id]) continue;
       if (tp.when(S)) { showTip(tp); return; }
@@ -184,7 +204,7 @@
     const c = $('#coach');
     const k = key + text + step + manual;
     if (k !== lastKey) {
-      lastKey = k;
+      lastKey = k; shownT = performance.now();
       c.innerHTML = `<div class="guide">${img('p_buttonling', 5)}</div>
         <div class="say"><b>${esc(t('tu_guide'))}</b>${step ? `<small>${esc(step)}</small>` : ''}<p>${esc(text)}</p>
           <div class="acts">${manual ? `<button class="btn gold" data-ok>${esc(t('tu_ok'))}</button>` : ''}${active() ? `<button class="linkBtn" data-skip>${esc(t('tu_skip'))}</button>` : ''}</div></div>`;
@@ -207,9 +227,15 @@
     const bottom = meters ? meters.getBoundingClientRect().top : r.bottom;
     const h = c.offsetHeight;
     const spots = [Math.max(r.top + 50, bottom - h - 10), r.top + 50, window.innerHeight - h - 10];
-    const clear = y => !aim || y >= aim.bottom || y + h <= aim.top;
+    // keep off what is being pointed at, and off the Button and its boss skull where the player keeps tapping
+    const bp = G.Stage.buttonPoint(), sc = G.Stage.toScreen(1, 0).x - G.Stage.toScreen(0, 0).x;
+    const btn = { top: bp.y - 30 * sc, bottom: bp.y + 40 * sc };
+    const off = (a, y) => !a || y >= a.bottom || y + h <= a.top;
+    const clear = y => off(aim, y) && off(btn, y);
     let y = placedY !== null && spots.includes(placedY) && clear(placedY) ? placedY : spots.find(clear);
+    if (y === undefined) y = spots.find(y2 => off(aim, y2));
     if (y === undefined) y = spots[0];
+    if (y !== placedY) shownT = performance.now();
     placedY = y;
     c.style.top = y + 'px';
   }

@@ -9,7 +9,7 @@ const ctx = { console, Math, JSON, Date, performance: { now: () => simNow * 1000
 let simNow = 0;
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['util.js', 'data.js', 'game.js', 'hero.js', 'ach.js', 'journey.js']) {
+for (const f of ['util.js', 'data.js', 'game.js', 'hero.js', 'ach.js', 'journey.js', 'world.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx, { filename: f });
 }
 const G = ctx.G;

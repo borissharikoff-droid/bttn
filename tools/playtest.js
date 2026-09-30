@@ -14,14 +14,14 @@ const { execFile } = require('child_process');
 const { makeWorld, shop, buyLegacy, PERK_PRIORITY } = require('./bot');
 
 const PERSONAS = {
-  active:   { cps: 6, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, perk: 'smart', perkDelay: 1, bossDelay: 0, ascend: 'smart' },
-  casual:   { cps: 2.5, duty: 0.5, shopEvery: 20, chests: 0.3, wisp: 0.3, perk: 'first', perkDelay: 5, bossDelay: 10, ascend: 'stuck', stuckMin: 10 },
-  idle:     { cps: 0, duty: 0, shopEvery: 60, chests: 0, wisp: 0, perk: 'auto', perkDelay: 99, bossDelay: 30, ascend: 'stuck', stuckMin: 20 },
-  returner: { cps: 2.5, duty: 0.7, shopEvery: 10, chests: 0.3, wisp: 0.5, perk: 'first', perkDelay: 4, bossDelay: 5, ascend: 'stuck', stuckMin: 8,
+  active:   { cps: 6, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, perk: 'smart', perkDelay: 1, bossDelay: 0, ascend: 'smart', events: 0.9, craft: 1, rift: 300 },
+  casual:   { cps: 2.5, duty: 0.5, shopEvery: 20, chests: 0.3, wisp: 0.3, perk: 'first', perkDelay: 5, bossDelay: 10, ascend: 'stuck', stuckMin: 10, events: 0.3, craft: 0, rift: 900 },
+  idle:     { cps: 0, duty: 0, shopEvery: 60, chests: 0, wisp: 0, perk: 'auto', perkDelay: 99, bossDelay: 30, ascend: 'stuck', stuckMin: 20, events: 0, craft: 0, rift: 1800 },
+  returner: { cps: 2.5, duty: 0.7, shopEvery: 10, chests: 0.3, wisp: 0.5, perk: 'first', perkDelay: 4, bossDelay: 5, ascend: 'stuck', stuckMin: 8, events: 0.5, craft: 1, rift: 600,
     days: 7, sessions: [[15, 8 * 3600], [15, 16 * 3600]] },
 };
 // "Big" moments are the ones a player would notice as progress
-const BIG = new Set(['boss', 'lord', 'land', 'rarity', 'pet', 'unlock', 'ascend', 'evolve', 'goal']);
+const BIG = new Set(['boss', 'lord', 'land', 'rarity', 'pet', 'unlock', 'ascend', 'evolve', 'goal', 'unique', 'hoard', 'riftWin']);
 
 function run(name, seed, minutes) {
   const P = PERSONAS[name];
@@ -29,6 +29,7 @@ function run(name, seed, minutes) {
   // a simulated calendar: each seed starts on its own day, the returner lives through a week
   let simDay = seed * 3;
   G.todayKey = () => 'sim-day-' + simDay;
+  G.utcDayKey = G.todayKey;
   const S = () => G.S;
   G.chooseClass(['knight', 'archer', 'wizard', 'rogue'][seed % 4]);
   let rnd = seed * 7919 + 1; const r = () => ((rnd = (rnd * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
@@ -57,12 +58,27 @@ function run(name, seed, minutes) {
   G.on('bossWin', () => Object.assign(attempts[attempts.length - 1] || {}, { res: 'win', secs: Math.round(clock.now - attempts[attempts.length - 1].t0) }));
   G.on('evolve', () => mark('evolve'));
   G.on('bounty', () => mark('bounty'));
+  // loot on the ground, events and Rifts
+  let drops = 0, orbs = 0, uniques = 0;
+  G.on('pickup', (e, how, res) => {
+    drops++;
+    if (e.k === 'orb') orbs++;
+    if (e.k === 'uq') { uniques++; mark('unique'); if (res && res.first) mark('newUnique'); }
+    if (e.k === 'gear' && e.it.r > bestR) { for (let q = bestR + 1; q <= e.it.r; q++) mark('r' + q); bestR = e.it.r; mark('rarity'); }
+  });
+  G.on('hoardDie', () => mark('hoard'));
+  G.on('hoard', () => mark('hoardSeen'));
+  G.on('shrineUse', () => mark('shrine'));
+  G.on('breach', () => mark('breach'));
+  let riftBest = 0, riftRuns = 0;
+  let riftFailed = false, riftLvl = 1;
+  G.on('riftEnd', r => { riftRuns++; riftLvl = r.lvl; riftFailed = !r.win; if (r.win) { mark('riftWin'); riftBest = Math.max(riftBest, r.lvl); } else mark('riftFail'); });
   // the tabs the UI unlocks, as a player would see them appear
   const TABS = { heroes: s => s.goldTotal >= 40, coll: s => s.st.chests >= 1, quests: s => s.st.chests >= 5, stars: s => s.essRun >= 1, pets: s => s.eggs > 0 || Object.keys(s.pets).length > 0, ach: s => Object.keys(s.ach).length > 0, asc: s => s.maxDepth >= 5 };
   const seenTab = {};
 
   const dt = 0.2;
-  let clickAcc = 0, lastShop = -99, bossSeen = -1, offerSeen = -1, lastBestDepth = 0, lastDepthT = 0, lastAscend = -1e9;
+  let clickAcc = 0, lastShop = -99, bossSeen = -1, offerSeen = -1, lastBestDepth = 0, lastDepthT = 0, lastAscend = -1e9, lastRift = 0;
   const depthAt = {}, stalls = [];
   const sessions = [];
   function playFor(seconds, P) {
@@ -81,7 +97,14 @@ function run(name, seed, minutes) {
         if (G.R.wisp && r() < P.wisp * dt) G.catchWisp();
       }
       G.tick(dt);
-      // boss: pressed after a reaction delay
+      // events: tap the shrine, chase the Hoarder
+      if (P.events && G.R.shrine && r() < P.events * dt * 2) G.useShrine('hand');
+      if (P.events && !G.R.focus) { const hd = G.R.mobs.find(m => m.kind === 'hoard'); if (hd && r() < P.events * dt * 3) G.R.focus = hd.id; }
+      // loot: the attentive ones grab labels off the ground before the Warden does
+      if (P.events && G.R.ground.length && r() < P.events * dt * 3) G.pickup(G.R.ground[0], 'hand');
+      // Rifts: a run now and then once they open, harder when the last one went well
+      if (P.rift && G.riftOpenable() && !G.R.rift && !G.R.boss && t - lastRift >= P.rift) { lastRift = t; G.riftStart(riftFailed ? Math.max(1, riftLvl - 3) : G.riftMax()); }
+      if (P.craft && Math.round(t / dt) % 50 === 0) craft(G);
       if (G.R.bossReady && !G.R.boss) { if (bossSeen < 0) bossSeen = t; if (t - bossSeen >= P.bossDelay) { G.startBoss(); bossSeen = -1; } }
       // perks
       const h = s.hero;
@@ -137,7 +160,9 @@ function run(name, seed, minutes) {
   const s = S();
   return {
     persona: name, seed, minutes: Math.round(total / 60), cls: s.hero.cls,
-    first: Object.fromEntries(['boss', 'lord', 'perk', 'r3', 'r4', 'r5', 'r6', 'pet', 'tab_stars', 'tab_pets', 'tab_asc', 'ascend', 'break'].map(k => [k, first[k] != null ? +(first[k] / 60).toFixed(1) : null])),
+    first: Object.fromEntries(['boss', 'lord', 'perk', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'pet', 'tab_stars', 'tab_pets', 'tab_asc', 'ascend', 'break', 'hoardSeen', 'hoard', 'shrine', 'breach', 'unique', 'riftWin'].map(k => [k, first[k] != null ? +(first[k] / 60).toFixed(1) : null])),
+    loot: { dropsPerMin: +(drops / (clock.now / 60)).toFixed(1), orbs, uniques, found: Object.keys(S().uq || {}).length, hoards: moments.filter(m => m[1] === 'hoard').length, hoardsSeen: moments.filter(m => m[1] === 'hoardSeen').length, shrines: moments.filter(m => m[1] === 'shrine').length, breaches: moments.filter(m => m[1] === 'breach').length },
+    rift: { best: riftBest, runs: riftRuns, open: S().rift.open },
     depthAt: Object.fromEntries(Object.entries(depthAt).map(([k, v]) => [k, +(v / 60).toFixed(1)])),
     windows: win, longestStall: stalls.reduce((m, x) => Math.max(m, x[1]), 0) / 60,
     bossFails: fails, maxFailStreak, ascensions: s.ascensions, journey: s.journey || 0, evos: Object.keys((s.rec && s.rec.evos) || {}).length, bounties: moments.filter(m => m[1] === 'bounty').length, bestDepth: s.bestDepth, level: s.hero.lvl,
@@ -146,6 +171,13 @@ function run(name, seed, minutes) {
   };
 }
 
+// A simple crafter: whetstones and grace on the weapon, flux on a worn item with weak affixes
+function craft(G) {
+  const h = G.S.hero, w = h.eq.weapon;
+  if (w && h.orbs.whet > 0 && !G.orbBlock('whet', w)) G.useOrb('whet', w);
+  for (const s of G.SLOTS) { const g = h.eq[s]; if (g && h.orbs.grace > 0 && !G.orbBlock('grace', g)) { G.useOrb('grace', g); break; } }
+  for (const s of G.SLOTS) { const g = h.eq[s]; if (g && h.orbs.ascent > 0 && !G.orbBlock('ascent', g)) { G.useOrb('ascent', g); break; } }
+}
 function all(seeds, minutes) {
   const jobs = [];
   for (const p of Object.keys(PERSONAS)) for (let sd = 1; sd <= seeds; sd++) jobs.push([p, sd]);
@@ -182,6 +214,9 @@ function report(results) {
       return `${w.from}-${Math.round(w.to)}m: big/min ${med(big).toFixed(2)}, longest dry ${med(gaps)}s (worst ${Math.max(...gaps)}s)`;
     });
     lines.push('moments: ' + wins.join(' | '));
+    const lt = k => med(ok.map(r => r.loot && r.loot[k]));
+    lines.push(`first (min): uncommon ${f('r1')} · rare ${f('r2')} · hoarder seen ${f('hoardSeen')} / slain ${f('hoard')} · shrine ${f('shrine')} · breach ${f('breach')} · unique ${f('unique')} · rift win ${f('riftWin')}`);
+    lines.push(`loot: drops/min ${lt('dropsPerMin')} · orbs ${lt('orbs')} · uniques ${lt('uniques')} (distinct ${lt('found')}/${14}) · hoarders ${lt('hoards')}/${lt('hoardsSeen')} · shrines ${lt('shrines')} · breaches ${lt('breaches')} · rift best ${med(ok.map(r => r.rift && r.rift.best))} (${med(ok.map(r => r.rift && r.rift.runs))} runs)`);
     lines.push(`journey step ${med(ok.map(r => r.journey || 0))} · evolutions discovered ${med(ok.map(r => r.evos || 0))} · bounties ${med(ok.map(r => r.bounties || 0))}`);
     lines.push(`longest depth stall ${med(ok.map(r => r.longestStall)).toFixed(1)} min · boss fails ${med(ok.map(r => r.bossFails))} (worst streak ${Math.max(...ok.map(r => r.maxFailStreak))}) · ascensions ${med(ok.map(r => r.ascensions))} · best depth ${med(ok.map(r => r.bestDepth))} · lvl ${med(ok.map(r => r.level))} · ach ${ok[0].ach.split('/')[1] ? med(ok.map(r => +r.ach.split('/')[0])) + '/' + ok[0].ach.split('/')[1] : '-'} · pets ${med(ok.map(r => r.pets))} · collection ${med(ok.map(r => +r.collection.split('/')[0]))}/${ok[0].collection.split('/')[1]}`);
     if (ok[0].sessions.length) {

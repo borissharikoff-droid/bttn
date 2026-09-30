@@ -11,7 +11,9 @@
     mode: 'off', uid: null, entries: [], status: 'off', error: '',
     lastSaveAt: 0, lastLadderAt: 0, cloud: null, readOnly: false,
   };
-  let backend = null, lastSaveStr = '', lastLadderKey = '', busy = false, ticks = 0;
+  let backend = null, lastSaveStr = '', lastLadderKey = '', busy = false, ticks = 0, lastPushTs = 0;
+  // which browser wrote a cloud save, so an old tab left open elsewhere can't overwrite a newer one
+  const DEV = (() => { try { let d = localStorage.getItem('bttn-dev'); if (!d) { d = Math.random().toString(36).slice(2, 10); localStorage.setItem('bttn-dev', d); } return d; } catch (e) { return 'x' + Math.random().toString(36).slice(2, 8); } })();
   const SAVE_EVERY = 60e3, LADDER_EVERY = 30e3;
 
   // ---------- artifact backend ----------
@@ -88,6 +90,7 @@
         Net.status = 'connecting'; G.emit('net');
         const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
         const uid = user && user.id ? await user.id() : null;
+        try { const me = user && user.me ? await user.me() : null; Net.myName = (me && me.name) || ''; } catch (e) { Net.myName = ''; }
         if (!db || !uid) { Net.status = 'off'; G.emit('net'); return; }
         const can = user.can ? await user.can('data.write') : null;
         Net.readOnly = can === false;
@@ -96,7 +99,7 @@
       } else { Net.status = 'off'; G.emit('net'); return; }
       Net.mode = backend.name;
       Net.status = 'online';
-      backend.subscribe(list => { Net.entries = prepare(list); resolveNames(); G.emit('ladder'); });
+      backend.subscribe(list => { Net.entries = prepare(list); resolveNames(); rivals(); G.emit('ladder'); });
       // Cloud save: offer it when it is newer than what this browser has
       const cloud = await backend.loadSave().catch(() => null);
       if (cloud && cloud.data) {
@@ -118,21 +121,50 @@
   function prepare(list) {
     return list.filter(e => e && typeof e === 'object').map(e => {
       const problems = G.verifySnapshot(e);
-      return Object.assign({}, e, { ok: problems.length === 0, problems, me: e.uid === Net.uid || e.id === Net.uid });
+      let power = e.power;
+      try { if (!problems.length) power = G.ladderPower(e); } catch (err) { /* keep the claimed number */ }
+      return Object.assign({}, e, { power, ok: problems.length === 0, problems, me: e.uid === Net.uid || e.id === Net.uid });
     });
   }
   const nameCache = {};
   async function resolveNames() {
     if (!backend) return;
-    const need = Net.entries.filter(e => !e.name && !(e.uid in nameCache)).map(e => e.uid);
+    const need = Net.entries.filter(e => !(e.uid in nameCache)).map(e => e.uid);
     if (!need.length) return;
     const got = await backend.names(need).catch(() => ({}));
     Object.assign(nameCache, got);
     G.emit('ladder');
   }
   Net.displayName = e => e.name || nameCache[e.uid] || '';
+  // the account behind a row, shown next to the hero name so nobody can pass as someone else
+  Net.accountName = e => nameCache[e.uid] || '';
 
-  function ladderKey(s) { return JSON.stringify([s.name, s.cls, s.lvl, s.depth, s.power, s.asc, s.gear]); }
+  function ladderKey(s) { return JSON.stringify([s.name, s.cls, s.lvl, s.depth, s.power, s.asc, s.gear, s.rift, s.rt, s.rd, s.uq, s.ev, s.fs, s.cr]); }
+
+  // Rivalry: who went past whom since the last ladder update
+  const CATS = { depth: 'Depth', rift: 'Rift', power: 'Gear score' };
+  let seenUids = null;
+  let above = null;
+  function rivals() {
+    const now = {};
+    for (const cat in CATS) {
+      const list = Net.sorted(cat).filter(e => cat !== 'rift' || (e.rift || 0) > 0), i = list.findIndex(e => e.me);
+      if (i < 0) continue;
+      now[cat] = { set: new Set(list.slice(0, i).map(e => e.uid)), list, i };
+    }
+    if (above) {
+      let shown = 0;
+      for (const cat in CATS) {
+        const was = above[cat], cur = now[cat];
+        if (!was || !cur || shown >= 2) continue;
+        for (const e of cur.list.slice(cur.i + 1)) if (was.has(e.uid) && shown < 2) { shown++; G.emit('rival', { up: true, name: Net.displayName(e) || G.t('anon'), cat: CATS[cat], rank: cur.i + 1 }); }
+        for (const e of cur.list.slice(0, cur.i)) if (!was.has(e.uid) && seenUids && seenUids.has(e.uid) && shown < 2) { shown++; G.emit('rival', { up: false, name: Net.displayName(e) || G.t('anon'), cat: CATS[cat] }); }
+      }
+    }
+    above = {};
+    for (const cat in now) above[cat] = now[cat].set;
+    seenUids = new Set(Net.entries.map(e => e.uid));
+  }
 
   // Called every few seconds by the main loop; `force` pushes right away.
   // Save and ladder uploads are independent, so one failing never blocks the other.
@@ -152,14 +184,26 @@
       try {
         const snap = G.ladderSnapshot();
         const key = ladderKey(snap);
-        if (key !== lastLadderKey) { await backend.pushLadder(snap); lastLadderKey = key; }
-        Net.lastLadderAt = now;
+        // never lower your own row from a device that is behind (another one got further)
+        const mine = Net.entries.find(e => e.me);
+        const behind = mine && ((mine.depth || 0) > snap.depth || (mine.rift || 0) > snap.rift);
+        if (behind) Net.behind = true;
+        else { Net.behind = false; if (key !== lastLadderKey) { await backend.pushLadder(snap); lastLadderKey = key; } Net.lastLadderAt = now; }
       } catch (e) { note(e); }
     }
     if (force || now - Net.lastSaveAt > SAVE_EVERY) {
       try {
         const str = G.serialize();
-        if (str !== lastSaveStr) { await backend.pushSave({ data: str, ts: G.S.lastSave, v: 1 }); lastSaveStr = str; }
+        if (str !== lastSaveStr) {
+          // another device saved something further along since our last push: ask before overwriting it
+          const cloud = await backend.loadSave().catch(() => null);
+          let cs = null;
+          if (cloud && cloud.dev && cloud.dev !== DEV && (cloud.ts || 0) > lastPushTs) { try { cs = JSON.parse(cloud.data); } catch (e) { cs = null; } }
+          if (cs && (cs.goldTotal || 0) > (G.S.goldTotal || 0) * 1.01 + 100) {
+            Net.cloud = cloud; Net.hold = true; busy = false; G.emit('cloudNewer', cloud); G.emit('net'); return;
+          }
+          await backend.pushSave({ data: str, ts: G.S.lastSave, v: 1, dev: DEV }); lastSaveStr = str; lastPushTs = G.S.lastSave;
+        }
         Net.lastSaveAt = now;
       } catch (e) { note(e); }
     }
@@ -169,6 +213,8 @@
     if (pending) { pending = false; Net.tick(true); }
   };
   Net.pushNow = () => Net.tick(true);
+  // "keep this one": the player chose this browser's save over the cloud's, so stop asking about that cloud save
+  Net.keepLocal = function (c) { lastPushTs = Math.max(lastPushTs, (c && c.ts) || 0, Date.now()); Net.hold = false; Net.tick(true); };
   Net.loadCloud = function () {
     if (!Net.cloud || !Net.cloud.data) return false;
     return G.importSave(Net.cloud.data);
@@ -176,8 +222,17 @@
 
   // Rank helpers for the UI
   Net.sorted = function (by) {
-    const list = Net.entries.filter(e => e.ok || e.me);
-    const key = by === 'power' ? e => e.power || 0 : e => (e.depth || 0) * 1e15 + (e.power || 0);
-    return list.slice().sort((a, b) => key(b) - key(a));
+    let list = Net.entries.filter(e => e.ok || e.me);
+    const today = G.utcDayKey();
+    if (by === 'today') list = list.filter(e => e.rd && e.rd.k === today && e.rd.l > 0);
+    if (by === 'mad') list = list.filter(e => (e.mad || 0) > 0);
+    const pw = (a, b) => (b.power || 0) - (a.power || 0);
+    const cmp = by === 'power' ? pw
+      : by === 'rift' ? (a, b) => (b.rift || 0) - (a.rift || 0) || (a.rt || 1e9) - (b.rt || 1e9) || pw(a, b)
+      : by === 'today' ? (a, b) => (b.rd.l || 0) - (a.rd.l || 0) || (a.rd.t || 1e9) - (b.rd.t || 1e9) || pw(a, b)
+      : by === 'uq' ? (a, b) => (b.uq || 0) - (a.uq || 0) || pw(a, b)
+      : by === 'mad' ? (a, b) => a.mad - b.mad
+      : (a, b) => (b.depth || 0) - (a.depth || 0) || pw(a, b);
+    return list.slice().sort(cmp);
   };
 })(globalThis.G = globalThis.G || {});

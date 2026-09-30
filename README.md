@@ -1,6 +1,8 @@
 # BTTN
 
-A pixel-art incremental about a Button, the Horde that wants it broken, and you. Your Warden cuts through swarms of mobs in the style of Vampire Survivors, while you click the Button: every click spills gold and loot and calls lightning down on the Horde. Mobs burst into pieces and drop loot bags where they fall, and the game goes on to bosses and depths, pets from an incubator, a skill constellation, and ascension for fame.
+A pixel-art incremental about a Button, the Horde that wants it broken, and you. Your Warden cuts through swarms of mobs in the style of Vampire Survivors, while you click the Button: every click spills gold and loot and calls lightning down on the Horde. Mobs burst into pieces and drop loot the way Path of Exile does, with label plates, beams and a sound for every tier, and the game goes on to bosses that fight back, lands with rules of their own, uniques and currency, timed Rifts to race your friends in, pets from an incubator, a skill constellation, and ascension for fame.
+
+**What's new in 1.0 (Loot & Rifts): see [PATCHNOTES.md](PATCHNOTES.md)**, including the plan for the next patches.
 
 ## The setting
 
@@ -37,7 +39,11 @@ Existing saves skip the intro and tutorial automatically. On a new device, the "
 | Open a chest | tap the chest | E opens the most valuable one |
 | Call the boss | the skull above the button, or the ⚔ button | B |
 | Hero ability | the button to the right above the meters | Q |
-| Focus a mob | tap the mob | — |
+| Focus a mob | tap the mob (the Hand strikes it wherever it is) | — |
+| Pick up loot | tap its label; the Warden gathers the rest | — |
+| Shrine | tap it | — |
+| Break a boss move | tap the boss while it winds up | Space |
+| Open a Rift | the ◈ button by the clear bar, or the Rifts tab | — |
 | Tabs | icons on the right | 1–0 |
 | How to play | ? at the top right | — |
 
@@ -71,7 +77,12 @@ New systems the original didn't have:
 
 - **The Horde.** Mobs come in packs from every side, up to a couple of hundred on screen, and every half minute the Horde surges. Packs mix small fodder (a swarm sprite for each of the 8 lands), brutes, pairs of blue champions and named yellow rares with a modifier (Hasted, Stoneskin, Splitting, Frenzied), as in Path of Exile. Each kind has a weight, its share of a standard mob's HP, bite and rewards, so a swarm of fodder is worth as much as a few brutes and the economy stays balanced.
 - **The crunch.** Every death breaks the mob's own sprite into pieces that fly, bounce and settle, and leaves a stain. Each land dies its own way: ice and stone shatter, fiends scatter embers, spores drift up, void wraiths dissolve. Champions and rares get hit-stop, a shockwave and screen shake; a slain boss explodes in slow motion and takes its swarm with it. Kill streaks call out Killing Spree, Rampage, Massacre and higher, and every death has a crunch sound, heavier for a pile.
-- **Loot drops.** Mobs drop loot bags, coloured by rarity as in RotMG, that fly out of the body in an arc and land where it fell, with a beam and a name tag for the good ones. Coins bounce out of the dead and get pulled into the Button. Chests still spill from the Button itself.
+- **Loot on the ground.** Every drop is rolled when it falls and arcs out of the body to where it died, with a label plate styled like a Path of Exile loot filter: green, blue, purple plates, an orange one with a beam for legendaries, red for mythics, red-on-white with a haloed beam for divines, brown for uniques. Each tier has its own landing sound, showers land one piece at a time with the best last, and one drop in 25 upgrades in mid-air. Tap a label to grab it, or the Warden gathers it. There is bad-luck protection (a legendary at least every 250 drops) and scripted early luck. Chests still spill from the Button itself; a full room pops its lowest chest instead of throwing loot away.
+- **Currency.** Whetstones, Orbs of Flux, Ascent, Grace and Ruin drop from the Horde and change gear: a free enchant, rerolled affixes, an extra affix, blessed rolls, or a corruption gamble.
+- **14 uniques** with fixed affixes and a rule of their own (Headhunter, Hellstring, Voidplate, the Last Button…), each from its own depth on, with a page in the Collection.
+- **Lands with rules and events.** Each land changes how the Horde plays (Treasure Tides, Goblin Raids, Sporefall, Stoneskin, Blizzard, Watchful Eyes, Hellfire, Unraveling), and after depth 40 the lands come round again, corrupted, with more loot per cycle. Events break up the flow: the Hoarder (a loot goblin that runs off in 16 seconds), four Shrines, and the Breach.
+- **Bosses fight back.** Telegraphed Slam, Summon and Shield moves that the Hand breaks by tapping, which staggers the boss; lords enrage at 30%.
+- **Rifts.** From the first lord on: a 90-second run at the level you choose, a bar to fill, then the Rift Guardian. Fast clears open up to six levels at once, and Rift loot drops at the Rift's depth.
 - **The Hand.** A click calls lightning on the thickest part of the Horde near the Button, knocking it back.
 - **The Warden.** One of 4 classes (knight, archer, wizard, rogue) guards the Button from the Horde. Everything equipped shows on the character: body armour in the item's colours, helmets (horned ones too), cloaks, shields, boots, crowns, amulets, halos, wings, and tomes, orbs and skulls floating at the shoulder. The same figure appears in the Character tab and next to every name on the ladder. The Warden breathes when idle, walks with a four-frame cycle, and has a move per weapon: a sword or scythe swings with a crescent trail, a dagger stabs, a bow is drawn with the arrow nocked, a staff or wand is raised and thrust out with a flash. Melee Wardens step out to meet the crowd and fall back to the Button. Levels come from kills. There are 4 slots: weapon, ability, armour, ring. The weapon type sets how the Warden fights: melee weapons wait for the Horde to come close and cleave the pack, bows and staves reach further, a staff explodes, a scythe sweeps four targets. Your class weapon type deals +50% damage. The ability is triggered with a button (or on its own) and has a cooldown: skull blast, heal, stasis, wings, starfall.
 - **Loot-game gear.** Every item has a level (from the depth where it dropped), a rarity and 0–3 random affixes: damage, attack speed, crit, button toughness, gold, luck, XP, shards. Spares are scrapped into shards, and shards plus gold enchant gear up to +20. A single Power number shows how strong the hero is. Gear survives ascension, so each new run starts stronger.
@@ -104,6 +115,7 @@ js/game.js          DOM-free logic: clicks, chests, bosses, gacha, quests, ascen
 js/hero.js          the hero: classes, gear, affixes, enchanting, mobs, combat, power, ladder snapshot
 js/ach.js           achievements
 js/journey.js       the Journey road of goals, the Omen of the day, the daily bounty
+js/world.js         DOM-free: loot on the ground, currency drops, uniques, land rules, the Hoarder, shrines, Breaches, Rifts, firsts, crowns and the feed
 js/net.js           cloud save and shared ladder (claude.ai page database or your own server)
 js/sprites.js       pixel art: sprites as strings plus the procedural button, chests and ground
 js/doll.js          the Warden's paper doll: layered body, worn gear, poses for the animations
@@ -148,7 +160,7 @@ Builds `dist/bttn.html` (a self-contained page with fonts inlined), `dist/artifa
 
 ## Multiplayer and the ladder
 
-The Ladder tab shows a shared table by depth and by power, and progress is saved to the cloud. In the version published on claude.ai this works right away for everyone the game is shared with; for your own site there's a server in `server/` (instructions in `server/README.md`).
+The Ladder tab has seven boards (depth, power, best Rift, today's Rift, uniques, lord crowns and firsts), a feed of everyone's big moments, rival notices, and a share line for the group chat; progress is saved to the cloud. In the version published on claude.ai, everyone invited **by email with edit access** can join the ladder; people opening a public link can only watch. For your own site there's a server in `server/` (instructions in `server/README.md`).
 
 The plan for a fair ladder, seasons, a world boss, an arena and guilds is in [MULTIPLAYER.md](MULTIPLAYER.md). The code is already prepared for it: the logic runs without a browser, randomness is reproducible from a seed (`SEED=42 node tools/sim.js 8` gives the same result every time), and `G.ladderSnapshot()` returns a snapshot of the hero.
 

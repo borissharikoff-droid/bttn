@@ -82,6 +82,11 @@
     d = d || new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
+  // The shared day, the same for friends in every time zone (omens, today's Rift board)
+  G.utcDayKey = function () {
+    const d = new Date();
+    return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+  };
 
   // Sum of geometric series cost: buying `n` levels starting from level L.
   function geoCost(base, growth, L, n) {
@@ -112,9 +117,9 @@
   // Tiny event bus: logic emits, stage/ui/audio listen.
   const listeners = {};
   function on(ev, fn) { (listeners[ev] = listeners[ev] || []).push(fn); }
-  function emit(ev, a, b, c) {
+  function emit(ev, a, b, c, d, e) {
     const l = listeners[ev]; if (!l) return;
-    for (let i = 0; i < l.length; i++) l[i](a, b, c);
+    for (let i = 0; i < l.length; i++) l[i](a, b, c, d, e);
   }
 
   Object.assign(G, {

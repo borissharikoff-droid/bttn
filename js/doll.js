@@ -22,11 +22,14 @@
   // ---------- Item colours, sampled from the item's own sprite ----------
   const colCache = {};
   const dist = (a, b) => { const x = G.hexToRgb(a), y = G.hexToRgb(b); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]); };
+  // the sprite a piece of gear is drawn with: uniques have their own
+  G.gearSpr = g => (g.q ? 'u_' + g.q : 'it_' + g.id);
+  const ik = g => G.gearSpr(g);
   function itemCols(id) {
     if (colCache[id]) return colCache[id];
     const out = { main: '#9a9aa8', dark: '#6e6e7c', acc: '#ffd84a' };
     try {
-      const c = SPR.get('it_' + id);
+      const c = SPR.get(id.indexOf('_') > 0 && SPR.defs[id] ? id : 'it_' + id);
       const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
       const n = {};
       for (let i = 0; i < d.length; i += 4) {
@@ -48,7 +51,7 @@
 
   const type = g => g ? G.ITEM_TYPE[g.id] : null;
   function gearKey(h) {
-    return h.cls + '|' + G.SLOTS.map(s => h.eq[s] ? h.eq[s].id + ':' + h.eq[s].r : '-').join(',');
+    return h.cls + '|' + G.SLOTS.map(s => h.eq[s] ? h.eq[s].id + ':' + h.eq[s].r + (h.eq[s].q || '') : '-').join(',');
   }
 
   // ---------- One frame of the body ----------
@@ -62,14 +65,14 @@
     const walkUp = legs === 1 || legs === 3 ? -1 : 0;
     const u = O + bob + walkUp; // upper body offset
     const armour = type(eq.armor);
-    const body = armour === 'armor' ? itemCols(eq.armor.id) : null;
+    const body = armour === 'armor' ? itemCols(ik(eq.armor)) : null;
     const bodyMain = body ? body.main : look.body[0], bodyDark = body ? body.dark : look.body[1];
-    const bootCols = armour === 'boot' ? itemCols(eq.armor.id) : null;
+    const bootCols = armour === 'boot' ? itemCols(ik(eq.armor)) : null;
     const ring = type(eq.ring), abil = type(eq.ability);
 
     // --- behind the body ---
     if (armour === 'cloak') {
-      const k = itemCols(eq.armor.id);
+      const k = itemCols(ik(eq.armor));
       px(8, 12 + u, 10, 8 - bob - walkUp, k.dark);
       px(7, 14 + u, 12, 6 - bob - walkUp, k.dark);
       const sway = legs % 2 ? 1 : 0;
@@ -81,7 +84,7 @@
       px(16, 7 + u, 1, 1, '#f0ead8'); px(17, 6 + u, 1, 1, '#f0ead8'); px(18, 7 + u, 1, 1, '#e84a4a');
     }
     if (abil === 'scroll') {
-      const k = itemCols(eq.ability.id);
+      const k = itemCols(ik(eq.ability));
       px(7, 8 + u, 2, 5, k.main); px(7, 8 + u, 2, 1, k.dark); px(7, 12 + u, 2, 1, k.dark);
     }
 
@@ -142,14 +145,14 @@
       hx = 18; hy = 15 + u;
     }
     if (armour === 'shield') { // on the off arm, in front
-      const k = itemCols(eq.armor.id);
+      const k = itemCols(ik(eq.armor));
       px(4, 12 + u, 5, 6, k.dark); px(5, 12 + u, 3, 5, k.main); px(5, 17 + u, 3, 1, k.dark);
       px(4, 12 + u, 5, 1, G.shade(k.dark, 0.2)); px(6, 14 + u, 1, 2, k.acc); px(5, 14 + u, 3, 1, k.acc);
     }
-    if (abil === 'potion') { const k = itemCols(eq.ability.id); px(15, 16 + u, 2, 2, k.main); px(15, 15 + u, 1, 1, '#8a5a2e'); }
+    if (abil === 'potion') { const k = itemCols(ik(eq.ability)); px(15, 16 + u, 2, 2, k.main); px(15, 15 + u, 1, 1, '#8a5a2e'); }
 
     // --- head ---
-    const hcol = armour === 'helm' ? itemCols(eq.armor.id) : null;
+    const hcol = armour === 'helm' ? itemCols(ik(eq.armor)) : null;
     const headKind = hcol ? 'helm' : look.head;
     px(9, 6 + u, 8, 6, SKIN); px(16, 6 + u, 1, 6, SKIN_S);
     px(11, 9 + u, 1, 1, EYE); px(14, 9 + u, 1, 1, EYE);
@@ -178,12 +181,12 @@
 
     // --- worn jewellery ---
     if (ring === 'crown') {
-      const k = itemCols(eq.ring.id), y = Math.max(0, top - 2);
+      const k = itemCols(ik(eq.ring)), y = Math.max(0, top - 2);
       px(10, y + 1, 6, 1, k.main); px(10, y, 1, 1, k.main); px(12, y, 2, 1, k.main); px(15, y, 1, 1, k.main); px(12, y + 1, 2, 1, k.acc);
     }
-    if (ring === 'amulet') { const k = itemCols(eq.ring.id); px(11, 12 + u, 1, 1, k.dark); px(14, 12 + u, 1, 1, k.dark); px(12, 13 + u, 2, 2, k.acc); }
-    if (ring === 'heart') { const k = itemCols(eq.ring.id); px(11, 13 + u, 1, 1, k.main); px(13, 13 + u, 1, 1, k.main); px(11, 14 + u, 3, 1, k.main); px(12, 15 + u, 1, 1, k.main); }
-    if (ring === 'button') { const k = itemCols(eq.ring.id); px(12, 13 + u, 2, 2, k.main); px(12, 13 + u, 1, 1, '#ffffff'); }
+    if (ring === 'amulet') { const k = itemCols(ik(eq.ring)); px(11, 12 + u, 1, 1, k.dark); px(14, 12 + u, 1, 1, k.dark); px(12, 13 + u, 2, 2, k.acc); }
+    if (ring === 'heart') { const k = itemCols(ik(eq.ring)); px(11, 13 + u, 1, 1, k.main); px(13, 13 + u, 1, 1, k.main); px(11, 14 + u, 3, 1, k.main); px(12, 15 + u, 1, 1, k.main); }
+    if (ring === 'button') { const k = itemCols(ik(eq.ring)); px(12, 13 + u, 2, 2, k.main); px(12, 13 + u, 1, 1, '#ffffff'); }
 
     outline(x, FW, FH);
     return { canvas: c, hx, hy, top, sh: 12 + u };
@@ -221,7 +224,7 @@
   Doll.restAngle = t => REST[t] != null ? REST[t] : -1;
   const snap = a => Math.round(a / (Math.PI / 8)) * (Math.PI / 8);
   function drawWeapon(ctx, g, hx, hy, face, ang, draw) {
-    const spr = SPR.get('it_' + g.id);
+    const spr = SPR.get(G.gearSpr(g));
     if (!spr) return;
     const t = G.ITEM_TYPE[g.id];
     ctx.save();
@@ -260,7 +263,7 @@
     const ab = type(h.eq.ability), rg = type(h.eq.ring);
     // wings behind everything
     if (ab === 'wing') {
-      const w = SPR.get('it_' + h.eq.ability.id), flap = Math.round((Math.sin(t * 6) + 1) * 1.2);
+      const w = SPR.get(G.gearSpr(h.eq.ability)), flap = Math.round((Math.sin(t * 6) + 1) * 1.2);
       const wy = oy + f.sh - 9 + flap;
       ctx.drawImage(w, ox + FW / 2 + 1, wy);
       ctx.save(); ctx.translate(ox + FW / 2 - 1, 0); ctx.scale(-1, 1); ctx.drawImage(w, 0, wy); ctx.restore();
@@ -271,14 +274,14 @@
     else { ctx.save(); ctx.translate(ox + FW, oy); ctx.scale(-1, 1); ctx.drawImage(f.canvas, 0, 0); ctx.restore(); }
     if (wpn) drawWeapon(ctx, wpn, hx, hy, face, o.ang, o.draw);
     if (rg === 'halo') {
-      const k = itemCols(h.eq.ring.id), hy2 = oy + f.top - 2 + Math.round(Math.sin(t * 3));
+      const k = itemCols(ik(h.eq.ring)), hy2 = oy + f.top - 2 + Math.round(Math.sin(t * 3));
       ctx.fillStyle = OUT; ctx.fillRect(ox + 9, hy2 - 1, 8, 3);
       ctx.fillStyle = k.main; ctx.fillRect(ox + 10, hy2, 6, 1);
     }
     if (rg === 'ring' && (t * 1.3) % 1 < 0.12) { ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(hx), Math.round(hy) - 1, 1, 3); ctx.fillRect(Math.round(hx) - 1, Math.round(hy), 3, 1); }
     // a tome, orb, skull or egg floats at the Warden's shoulder
     if (ab === 'tome' || ab === 'orb' || ab === 'skull' || ab === 'egg') {
-      const s = SPR.get('it_' + h.eq.ability.id);
+      const s = SPR.get(G.gearSpr(h.eq.ability));
       const fx = Math.round(x - face * 15 + Math.cos(t * 1.7) * 2 - s.width / 2), fy = Math.round(oy + f.sh - 8 + Math.sin(t * 2.3) * 2);
       ctx.drawImage(s, fx, fy);
     }
@@ -303,7 +306,7 @@
   // Someone else's Warden from a ladder snapshot; unknown items are left off
   Doll.fromSnapshot = function (snap) {
     const eq = {};
-    for (const s of G.SLOTS) { const g = snap.gear && snap.gear[s]; eq[s] = g && G.ITEM_BY_ID[g.id] && G.slotOf(g.id) === s ? { id: g.id, r: g.r | 0 } : null; }
+    for (const s of G.SLOTS) { const g = snap.gear && snap.gear[s]; eq[s] = g && G.ITEM_BY_ID[g.id] && G.slotOf(g.id) === s ? { id: g.id, r: g.r | 0, q: g.q && G.UNIQUES[g.q] ? g.q : undefined } : null; }
     return { cls: G.CLASS_BY_ID[snap.cls] ? snap.cls : 'knight', eq, lvl: snap.lvl | 0 };
   };
 })(globalThis.G = globalThis.G || {});
