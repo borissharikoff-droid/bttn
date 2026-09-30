@@ -112,6 +112,8 @@
 
   // ---------- Heroes (idle income) ----------
   G.HERO_MILESTONES = [10, 25, 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000];
+  // how many chests fit on the field at each Treasure Hall level
+  G.HALL_SLOTS = [6, 10, 20, 30, 50, 100, 200];
   G.HEROES = [
     { id: 'rogue',    name: 'Rogue',       cost: 50,     gps: 0.2,    shot: '#9aa0a8' },
     { id: 'archer',   name: 'Archer',      cost: 400,    gps: 1.2,    shot: '#9be15d' },
@@ -155,14 +157,18 @@
       name: 'Treasure Sense',
       desc: 'Chests appear 5% more often',
       fx: (L, D) => { D.chestProg += 0.05 * L; } },
-    { id: 'hall', icon: 'ic_hall', base: 300, growth: 3.5, max: 10,
-      name: 'Spacious Hall',
-      desc: '+1 chest slot',
-      fx: (L, D) => { D.slots += L; } },
-    { id: 'golem', icon: 'ic_key', base: 2500, growth: 3, max: 20,
-      name: 'Key Golem',
-      desc: 'Opens chests for you. Each level is 12% faster',
-      fx: (L, D) => { if (L > 0) D.autoOpen = 8 * Math.pow(0.88, L - 1); } },
+    { id: 'hall', icon: 'ic_vault', base: 400, growth: 12, max: 6,
+      name: 'Treasure Hall',
+      desc: 'Room for more chests on the field: 10, 20, 30, 50, 100, then 200',
+      fx: (L, D) => { D.slots += G.HALL_SLOTS[L] - G.HALL_SLOTS[0]; } },
+    { id: 'golem', icon: 'ic_key', base: 600, growth: 3.2, max: 20,
+      name: 'Looter',
+      desc: 'A Looter runs to your chests and opens them: one every 3 s, each level 10% faster',
+      fx: (L, D) => { if (L > 0) D.autoOpen = 3 * Math.pow(0.9, L - 1); } },
+    { id: 'crew', icon: 'ic_crew', base: 40000, growth: 30, max: 4,
+      name: 'Loot Crew',
+      desc: 'One more Looter running for your chests',
+      fx: (L, D) => { D.looters += L; } },
     { id: 'clover', icon: 'ic_clover', base: 1000, growth: 2.8, max: 20,
       name: 'Four-Leaf Clover',
       desc: '+3% luck: better chests',

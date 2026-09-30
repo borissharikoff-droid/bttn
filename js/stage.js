@@ -18,7 +18,9 @@
   let holdTimer = 0, holding = false;
   let hitstop = 0, slowmo = 0, kick = 0, btnFlashT = 0, fdt = 1 / 60;
   // clicks in a quick run add up into one growing number; kill gold is summed and shown at the Button
-  let clickTxt = null, killGold = 0, killGoldT = 0, frameKills = 0, comboTier = 0;
+  let clickTxt = null, killGold = 0, killGoldT = 0, frameKills = 0, comboTier = 0, openHeat = 0;
+  // how hard the party is being hit right now (drives the red edge), and the Button's damage not yet shown
+  let hurtFx = 0, btnDmg = 0, btnDmgT = 0, beatT = 0;
   const fmtSmall = v => (v < 10 ? String(+v.toFixed(2)) : G.fmt(v));
   // The Button is a spring: every click squashes it and it bounces back
   const btnSpring = { s: 1, v: 0 };
@@ -75,18 +77,26 @@
     const used = new Set(); for (const [, v] of vis) used.add(v.slot);
     const n = Math.min(slots.length, G.D.slots || 6);
     for (let i = 0; i < n; i++) if (!used.has(i)) return i;
-    for (let i = 0; i < slots.length; i++) if (!used.has(i)) return i;
-    return 0;
+    return -1;
+  }
+  // a spot on the open field for a chest that has no slot by the Button: anywhere round it, clear of the middle
+  function fieldSpot() {
+    const b = btnPos();
+    const a = rand(0, Math.PI * 2), k = rand(0.42, 0.95);
+    return onField(b.x + Math.cos(a) * W * 0.46 * k, b.y + Math.sin(a) * H * 0.4 * k + 6);
   }
   function visFor(c) {
     let v = vis.get(c.id);
     if (!v) {
-      const slot = freeSlot(), s = slots[slot];
+      const slot = freeSlot(), s = slot >= 0 ? slots[slot] : fieldSpot();
       v = { slot, x: s.x, y: s.y, t: 0, drop: 1, hit: 0 };
       vis.set(c.id, v);
     }
     return v;
   }
+  // with a crowd of chests the field ones shrink to little ones
+  const miniChest = (v, c) => (c && c.small) || (v.slot < 0 && G.S.chests.length > 12);
+  const chestSpr = (c, v) => SPR.get((c.bag ? 'bag_' : miniChest(v, c) && SPR.defs['chestm_' + c.tier] ? 'chestm_' : 'chest_') + c.tier);
   St.chestScreen = function (c) { const v = vis.get(c.id); return v ? { x: v.x * S, y: v.y * S } : null; };
   // Logical stage point -> viewport pixels (for the tutorial pointer)
   St.toScreen = function (x, y) { const r = cv.getBoundingClientRect(); return { x: r.left + x * S, y: r.top + y * S }; };
@@ -195,6 +205,11 @@
     G.on('chestSpawn', (c, fromBoss) => {
       // Loot from a mob pops out of its body in an arc and lands where it fell
       const src = G.R.dropAt;
+      if (G.R.rain) {
+        const land = fieldSpot();
+        vis.set(c.id, { slot: -1, x: land.x, y: land.y, t: 0, drop: 0, hit: 0, arc: { sx: land.x + rand(-30, 30), sy: -30, t: 0, dur: rand(0.55, 0.85) } });
+        return;
+      }
       if (src) {
         const q = mobPos(src);
         const land = onField(q.x + rand(-10, 10), q.y + rand(-2, 6));
@@ -203,7 +218,7 @@
       }
       const v = visFor(c);
       v.drop = 1; v.t = 0;
-      if (c.tier >= 3) beams.push({ x: v.x, y: v.y, col: rarityCol(c.tier), life: 0.8, max: 0.8, w: 3 });
+      if (c.tier >= 3 && G.S.chests.length < 60) beams.push({ x: v.x, y: v.y, col: rarityCol(c.tier), life: 0.8, max: 0.8, w: 3 });
     });
     G.on('merge', (partsC, nc) => {
       const pts = partsC.map(c => vis.get(c.id)).filter(Boolean);
@@ -224,9 +239,18 @@
       else if (loot.source === 'boss' && bossVis) { const b = bossPos(); x = b.x + rand(-20, 20); y = b.y + rand(-4, 10); }
       else { const b = btnPos(); x = b.x + rand(-30, 30); y = b.y + rand(10, 25); }
       if (loot.source === 'offline') return;
+      const top = loot.items.length ? loot.items.reduce((a, b) => (b.it.r > a.it.r ? b : a), loot.items[0]) : null;
+      const r = top ? top.it.r : 0;
+      // a little chest of coin: a pop and the gold
+      if (!top) { burst(x, y - 4, ['#ffd84a', '#fff3a0', rarityCol(c.tier)], 5, 45, { life: 0.35 }); openHeat += 1; killGold += loot.gold; if (killGoldT <= 0) killGoldT = 0.3; if (coins.length < 200) coins.push({ x, y: y - 6, vx: rand(-30, 30), vy: rand(-80, -40), floor: y + rand(-2, 3), t: rand(0.35, 0.6), fly: 0 }); return; }
+      // many at once (Looters, Plunder, a full field): a pop and the gold, the good ones still in full
+      openHeat += 1;
+      if (openHeat > 6 && r < 3 && !c.mod) {
+        burst(x, y - 4, [rarityCol(c.tier), '#ffd84a'], 3, 40, { life: 0.3 });
+        killGold += loot.gold; if (killGoldT <= 0) killGoldT = 0.3;
+        return;
+      }
       opening.push({ x, y, tier: c.tier, t: 0, dur: 0.35, bag: c.bag });
-      const top = loot.items.reduce((a, b) => (b.it.r > a.it.r ? b : a), loot.items[0]);
-      const r = top.it.r;
       burst(x, y - 5, [rarityCol(r), '#ffffff', rarityCol(c.tier)], 8 + r * 4, 55 + r * 10);
       if (r >= 3) beams.push({ x, y, col: rarityCol(r), life: 1.2 + r * 0.2, max: 1.2 + r * 0.2, w: r >= 5 ? 7 : 5 });
       // Item icons pop up
@@ -256,10 +280,17 @@
     G.on('mimicFlee', c => { const v = vis.get(c.id); if (v) { burst(v.x, v.y, '#9a9aa8', 10, 40); text(v.x, v.y - 10, G.t('fled'), '#9a9aa8', 4); } vis.delete(c.id); });
     G.on('burn', (c, g) => { const v = vis.get(c.id); if (v) { burst(v.x, v.y, ['#ff7a2e', '#ffd84a', '#3a3a44'], 16, 50); text(v.x, v.y - 10, G.t('burned'), '#ff7a2e', 4); } vis.delete(c.id); });
     G.on('spill', (tier, g) => { if (g < 1) return; const b = btnPos(); text(b.x + rand(-40, 40), b.y + 30, G.t('noRoom') + ' +' + G.fmt(g), '#c8c8d4', 3, { vy: -10 }); });
-    G.on('golem', c => {
+    G.on('golem', (c, i) => {
       const v = vis.get(c.id); if (!v) return;
+      const L = i != null ? lootVis[i] : null;
+      if (L) { L.lift = 0.25; L.x = v.x - 5 * L.face; L.y = v.y + 1; burst(v.x, v.y - 6, ['#ffd84a', '#7fe9ff'], 4, 40, { life: 0.3 }); return; }
       const b = btnPos();
       shots.push({ x: b.x, y: b.y + 14, sx: b.x, sy: b.y + 14, tx: v.x, ty: v.y - 4, t: 0, dur: 0.18, col: '#ffd84a', key: true });
+    });
+    G.on('plunder', (m, c) => {
+      const v = vis.get(c.id); if (!v) return;
+      const q = mobPos(m);
+      shots.push({ x: q.x, y: q.y - 6, sx: q.x, sy: q.y - 6, tx: v.x, ty: v.y - 4, t: 0, dur: 0.22, col: '#ffd84a' });
     });
     G.on('heroAttack', onHeroAttack);
     G.on('mobDie', gore);
@@ -411,8 +442,8 @@
     let best = null, bd = 1e9;
     for (const c of G.S.chests) {
       const v = vis.get(c.id); if (!v) continue;
-      const dx = p.x - v.x, dy = p.y - (v.y - 5);
-      if (Math.abs(dx) <= 10 && Math.abs(dy) <= 9) { const d = dx * dx + dy * dy; if (d < bd) { bd = d; best = c; } }
+      const mini = miniChest(v, c), dx = p.x - v.x, dy = p.y - (v.y - (mini ? 3 : 5));
+      if (Math.abs(dx) <= (mini ? 7 : 10) && Math.abs(dy) <= (mini ? 6 : 9)) { const d = dx * dx + dy * dy; if (d < bd) { bd = d; best = c; } }
     }
     return best;
   }
@@ -426,7 +457,7 @@
     return Math.abs(p.x - b.x) <= rx && Math.abs(p.y - (b.y - 4)) <= ry;
   }
   function hitReady(p) {
-    if (!G.R.bossReady || G.R.boss || G.R.rift) return false;
+    if (!G.R.bossReady || G.R.boss || G.R.rift || G.R.inv) return false;
     const b = btnPos();
     return Math.abs(p.x - b.x) < 12 && Math.abs(p.y - (b.y - 44)) < 6;
   }
@@ -434,11 +465,13 @@
     G.Audio && G.Audio.unlock();
     if (hitWisp(p)) { G.catchWisp(); return 'wisp'; }
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
-    const dn = hitDowned(p);
-    if (dn != null) { G.reviveTap(dn); return 'revive'; }
+    const mt = hitMeteor(p);
+    if (mt != null && G.smashMeteor(mt)) return 'meteor';
     const ge = hitLoot(p);
     if (ge) { G.pickup(ge, 'hand'); return 'loot'; }
     if (hitShrine(p)) { G.useShrine('hand'); return 'shrine'; }
+    const dn = hitDowned(p);
+    if (dn != null) { G.reviveTap(dn); return 'revive'; }
     const c = hitChest(p);
     if (c) { G.clickChest(c); return 'chest'; }
     const m = hitMob(p);
@@ -556,7 +589,8 @@
   // Companions hold places around the Button; the Warden keeps the left.
   const allyVis = [];
   const aVis = i => allyVis[i] || (allyVis[i] = { atk: null, face: 1, hurt: 0, heal: 0, ph: Math.random() * 6 });
-  const SLOTS_AT = [[34, 14], [-14, 36], [18, 38]];
+  // clear of the chest ring by the Button
+  const SLOTS_AT = [[34, 14], [0, 36], [-34, -4]];
   function allySlot(i) { const b = btnPos(), o = SLOTS_AT[i] || [0, 40]; return { x: b.x + o[0], y: b.y + o[1] }; }
   function unitPos(who) { return who === 'button' ? { x: btnPos().x, y: btnPos().y - 6 } : who < 0 ? heroPos() : allySlot(who); }
   St.unitPoint = who => { const q = unitPos(who); return St.toScreen(q.x, q.y - 12); };
@@ -641,8 +675,17 @@
     });
     G.on('unitHurt', (who, dmg, src) => {
       aVisOf(who).hurt = 0.12;
-      const q = unitPos(who);
-      if (Math.random() < 0.3 || src === 'boss' || src === 'slam' || src === 'barrage') text(q.x + rand(-5, 5), q.y - 28, '-' + G.fmt(dmg), '#ff6b6b', 3, { life: 0.6, max: 0.6, vy: -16 });
+      const q = unitPos(who), max = who < 0 ? G.D.wardenHp : (G.D.party[who] || {}).hp || 1, f = dmg / Math.max(1, max);
+      hurtFx = Math.min(1, hurtFx + f * 1.6);
+      const big = f > 0.12 || src === 'boss' || src === 'slam' || src === 'barrage' || src === 'meteor';
+      if (big || Math.random() < 0.35) text(q.x + rand(-5, 5), q.y - 28, '-' + G.fmt(dmg), big ? '#ff3b3b' : '#ff6b6b', big ? 4 : 3, { life: 0.7, max: 0.7, vy: -18 });
+      if (big) { burst(q.x, q.y - 8, ['#ff3b3b', '#ffffff'], 5, 50); St.shake(2); }
+    });
+    // the Button: every bite shows, summed up a few times a second so a swarm reads as one big number
+    G.on('buttonHurt', dmg => {
+      const f = dmg / Math.max(1, G.D.heroHp);
+      btnDmg += dmg; hurtFx = Math.min(1, hurtFx + f * 2.2);
+      if (f > 0.06) { btnSpring.v -= Math.min(0.35, f * 2); St.shake(Math.min(5, 1 + f * 20)); }
     });
     G.on('unitDown', who => {
       const q = unitPos(who);
@@ -658,6 +701,40 @@
     G.on('buttonFixed', () => { const b = btnPos(); burst(b.x, b.y - 8, ['#ffd84a', '#ffffff', '#56d45a'], 24, 80); text(b.x, b.y - 32, G.t('buttonFixed'), '#56d45a', 4, { life: 1.4, max: 1.4, vy: -10 }); });
     G.on('clickDead', () => { const b = btnPos(); burst(b.x + rand(-8, 8), b.y - 6, ['#6e6e7c', '#3a3a44'], 3, 25, { life: 0.3 }); });
     G.on('recruit', (m, i) => { const q = allySlot(i); burst(q.x, q.y - 10, ['#ffd84a', '#ffffff'], 30, 90); ring(q.x, q.y - 4, 20, 10, '#ffd84a', 0.5); cardText(0, G.t('joined', G.L(G.CLASS_BY_ID[m.cls].name)).toUpperCase(), '#ffd84a', 6, { life: 2.4, vy: -3, big: true }); cardText(9, G.t('role_' + G.ROLES[m.cls]), '#ffffff', 3, { life: 2.4, vy: -3 }); });
+    G.on('evStart', (ev, e) => {
+      if (e.id === 'jackpot') return; // the jackpot has a show of its own
+      cardText(0, e.name, e.col, 7, { life: 2.6, vy: -2, big: true, now: true });
+      cardText(10, e.sub, '#ffffff', 3, { life: 2.6, vy: -2 });
+      St.flash(0.3, e.col); St.shake(e.id === 'ambush' || e.id === 'stampede' ? 6 : 3);
+      if (G.Audio && G.Audio.event) G.Audio.event(e.id);
+    });
+    G.on('evEnd', (ev, e, ok, reward) => {
+      if (reward && ev.k === 'stampede') cardText(0, G.t('evHeld', reward), '#ffd84a', 6, { life: 2.2, vy: -3, big: true });
+      else if (reward && ev.k === 'ambush') cardText(0, G.t('evCleared', reward), '#ffd84a', 6, { life: 2.2, vy: -3, big: true });
+      else if (ok && ev.k === 'goblins' && ev.ids.every(id => !G.R.mobs.some(m => m.id === id)) && ev.t > 0) cardText(0, G.t('evCaught'), '#8ae07a', 6, { life: 2, vy: -3, big: true });
+      if (reward && G.Audio && G.Audio.levelUp) G.Audio.levelUp();
+    });
+    G.on('jackpot', (m, gold) => {
+      jp = { t: 0, gold };
+      hitstop = Math.max(hitstop, 0.5); slowmo = Math.max(slowmo, 2.5);
+      St.flash(1, '#fff3a0'); St.shake(10);
+      if (G.Audio && G.Audio.jackpot) G.Audio.jackpot();
+    });
+    G.on('meteorFall', () => { if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); });
+    G.on('meteorHit', mt => {
+      const q = metPos(mt);
+      burst(q.x, q.y - 3, ['#ffd84a', '#ff7a2e', '#ff3b3b', '#3a2a24'], 26, 110);
+      ring(q.x, q.y - 2, 22, 11, '#ff7a2e', 0.45);
+      decal(q.x, q.y, ['#2a1a14', '#3a2418', '#1a0e0a'], 7);
+      St.shake(3); hitstop = Math.max(hitstop, 0.03);
+      if (G.Audio && G.Audio.boom) G.Audio.boom();
+    });
+    G.on('meteorSmash', (mt, g) => {
+      const q = metPos(mt), f = 1 - mt.t / mt.T, mx = q.x + (1 - f) * 70, my = q.y - 6 - (1 - f) * 130;
+      burst(mx, my, ['#ffd84a', '#ffffff', '#ff7a2e'], 18, 90);
+      text(mx, my - 8, G.t('evSmashed', G.fmt(g)), '#ffd84a', 4, { life: 1.2, max: 1.2, vy: -14 });
+      if (G.Audio && G.Audio.click) G.Audio.click(40, true);
+    });
     G.on('slotOpen', () => { cardText(0, G.t('slotOpen'), '#ffd84a', 6, { life: 3, vy: -2, big: true }); cardText(9, G.t('slotOpenSub'), '#ffffff', 3, { life: 3, vy: -2 }); if (G.Audio && G.Audio.levelUp) G.Audio.levelUp(); });
     G.on('invasion', (r, V) => {
       St.flash(0.4, V.col); St.shake(4);
@@ -692,7 +769,7 @@
     for (const u of G.partyUnits ? G.partyUnits() : []) {
       if (!(u.down > 0)) continue;
       const q = unitPos(u.who);
-      if (Math.abs(p.x - q.x) <= 11 && Math.abs(p.y - (q.y - 5)) <= 10) return u.who;
+      if (Math.abs(p.x - q.x) <= 9 && Math.abs(p.y - (q.y - 3)) <= 6) return u.who;
     }
     return null;
   }
@@ -719,6 +796,7 @@
     return best;
   }
   function mobSprite(m, realm) {
+    if (m.gob) { const f = Math.floor(time * 8 + m.id) % 2 ? 'm_thief_1' : 'm_thief'; return SPR.defs[f] ? SPR.get(f) : SPR.get('m_hoard'); }
     // an invasion's mobs come in its own shapes
     if (m.inv && G.INV_BY_ID[m.inv]) {
       const V = G.INV_BY_ID[m.inv];
@@ -746,6 +824,8 @@
       if (v.hit > 0 && Math.random() < 0.5 && coins.length < 240) coins.push({ x: q.x, y: q.y - 8, vx: rand(-50, 50), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.4, 0.7), fly: 0 });
     }
     if (m.kind === 'magic') glow(q.x, q.y - 8, 7, '#3f7fff', 0.2 + 0.07 * Math.sin(time * 5 + m.id));
+    if (m.amb) glow(q.x, q.y - 6, 9, '#ff3b3b', 0.22 + 0.1 * Math.sin(time * 9 + m.id));
+    if (m.gob && Math.random() < 0.15 && coins.length < 200) coins.push({ x: q.x, y: q.y - 6, vx: rand(-20, 20), vy: rand(-50, -20), floor: q.y + rand(-2, 3), t: rand(0.4, 0.7), fly: 0 });
     // a spitter swells before it spits; a bomber's fuse fizzes, faster as it gets close
     if (m.kind === 'spitter' && m.p >= (G.TUNE.spitStop || 0.68) && m.atkT < 0.6) glow(q.x, q.y - 5, 5, '#b6ff5a', 0.25 + 0.5 * (0.6 - m.atkT));
     if (m.kind === 'bomber') {
@@ -1468,6 +1548,115 @@
     if (V.id === 'deep' && Math.random() < 0.4) part(rand(0, W), H + 2, pick(['#4fe0c8', '#9ff0e0']), { vx: rand(-4, 4), vy: -rand(20, 40), grav: 0, life: rand(1, 2) });
   }
   let invFade = 0, lastInv = null;
+  // ---------- Sudden events (js/events.js) ----------
+  let evFade = 0, evLastK = null;
+  const metPos = mt => mobPos({ id: -1000 - mt.id, a: mt.a, p: mt.p, kind: 'x' });
+  function drawEventFx(dt) {
+    const ev = G.R.ev;
+    evFade = clamp(evFade + (ev ? dt : -dt) * 2, 0, 1);
+    if (ev) evLastK = ev.k;
+    const k = evLastK;
+    if (evFade <= 0 || !k) return;
+    if (k === 'bloodmoon') {
+      lctx.globalAlpha = 0.2 * evFade; lctx.fillStyle = '#6a0014'; lctx.fillRect(0, 0, W, H);
+      const mo = SPR.defs.ev_bloodmoon ? SPR.get('ev_bloodmoon') : null;
+      if (mo) { lctx.globalAlpha = 0.85 * evFade; lctx.drawImage(mo, Math.round(W * 0.8 - mo.width * 1.5), 16, mo.width * 3, mo.height * 3); }
+      lctx.globalAlpha = 1;
+      if (ev && Math.random() < 0.3) part(rand(0, W), -2, pick(['#ff3b5c', '#a0102a']), { vx: rand(-4, 4), vy: rand(20, 40), grav: 0, life: 1.4 });
+    } else if (k === 'goldrush') {
+      lctx.globalAlpha = 0.07 * evFade; lctx.fillStyle = '#ffd84a'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1;
+      if (ev) for (let i = 0; i < 2; i++) if (Math.random() < 0.7) part(rand(0, W), -2, pick(['#ffd84a', '#fff3a0', '#c98f10']), { vx: rand(-6, 6), vy: rand(50, 90), grav: 40, life: 1.6, size: 2 });
+    } else if (k === 'frenzy') {
+      lctx.globalAlpha = (0.06 + 0.04 * Math.sin(time * 12)) * evFade; lctx.fillStyle = '#ffe27a'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1;
+    } else if (k === 'stampede' && ev) {
+      // dust boils up where they charge from
+      const q = mobPos({ id: -1, a: ev.a, p: 0.05, kind: 'x' });
+      for (let i = 0; i < 3; i++) if (Math.random() < 0.8) part(q.x + rand(-26, 26), q.y + rand(-14, 14), pick(['#c8b89a', '#a89878', '#e0d4b8']), { vx: rand(-10, 10), vy: rand(-14, -4), grav: 0, life: rand(0.5, 1.1), size: 2 });
+    }
+    if (k === 'meteors' && ev) for (const mt of ev.met) {
+      const q = metPos(mt), f = 1 - mt.t / mt.T;
+      // where it will land: a shrinking red ring
+      const r = Math.round(10 - 5 * f);
+      lctx.globalAlpha = 0.35 + 0.4 * f; lctx.fillStyle = '#ff3b3b';
+      for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 + time * 2; lctx.fillRect(Math.round(q.x + Math.cos(a) * r), Math.round(q.y - 2 + Math.sin(a) * r * 0.55), 1, 1); }
+      lctx.globalAlpha = 1;
+      // the rock itself, coming in from high up and to the right
+      const mx = q.x + (1 - f) * 70, my = q.y - 4 - (1 - f) * 130;
+      const spr = SPR.defs.fx_meteor ? SPR.get('fx_meteor') : null;
+      glow(mx, my - 3, 6, '#ff7a2e', 0.4);
+      if (spr) blit(spr, Math.round(mx), Math.round(my)); else { lctx.fillStyle = '#ff7a2e'; lctx.fillRect(Math.round(mx) - 2, Math.round(my) - 4, 4, 4); }
+      if (Math.random() < 0.8) part(mx + 2, my - 4, pick(['#ffd84a', '#ff7a2e', '#ff3b3b', '#6e6e7c']), { vx: rand(10, 30), vy: rand(-40, -20), grav: 0, life: 0.35 });
+    }
+  }
+  // ---------- The JACKPOT: the whole screen goes gold ----------
+  let jp = null;
+  const easeBounce = x => { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; };
+  function drawJackpot(dt) {
+    if (!jp) return;
+    jp.t += dt;
+    const T = 6, t = jp.t;
+    if (t > T) { jp = null; return; }
+    const fade = Math.min(1, t / 0.25, (T - t) / 0.8);
+    const b = btnPos();
+    // the world dims, and gold rays turn round the Button
+    lctx.globalAlpha = 0.6 * fade; lctx.fillStyle = '#0c0712'; lctx.fillRect(0, 0, W, H);
+    lctx.globalAlpha = 0.22 * fade;
+    for (let i = 0; i < 16; i++) {
+      const a0 = time * 0.9 + i / 16 * Math.PI * 2, a1 = a0 + Math.PI / 22, R_ = Math.max(W, H);
+      lctx.fillStyle = i % 2 ? '#ffd84a' : '#fff3a0';
+      lctx.beginPath(); lctx.moveTo(b.x, b.y - 10); lctx.lineTo(b.x + Math.cos(a0) * R_, b.y - 10 + Math.sin(a0) * R_); lctx.lineTo(b.x + Math.cos(a1) * R_, b.y - 10 + Math.sin(a1) * R_); lctx.fill();
+    }
+    lctx.globalAlpha = 1;
+    // a golden Button drops from the sky and bounces
+    const gb = SPR.button('#ffd84a', false, 0, false);
+    // it lands just above the real one
+    const k = Math.min(1, t / 0.9), y = Math.round(-40 + (b.y - 4) * easeBounce(k));
+    glow(b.x, y - 12, 34, '#ffd84a', 0.5 * fade);
+    lctx.globalAlpha = fade; blit(gb, b.x, y, 2); lctx.globalAlpha = 1;
+    // a fountain of coins and confetti
+    if (t < T - 1) for (let i = 0; i < 7; i++) part(b.x + rand(-10, 10), y - 16, pick(['#ffd84a', '#fff3a0', '#c98f10', '#ffffff', '#ff7ae6', '#7fe9ff']), { vx: rand(-90, 90), vy: rand(-170, -80), grav: 190, life: rand(1, 1.8), size: 2 });
+  }
+  function drawJackpotText() {
+    if (!jp) return;
+    const t = jp.t, b = btnPos(), pop = 1 + 0.12 * Math.sin(t * 9) + (t < 0.3 ? (0.3 - t) * 3 : 0);
+    const alpha = Math.min(1, t / 0.2, (6 - t) / 0.8);
+    if (alpha <= 0) return;
+    ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = crisp(13 * pop) + 'px ' + FONT; ctx.lineWidth = 3; ctx.strokeStyle = '#0c0b12';
+    const str = G.t('jpTitle'), y = Math.round(cardY(0.15));
+    // every letter its own colour, running round the rainbow
+    const w = ctx.measureText(str).width;
+    let x = W / 2 - w / 2;
+    ctx.textAlign = 'left';
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i], cw = ctx.measureText(ch).width;
+      ctx.strokeText(ch, x, y + Math.sin(t * 8 + i) * 1.5);
+      ctx.fillStyle = 'hsl(' + ((t * 300 + i * 30) % 360) + ',95%,62%)';
+      ctx.fillText(ch, x, y + Math.sin(t * 8 + i) * 1.5);
+      x += cw;
+    }
+    ctx.textAlign = 'center'; ctx.font = crisp(4) + 'px ' + FONT; ctx.lineWidth = 2;
+    ctx.strokeText(G.t('jpSub'), W / 2, y + 14); ctx.fillStyle = '#fff3a0'; ctx.fillText(G.t('jpSub'), W / 2, y + 14);
+    if (jp.gold) { ctx.font = crisp(6) + 'px ' + FONT; ctx.strokeText('+' + G.fmt(jp.gold), W / 2, y + 24); ctx.fillStyle = '#ffd84a'; ctx.fillText('+' + G.fmt(jp.gold), W / 2, y + 24); }
+    ctx.restore();
+  }
+  // a fallen ally blinks TAP, so it's clear the Hand can raise them
+  function drawTapHints() {
+    if (!G.partyUnits || Math.sin(time * 6) < -0.2) return;
+    const units = G.partyUnits().filter(u => u.down > 0);
+    if (!units.length) return;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1.5; ctx.strokeStyle = '#0c0b12';
+    for (const u of units) { const q = unitPos(u.who); ctx.strokeText(G.t('tapRevive'), q.x, q.y - 22); ctx.fillStyle = '#8ae07a'; ctx.fillText(G.t('tapRevive'), q.x, q.y - 22); }
+  }
+  function hitMeteor(p) {
+    const ev = G.R.ev;
+    if (!ev || ev.k !== 'meteors') return null;
+    for (const mt of ev.met) {
+      const q = metPos(mt), f = 1 - mt.t / mt.T, mx = q.x + (1 - f) * 70, my = q.y - 6 - (1 - f) * 130;
+      if (Math.hypot(p.x - mx, p.y - my) < 11 || Math.hypot(p.x - q.x, p.y - q.y) < 9) return mt.id;
+    }
+    return null;
+  }
   function drawRiftTint() {
     const r = G.R.rift;
     if (!r) return;
@@ -1650,9 +1839,18 @@
     frameKills = 0;
     stepCards(dt);
     // a boss about to arrive on its own counts down over the Button
-    const bin = G.R.bossReady && !G.R.boss && G.S.set.autoBoss && G.R.bossIn != null && G.R.bossIn > 0 && G.bossOdds && G.bossOdds() >= 0.6 ? Math.ceil(G.R.bossIn) : 0;
+    const bin = G.R.bossReady && !G.R.boss && !G.R.inv && G.S.set.autoBoss && G.R.bossIn != null && G.R.bossIn > 0 && G.bossOdds && G.bossOdds() >= 0.6 ? Math.ceil(G.R.bossIn) : 0;
     if (bin && bin !== lastCount) { const b = btnPos(); text(b.x, b.y - 62, G.t('bossCountdown', bin), '#ff4f4f', 6, { life: 0.9, max: 0.9, vy: -6, big: true }); St.shake(1); if (G.Audio && G.Audio.bossCount) G.Audio.bossCount(bin); }
     lastCount = bin;
+    openHeat = Math.max(0, openHeat - dt * 8);
+    hurtFx = Math.max(0, hurtFx - dt * 1.1);
+    if (btnDmg > 0 && (btnDmgT -= dt) <= 0) {
+      const b = btnPos(), f = btnDmg / Math.max(1, G.D.heroHp);
+      text(b.x + rand(-12, 12), b.y - 30, '-' + fmtSmall(btnDmg), f > 0.08 ? '#ff3b3b' : '#ff7a7a', f > 0.08 ? 5 : 4, { life: 0.75, max: 0.75, vy: -20 });
+      btnDmg = 0; btnDmgT = 0.22;
+    }
+    const lowHp = G.S.hero && G.S.hero.cls && !(G.R.btnDown > 0) && G.S.hero.hp < G.D.heroHp * 0.3;
+    if (lowHp && (beatT -= dt) <= 0) { beatT = 0.85; if (G.Audio && G.Audio.heartbeat) G.Audio.heartbeat(); }
     if (killGold > 0 && (killGoldT -= dt) <= 0) { const b = btnPos(); text(b.x + rand(-6, 6), b.y + 16, '+' + fmtSmall(killGold), '#f0c850', 3, { life: 0.8, max: 0.8, vy: -10 }); killGold = 0; killGoldT = 0.3; }
     // hit-stop and slow motion only touch the visuals; the game keeps its own clock
     const vdt = dt * (hitstop > 0 ? 0.08 : slowmo > 0 ? 0.3 : 1);
@@ -1681,7 +1879,9 @@
     drawBreach();
     drawRiftTint();
     drawInvasionSky(vdt);
+    drawEventFx(vdt);
     stepGround(vdt);
+    drawJackpot(dt);
 
     // Collect drawables sorted by y
     const list = [];
@@ -1697,6 +1897,8 @@
       if (v.arc && (v.arc.t += vdt) >= v.arc.dur) { v.arc = null; landed(c, v); }
       list.push({ y: v.y, draw: () => drawChest(c, v) });
     }
+    // the Looters run for their chests
+    stepLooters(vdt, list);
     // Remove stale vis entries (e.g. after load)
     if (vis.size > S_.chests.length + 4) {
       const ids = new Set(S_.chests.map(c => c.id));
@@ -1905,6 +2107,14 @@
     vg.addColorStop(0, 'rgba(8,6,14,0)');
     vg.addColorStop(1, 'rgba(8,6,14,0.62)');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, cv.width, cv.height);
+    // hurt: the edges run red, and pulse while the Button is low
+    const lowK = G.S.hero && G.S.hero.cls && !(G.R.btnDown > 0) && G.D.heroHp ? clamp(1 - G.S.hero.hp / (G.D.heroHp * 0.3), 0, 1) : 0;
+    const red = Math.min(0.6, hurtFx * 0.6 + lowK * (0.16 + 0.12 * Math.sin(time * 7)) + (G.R.btnDown > 0 ? 0.22 : 0));
+    if (red > 0.01) {
+      const rg = ctx.createRadialGradient(cv.width / 2, cv.height * 0.55, Math.min(cv.width, cv.height) * 0.3, cv.width / 2, cv.height * 0.55, Math.max(cv.width, cv.height) * 0.72);
+      rg.addColorStop(0, 'rgba(255,30,40,0)'); rg.addColorStop(1, 'rgba(255,30,40,' + red.toFixed(3) + ')');
+      ctx.fillStyle = rg; ctx.fillRect(0, 0, cv.width, cv.height);
+    }
     if (flash > 0) {
       ctx.globalAlpha = Math.min(0.85, flash);
       ctx.fillStyle = flashCol; ctx.fillRect(0, 0, cv.width, cv.height);
@@ -1916,10 +2126,12 @@
     drawEventNames();
     drawLabels();
     drawTexts(dt);
+    drawJackpotText();
+    drawTapHints();
     drawStreak();
     if (R.rift) { /* the Rift's bar and clock live in the HUD row under the field */ }
     else if (bossVis && R.boss) { drawBossBar(); drawMoveName(); }
-    else if (R.bossReady) drawReady(b);
+    else if (R.bossReady && !R.inv) drawReady(b);
     if (hoverChest) drawChestTip(hoverChest);
     drawHeroPlate();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1981,6 +2193,36 @@
     if (c.tier >= 5) { St.shake(3); St.flash(0.2, rarityCol(c.tier)); }
     if (G.Audio && G.Audio.drop) G.Audio.drop(c.tier);
   }
+  // ---------- The Looters ----------
+  const lootVis = [];
+  function stepLooters(dt, list) {
+    const R = G.R, L = R.looters || [];
+    lootVis.length = Math.min(lootVis.length, L.length);
+    const b = btnPos();
+    L.forEach((l, i) => {
+      const home = { x: b.x + 22 + (i % 3) * 9, y: b.y + 22 + Math.floor(i / 3) * 7 };
+      let v = lootVis[i];
+      if (!v) v = lootVis[i] = { x: home.x, y: home.y, face: 1, walk: 0, lift: 0 };
+      const cv = l.tgt != null ? vis.get(l.tgt) : null;
+      const tgt = cv && !cv.arc ? { x: cv.x - 5, y: cv.y + 1 } : home;
+      const dx = tgt.x - v.x, dy = tgt.y - v.y, d = Math.hypot(dx, dy);
+      // it arrives just as its time is up, however far the chest is
+      const left = cv ? Math.max(0.08, (G.D.autoOpen || 1) - l.acc) : 0.6;
+      const sp = Math.min(400, Math.max(28, d / left));
+      if (d > 0.5) { const k = Math.min(1, sp * dt / d); v.x += dx * k; v.y += dy * k; v.face = dx >= 0 ? 1 : -1; v.walk += dt * (6 + sp / 12); }
+      if (v.lift > 0) v.lift -= dt;
+      const moving = d > 1.5;
+      list.push({ y: v.y, draw: () => drawLooter(v, moving) });
+    });
+  }
+  function drawLooter(v, moving) {
+    const id = v.lift > 0 ? 'looter_2' : moving ? 'looter_' + (Math.floor(v.walk) % 2) : 'looter_0';
+    const spr = SPR.defs[id] ? SPR.get(id) : SPR.get('ic_key');
+    const x = Math.round(v.x), y = Math.round(v.y) - (moving && Math.floor(v.walk * 2) % 2 ? 1 : 0);
+    shadow(x, y - 1, 7);
+    if (v.face < 0) { lctx.save(); lctx.translate(x, 0); lctx.scale(-1, 1); blit(spr, 0, y); lctx.restore(); } else blit(spr, x, y);
+    if (moving && Math.random() < 0.2) part(x - v.face * 3, y - 1, '#c8b89a', { vx: -v.face * 10, vy: -6, grav: 20, life: 0.25 });
+  }
   function drawChest(c, v) {
     const dropY = v.drop > 0 ? -Math.round(v.drop * v.drop * 30) : 0;
     let x = v.x, y = v.y + dropY;
@@ -1988,21 +2230,21 @@
       const a = v.arc, k = Math.min(1, a.t / a.dur);
       x = Math.round(a.sx + (v.x - a.sx) * k);
       y = Math.round(a.sy + (v.y - a.sy) * k - Math.sin(k * Math.PI) * 18);
-      blit(SPR.get((c.bag ? 'bag_' : 'chest_') + c.tier), x, y);
+      blit(chestSpr(c, v), x, y);
       if (c.tier >= 3 && Math.random() < 0.6) part(x + rand(-2, 2), y - 4, rarityCol(c.tier), { vx: 0, vy: 0, grav: 0, life: 0.3 });
       return;
     }
     let sc = 1;
     if (v.hit > 0) x += Math.round(rand(-1, 1));
-    const mod = c.mod;
-    shadow(v.x, v.y - 1, 12);
-    // tier glow
-    if (c.tier >= 3 || mod) {
+    const mod = c.mod, mini = miniChest(v, c), crowd = G.S.chests.length > 40;
+    shadow(v.x, v.y - 1, mini ? 7 : 12);
+    // tier glow (in a crowd only the good ones glow)
+    if ((c.tier >= 3 || mod) && (!crowd || c.tier >= 4 || mod)) {
       const col = mod ? G.MOD_BY_ID[mod].color : rarityCol(c.tier);
-      glow(x, y - 3, 7, col, (mod ? 0.22 : 0.16) + 0.08 * Math.sin(time * 4 + c.id));
+      glow(x, y - 3, mini ? 5 : 7, col, (mod ? 0.22 : 0.16) + 0.08 * Math.sin(time * 4 + c.id));
     }
     if (c.tier === 6 && Math.random() < 0.15) part(x + rand(-6, 6), y - rand(4, 12), '#ffffff', { vy: -15, vx: 0, grav: 0, life: 0.6 });
-    let spr = SPR.get((c.bag ? 'bag_' : 'chest_') + c.tier);
+    let spr = chestSpr(c, v);
     let alpha;
     if (mod === 'ghost') { alpha = 0.55 + 0.15 * Math.sin(time * 3 + c.id); y -= 2 + Math.round(Math.sin(time * 2 + c.id) * 1.5); if (Math.random() < 0.08) part(x + rand(-5, 5), y - 3, '#ffffff', { vy: -8, vx: 0, grav: 0, life: 0.7 }); }
     if (mod === 'mimic' && c.awake) { spr = SPR.get('mimic'); x += Math.round(Math.sin(time * 30) * 1); }

@@ -88,7 +88,7 @@ export default {
         const prev = await env.DB.prepare('SELECT updated_at FROM ladder WHERE player_id = ?').bind(me.id).first();
         if (prev && Date.now() - prev.updated_at < LADDER_COOLDOWN) return json(env, { error: 'too_soon' }, 429);
         const clean = {
-          v: 1, name: String(snap.name || '').slice(0, 16), cls: snap.cls, lvl: snap.lvl, depth: snap.depth,
+          v: snap.v === 2 ? 2 : 1, name: String(snap.name || '').slice(0, 16), cls: snap.cls, lvl: snap.lvl, depth: snap.depth,
           asc: snap.asc | 0, fame: +snap.fame || 0, mad: snap.mad | 0, gear: snap.gear, ts: Date.now(),
           rift: snap.rift | 0, rt: snap.rt | 0, rd: snap.rd || null, uq: snap.uq | 0, kills: snap.kills | 0, ls: snap.ls | 0, ev: Array.isArray(snap.ev) ? snap.ev : [], fs: snap.fs || {}, cr: snap.cr || {},
         };

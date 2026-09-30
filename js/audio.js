@@ -193,6 +193,33 @@
   A.carnage = function (t) { if (!t) return; [0, 5, 9, 12].forEach((s, i) => tone(note(14 + s + t * 2), 0.1, 'square', 0.05, i * 0.04)); };
   A.star = function () { [0, 4, 7, 12, 16, 19].forEach((s, i) => tone(note(12 + s), 0.22, 'triangle', 0.08, i * 0.07)); thud(0.2, 0.14, 0, 600); };
   A.wave = function () { tone(98, 0.6, 'sawtooth', 0.07, 0, 131); tone(147, 0.6, 'sawtooth', 0.05, 0.05, 196); thud(0.15, 0.12, 0, 500); };
+  // a sting for each sudden event
+  const EV_STING = {
+    stampede: { seq: [0, 0, -5, -5, 0], type: 'sawtooth', base: 7, step: 0.09 },
+    goldrush: { seq: [0, 4, 7, 12, 16, 19], type: 'square', base: 24, step: 0.05 },
+    chestrain: { seq: [12, 7, 4, 0, 7, 12], type: 'triangle', base: 22, step: 0.06 },
+    goblins: { seq: [0, 3, 0, 5, 7], type: 'square', base: 19, step: 0.07 },
+    meteors: { seq: [12, 7, 2, -3], type: 'sawtooth', base: 14, step: 0.1 },
+    bloodmoon: { seq: [0, 3, 7, 6], type: 'triangle', base: 5, step: 0.16 },
+    ambush: { seq: [0, 6, 0, 6, 0, 6], type: 'sawtooth', base: 12, step: 0.07 },
+    swarm: { seq: [0, 1, 0, 1, 0, 1, 0, 1], type: 'square', base: 26, step: 0.03 },
+    frenzy: { seq: [0, 5, 7, 12, 17, 19, 24], type: 'square', base: 17, step: 0.035 },
+  };
+  A.event = function (k) {
+    const e = EV_STING[k]; if (!e) return;
+    e.seq.forEach((s, i) => tone(note(e.base + s), e.step * 1.8, e.type, 0.07, i * e.step));
+    if (k === 'stampede' || k === 'meteors' || k === 'ambush') { thud(0.3, 0.12, 0, 300); noise(0.5, 0.05, 0.05, 400); }
+  };
+  // the JACKPOT: a slot machine running up, the big chord, bells
+  A.jackpot = function () {
+    for (let i = 0; i < 24; i++) tone(note(24 + (i * 5) % 24), 0.06, 'square', 0.05, i * 0.045);
+    [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => tone(note(24 + s), 1.4, i % 2 ? 'triangle' : 'square', 0.05, 1.1 + i * 0.02));
+    for (let i = 0; i < 10; i++) tone(note(48 + [0, 7, 12, 16][i % 4]), 0.35, 'sine', 0.05, 1.3 + i * 0.16);
+    thud(0.5, 0.16, 1.1, 250); noise(1.2, 0.04, 1.1, 3000);
+  };
+  // the Button low on health: a heartbeat
+  A.heartbeat = function () { thud(0.12, 0.13, 0, 160); thud(0.1, 0.09, 0.16, 140); };
+  A.whoosh = function () { if (!throttle('whoosh', 120)) return; noise(0.35, 0.025, 0, 1800); tone(900, 0.35, 'sine', 0.012, 0, 200); };
   A.boom = function () { if (!throttle('boom', 70)) return; thud(0.15, 0.14, 0, 500); tone(80, 0.18, 'square', 0.06, 0, 40); noise(0.08, 0.05, 0, 1500); };
   A.rift = function (n) {
     if (n === 0) { noise(0.9, 0.06, 0, 200); [0, 3, 7, 12].forEach((s, i) => tone(note(7 + s), 0.6, 'sawtooth', 0.04, i * 0.12)); tone(55, 1.4, 'sine', 0.12, 0, 40); }
@@ -288,7 +315,12 @@
 
   // Wire game events
   G.on('click', ev => { A.click(ev.combo, ev.crit || ev.mega); if (ev.dmg) A.bossHit(); });
-  G.on('chestOpen', loot => { if (loot.source === 'offline') return; A.chest(loot.items.reduce((m, x) => Math.max(m, x.it.r), 0)); });
+  G.on('chestOpen', loot => {
+    if (loot.source === 'offline') return;
+    // a little chest of coin: a bright tick, kept sparse when they pop in heaps
+    if (!loot.items.length) { if (throttle('coinChest', 70)) { tone(note(30 + (Math.random() * 5 | 0)), 0.05, 'square', 0.035); tone(note(37), 0.04, 'triangle', 0.03, 0.03); } return; }
+    A.chest(loot.items.reduce((m, x) => Math.max(m, x.it.r), 0));
+  });
   G.on('merge', () => A.merge());
   G.on('buy', () => A.buy());
   G.on('bossStart', b => A.bossStart(b.lord));

@@ -64,6 +64,11 @@ function run(name, seed, minutes) {
   G.on('invasionEnd', (w, r) => { const l = party.invLog[party.invLog.length - 1]; if (l) { l.win = w; l.prog = Math.round(r.prog); l.boss = !!G.R.boss; } });
   G.on('unitDown', () => party.downs++); G.on('wipe', () => { party.wipes++; mark('wipe'); }); G.on('buttonBreak', () => party.breaks++); G.on('invasion', () => party.invasions++); G.on('invasionEnd', w => { if (w) { party.invWins++; mark('invasion'); } }); G.on('bossPhase', () => party.phases++);
   let pops = 0; G.on('bomberPop', () => pops++);
+  // chests: where they come from, how they open, how many sit on the field
+  const chests = { spawn: {}, open: {}, field: [] };
+  G.goldBySrc = {};
+  G.on('chestSpawn', () => { const k = G.R.dropAt ? 'kill' : 'other'; chests.spawn[k] = (chests.spawn[k] || 0) + 1; });
+  G.on('chestOpen', l => { chests.open[l.source] = (chests.open[l.source] || 0) + 1; });
   G.on('bounty', () => mark('bounty'));
   // loot on the ground, events and Rifts
   let drops = 0, orbs = 0, uniques = 0;
@@ -107,7 +112,7 @@ function run(name, seed, minutes) {
         if (G.R.wisp && r() < P.wisp * dt) G.catchWisp();
       }
       G.tick(dt);
-      if (Math.round(t / dt) % 5 === 0) crowd.push(G.R.mobs.length);
+      if (Math.round(t / dt) % 5 === 0) { crowd.push(G.R.mobs.length); chests.field.push(G.S.chests.length); }
       // events: tap the shrine, chase the Hoarder
       if (P.events && G.R.shrine && r() < P.events * dt * 2) G.useShrine('hand');
       if (P.events && !G.R.focus) { const hd = G.R.mobs.find(m => m.kind === 'hoard'); if (hd && r() < P.events * dt * 3) G.R.focus = hd.id; }
@@ -173,7 +178,8 @@ function run(name, seed, minutes) {
     persona: name, seed, minutes: Math.round(total / 60), cls: s.hero.cls,
     first: Object.fromEntries(['boss', 'lord', 'perk', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'pet', 'tab_stars', 'tab_pets', 'tab_asc', 'ascend', 'break', 'hoardSeen', 'hoard', 'shrine', 'breach', 'unique', 'riftWin'].map(k => [k, first[k] != null ? +(first[k] / 60).toFixed(1) : null])),
     loot: { dropsPerMin: +(drops / (clock.now / 60)).toFixed(1), orbs, uniques, found: Object.keys(S().uq || {}).length, hoards: moments.filter(m => m[1] === 'hoard').length, hoardsSeen: moments.filter(m => m[1] === 'hoardSeen').length, shrines: moments.filter(m => m[1] === 'shrine').length, breaches: moments.filter(m => m[1] === 'breach').length },
-    party, stars: G.starCount(), breaks: moments.filter(m => m[1] === 'break').length, pops, uqTotal: G.UNIQUE_IDS.length,
+    party, chests: (() => { const m = clock.now / 60, o = {}; for (const k in chests.spawn) o['spawn_' + k] = +(chests.spawn[k] / m).toFixed(1); for (const k in chests.open) o['open_' + k] = +(chests.open[k] / m).toFixed(1); const f = chests.field.slice().sort((a, b) => a - b); o.fieldP50 = f[f.length >> 1] || 0; o.fieldMax = f[f.length - 1] || 0; const tot = Object.values(G.goldBySrc).reduce((a, b) => a + b, 0) || 1; o.gold = {}; for (const k in G.goldBySrc) o.gold[k] = +(G.goldBySrc[k] / tot).toFixed(3); return o; })(),
+    stars: G.starCount(), breaks: moments.filter(m => m[1] === 'break').length, pops, uqTotal: G.UNIQUE_IDS.length,
     crowd: (() => { const c = crowd.slice().sort((a, b) => a - b); return { avg: Math.round(c.reduce((a, b) => a + b, 0) / (c.length || 1)), p50: c[c.length >> 1] || 0, p90: c[Math.floor(c.length * 0.9)] || 0, max: c[c.length - 1] || 0, killsPerMin: Math.round(kills / (clock.now / 60)) }; })(),
     rift: { best: riftBest, runs: riftRuns, open: S().rift.open },
     depthAt: Object.fromEntries(Object.entries(depthAt).map(([k, v]) => [k, +(v / 60).toFixed(1)])),

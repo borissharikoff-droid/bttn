@@ -20,7 +20,7 @@
     tu_click: "I'm Buttonling, the Button's voice. You're the Hand now: press the Button! Every click spills gold and fills the chest bar below.",
     tu_chestWait: 'Almost! When the green Chest bar fills up, a chest drops nearby.',
     tu_chest: 'A chest! Tap it to open. The Button spills chests; mobs drop loot straight on the ground, with a label that says what it is.',
-    tu_gear: "There was gear inside. Open the Character tab and meet your Warden.",
+    tu_gear: "There was gear inside. Open the Party tab and meet your Warden.",
     tu_doll: 'This is your Warden with 4 slots: weapon, ability, armour and ring. Better items are equipped automatically. Scrap spares into shards and enchant your gear with them.',
     tu_upgWait: "Click up 15 gold and we'll buy the first upgrade.",
     tu_upg: 'You have the gold! In Upgrades, buy Iron Finger to make clicks stronger.',
@@ -38,8 +38,8 @@
     tip_ess: 'You have essence! Spend it in the Constellation: pick a glowing star, then Learn.',
     tip_ability: 'Your Warden has an ability. It casts itself, or press the button on the right or Q.',
     tip_asc: "You can ascend! The run restarts, but you earn fame: a permanent bonus to gold and damage. Gear and pets stay.",
-    tip_shards: 'Shards piled up. In Character, tap a worn item and enchant it.',
-    tip_break: 'Mobs broke the button and the clear bar dropped. Get tougher armour or enchant your weapon.',
+    tip_shards: 'Shards piled up. In the Party tab, tap a worn item and enchant it.',
+    tip_break: 'Mobs broke the Button: for 12 seconds your clicks do nothing. If the whole party falls before it mends, the Horde breaks through and pushes you back a depth. Get tougher armour or enchant it.',
     tip_wall: 'This boss is a wall for now. Every try rallies the Warden (+15-20% damage on it), or ascend: you earn fame, a permanent bonus, and come back much stronger. Gear and pets stay.',
     tip_loot: 'Loot falls where mobs die, and its label says what it is. Tap a label to grab it now, or the Warden gathers it in a moment. A beam means something good.',
     tip_spitter: 'A spitter: it stops at range and lobs globs at the Button. Tap it so the Warden kills it first.',
@@ -49,20 +49,24 @@
     tip_hoard: 'A Hoarder! It never bites, and it runs off with its sack in 16 seconds. Tap it so the Warden chases it: it bursts into loot.',
     tip_shrine: 'A shrine rose from the ground. Tap it for a 15-second blessing, or the Warden claims it.',
     tip_move: 'The boss is winding up a move! Tap it fast to break it: the boss staggers and takes +50% damage.',
-    tip_orb: 'You found currency. In the Character tab, pick an item, then an orb: reroll its affixes, add one, or gamble with an Orb of Ruin.',
+    tip_orb: 'You found currency. In the Party tab, pick an item, then an orb: reroll its affixes, add one, or gamble with an Orb of Ruin.',
     tip_rift: 'Rifts are open: timed runs at the level you choose, with better loot. Friends see your best Rift on the ladder.',
     tip_evo: 'Evolution ready! A maxed perk plus the right gear turns into something much stronger. Look for the golden card.',
     tip_potion: 'A potion! It raises a stat until you ascend. See them in the Garrison tab.',
     help_title: 'How to play', help_intro: 'Show the intro', help_tut: 'Replay the tutorial',
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
-    help_2: 'Loot', help_2t: 'Mobs drop loot where they fall, and its label and beam tell you what it is: tap it to grab it, or the Warden gathers it. Orbs change your gear in the Character tab, and uniques have rules of their own. The Button spills chests too; special ones (storm, frozen, mimics…) each work their own way.',
+    help_2: 'Loot', help_2t: 'Mobs drop loot where they fall, and its label and beam tell you what it is: tap it to grab it, or the Warden gathers it. Orbs change your gear in the Party tab, and uniques have rules of their own. The Button spills chests too; special ones (storm, frozen, mimics…) each work their own way.',
     help_3: 'Your Warden', help_3t: 'The Horde drops XP crystals; every level you pick one of three perks (they last until you ascend). 4 gear slots: weapon, ability, armour, ring; your class weapon type deals +50%. A stronger Warden faces a bigger Horde and clears lands faster.',
     help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and the collection stay.',
-    help_8: 'Ladder', help_8t: 'Name your hero in Character and compare depth, stars and power with friends.',
+    help_8: 'Ladder', help_8t: 'Name your hero in the Party tab and compare depth, stars and power with friends.',
     help_9: 'Lands, zones and stars', help_9t: 'Each land has five zones, the last one its lord\u2019s. Every zone brings a new kind of mob and is fought in three waves. Tap the land name for the world map: each land has three stars, kept forever, each worth +2.5% damage and gold. The Swift star needs a fresh try at the lord, not one after it escaped.',
+    help_11: 'Your party', help_11t: 'Beat depths 5, 12 and 20 to open a party slot each, and recruit a companion in the Party tab: knights tank, clerics heal, the rest deal damage. Everyone has health and can fall; tap a fallen ally to raise them sooner. When the Button breaks, clicks do nothing for 12 s, and if the whole party falls meanwhile the Horde breaks through and pushes you back a depth.',
+    help_12: 'Sudden events and invasions', help_12t: 'About every minute something happens: a stampede, a gold rush, chest rain, treasure goblins, a meteor storm (tap the rocks), a blood moon, an ambush, a swarm or an adrenaline rush. Every seven minutes or so another world invades; hold it off, then slay its herald for a heap of loot.',
+    help_13: 'Chests and Looters', help_13t: 'The Horde drops little chests of coin; the chest bar brings real ones. The Treasure Hall makes room for 10, 20, 30, 50, 100, then 200 chests. Looters run and open them for you, faster with each level, and Loot Crew hires more. When the field is full, the lowest chest bursts and half of it is lost.',
+    help_14: 'The JACKPOT', help_14t: 'About one kill in two million. The longer since the last one, the better the odds. You will know it when you see it.',
     help_10: 'Carnage', help_10t: 'Kill without pause: the streak climbs and so do gold and XP, up to +40%. Let it lapse for 2.5 seconds and it starts over.',
   });
 
@@ -340,7 +344,7 @@
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['ic_skull', 4], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10]];
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
     G.UI.modal(t('help_title'), html, [

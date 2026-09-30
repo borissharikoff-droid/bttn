@@ -754,8 +754,23 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 }
 @media (max-width: 960px) and (orientation: landscape) and (max-height: 520px) {
   #app, #app.fold { grid-template-columns: minmax(0, 1fr) minmax(260px, 40%); grid-template-rows: 100%; }
+  #app.fold .tabTitle, #app.fold .tabBody, #app.fold .subRes { display: revert; }
   .foldBtn { display: none; }
 }
+
+/* ======================= 2.1: sudden events ======================= */
+.evRow { display: flex; gap: 6px; align-items: center; pointer-events: none; }
+.evRow img { width: 22px; height: 22px; image-rendering: pixelated; filter: drop-shadow(1px 1px 0 var(--ink)); animation: evPulse .6s ease-in-out infinite; }
+.evRow .meter { flex: 1; box-shadow: inset 0 0 0 1px var(--ev, #ffd84a), 0 0 8px var(--ev, #ffd84a); }
+.meter.ev > i { background: var(--ev, #ffd84a); }
+@keyframes evPulse { 50% { transform: scale(1.18); } }
+
+/* 2.1: damage you can feel */
+.meter > i.trail { background: #fff3a0; opacity: .8; transition: width .5s ease-in .35s; box-shadow: none; }
+.meter.hpm.low { animation: lowHp .8s ease-in-out infinite; }
+@keyframes lowHp { 50% { box-shadow: inset 0 0 0 1px var(--line), 0 0 10px #ff3b3b; } }
+.pchip.hit { animation: chipHit .3s ease-out; }
+@keyframes chipHit { 0% { background: #ff3b3b; transform: translateY(-2px); } }
 
 </style>
 <div id="app">
@@ -776,6 +791,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     <div class="hud bottom">
       <div class="buffs" id="buffs"></div>
       <div class="partyHud" id="partyHud" hidden></div>
+      <div class="evRow" id="evRow" hidden><img id="evIco" alt=""><div class="meter ev" id="evWrap"><i id="evMeter"></i><span id="evText"></span></div></div>
       <div class="bossRow" id="bossRow" hidden>
         <div class="meter boss" id="bossWrap"><i id="bossMeter"></i><span id="bossText"></span></div>
         <button class="btn fight" id="btnFight" hidden>⚔</button>
@@ -783,7 +799,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         <button class="btn fight" id="btnRetreat" hidden style="animation:none">✕</button>
       </div>
       <div class="hpRow" id="hpRow" hidden>
-        <div class="meter hpm" id="hpWrap"><i id="hpMeter"></i><span id="hpText"></span></div>
+        <div class="meter hpm" id="hpWrap"><i class="trail" id="hpTrail"></i><i id="hpMeter"></i><span id="hpText"></span></div>
         <button class="abil" id="btnAbil" hidden><img alt=""><i id="abilCd"></i></button>
       </div>
       <div class="meters">
@@ -1059,6 +1075,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- Heroes (idle income) ----------
   G.HERO_MILESTONES = [10, 25, 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000];
+  // how many chests fit on the field at each Treasure Hall level
+  G.HALL_SLOTS = [6, 10, 20, 30, 50, 100, 200];
   G.HEROES = [
     { id: 'rogue',    name: 'Rogue',       cost: 50,     gps: 0.2,    shot: '#9aa0a8' },
     { id: 'archer',   name: 'Archer',      cost: 400,    gps: 1.2,    shot: '#9be15d' },
@@ -1102,14 +1120,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       name: 'Treasure Sense',
       desc: 'Chests appear 5% more often',
       fx: (L, D) => { D.chestProg += 0.05 * L; } },
-    { id: 'hall', icon: 'ic_hall', base: 300, growth: 3.5, max: 10,
-      name: 'Spacious Hall',
-      desc: '+1 chest slot',
-      fx: (L, D) => { D.slots += L; } },
-    { id: 'golem', icon: 'ic_key', base: 2500, growth: 3, max: 20,
-      name: 'Key Golem',
-      desc: 'Opens chests for you. Each level is 12% faster',
-      fx: (L, D) => { if (L > 0) D.autoOpen = 8 * Math.pow(0.88, L - 1); } },
+    { id: 'hall', icon: 'ic_vault', base: 400, growth: 12, max: 6,
+      name: 'Treasure Hall',
+      desc: 'Room for more chests on the field: 10, 20, 30, 50, 100, then 200',
+      fx: (L, D) => { D.slots += G.HALL_SLOTS[L] - G.HALL_SLOTS[0]; } },
+    { id: 'golem', icon: 'ic_key', base: 600, growth: 3.2, max: 20,
+      name: 'Looter',
+      desc: 'A Looter runs to your chests and opens them: one every 3 s, each level 10% faster',
+      fx: (L, D) => { if (L > 0) D.autoOpen = 3 * Math.pow(0.9, L - 1); } },
+    { id: 'crew', icon: 'ic_crew', base: 40000, growth: 30, max: 4,
+      name: 'Loot Crew',
+      desc: 'One more Looter running for your chests',
+      fx: (L, D) => { D.looters += L; } },
     { id: 'clover', icon: 'ic_clover', base: 1000, growth: 2.8, max: 20,
       name: 'Four-Leaf Clover',
       desc: '+3% luck: better chests',
@@ -1464,7 +1486,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     anon: 'Nameless hero', you: 'you', unverified: 'failed the check', hiddenBad: 'Entries hidden for failing the check: {0}', yourRank: 'You are {0} of {1}',
     cloudTitle: 'Cloud save', cloudText: 'The cloud has a save from {0}, newer than this browser. Load it? Current progress here will be replaced.',
     cloudLoad: 'Load', cloudKeep: 'Keep current',
-    tab_hero: 'Party', clearMeter: 'Clear {0}/{1}', buttonHp: 'Button {0}/{1}', overload: 'BUTTON OVERLOADED', overloadHint: 'Mobs broke the Button. Get better armour or enchant it.',
+    tab_hero: 'Party', clearMeter: 'Clear {0}/{1}', buttonHp: 'Button {0}/{1}', overload: 'THE BUTTON BROKE', overloadHint: 'For 12 s your clicks do nothing; if the whole party falls before it mends, the Horde breaks through. Get tougher armour or enchant it.',
     levelUp: 'Level {0}!', q_kills: 'Slay {0} mobs', pickClass: 'Choose your Warden', pickClassHint: 'Your Warden holds the line against the Horde and wears 4 items: weapon, ability, armour and ring. Their own weapon type deals +50% damage.',
     namePh: 'Warden name', power: 'Power', slot_weapon: 'Weapon', slot_ability: 'Ability', slot_armor: 'Armour', slot_ring: 'Ring',
     bag: 'Bag', shards: 'shards', autoEquip: 'Equip upgrades automatically', autoCast: 'Cast the ability automatically', autoSalv: 'Scrap below', off: 'Off',
@@ -1523,7 +1545,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     noSpace: 'No free space', saveNow: 'Save now',
     lvUp: 'LEVEL UP! Pick a perk', perkAuto: 'Auto-pick in {0}s', perkHint: 'Perks shape this run and reset when you ascend. Gear stays.', perkLv: 'Lv {0}', perkNew: 'New',
     perksTitle: 'Perks this run', perksNone: 'Level up to pick your first perk. Slay the Horde for XP.', autoPerk: 'Pick perks for me if I wait',
-    roleTitle: 'What your Warden does', roleHint: 'Your Warden is the engine: their kills fill the clear bar, drop loot and gold, and every boss dies by their hand. Your clicks during a fight are their strikes.',
+    roleTitle: 'What your Warden does', roleHint: 'Your Warden leads the party: every kill fills the clear bar and drops loot and gold, and the whole party wears the bosses down. Your clicks during a fight are the Warden\u2019s strikes.',
     roleHorde: 'Horde size', roleBossClick: 'Boss damage per click', roleBossSec: 'Boss damage per second', roleBoss: 'This depth\'s boss', roleBossTime: 'about {0}s alone (limit {1}s)',
     roleWeak: 'Too weak for this boss yet: level up, equip better gear, enchant, or ascend for fame.', hordeX: 'Horde ×{0}', hordeWeak: 'Warden weak here',
     goal: 'Goal', journey: 'Journey', journeyHint: 'An endless road of goals. Each step gives a reward and +2% Warden damage for good.', journeyStep: 'Step {0}',
@@ -1547,19 +1569,19 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     orbNo_max: 'Already at +{0}', orbNo_none: 'Pick an item first', corrupted: 'Corrupted', unique: 'Unique', uniques: 'Uniques', uqFound: '{0} of {1} found',
     uqDrops: 'Drops from depth {0}', uqDropsBoss: 'Only {0} and deep Rifts', uqNew: 'NEW UNIQUE', uqBanner: 'UNIQUE!',
     lootFilter: 'Hide labels on common drops', shrineBuff: '{0} {1}s', rule: 'Land rule', feedUq: 'found {0}', feedRift: 'cleared {0}', feedLord: 'slew {0}', feedCrown: 'took the crown of {0}',
-    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', recent: 'Recent', feedEmpty: 'Nothing yet. Big drops and records from everyone show up here.',
+    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', jpTitle: 'JACKPOT!!!', jpSub: 'ONE IN A MILLION', jpToast: 'JACKPOT! +{0} gold, and it rains chests', recent: 'Recent', feedEmpty: 'Nothing yet. Big drops and records from everyone show up here.',
     byRift: 'Rift', byToday: 'Today', byUq: 'Uniques', byStars: 'Land stars', rivalUp: 'You passed {0} · {1} #{2}', rivalDown: '{0} passed you · {1}', brag: 'Copy brag', bragged: 'Copied. Paste it to your friends',
     bragText: 'BTTN · {0} lv {1} · gear score {2}\n{3}\nUniques {4}/{5}: {6}\nCan you beat me?',
     byCrowns: 'Crowns', byFirsts: 'Firsts', crownsHint: 'Each lord\u2019s crown goes to the fastest kill of a fresh (unwounded) lord.', firstsHint: 'Who got there first among everyone on this ladder.',
     crownTaken: 'CROWN TAKEN: {0} in {1}s', crownYours: 'Your best: {0}s', noCrown: 'Nobody yet', firstGot: 'FIRST: {0}!',
-    readOnlyHow: 'To join, ask whoever shared the game to invite you by email as an Editor, and to keep link sharing off: while the public link is on, everyone invited can only watch. Open it signed in to claude.ai.', inviteTitle: 'Invite your friends', inviteHow: '1. Share (top right) \u2192 invite each friend by email as Editor. 2. Keep \u201cAnyone with the link\u201d off: while it\u2019s on, friends can only watch. 3. They open the link signed in to claude.ai and appear here within a minute.', removeRow: 'Remove from ladder', removed: 'Removed from the ladder', seenAgo: 'seen {0} ago', beFirst: 'Nobody on this board yet. Be the first!', onLadderAs: 'You\u2019re on the ladder as {0}. Rename in Character.', cloudThis: 'This browser', cloudThere: 'Cloud', cloudSum: '{0} lv {1} · depth {2} · {3} gold', cloudNew: 'a new game', cloudSure: 'This replaces your cloud hero ({0}) with the one in this browser. The cloud one is kept as a backup in Settings. Sure?', cloudSureYes: 'Yes, keep this one', restoreBackup: 'Restore the previous cloud save', noBackup: 'No backup in the cloud', bragJoin: 'Ask me for an invite: {0}', bragTitle: 'Brag to your friends', bragCopy: 'Copy',
+    readOnlyHow: 'To join, ask whoever shared the game to invite you by email as an Editor, and to keep link sharing off: while the public link is on, everyone invited can only watch. Open it signed in to claude.ai.', inviteTitle: 'Invite your friends', inviteHow: '1. Share (top right) \u2192 invite each friend by email as Editor. 2. Keep \u201cAnyone with the link\u201d off: while it\u2019s on, friends can only watch. 3. They open the link signed in to claude.ai and appear here within a minute.', removeRow: 'Remove from ladder', removed: 'Removed from the ladder', seenAgo: 'seen {0} ago', beFirst: 'Nobody on this board yet. Be the first!', onLadderAs: 'You\u2019re on the ladder as {0}. Rename in the Party tab.', cloudThis: 'This browser', cloudThere: 'Cloud', cloudSum: '{0} lv {1} · depth {2} · {3} gold', cloudNew: 'a new game', cloudSure: 'This replaces your cloud hero ({0}) with the one in this browser. The cloud one is kept as a backup in Settings. Sure?', cloudSureYes: 'Yes, keep this one', restoreBackup: 'Restore the previous cloud save', noBackup: 'No backup in the cloud', bragJoin: 'Ask me for an invite: {0}', bragTitle: 'Brag to your friends', bragCopy: 'Copy',
     overcharged: 'OVERCHARGED! +1 BOLT', comboUp: 'COMBO ×{0}', staggered: 'STAGGERED!', tapIt: 'tap it ×{0}',
     netBehind: 'Your ladder row stays as it is: it shows a save that got further (another device, or before a reset). It updates again once this save passes it.',
     rally: 'Rally +{0}%', rec_rift: 'Best Rift', byMad: 'Mad Button race', madHint: 'Play time from a fresh start to the first Mad Button kill at depth 40. Fastest first.', gearScore: 'Gear score', gsLadder: 'Gear score (ladder)',
     rivalAhead: '#{0} of {1} · {2} is {3} ahead', rivalTop: '#1 of {0} · defend it', rivalDepths: '{0} depths', rivalDepth1: '1 depth',
     myHidden: 'Your entry is hidden from the others because it failed a check: {0}. Tell whoever runs the game.', inspectVs: 'vs yours',
     sk_25: 'KILLING SPREE', sk_50: 'RAMPAGE', sk_100: 'MASSACRE', sk_200: 'CARNAGE', sk_400: 'ANNIHILATION', sk_800: 'APOCALYPSE',
-    downed: 'DOWN!', backUp: 'BACK UP!', buttonFixed: 'BUTTON MENDED', joined: '{0} JOINS THE PARTY', role_tank: 'Tank: draws the bites', role_heal: 'Healer: mends the party and the Button', role_dps: 'Damage', recruit: 'Recruit', recruitAt: 'Depth {0}', recruitTitle: 'Recruit a companion', recruitHint: 'Companions stand by the Button and fight on their own. They share your bag: equip them from here. Tanks draw the bites, healers mend everyone, the rest deal damage.', recruitNeed: 'your party lacks one', slotOpen: 'A PARTY SLOT OPENS', slotOpenSub: 'Recruit a companion in the Party tab', partyHint: 'Your party: tap a fallen ally to raise them sooner.', wardenName: 'Warden', roleTitleMem: 'What they do', roleHint_tank: 'Stands in front: the Horde and the bosses bite them instead of the Button, and they shrug off 30% of it. Give them your best armour.', roleHint_heal: 'Mends the most hurt of the party and the Button, over and over; while they stand, the fallen get up three times faster. Hits softly.', roleHint_dps: 'Fights beside the Warden and thins the Horde. Give them a good weapon of their kind.',
+    downed: 'DOWN!', backUp: 'BACK UP!', buttonFixed: 'BUTTON MENDED', joined: '{0} JOINS THE PARTY', role_tank: 'Tank: draws the bites', role_heal: 'Healer: mends the party and the Button', role_dps: 'Damage', recruit: 'Recruit', recruitAt: 'Beat depth {0}', recruitTitle: 'Recruit a companion', recruitHint: 'Companions stand by the Button and fight on their own. They share your bag: tap one at the top of the Party tab to equip them. Tanks draw most of the bites, healers mend everyone, the rest deal damage.', recruitNeed: 'your party lacks one', slotOpen: 'A PARTY SLOT OPENS', slotOpenSub: 'Recruit a companion in the Party tab', partyHint: 'Tap a fallen ally (on the field or on the party bar) to raise them sooner: each tap takes 4 s off.', wardenName: 'Warden', btnBrokenFor: 'BUTTON BROKEN · {0}s', regroup: 'THE PARTY REGROUPS', st_unitHp: 'Health', st_wardenHp: 'Warden\u2019s health', evGoblins: '{0}/{1} caught', evAmbush: '{0} left', evRain: '{0} chests', evHold: 'hold the line', evTap: 'tap a rock to smash it', evHeld: 'HELD! +{0} CHESTS', evCleared: 'AMBUSH BROKEN! +{0} CHESTS', evCaught: 'ALL THIEVES CAUGHT!', evSmashed: 'SMASHED! +{0}', evOver: '{0} IS OVER', roleTitleMem: 'What they do', roleHint_tank: 'Stands in front: draws most of the bites from the Horde and the bosses, and shrugs off 30% of every hit. Give them good armour (the Button\u2019s health comes from the Warden\u2019s).', roleHint_heal: 'Mends the most hurt of the party and the Button, over and over; while they stand, the fallen get up three times faster. Hits softly.', roleHint_dps: 'Fights beside the Warden and thins the Horde. Give them a good weapon of their kind.',
     wipeTitle: 'THE HORDE BROKE THROUGH', wipeBack: 'Pushed back to depth {0}', wipeBar: 'The clear bar is lost', wipeRift: 'The Rift collapses',
     phaseN: 'PHASE {0}', phaseSub: 'It hits the whole party now', phaseRage: 'ENRAGED', btnBroken: 'BROKEN!', btnBrokenCard: 'THE BUTTON BROKE', btnBrokenSub: 'Hold for {0}s: if the whole party falls, the Horde breaks through',
     heraldSub: 'The herald: slay it for a big haul', invWon: 'INVASION REPELLED', invLost: 'THE INVASION WITHDRAWS', tapRevive: 'TAP', invName: '{0} · {1}/{2} · {3}s', invHerald: '{0} · {1}s',
@@ -1602,6 +1624,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     wispMin: 50, wispMax: 120, wispLife: 13,
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
+    smallChestK: 0.1,       // the little chests the Horde drops are worth a tenth of a real one
+    smallItem: 0.05,        // and hold an item one time in twenty
+    overflowK: 0.5,         // a full field: the lowest chest bursts and half of it is lost
   };
 
   // ---------- State ----------
@@ -1631,6 +1656,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
       uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
+      // the jackpot: how many, and the play time of the last one (its odds climb with every hour since)
+      jp: { n: 0, at: 0 },
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -1648,7 +1675,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function baseD() {
     return {
       clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
-      crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, luck: 0,
+      crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
       offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 25,
@@ -1803,6 +1830,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     let gain = D.click * (1 + R.combo * D.comboPer);
     if (crit) { gain *= D.critMult; S.st.crits++; questProgress('crit', 1); }
     if (mega) { gain *= 30; S.st.megas++; }
+    if (G.evMul) gain *= G.evMul('click');
     addGold(gain, 'click');
     const dmg = R.boss ? D.heroHit * TUNE.clickVolley : 0;
     if (R.boss) tapBoss();
@@ -1905,7 +1933,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     return c;
   }
 
-  function spawnChest(tier, mod, fromBoss) {
+  function spawnChest(tier, mod, fromBoss, small) {
     const S = G.S;
     if (tier === undefined || tier === null) tier = rollTier();
     if (mod === undefined) mod = rollMod();
@@ -1925,6 +1953,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       }
     }
     const c = makeChest(tier, mod);
+    if (small) c.small = 1;
     S.chests.push(c);
     if (mod) S.modsSeen[mod] = 1;
     emit('chestSpawn', c, fromBoss);
@@ -1954,25 +1983,30 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (D.double && chance(D.double)) n *= 2;
     const rolls = c.mod === 'chromatic' ? 3 : 1;
     const loot = { items: [], gold: 0, ess: 0, eggs: 0, pots: [], tier: c.tier, mod: c.mod, chest: c, source };
-    const valMult = c.mod === 'blazing' ? 5 : 1;
+    // a chest that bursts for want of room spills half of it
+    const valMult = (c.mod === 'blazing' ? 5 : 1) * (source === 'overflow' ? TUNE.overflowK : 1) * (c.small ? TUNE.smallChestK : 1);
+    // a little chest from the Horde is mostly coin: an item only now and then
+    if (c.small && !chance(TUNE.smallItem)) n = 0;
     for (let i = 0; i < n; i++) {
       const li = lootItem(pickItem(rollRarity(c.tier, rolls)), source);
       li.v *= valMult;
       loot.gold += li.v;
       loot.items.push(li);
     }
+    if (c.small && !loot.items.length) loot.gold += chestValue(c.tier) * valMult;
     if (c.mod === 'golden') loot.gold += D.incomeRef * 8 * (c.tier + 1);
     addGold(loot.gold, 'chest');
-    let e = G.RARITIES[c.tier].ess * D.essMult * (c.mod === 'void' ? 10 : 1);
+    let e = c.small ? 0 : G.RARITIES[c.tier].ess * D.essMult * (c.mod === 'void' ? 10 : 1); // the little ones hold no essence
     if (c.mod === 'void') e = Math.max(e, 1 * D.essMult);
     loot.ess = e; addEssence(e, 'chest' + c.tier);
     if (c.tier >= 4 && chance(0.02 * (c.tier - 3) * D.eggMult)) loot.eggs += addEggs(1);
     if (c.tier >= 4 && chance(0.02 * (c.tier - 3))) { const p = givePotion(); if (p) loot.pots.push(p); }
-    S.opened[c.tier]++;
-    S.st.chests++;
+    // the little ones from the Horde count apart, so chest goals and quests keep their meaning
+    if (c.small) S.st.purses = (S.st.purses || 0) + 1;
+    else { S.opened[c.tier]++; S.st.chests++; questProgress('chests', 1); }
     if (c.mod) { S.st.modded++; questProgress('mod', 1); }
-    questProgress('chests', 1);
     emit('chestOpen', loot);
+    if (!c.small && source !== 'offline' && G.jackpotRoll) G.jackpotRoll(null, 'chest');
     if (c.mod === 'lightning' && !depthGuard) {
       const targets = S.chests.filter(o => o.mod !== 'mimic' && o.mod !== 'frozen').slice(0, 3);
       emit('lightning', c, targets);
@@ -2007,20 +2041,40 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // The golem does the chores: lowest chests first, and it leaves the good ones
   // (epic and better) for the Hand for 20 seconds so the player gets to open them
-  function golemPick() {
+  function golemPick(skip) {
     const S = G.S;
-    const list = S.chests.filter(c => c.mod !== 'mimic' && (c.tier < 3 || c.age > 20 || c.mod === 'blazing'));
+    // a chest lies a moment before a Looter goes for it (and a good one waits 20 s for your own hand)
+    const list = S.chests.filter(c => c.mod !== 'mimic' && (c.age || 0) > 2 && (c.tier < 3 || c.age > 20 || c.mod === 'blazing') && !(skip && skip.has(c.id)));
     if (!list.length) return null;
     return list.find(c => c.mod === 'blazing') || list.find(c => c.mod === 'frozen') ||
       list.reduce((a, b) => (b.tier < a.tier ? b : a), list[0]);
   }
-  function golemAct() {
-    const c = golemPick();
+  function golemAct(c, i) {
+    c = c || golemPick();
     if (!c) return false;
-    emit('golem', c);
+    emit('golem', c, i);
     if (c.mod === 'frozen') { c.hp -= 2; emit('chestHit', c); if (c.hp <= 0) openChest(c, 'golem'); }
     else openChest(c, 'golem');
     return true;
+  }
+  // The Looters: each picks a chest, runs to it and opens it when its time is up
+  function lootersTick(dt) {
+    const S = G.S, n = D.autoOpen ? Math.max(1, D.looters | 0) : 0;
+    R.looters = R.looters || [];
+    R.looters.length = Math.min(R.looters.length, n);
+    while (R.looters.length < n) R.looters.push({ acc: 0, tgt: null });
+    const taken = new Set(R.looters.map(l => l.tgt).filter(x => x != null));
+    R.looters.forEach((l, i) => {
+      if (l.tgt != null && !S.chests.some(c => c.id === l.tgt)) { taken.delete(l.tgt); l.tgt = null; }
+      if (l.tgt == null) { const c = golemPick(taken); if (c) { l.tgt = c.id; l.acc = 0; taken.add(c.id); emit('looterGo', i, c); } }
+      if (l.tgt == null) return;
+      l.acc += dt;
+      if (l.acc >= D.autoOpen) {
+        const c = S.chests.find(x => x.id === l.tgt);
+        taken.delete(l.tgt); l.tgt = null; l.acc = 0;
+        if (c) golemAct(c, i);
+      }
+    });
   }
 
   // ---------- Potions ----------
@@ -2091,8 +2145,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // a slam lands on everyone: the Button and each hero standing
     if (k === 'slam' && G.hurtButton) {
       const a = G.mobAtk(b.d) * (b.rage ? 1.5 : 1);
+      const up = G.partyUnits ? G.partyUnits().filter(u => !(u.down > 0)) : [];
       G.hurtButton(a * (b.lord ? 5 : 3.5));
-      if (G.partyUnits) for (const u of G.partyUnits()) if (!(u.down > 0)) G.hurtParty(u.who, a * (b.lord ? 3 : 2), 'slam');
+      // (a wipe on the Button's hit ends the fight: the revived party isn't hit again)
+      for (const u of up) if (R.boss === b) G.hurtParty(u.who, a * (b.lord ? 3 : 2), 'slam');
     }
     if (k === 'summon' && G.spawnPack) { G.spawnPack(true); G.spawnPack(true); }
     emit('bossMoveLand', b, k);
@@ -2122,6 +2178,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (G.heroBossStart) G.heroBossStart();
     R.boss = { d, lord, hp, max, scar, rally, phase: 1, inv: 0, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
+    // a boss that comes back wounded starts in the phase its health calls for
+    R.boss.phase = phaseAt(R.boss);
+    if (lord && R.boss.phase === 3) R.boss.rage = 1;
     R.bossReady = false; R.bossIn = null;
     emit('bossStart', R.boss);
     return true;
@@ -2185,7 +2244,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const tier = b.lord ? Math.min(6, 1 + Math.floor(d / 8)) : Math.min(5, Math.floor(d / 8));
     const count = (b.lord ? 2 : 1) * om;
     if (G.heroBossEnd) G.heroBossEnd(true); // its swarm dies with it, still in this land
-    S.scar = null; S.rested = 0;
+    // only this boss's wounds heal; a deeper wall the party was pushed back from keeps its scar and Rally
+    if (S.scar && S.scar.d === d) S.scar = null;
+    S.rested = 0;
     S.depth++;
     if (S.depth > S.maxDepth) S.maxDepth = S.depth;
     if (S.depth > S.bestDepth) {
@@ -2519,7 +2580,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (sec >= 4 * 3600) G.S.rested = 1;
     addGold(gold);
     // Scouts and the golem keep finding chests while away (opened virtually).
-    const rate = D.scout + (D.autoOpen ? Math.min(1 / D.autoOpen, 2) * 0.25 : 0);
+    const rate = D.scout + (D.autoOpen ? Math.min((D.looters || 1) / D.autoOpen, 3) * 0.25 : 0);
     const n = Math.min(400, Math.floor(t * rate * D.offEff));
     let items = 0, ess = 0, extraGold = 0;
     for (let i = 0; i < n; i++) {
@@ -2563,6 +2624,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     spawnFromMeter();
     if (G.heroTick) G.heroTick(dt);
     if (G.worldTick) G.worldTick(dt);
+    if (G.eventsTick) G.eventsTick(dt);
     if (G.journeyTick) G.journeyTick(dt);
     // Boss
     if (R.rift) { /* the campaign waits while a Rift is open */ }
@@ -2586,15 +2648,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         if (R.bossIn <= -wait) startBoss();
       }
     }
-    // Golem auto-opener
-    if (D.autoOpen) {
-      R.golemAcc += dt;
-      let guard = 0;
-      while (R.golemAcc >= D.autoOpen && guard++ < 20) {
-        R.golemAcc -= D.autoOpen;
-        if (!golemAct()) { R.golemAcc = Math.min(R.golemAcc, D.autoOpen); break; }
-      }
-    }
+    // the Looters
+    lootersTick(dt);
     if (D.petOpen) {
       R.petOpenAcc += D.petOpen * dt;
       while (R.petOpenAcc >= 1) { R.petOpenAcc -= 1; if (!golemAct()) { R.petOpenAcc = 0; break; } }
@@ -2661,6 +2716,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (!('lands' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 40) delete S.rec.crowns[k];
     // saves from before 2.0: depths 65-74 were corrupted lands then, the Moon and the Star Sea now
     if (!('party' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 65) delete S.rec.crowns[k];
+    // saves from before 2.1: the hall gave one slot a level (up to 16); now it steps 10, 20, 30…
+    if (!('jp' in data) && S.upg && S.upg.hall > 0) S.upg.hall = S.upg.hall <= 4 ? 1 : 2;
+    S.jp = Object.assign({ n: 0, at: 0 }, data.jp || {});
     if (!Array.isArray(S.feed)) S.feed = [];
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
@@ -2672,6 +2730,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // saves from before 1.0: the Journey gained 11 steps in between the old ones
     if (!('uq' in data) && G.Journey && G.Journey.fromV0) S.journey = G.Journey.fromV0(S.journey || 0);
     R.dirty = true; recalc();
+    if (S.hero && S.hero.cls) {
+      if (!(data.hero && 'whp' in data.hero)) S.hero.whp = D.wardenHp;
+      if (S.hero.hp <= 0 && G.TUNE.btnDown) R.btnDown = G.TUNE.btnDown;
+    }
     return S;
   }
   G.deserialize = deserialize;
@@ -2687,15 +2749,17 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   const { chance, pick, rand, randInt, emit } = G;
   const TUNE = G.TUNE;
   Object.assign(TUNE, {
-    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 4, mobAtkGrowth: 1.2,
-    mobWalk: 9, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
+    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.2,
+    mobWalk: 7, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
     // the arena is never empty: lots of small bodies, capped for the frame rate
-    mobMax: 600, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
+    mobMax: 900, packMul: 1.4, minCrowd: 40, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.07, pulseEvery: 6, smallHp: 2.2,
+    // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
+    killChest: 0.03, plunder: 0.002,
   });
 
   // ---------- Content ----------
@@ -2743,7 +2807,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   };
   G.CLASSES = [
     { id: 'knight', spr: 'h_knight', weapons: ['sword', 'katana', 'scythe'], starter: 'steel_sword', hp: 1.3, crit: 0, extra: 0,
-      name: 'Knight', desc: 'Swords, katanas and scythes. The Button is 30% tougher.' },
+      name: 'Knight', desc: 'Swords, katanas and scythes. The Button is 30% tougher. A tank: draws most of the bites.',
+      descAlly: 'Swords, katanas and scythes. A tank: draws most of the bites and shrugs off 30% of them.' },
     { id: 'archer', spr: 'h_archer', weapons: ['bow'], starter: 'short_bow', hp: 1, crit: 0, extra: 1,
       name: 'Archer', desc: 'Bows. Arrows pierce one more enemy.' },
     { id: 'wizard', spr: 'h_wizard', weapons: ['staff', 'wand'], starter: 'twig_staff', hp: 1, crit: 0, extra: 0, spd: 0.15,
@@ -2751,7 +2816,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     { id: 'rogue', spr: 'h_rogue', weapons: ['dagger'], starter: 'rusty_dagger', hp: 1, crit: 0.1, extra: 0,
       name: 'Rogue', desc: 'Daggers. +10% crit chance.' },
     { id: 'cleric', spr: 'h_priest', weapons: ['staff', 'wand'], starter: 'oak_wand', hp: 1.1, crit: 0, extra: 0,
-      name: 'Cleric', desc: 'Staves and wands. Heals the party and the Button, and raises the fallen faster. Hits softly.' },
+      name: 'Cleric', desc: 'Staves and wands. Heals the party and the Button; while they stand, the fallen get up three times faster.',
+      descAlly: 'Staves and wands. Heals the party and the Button; while they stand, the fallen get up three times faster. Hits softly.' },
   ];
   // What each class does in the party: tanks draw the bites, healers mend, the rest deal damage
   G.ROLES = { knight: 'tank', cleric: 'heal', archer: 'dps', wizard: 'dps', rogue: 'dps' };
@@ -2818,6 +2884,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.PERKS = {
     might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses included' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
+    plunder: { max: 3, icon: 'pk_plunder', name: 'Plunder', desc: 'Kills pop chests open on their own: a 0.2% chance each kill, per level' },
     multi:   { max: 3, icon: 'it_short_bow', name: 'Multistrike', desc: 'Each attack hits one more target' },
     cleave:  { max: 4, icon: 'it_blood_scythe', name: 'Cleave', desc: '+30% splash radius' },
     reach:   { max: 3, icon: 'it_hunter_bow', name: 'Long Reach', desc: '+20% attack range' },
@@ -2832,6 +2899,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     loot:    { max: 3, icon: 'ic_bag', name: 'Scavenger', desc: '+25% loot bag drops' },
   };
   const perk = id => (G.S.hero && G.S.hero.perks && G.S.hero.perks[id]) || 0;
+  // a sudden event's pull on the arena (js/events.js); neutral without it
+  const evMul = k => (G.evMul ? G.evMul(k) : 1);
   // Today's omen (js/journey.js); neutral where that file isn't loaded, e.g. on the ladder server
   const NO_OMEN = { xp: 1, mobHp: 1, gold: 1, horde: 1, champ: 1, loot: 1, thunder: 0, luck: 0 };
   const om = () => (G.omen ? G.omen() : NO_OMEN);
@@ -2942,6 +3011,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // the fight goes to the victim: a party member or the Button
   function hitParty(v, dmg, src) { if (v === 'button') hurtButton(dmg); else if (v != null) hurtUnit(v, dmg, src); else checkWipe(); }
   G.hurtParty = hitParty;
+  G.victim = victim;
+  // the fallen get up three times faster while a healer stands
+  G.reviveRate = () => (G.partyUnits().some(u => u.role === 'heal' && !(u.down > 0)) ? 3 : 1);
+  G.dealHit = (m, dmg, src, crit) => dealHit(m, dmg, src, crit);
   function reviveUnit(who, frac) {
     unitDown(who, 0); unitHp(who, unitMax(who) * (frac || 0.4));
     emit('unitRevive', who);
@@ -2964,6 +3037,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     for (const m of R.mobs) emit('mobFlee', m);
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.boss) G.fleeBoss();
+    if (R.inv && G.endInvasion) G.endInvasion(false);
+    if (R.ev && G.endEvent) G.endEvent(false);
     const inRift = !!R.rift;
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
     const from = S.depth;
@@ -3240,7 +3315,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const might = (1 + 0.12 * perk('might')) * (evo('titan') ? 1.5 : 1) * (evo('bloodpact') ? 1.25 : 1);
     const frenzy = (1 + 0.12 * perk('frenzy')) * (evo('berserk') ? 1.5 : 1) * hunt * (1 + 0.02 * (d.uq.reaper ? R.reap : 0)) * (shrine('frenzy') ? 2 : 1);
     d.heroHit = c.hit * buffDmg * might;
-    d.heroRate = c.rate * (R.hb.wing > 0 ? 2 : 1) * frenzy;
+    d.heroRate = c.rate * (R.hb.wing > 0 ? 2 : 1) * frenzy * evMul('rate');
     d.heroHp = c.hp * (1 + 0.2 * perk('bulwark')) * (evo('bastion') ? 2 : 1);
     d.heroDps = c.dps * buffDmg * might * frenzy;
     d.power = c.power;
@@ -3251,7 +3326,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       const pc = combat(m.eq, d, { cls: m.cls, lvl: h.lvl }), role = G.ROLES[m.cls];
       // companions back the Warden up: their hits count for less, a cleric's least of all
       const soft = TUNE.allyDmg * (role === 'heal' ? 0.5 : 1);
-      const o = { c: pc, role, hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy, hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) };
+      const o = { c: pc, role, hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy * evMul('rate'), hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) };
       o.dps = pc.dps * buffDmg * might * frenzy * soft;
       if (m.hp > o.hp) m.hp = o.hp;
       return o;
@@ -3278,7 +3353,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {
-    fodder: { w: 0.008, spd: 1.3, gold: 1 },
+    fodder: { w: 0.0057, spd: 1.3, gold: 1 },
     brute:  { w: 1, spd: 1, gold: 1 },
     magic:  { w: 2, spd: 1.05, gold: 1.25 }, // blue champions, they come in pairs
     rare:   { w: 6, spd: 0.9, gold: 1.5 },   // yellow, named, one modifier, a pack of minions
@@ -3320,9 +3395,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.hordeScale = hordeScale;
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
-    const w = K.w * (add ? 1 : Math.max(1, (R.hs || 1) / 1.5));
+    // a stronger Warden meets a heavier Horde: half of it in heft, half in numbers (spawnPack)
+    const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
-    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1);
+    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
     const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
@@ -3355,7 +3431,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const d = dnow(), a = at != null ? at + rand(-0.04, 0.04) : G.rng(), roll = G.rng(), L = land();
     if (R.mobs.length >= TUNE.mobMax) return;
     const room = () => R.mobs.length < TUNE.mobMax;
-    const swarm = (kind, n, spread, tail) => { for (let i = 0; i < n && room(); i++) makeMob(kind, a + rand(-spread, spread), -rand(0, tail || 0.3), add); };
+    // packs are thick: 1.4 times what they were, and more again for a Warden who outclasses the depth
+    const more = add ? 1 : TUNE.packMul * Math.sqrt(Math.max(1, (R.hs || 1) / 1.5));
+    const swarm = (kind, n, spread, tail) => { n = Math.round(n * (G.SMALL[kind] ? more : 1)); for (let i = 0; i < n && room(); i++) makeMob(kind, a + rand(-spread, spread), -rand(0, tail || 0.3), add); };
     if (add) { swarm('fodder', randInt(30, 50), 0.08, 0.25); return; }
     const rc = 0.03 * om().champ * (L.rare || 1), mc = rc + 0.07 * om().champ * (L.champ || 1);
     if (d >= 1 && roll < rc) { makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
@@ -3438,9 +3516,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const i = R.mobs.indexOf(m);
     if (i >= 0) R.mobs.splice(i, 1);
     const K = G.MOB_KINDS[m.kind];
-    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1) * (1 + 0.2 * perk('greed')) * (evo('midas') ? 2 : 1) * om().gold * (shrine('greed') ? 2 : 1) * cm;
+    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1) * (1 + 0.2 * perk('greed')) * (evo('midas') ? 2 : 1) * om().gold * (shrine('greed') ? 2 : 1) * cm * evMul('gold');
     G.addGold(gold, 'mob');
-    gainXp(2.5 * (1 + dnow()) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (m.br ? 1.5 : 1) * (shrine('slaughter') ? 2 : 1) * (D.xpMult || 1) * (L.xp || 1) * cm);
+    gainXp(2.5 * (1 + dnow()) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (m.br ? 1.5 : 1) * (shrine('slaughter') ? 2 : 1) * (D.xpMult || 1) * (L.xp || 1) * cm * evMul('xp'));
     h.kills++;
     if (G.landKill && !m.add) G.landKill(m);
     if (m.kind === 'magic' || m.kind === 'rare') h.elites++;
@@ -3452,6 +3530,19 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 4);
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
+    // a chest spills out of the body now and then, where it fell
+    if (!m.add && !R.rift && m.kind !== 'guardian' && G.spawnChest) {
+      // by weight, so a pack split into more, smaller bodies drops the same
+      const pc = TUNE.killChest * (G.SMALL[m.kind] ? m.w / 0.008 : 1 + 20 * Math.min(6, m.w)) * evMul('chest') * (1 + 0.25 * perk('loot'));
+      if (chance(Math.min(1, pc))) { R.dropAt = m; G.spawnChest(undefined, null, false, true); R.dropAt = null; }
+    }
+    // one in a million or so: the JACKPOT
+    if (!m.add && G.jackpotRoll) G.jackpotRoll(m, 'kill');
+    // Plunder: a kill now and then pops a chest open on its own
+    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder'))) {
+      const c = S.chests.find(x => x.mod !== 'mimic' && x.mod !== 'frozen');
+      if (c) { emit('plunder', m, c); G.openChest(c, 'plunder'); }
+    }
     else if (!m.add) {
       const greed = (R.hb.scroll > 0 ? 3 : 1) * (1 + 0.25 * perk('loot')) * (evo('midas') ? 1.5 : 1) * om().loot;
       const p = m.kind === 'rare' ? 1 : m.kind === 'magic' ? 0.4 * greed : TUNE.mobChest * m.w * greed;
@@ -3611,26 +3702,27 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function partyTick(dt, regen) {
     const S = G.S, D = G.D, h = S.hero;
     const units = G.partyUnits();
-    const cleric = units.some(u => u.role === 'heal' && !(u.down > 0));
+    const cleric = G.reviveRate() > 1;
     for (const u of units) {
       if (u.down > 0) { const left = unitDown(u.who, u.down - dt * (cleric ? 3 : 1)); if (left <= 0) reviveUnit(u.who, 0.4); }
       else unitHp(u.who, Math.min(u.max, u.hp + u.max * regen * dt));
     }
     // a broken Button mends on its own
-    if (R.btnDown > 0 && (R.btnDown -= dt) <= 0) { R.btnDown = 0; h.hp = D.heroHp * 0.5; emit('buttonFixed'); }
-    // clerics heal whoever is worst off, the Button included
+    if (R.btnDown > 0 && (R.btnDown -= dt) <= 0) { R.btnDown = 0; h.hp = Math.max(h.hp, D.heroHp * 0.5); emit('buttonFixed'); }
+    // clerics heal whoever is worst off, the Button included (a cleric Warden too)
+    const healFrom = src => {
+      let best = null, bk = 0.98;
+      for (const u of G.partyUnits()) if (!(u.down > 0) && u.hp / u.max < bk) { bk = u.hp / u.max; best = u.who; }
+      if (!(R.btnDown > 0) && h.hp / D.heroHp < bk) { bk = h.hp / D.heroHp; best = 'button'; }
+      if (best === 'button') { h.hp = Math.min(D.heroHp, h.hp + D.heroHp * TUNE.healPct * 1.5); emit('heal', src, 'button'); }
+      else if (best != null) { unitHp(best, Math.min(unitMax(best), unitHp(best) + unitMax(best) * TUNE.healPct * (1 + 0.1 * Math.min(10, h.lvl / 5)))); emit('heal', src, best); }
+    };
+    if (G.ROLES[h.cls] === 'heal' && !(h.wdown > 0) && (h.healT = (h.healT || 0) - dt) <= 0) { h.healT = TUNE.healEvery; healFrom(-1); }
     S.party.forEach((m, i) => {
       if (m.down > 0) return;
       const P = D.party[i];
       if (!P) return;
-      if (P.role === 'heal' && (m.healT = (m.healT || 0) - dt) <= 0) {
-        m.healT = TUNE.healEvery;
-        let best = null, bk = 0.98;
-        for (const u of G.partyUnits()) if (!(u.down > 0) && u.hp / u.max < bk) { bk = u.hp / u.max; best = u.who; }
-        if (!(R.btnDown > 0) && h.hp / D.heroHp < bk) { bk = h.hp / D.heroHp; best = 'button'; }
-        if (best === 'button') { h.hp = Math.min(D.heroHp, h.hp + D.heroHp * TUNE.healPct * 1.5); emit('heal', i, 'button'); }
-        else if (best != null) { unitHp(best, Math.min(unitMax(best), unitHp(best) + unitMax(best) * TUNE.healPct * (1 + 0.1 * Math.min(10, h.lvl / 5)))); emit('heal', i, best); }
-      }
+      if (P.role === 'heal' && (m.healT = (m.healT || 0) - dt) <= 0) { m.healT = TUNE.healEvery; healFrom(i); }
       // companions attack on their own
       m.acc = (m.acc || 0) + dt * P.rate;
       let guard = 0;
@@ -3752,8 +3844,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
             emit('wave', wv + 1);
           }
         }
-        // the arena is never empty: fewer than 20 on the field brings the next pack now
-        if (R.hordeAcc < 1) { let vis = 0; for (const m of R.mobs) if (!m.add && m.p >= 0 && ++vis >= 20) break; if (vis < 20) R.hordeAcc = 1; }
+        // the arena is never empty: fewer than minCrowd on the field brings the next pack now
+        if (R.hordeAcc < 1) { let vis = 0; for (const m of R.mobs) if (!m.add && m.p >= 0 && ++vis >= TUNE.minCrowd) break; if (vis < TUNE.minCrowd) R.hordeAcc = 1; }
         if (R.hordeAcc >= 1 && aliveWeight(false) < cap && R.mobs.length < TUNE.mobMax) {
           const w0 = aliveWeight(false);
           spawnPack(false);
@@ -3762,8 +3854,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       }
     }
     // walk & bite
-    const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1);
-    const atk = mobAtk(dnow());
+    const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1) * evMul('speed');
+    const atk = mobAtk(dnow()) * evMul('bite');
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
@@ -3912,7 +4004,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     for (const k in S.rec.crowns || {}) cr[k] = Math.max(0.1, +S.rec.crowns[k] || 0.1);
     const snap = {
       // the best level reached, so ascending (which starts the level over) doesn't sink you on the ladder
-      v: 1, name: (S.profile.name || '').slice(0, 16), cls: h.cls, lvl: Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
+      // v2: 2.0 and later, where depths 65-74 are the Moon and the Star Sea
+      v: 2, name: (S.profile.name || '').slice(0, 16), cls: h.cls, lvl: Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
       depth: S.bestDepth, asc: S.ascensions, fame: S.fameTotal, mad: Math.round(S.rec.madTime || 0), gear, ts: Date.now(),
       rift: rf.best | 0, rt: Math.round(rf.bestT || 0), rd: today, uq: Object.keys(S.uq || {}).length, kills: h.kills | 0, ls: G.starCount ? G.starCount() : 0,
       ev: (S.feed || []).slice(-6), fs: Object.assign({}, S.rec.firsts || {}), cr,
@@ -3958,7 +4051,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const numMap = (o, n) => o == null || (typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length <= n && Object.keys(o).every(k => k.length <= 8 && typeof o[k] === 'number' && o[k] > 0));
     // firsts: known milestones only, dated after the release and not in the future, and actually reached
     const FS = { boss: 0, d5: 0, d10: 0, d20: 0, d30: 0, d40: 0, d50: 0, d60: 0, d65: 0, d75: 0, d80: 0, uq: 0, r4: 0, r5: 0, r6: 0, asc: 0, evo: 0, all14: 0,
-      rift5: 0, rift15: 0, rift30: 0, rift45: 0, rift60: 0, rift80: 0 };
+      rift5: 0, rift15: 0, rift30: 0, rift45: 0, rift60: 0, rift80: 0, jp: 0 };
     const fsOk = k => {
       const v = snap.fs[k];
       if (!(k in FS) || v < 1.75e12 || (typeof snap.ts === 'number' && v > snap.ts + 864e5)) return false;
@@ -4028,6 +4121,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     A('chests_1e3', 'Raider', 'Open 1,000 chests', S => S.st.chests >= 1e3),
     A('chests_1e4', 'Vault Breaker', 'Open 10,000 chests', S => S.st.chests >= 1e4),
     A('chests_1e5', 'No Lock Left', 'Open 100,000 chests', S => S.st.chests >= 1e5),
+    A('field_200', 'Wall to Wall', 'Have 200 chests on the field at once', S => S.chests.length >= 200),
+    A('events_100', 'Anything Can Happen', 'Live through 100 sudden events', S => (S.st.events || 0) >= 100),
+    A('goblins_25', 'Thief Taker', 'Catch 25 treasure goblins', S => (S.st.goblins || 0) >= 25),
+    A('smash_50', 'Rock Breaker', 'Smash 50 meteors before they land', S => (S.st.smashed || 0) >= 50),
+    A('jackpot', 'JACKPOT!', 'Hit the jackpot: about one kill in two million', S => !!(S.jp && S.jp.n > 0), true),
 
     A('rar_0', 'Junk Has Value', 'Find all Common items', S => allRarity(S, 0)),
     A('rar_1', 'Nice!', 'Find all Uncommon items', S => allRarity(S, 1)),
@@ -4129,7 +4227,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     { text: 'Wear a rare item', cur: S => maxWorn(S, g => g.r >= 2 ? 1 : 0), need: 1, rew: { shards: 30 } },
     Object.assign(depth(5), { text: 'Clear depth 5 and slay its lord', rew: { eggs: 2 } }),
     { text: 'Find a unique', cur: uniques, need: 1, rew: { chest: 3 }, hint: 'Lords, rares, Hoarders and Rift Guardians drop them' },
-    { text: 'Collect 5 orbs', cur: S => S.st.orbs || 0, need: 5, rew: { ess: 8 }, hint: 'Use them in the Character tab: pick an item, then an orb' },
+    { text: 'Collect 5 orbs', cur: S => S.st.orbs || 0, need: 5, rew: { ess: 8 }, hint: 'Use them in the Party tab: pick an item, then an orb' },
     { text: 'Hatch 3 different pets', cur: S => Object.keys(S.pets).length, need: 3, rew: { eggs: 2 } },
     { text: 'Enchant an item to +5', cur: S => maxWorn(S, g => g.e), need: 5, rew: { ess: 10 } },
     Object.assign(depth(10), { rew: { eggs: 3 } }),
@@ -4279,6 +4377,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     shrineEvery: 170, shrineFirst: 100, shrineLife: 12, shrineDur: 15,
     breachEvery: 300, breachFirst: 240, breachDur: 12, breachRate: 2.5,
     invEvery: 420, invFirst: 300, invTime: 90, invNeed: 90, invBoss: 30, invFocus: 20, invBossTime: 40,
+    // the JACKPOT: odds per kill and per real chest, climbing by one each hour since the last; its gold in seconds of income
+    jpKill: 5e-7, jpChest: 1.2e-5, jpGold: 3000,
     riftTime: 90, riftNeed: 40, riftGuard: 60,
   });
   Object.assign(R, { ground: [], gUid: 0, hoardT: null, shrine: null, shr: null, shrineT: null, breach: null, breachT: null });
@@ -4380,6 +4480,35 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
   G.lootShower = shower;
 
+  // ---------- The JACKPOT ----------
+  // About one kill in two million or one chest in eighty thousand, and the odds climb with every hour of play
+  // since the last one: most Wardens hit their first after about three hours.
+  const jpOdds = () => { const S = S_(); return 1 + Math.max(0, ((S.st.playTime || 0) - ((S.jp && S.jp.at) || 0)) / 3600); };
+  G.jackpotOdds = jpOdds;
+  G.jackpotRoll = function (m, src) {
+    const S = S_();
+    if (!S.jp || R.rift || !S.hero || !S.hero.cls || S.tut >= 0) return false;
+    // small fry count by weight, so a thicker Horde doesn't hand out more of them
+    const k = src === 'chest' ? TUNE.jpChest : TUNE.jpKill * (m && G.SMALL[m.kind] ? m.w / 0.008 : 3);
+    if (!chance(k * jpOdds())) return false;
+    G.jackpot(m);
+    return true;
+  };
+  G.jackpot = function (m) {
+    const S = S_();
+    S.jp.n = (S.jp.n || 0) + 1; S.jp.at = S.st.playTime || 0;
+    const at = m ? undefined : { a: 0.5, p: 0.8 };
+    const gold = (G.D.incomeRef || 1) * TUNE.jpGold;
+    G.addGold(gold, 'jackpot');
+    // the haul: a heap of gear with a legendary floor, a unique for sure, a fistful of orbs
+    shower(m || null, 24, 4, 1, { floorN: 8, spread: 0.22, at, rolls: 2, wait: 1.4 });
+    for (let i = 0; i < 8; i++) drop('orb', rollOrb(), m || null, { at, wait: 1.6 + i * 0.08, spread: 0.22 });
+    G.first('jp'); G.feed('jackpot', 'the JACKPOT');
+    emit('jackpot', m, gold, S.jp.n);
+    // and then it rains for half a minute
+    if (G.startEvent) G.startEvent('jackpot');
+  };
+
   // Called by hero.js for every kill
   G.lootKill = function (m, src) {
     const S = S_(), h = S.hero;
@@ -4387,13 +4516,20 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const k = lootMult() * (m.br ? 2 : 1) * (m.stone ? 2 : 1);
     // the very first kill always drops something worth a look, and a rare comes early
     if (!S.st.drops) return drop('gear', G.pickItem(1), m);
+    // a treasure goblin spills its sack: a real chest or two and a piece of gear
+    if (m.kind === 'hoard' && m.gob) {
+      S.st.goblins = (S.st.goblins || 0) + 1;
+      for (let i = 0; i < randInt(1, 2); i++) { R.dropAt = m; G.spawnChest(Math.max(1, G.rollTier())); R.dropAt = null; }
+      return drop('gear', rollGear(1), m);
+    }
     if (m.kind === 'hoard') { S.st.hoards++; emit('hoardDie', m); return shower(m, randInt(8, 12), 2, 0.04, { floorN: 2, spread: 0.1 }); }
     if (m.kind === 'guardian') return null; // the Rift or the invasion pays out on its own
     if (m.kind === 'rare') return shower(m, randInt(3, 5), 1, 0.006 * (uq('goldgrin') ? 1.5 : 1), { floorN: 1, spread: 0.05 });
     // the first champion ever always drops an epic
     if (m.kind === 'magic' && !S.st.firstMagic) { S.st.firstMagic = 1; return drop('gear', G.pickItem(3), m); }
     // everything else drops by its weight: a brute's worth of fodder drops about what a brute does
-    let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
+    // fodder by weight too, so thicker packs of lighter bodies drop the same
+    let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder * m.w / 0.008 : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
     p *= k;
     if (h.kills < 60 && !S.st.firstRare && chance(0.08)) { S.st.firstRare = 1; return drop('gear', G.pickItem(2), m); }
     let e = null;
@@ -4500,7 +4636,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     ['boss', 'First boss'], ['d5', 'The Crab King'], ['uq', 'First unique'], ['r4', 'First legendary'], ['d10', 'Depth 10'], ['rift5', 'Rift 5'],
     ['asc', 'First ascension'], ['evo', 'First evolution'], ['r5', 'First mythic'], ['d20', 'Depth 20'], ['rift15', 'Rift 15'], ['d30', 'Depth 30'],
     ['r6', 'First divine'], ['d40', 'The Mad Button'], ['rift30', 'Rift 30'], ['rift45', 'Rift 45'],
-    ['d50', 'Depth 50'], ['d60', 'Depth 60'], ['d65', 'The First Hand'], ['d75', 'The Star Eater'], ['rift60', 'Rift 60'], ['all14', 'Every unique'], ['d80', 'Depth 80'], ['rift80', 'Rift 80'],
+    ['d50', 'Depth 50'], ['d60', 'Depth 60'], ['d65', 'The First Hand'], ['d75', 'The Star Eater'], ['rift60', 'Rift 60'], ['all14', 'Every unique'], ['d80', 'Depth 80'], ['rift80', 'Rift 80'], ['jp', 'First JACKPOT'],
   ];
   G.first = function (k) {
     const S = S_();
@@ -4572,6 +4708,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (!won) for (const m of R.mobs.slice()) if (m.inv) { m.dead = true; R.mobs.splice(R.mobs.indexOf(m), 1); emit('mobFlee', m); }
     emit('invasionEnd', won, r);
   }
+  G.endInvasion = endInvasion;
   G.invasionKill = function (m) {
     const r = R.inv;
     if (!r || !m.inv) return;
@@ -4603,7 +4740,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (m.life <= 0) {
         m.dead = true; m.gone = true;
         const i = R.mobs.indexOf(m); if (i >= 0) R.mobs.splice(i, 1);
-        emit('mobFlee', m); emit('hoardFlee', m);
+        emit('mobFlee', m); if (!m.gob) emit('hoardFlee', m);
       }
     }
   };
@@ -4731,7 +4868,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       // the clock runs through boss fights too; the invasion waits for the fight to end
       if (R.invT == null) R.invT = S.st.invasions ? rand(0.8, 1.2) * TUNE.invEvery : TUNE.invFirst;
       if (R.invT > 0) R.invT -= dt;
-      if (R.invT <= 0 && !busy() && !R.bossReady) { R.invT = rand(0.8, 1.2) * TUNE.invEvery; startInvasion(); }
+      if (R.invT <= 0 && !busy() && !(R.bossReady && S.set.autoBoss) && !R.ev) { R.invT = rand(0.8, 1.2) * TUNE.invEvery; startInvasion(); }
     }
     // first-time timers: a Hoarder in the first minute, a shrine soon after
     if (R.hoardT == null) R.hoardT = S.st.hoards ? rand(0.6, 1.2) * TUNE.hoardEvery : TUNE.hoardFirst;
@@ -4760,17 +4897,199 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.worldClear = function () {
     R.ground.length = 0; R.rift = null; R.shrine = null; R.shr = null; R.breach = null; R.inv = null;
     R.hoardT = R.shrineT = R.breachT = R.invT = null;
+    R.btnDown = 0; R.stun = 0;
+    if (G.eventsClear) G.eventsClear();
   };
   G.worldReset = function () {
     G.pickupAll();
     R.rift = null; R.shrine = null; R.shr = null; R.breach = null;
+    if (R.inv) endInvasion(false);
+    R.invT = null;
+    if (G.R.ev && G.endEvent) G.endEvent(false);
   };
   // Leaving the screen for a while: the Rift collapses, the loot is gathered
   G.worldAway = function () {
     if (R.rift) riftEnd(false, 'away');
     G.pickupAll();
     R.shrine = null; R.breach = null;
+    if (G.R.ev && G.endEvent) G.endEvent(false);
   };
+})(globalThis.G = globalThis.G || {});
+
+/* js/events.js */
+// BTTN — sudden events: every minute or so something happens to the arena for a few seconds.
+// No DOM here: this runs in the Node playtests too. hero.js and game.js read G.evMul(key).
+(function (G) {
+  'use strict';
+  const { rand, randInt, chance, emit } = G;
+  const R = G.R, TUNE = G.TUNE;
+  Object.assign(TUNE, {
+    evFirst: 70, evMin: 45, evMax: 95,   // the first after a minute, then every 45-95 s
+    metEvery: 0.38, metFall: 1.2,        // a meteor every 0.38 s, 1.2 s from the sky to the ground
+  });
+
+  // at: the best depth it needs; t: how long it lasts; mul: what it does to the arena while it lasts
+  const EVENTS = G.EVENTS = [
+    { id: 'stampede', at: 1, w: 3, t: 12, col: '#ff7a2e', icon: 'ev_stampede', name: 'STAMPEDE!', sub: 'The Horde charges from one side: hold the line for a chest shower',
+      mul: { speed: 1.5 } },
+    { id: 'goldrush', at: 0, w: 3, t: 15, col: '#ffd84a', icon: 'ev_goldrush', name: 'GOLD RUSH', sub: 'Every kill pays six times the gold, every click three',
+      mul: { gold: 6, click: 3 } },
+    { id: 'chestrain', at: 0, w: 3, t: 6, col: '#ffe27a', icon: 'ev_chestrain', name: 'CHEST RAIN', sub: 'Chests fall from the sky' },
+    { id: 'goblins', at: 2, w: 2, t: 20, col: '#8ae07a', icon: 'ev_goblins', name: 'TREASURE GOBLINS', sub: 'Thieves with sacks of loot: catch them before they run' },
+    { id: 'meteors', at: 3, w: 2, t: 12, col: '#ff5a2e', icon: 'ev_meteors', name: 'METEOR STORM', sub: 'Rocks from the sky crush the Horde. Tap one to smash it for gold' },
+    { id: 'bloodmoon', at: 5, w: 2, t: 20, col: '#ff3b5c', icon: 'ev_bloodmoon', name: 'BLOOD MOON', sub: 'The Horde is twice as tough and bites twice as hard. XP ×3, chests ×3',
+      mul: { mobHp: 2, bite: 2, xp: 3, chest: 3 } },
+    { id: 'ambush', at: 4, w: 2, t: 14, col: '#ff4f4f', icon: 'ev_ambush', name: 'AMBUSH!', sub: 'Champions right at the Button: cut them down for a reward' },
+    { id: 'swarm', at: 2, w: 2, t: 9, col: '#b6ff5a', icon: 'ev_swarm', name: 'SWARM', sub: 'Hundreds of little ones pour in from everywhere' },
+    { id: 'frenzy', at: 1, w: 2, t: 10, col: '#ffe27a', icon: 'ev_frenzy', name: 'ADRENALINE', sub: 'The whole party attacks twice as fast',
+      mul: { rate: 2 } },
+    // never by chance: only the JACKPOT (js/world.js) sets it off
+    { id: 'jackpot', at: 0, w: 0, t: 30, col: '#ffd84a', icon: 'ic_jackpot', name: 'JACKPOT FRENZY', sub: 'Gold ×10 and it rains chests',
+      mul: { gold: 10, click: 10, chest: 4 } },
+  ];
+  const EV_BY_ID = G.EV_BY_ID = {};
+  EVENTS.forEach(e => EV_BY_ID[e.id] = e);
+
+  G.evMul = k => {
+    const e = R.ev && EV_BY_ID[R.ev.k];
+    return e && e.mul && e.mul[k] ? e.mul[k] : 1;
+  };
+
+  // a boss about to come on its own would cut the event short; with the auto-boss off, a full bar doesn't hold events back
+  const bossSoon = () => R.bossReady && G.S.set.autoBoss;
+  const busy = () => R.boss || R.rift || R.inv || bossSoon() || R.stun > 0;
+  const S_ = () => G.S;
+
+  function startEvent(k) {
+    const S = S_(), d = S.bestDepth || 0;
+    const pool = EVENTS.filter(e => d >= e.at && e.w > 0);
+    if (R.ev) endEvent(false);
+    let e = k ? EV_BY_ID[k] : null;
+    if (!e) { const tot = pool.reduce((a, x) => a + x.w, 0); let r = G.rng() * tot; for (const x of pool) { r -= x.w; if (r <= 0) { e = x; break; } } e = e || pool[0]; }
+    // not the same one twice running
+    if (!k && R.evLast === e.id && pool.length > 1) e = pool.find(x => x.id !== R.evLast) || e;
+    R.evLast = e.id;
+    const ev = R.ev = { k: e.id, t: e.t, T: e.t, n: 0, acc: 0, a: G.rng(), met: [], ids: [], won: false };
+    S.st.events = (S.st.events || 0) + 1;
+    if (e.mul && (e.mul.rate || e.mul.mobHp)) R.dirty = true;
+    if (e.id === 'ambush') ambush(ev);
+    if (e.id === 'goblins') goblins(ev);
+    emit('evStart', ev, e);
+    return ev;
+  }
+  G.startEvent = startEvent;
+
+  function endEvent(ok) {
+    const ev = R.ev;
+    if (!ev) return;
+    const e = EV_BY_ID[ev.k];
+    R.ev = null;
+    if (e.mul && (e.mul.rate || e.mul.mobHp)) R.dirty = true;
+    // what holding out pays
+    let reward = 0;
+    if (ok && ev.k === 'stampede' && !(R.btnDown > 0)) reward = randInt(6, 10);
+    if (ok && ev.k === 'ambush' && ev.won) reward = randInt(4, 6);
+    // a real chest or better, never the lowest
+    for (let i = 0; i < reward; i++) G.spawnChest(Math.max(1, G.rollTier()));
+    // what's left of the thieves runs off
+    if (ev.k === 'goblins') for (const m of R.mobs.slice()) if (m.gob) { m.dead = true; m.gone = true; R.mobs.splice(R.mobs.indexOf(m), 1); emit('mobFlee', m); }
+    emit('evEnd', ev, e, ok, reward);
+  }
+  G.endEvent = endEvent;
+
+  // ---------- The events ----------
+  function ambush(ev) {
+    const a = ev.a, mk = (kind, da, p) => { const m = G.makeMob(kind, a + da, p); m.amb = 1; ev.ids.push(m.id); return m; };
+    mk('magic', 0, 0.6); mk('magic', 0.03, 0.56);
+    mk('brute', -0.03, 0.62); mk('brute', 0.05, 0.58);
+    if ((S_().bestDepth || 0) >= 10) mk('rare', 0.01, 0.5);
+    for (let i = 0; i < 40 && R.mobs.length < TUNE.mobMax; i++) G.makeMob('fodder', a + rand(-0.06, 0.06), rand(0.4, 0.65));
+  }
+  function goblins(ev) {
+    const n = randInt(5, 8), d = G.depthNow();
+    for (let i = 0; i < n; i++) {
+      const m = G.makeMob('hoard', rand(0.1, 0.9), 0.6);
+      m.gob = 1; m.w = 0.4; m.hp = m.max = G.mobHp(d) * 3;
+      m.move = 'hoard'; m.life = ev.T; m.dir = chance(0.5) ? 1 : -1; m.ph = rand(0, 6);
+      ev.ids.push(m.id);
+    }
+  }
+  // where a meteor lands, in the Horde's own terms: its angle round the Button and how close in
+  function meteorHit(mt) {
+    const hit = [];
+    for (const m of R.mobs) {
+      if (m.dead || m.kind === 'guardian' || m.kind === 'hoard') continue;
+      const da = Math.abs(m.a - mt.a), dp = Math.abs(m.p - mt.p);
+      if (da < 0.045 && dp < 0.14) hit.push(m);
+    }
+    const big = (G.D.heroHit || 1) * 12;
+    for (const m of hit) G.dealHit(m, Math.max(big, m.max * 0.6), 'meteor', false);
+    // one that lands right by the Button hurts
+    if (mt.p > 0.86 && G.hurtParty && G.victim) G.hurtParty(G.victim(), G.mobAtk(G.depthNow()) * 5, 'meteor');
+    emit('meteorHit', mt, hit.length);
+  }
+  G.smashMeteor = function (id) {
+    const ev = R.ev;
+    if (!ev || ev.k !== 'meteors') return false;
+    const i = ev.met.findIndex(x => x.id === id);
+    if (i < 0) return false;
+    const mt = ev.met.splice(i, 1)[0];
+    const g = (G.D.incomeRef || 1) * 3;
+    G.addGold(g, 'event');
+    S_().st.smashed = (S_().st.smashed || 0) + 1;
+    emit('meteorSmash', mt, g);
+    return true;
+  };
+
+  function tickEvent(dt) {
+    const ev = R.ev, e = EV_BY_ID[ev.k];
+    // a boss, a Rift or an invasion takes over the arena
+    if ((R.boss || R.rift || R.inv) && ev.k !== 'jackpot') { endEvent(false); return; }
+    ev.t -= dt;
+    ev.acc += dt;
+    if (ev.k === 'stampede') {
+      // pack after pack from one side, and faster
+      while (ev.acc >= 0.55 && R.mobs.length < TUNE.mobMax) { ev.acc -= 0.55; G.spawnPack(false, ev.a); }
+    } else if (ev.k === 'chestrain' || ev.k === 'jackpot') {
+      // chest rain: 22 in six seconds; the jackpot's: sixty good ones over half a minute
+      const jp = ev.k === 'jackpot', every = jp ? 0.5 : e.t / 22;
+      while (ev.acc >= every) { ev.acc -= every; R.rain = 1; G.spawnChest(jp ? Math.min(6, G.rollTier() + 2) : undefined); R.rain = 0; ev.n++; }
+    } else if (ev.k === 'meteors') {
+      while (ev.acc >= TUNE.metEvery) {
+        ev.acc -= TUNE.metEvery;
+        // most fall where the Horde is thickest; a few anywhere
+        const near = R.mobs.filter(m => !m.dead && m.p > 0.1 && m.p < 0.95 && m.kind !== 'guardian');
+        const src = near.length && chance(0.8) ? near[Math.floor(G.rng() * near.length)] : null;
+        const mt = { id: ++ev.n, a: src ? src.a : G.rng(), p: src ? G.clamp(src.p + 0.08, 0.15, 0.97) : rand(0.2, 0.95), t: TUNE.metFall, T: TUNE.metFall };
+        ev.met.push(mt);
+        emit('meteorFall', mt);
+      }
+      for (let i = ev.met.length - 1; i >= 0; i--) { const mt = ev.met[i]; if ((mt.t -= dt) <= 0) { ev.met.splice(i, 1); meteorHit(mt); } }
+    } else if (ev.k === 'swarm') {
+      // a flood of little ones from every side over the first seconds
+      while (ev.acc >= 0.05 && ev.n < 260 && R.mobs.length < TUNE.mobMax) {
+        ev.acc -= 0.05; ev.n++;
+        const m = G.makeMob('fodder', G.rng(), -rand(0, 0.15));
+        m.hp = m.max = m.hp * 0.35; m.swarm = 1;
+      }
+    } else if (ev.k === 'ambush') {
+      if (!ev.won && ev.ids.every(id => !R.mobs.some(m => m.id === id))) { ev.won = true; endEvent(true); return; }
+    } else if (ev.k === 'goblins') {
+      if (ev.ids.every(id => !R.mobs.some(m => m.id === id))) { endEvent(true); return; }
+    }
+    if (ev.t <= 0) endEvent(ev.k !== 'ambush');
+  }
+
+  G.eventsTick = function (dt) {
+    const S = S_();
+    // nothing sudden while the tutorial is still showing the ropes
+    if (!S.hero || !S.hero.cls || S.tut >= 0) return;
+    if (R.ev) { tickEvent(dt); return; }
+    if (R.evT == null) R.evT = TUNE.evFirst;
+    if (R.evT > 0) R.evT -= dt;
+    if (R.evT <= 0 && !busy()) { R.evT = rand(TUNE.evMin, TUNE.evMax); startEvent(); }
+  };
+  G.eventsClear = function () { R.ev = null; R.evT = null; };
 })(globalThis.G = globalThis.G || {});
 
 /* js/net.js */
@@ -4905,6 +5224,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   function prepare(list) {
     return list.filter(e => e && typeof e === 'object').map(e => {
+      // rows from before 2.0: their crowns past depth 65 belonged to lands that come later now
+      if ((e.v | 0) < 2 && e.cr && typeof e.cr === 'object') { const cr = {}; for (const k in e.cr) if (+k < 65) cr[k] = e.cr[k]; e = Object.assign({}, e, { cr }); }
       const problems = G.verifySnapshot(e);
       let power = e.power;
       try { if (!problems.length) power = G.ladderPower(e); } catch (err) { /* keep the claimed number */ }
@@ -7486,6 +7807,412 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   });
 })(globalThis.G = globalThis.G || {});
 
+/* js/art3.js */
+// BTTN — art for 2.1: field chests, the Looter, the treasure goblin, meteors, event and perk icons.
+// Loaded after sprites.js (and art2.js); uses its def(). SPR.get() adds the 1px dark outline itself,
+// so none of these grids carry one.
+(function (G) {
+  'use strict';
+  const SPR = G.SPR;
+  if (!SPR) return;
+  const def = SPR.def;
+
+  // rows for a w x h piece from a per-pixel painter (x, y) -> palette char or '.'
+  function paint(w, h, fn) {
+    const rows = [];
+    for (let y = 0; y < h; y++) { let r = ''; for (let x = 0; x < w; x++) r += fn(x, y) || '.'; rows.push(r); }
+    return rows;
+  }
+  // compose a w x h grid from [x, y, rows] layers, later layers on top ('.' keeps what is under)
+  function stamp(w, h, layers) {
+    const g = [];
+    for (let y = 0; y < h; y++) g.push(new Array(w).fill('.'));
+    for (const [x0, y0, rows] of layers) rows.forEach((r, y) => {
+      for (let x = 0; x < r.length; x++) {
+        const X = x0 + x, Y = y0 + y;
+        if (r[x] !== '.' && X >= 0 && X < w && Y >= 0 && Y < h) g[Y][X] = r[x];
+      }
+    });
+    return g.map(r => r.join(''));
+  }
+  // wrap the solid pixels in a ring of `ch` (4-neighbour, or 8 with diag)
+  function ring(rows, ch, diag) {
+    const h = rows.length, w = rows[0].length;
+    const solid = (x, y) => x >= 0 && y >= 0 && x < w && y < h && rows[y][x] !== '.';
+    return rows.map((r, y) => r.split('').map((c, x) => {
+      if (c !== '.') return c;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if ((!dx && !dy) || (!diag && dx && dy)) continue;
+        if (solid(x + dx, y + dy)) return ch;
+      }
+      return '.';
+    }).join(''));
+  }
+  const dist = (x, y, cx, cy) => Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+
+  // ================= MINI CHESTS (8x7, scattered on the field) =================
+  // Same palette keys as the big chest (sprites.js CHEST_PX): L lid, l lid light, w shine,
+  // D body, d body light, M metal band, K lock, k keyhole. chestm_0..6 follow CHEST_PAL's tier order.
+  const CHESTM_PX = [
+    '.LLLLLL.',
+    'LlwlllLL',
+    'LLLLLLLL',
+    'MMMKKMMM',
+    'DddKkddD',
+    'DddddddD',
+    'MDDDDDDM',
+  ];
+  // copy of sprites.js CHEST_PAL (not exposed on SPR); keep in step if the big chests are recoloured
+  const CHEST_PAL = [
+    { L: '#b07a45', l: '#d09a5c', w: '#e8b878', D: '#7a4a24', d: '#9a6434', M: '#6e7080', K: '#b8c0cc', k: '#1a1a22' },
+    { L: '#3f8a34', l: '#63c24f', w: '#9ae07a', D: '#285a22', d: '#347a2c', M: '#8a8a9a', K: '#ffd84a', k: '#1a1a22' },
+    { L: '#2f66e0', l: '#5a90ff', w: '#9ac0ff', D: '#1a3f9a', d: '#2452c0', M: '#d2dae4', K: '#ffffff', k: '#1a1a22' },
+    { L: '#7a38c0', l: '#a868f0', w: '#d0a8ff', D: '#4a1f80', d: '#6030a0', M: '#ffc629', K: '#fff3a0', k: '#2a1a3a' },
+    { L: '#f08a1e', l: '#ffb85a', w: '#ffe0a0', D: '#a8520a', d: '#d06c14', M: '#ffe27a', K: '#ffffff', k: '#6b2a00' },
+    { L: '#c8244e', l: '#ff5f86', w: '#ffa8c0', D: '#7a1030', d: '#a01a3e', M: '#2a2a33', K: '#ff9ab4', k: '#0c0b12' },
+    { L: '#e8ecfa', l: '#ffffff', w: '#ffffff', D: '#aab4d0', d: '#ccd4ea', M: '#ffd84a', K: '#7fe9ff', k: '#3f63d9' },
+  ];
+  CHEST_PAL.forEach((pal, i) => def('chestm_' + i, pal, CHESTM_PX));
+
+  // ================= THE LOOTER (12x12, faces right) =================
+  // a round little stone porter with a dark visor and glowing cyan eyes, a big gold key held like a lance
+  const LOOTER_PAL = { w: '#e8e8f0', g: '#b4b4c2', G: '#8a8a98', D: '#5e5e6c', c: '#7fe9ff', k: '#1a1a22', y: '#ffd84a', Y: '#c98f10' };
+  const LOOTER_TOP = [
+    '....ggggg...',
+    '...gwwggggG.',
+    '..gwgggggggG',
+    '..gwgkckkckG',
+    '..gggkkkkkkG',
+    '..ggggggggGG',
+    '...GGGGGGGG.',
+    'yyy.DggggD..',
+    'y.yYyyyyygYy',
+    'yyy.gggggGyY',
+  ];
+  // run frames: legs apart, legs passing
+  def('looter_0', LOOTER_PAL, LOOTER_TOP.concat([
+    '...gG...gG..',
+    '..DDD...DDD.',
+  ]));
+  def('looter_1', LOOTER_PAL, LOOTER_TOP.concat([
+    '.....gGgG...',
+    '....DDDD....',
+  ]));
+  // arms up, the key held high over its head (for opening a chest)
+  def('looter_2', LOOTER_PAL, [
+    '.........yyy',
+    'YyyyyyyyyY.y',
+    'Y.g.....gyyy',
+    '..D.gggg.D..',
+    '..DgwwgggD..',
+    '..DwgggggD..',
+    '..gkckkckG..',
+    '..gkkkkkkG..',
+    '..gggggggG..',
+    '...GGGGGG...',
+    '...gG..gG...',
+    '..DDD..DDD..',
+  ]);
+
+  // ================= TREASURE GOBLIN (12x12, faces right) =================
+  // a hunched goblin under a bulging golden sack, coins at its mouth and one tumbling out
+  const THIEF_PAL = { g: '#7ac84a', G: '#4f8f2e', e: '#ffe27a', k: '#1a1a22', S: '#e0a848', s: '#f8d070', B: '#a8701e',
+    y: '#ffe27a', Y: '#d8900e', w: '#ffffff', r: '#8a3a2a', t: '#7a4a22' };
+  const THIEF_TOP = [
+    '..ywyy......',
+    '.ywyYyy.....',
+    '.tSyySt.....',
+    'SssSSSSS....',
+    'SssSSSSSSg..',
+    'SsSSSSSSggg.',
+    'SSSSSSSBgekg',
+    'BSSSSSBBgggg',
+    '.BBBBBtgGgr.',
+  ];
+  def('m_thief', THIEF_PAL, THIEF_TOP.concat([
+    '.w...gGGG...',
+    'yYy..gG.gG..',
+    '.Y..GG...GG.',
+  ]));
+  def('m_thief_1', THIEF_PAL, THIEF_TOP.concat([
+    '.w...gGGG...',
+    'yYy...gGG...',
+    '.Y...GG.....',
+  ]));
+
+  // ================= METEOR (8x8) + IMPACT DECAL (12x7) =================
+  // falls toward the bottom left; the fire streams off its top-right trailing edge
+  const METEOR_PAL = { K: '#5a4a44', k: '#3a2e2c', R: '#8a6a5a', r: '#e0401e', o: '#ff8a2e', y: '#ffd84a', w: '#fff3b0' };
+  def('fx_meteor', METEOR_PAL, [
+    '.....o.r',
+    '...royor',
+    '..oywyo.',
+    '.KRyyo.r',
+    'KKKRyo..',
+    'KkKKo...',
+    'KKkK....',
+    '.KK.....',
+  ]);
+  // scorched crater: lighter dirt rim, dark burnt floor, glowing cracks from a hot centre
+  def('d_impact', { r: '#9a8466', R: '#6a5642', K: '#2e2426', k: '#1c1618', o: '#ff7a2e', y: '#ffd84a' }, [
+    '...rrrrrr...',
+    '.rrKKoKKKrr.',
+    'rKKoKoKKoKKr',
+    'rKKKoyyoKKKR',
+    'RKKoKkKoKoKR',
+    '.RRKKKKKKRR.',
+    '...RRRRRR...',
+  ]);
+
+  // ================= EVENT / PERK ICONS (16x16) =================
+  // stampede: a charging bull's head, horns out, dust kicked up
+  def('ev_stampede', { h: '#f4ecd8', H: '#b8ac90', b: '#8a5a34', B: '#5e3a20', l: '#b07a4a', r: '#ff3b3b', m: '#e0a888', M: '#b8806a', n: '#3a2014', d: '#cfc4ae', D: '#968a74' }, [
+    'h..............h',
+    'Hh............hH',
+    'Hhh..bbbbbb..hhH',
+    '.HhhbbllllbbhhH.',
+    '..HbbllllllbbH..',
+    '..bbBBllllBBbb..',
+    '..bbbrBllBrbbb..',
+    '...bbbbbbbbbb...',
+    '....mmmmmmmm....',
+    '...mMnmmmmnMm...',
+    '...mmmmmmmmmm...',
+    '....MmmmmmmM....',
+    '.dd..........dd.',
+    'dddd.d....d.dddd',
+    'dDddddd..ddddDdd',
+    '.DDDDD....DDDDD.',
+  ]);
+
+  // gold rush: a heap of coins, two big ones in front, and a sparkle
+  {
+    const COIN8 = ['..YYYY..', '.YyWWyY.', 'YyWyyyyo', 'YWyYYyyo', 'YyyYyyyo', 'Yyyyyyyo', '.oyyyyo.', '..oooo..'];
+    const COIN6 = ['.YYYY.', 'YWWyyo', 'YWyYyo', 'YyyYyo', 'Yyyyyo', '.oooo.'];
+    const FLAT = ['.yyyy.', 'yWyyyy', 'YyyyyY', '.YYYY.'];
+    const mound = paint(16, 16, (x, y) => (((x + 0.5 - 8) / 7.8) ** 2 + ((y + 0.5 - 16) / 9.5) ** 2 < 1 ? 'o' : ''));
+    def('ev_goldrush', { y: '#ffd84a', Y: '#d8900e', o: '#8a5a08', W: '#fffbe0', w: '#ffffff' }, stamp(16, 16, [
+      [0, 0, mound],
+      [5, 7, FLAT], [1, 9, FLAT], [9, 9, FLAT], [-1, 12, FLAT], [11, 12, FLAT], [4, 12, FLAT],
+      [0, 9, COIN6], [7, 8, COIN8],
+      [11, 0, ['..w..', '..w..', 'wwwww', '..w..', '..w..']],
+      [2, 3, ['.w.', 'www', '.w.']],
+    ]));
+  }
+
+  // chest rain: two chunky down arrows over a chest
+  {
+    const ARROW = ['..awA..', '..aaA..', '..aaA..', 'aaaaaAA', '.aaaAA.', '..aAA..', '...A...'];
+    def('ev_chestrain', { a: '#ffe27a', A: '#ffb347', w: '#ffffff', L: '#c98f55', l: '#e0aa6a', D: '#8b5a2b', d: '#a86e38', M: '#9aa0a8', K: '#ffd84a', k: '#1a1a22' }, stamp(16, 16, [
+      [0, 0, ARROW], [8, 0, ARROW],
+      [1, 8, [
+        '..LLLLLLLLLL..',
+        '.LlwwlllllllL.',
+        'LLLLLLLLLLLLLL',
+        'MMMMMKKKKMMMMM',
+        'DddddKkkKddddD',
+        'DddddKKKKddddD',
+        'DddddddddddddD',
+        'MDDDDDDDDDDDDM',
+      ]],
+    ]));
+  }
+
+  // goblins: a fat gold sack, a green claw reaching down to snatch it by the neck
+  def('ev_goblins', { y: '#ffd84a', Y: '#c98f10', o: '#8a5a08', W: '#fffbe0', r: '#8a5a2e', g: '#7ac84a', G: '#3f7a26', c: '#f4ecd8', k: '#1a1a22' }, stamp(16, 16, [
+    [0, 3, [
+      '....y.yy.....',
+      '....yyWyy....',
+      '....oyyyo....',
+      '.....rrr.....',
+      '...yyyyyyy...',
+      '..yyyyyyyyy..',
+      '.yWyyyyyyyyY.',
+      'yWWyyyyyyyyYY',
+      'yWyyyyyyyyyYY',
+      'yyyyyyyyyyYYY',
+      'yyyyyyyyyYYYo',
+      '.yyyyyyyYYYo.',
+      '..ooooooooo..',
+    ]],
+    [8, 0, [
+      '.....GgG',
+      '....GggG',
+      '...GgggG',
+      '.ggggggG',
+      'gGgGgGGk',
+      'g.g.g.G.',
+      'c.c.c...',
+    ]],
+  ]));
+
+  // meteors: a burning rock streaking down from the top right
+  def('ev_meteors', METEOR_PAL, paint(16, 16, (x, y) => {
+    const X = x + 0.5, Y = y + 0.5, cx = 4.6, cy = 11.4;
+    const vx = X - cx, vy = Y - cy, r = Math.sqrt(vx * vx + vy * vy);
+    const a = (vx - vy) * Math.SQRT1_2, b = Math.abs(vx + vy) * Math.SQRT1_2; // along / across the trail
+    if (r < 3.5) {
+      if (dist(X, Y, 3.6, 12.6) < 1.1) return 'k';
+      if (a > 1.6) return 'R';
+      return vx + vy > 2.2 ? 'k' : 'K';
+    }
+    if (a > 0 && a < 15.5) {
+      const wd = 3.3 - a * 0.21 + Math.sin(a * 1.9) * 0.35;
+      if (b < wd) {
+        const f = b / wd;
+        if (f < 0.4) return a < 6 ? 'w' : a < 9.5 ? 'y' : 'o';
+        if (f < 0.75) return a < 8 ? 'y' : 'o';
+        return a < 10 ? 'o' : 'r';
+      }
+    }
+    return '';
+  }));
+
+  // blood moon: a big red moon with dark craters, lit from the top left
+  {
+    const craters = [[5.2, 5.4, 1.9], [10.6, 5.2, 1.3], [9.6, 11, 2.3], [4.2, 10.6, 1.3], [12.6, 9.4, 0.9]];
+    def('ev_bloodmoon', { h: '#ff8a7a', r: '#e8323a', R: '#b01a2e', D: '#78101e', c: '#8e1426', C: '#560818' }, paint(16, 16, (x, y) => {
+      const X = x + 0.5, Y = y + 0.5, rr = dist(X, Y, 8, 8);
+      if (rr > 7.7) return '';
+      const lit = ((8 - X) + (8 - Y)) * 0.075 + (1 - rr / 7.7) * 0.55;
+      let ch = lit > 0.78 ? 'h' : lit > 0.18 ? 'r' : lit > -0.2 ? 'R' : 'D';
+      for (const [cx, cy, cr] of craters) {
+        const d = dist(X, Y, cx, cy);
+        if (d < cr) ch = d > cr - 1 && (X - cx) + (Y - cy) < 0 ? 'C' : 'c';
+      }
+      return ch;
+    }));
+  }
+
+  // ambush: two crossed swords behind a red "!"
+  {
+    const sword = (X, Y, px, py, tx, ty) => {
+      const L = dist(px, py, tx, ty), dx = (tx - px) / L, dy = (ty - py) / L;
+      const vx = X - px, vy = Y - py, a = vx * dx + vy * dy, b = vx * dy - vy * dx, ab = Math.abs(b);
+      if (a < 0 || a > L + 0.3) return '';
+      if (a < 1.3) return ab < 0.8 ? 'P' : '';
+      if (a < 3.4) return ab < 0.4 ? 'H' : '';
+      if (a < 4.8) return ab < 1.8 ? (b > 0 ? 'g' : 'G') : '';
+      if (ab < Math.min(0.8, (L + 0.3 - a) * 0.9)) return ab < 0.35 ? 'D' : 'L';
+      return '';
+    };
+    const swords = paint(16, 16, (x, y) => {
+      const X = x + 0.5, Y = y + 0.5;
+      return sword(X, Y, 1.5, 14.5, 14.5, 1.5) || sword(X, Y, 14.5, 14.5, 1.5, 1.5);
+    });
+    def('ev_ambush', { L: '#eef2f8', D: '#9aa6b8', g: '#ffd84a', G: '#c98f10', H: '#6b4020', P: '#c9a032', r: '#ff4040', R: '#b01a1a', k: '#1a1a22' }, stamp(16, 16, [
+      [0, 0, swords],
+      [6, 1, ['kkkk', 'krRk', 'krRk', 'krRk', 'krRk', 'krRk', 'kkkk', '.kk.', 'kkkk', 'krRk', 'kkkk']],
+    ]));
+  }
+
+  // swarm: a cloud of little red-eyed bugs
+  {
+    const BUG = ['w...w', 'Wbbbw', 'brbrb', '.bBb.'];
+    def('ev_swarm', { b: '#6a4aa0', B: '#3a2460', w: '#e0e6ff', W: '#a8b0d8', r: '#ff3b3b' }, stamp(16, 16, [
+      [0, 1, BUG], [9, 0, BUG], [5, 5, BUG], [11, 6, BUG], [0, 9, BUG], [6, 11, BUG], [12, 12, BUG],
+    ]));
+  }
+
+  // frenzy: a yellow lightning bolt in a red glow
+  {
+    const bolt = [
+      '................',
+      '..........yyy...',
+      '.........yyY....',
+      '........yyY.....',
+      '.......yyY......',
+      '......ywyyyyy...',
+      '.....yyyyyyY....',
+      '.........yY.....',
+      '........yY......',
+      '.......yY.......',
+      '......yY........',
+      '.....yY.........',
+      '....yY..........',
+      '................',
+      '................',
+      '................',
+    ];
+    def('ev_frenzy', { y: '#ffe27a', Y: '#ffb347', w: '#ffffff', o: '#ff7a2e', r: '#e0303a' }, ring(ring(bolt, 'o', false), 'r', true));
+  }
+
+  // jackpot: a golden Button (gold dome on a dark-gold base) with star sparkles
+  def('ic_jackpot', { w: '#ffffff', W: '#fff3b0', y: '#ffd84a', Y: '#f5b62a', o: '#c98f10', O: '#6a4404', b: '#a8700c', B: '#d8900e' }, stamp(16, 16, [
+    [0, 0, paint(16, 16, (x, y) => {
+      const X = x + 0.5, Y = y + 0.5, cx = 8;
+      const inE = (ey, rx, ry) => ((X - cx) / rx) ** 2 + ((Y - ey) / ry) ** 2 < 1;
+      if (inE(6, 5.6, 2.4)) return inE(5.4, 3.6, 1.4) && X < cx ? 'W' : 'y'; // glossy top face
+      if ((Y > 6 && Y < 10 && Math.abs(X - cx) < 5.6) || inE(10, 5.6, 2.2)) return X < cx - 3.6 ? 'W' : X < cx + 1.5 ? 'Y' : 'o'; // dome side
+      if (inE(11, 6.8, 2.2)) return 'O'; // housing ring
+      if (Y > 11 && Y < 15.5 && Math.abs(X - cx) < 7.6 - Math.max(0, Y - 14)) return Y < 13 ? 'B' : Math.abs(X - cx) > 6.8 || Y > 14.5 ? 'O' : 'b'; // base
+      return '';
+    })],
+    [0, 0, ['.w.', 'www', '.w.']],
+    [12, 0, ['..w..', '..w..', 'wwwww', '..w..', '..w..']],
+  ]));
+
+  // vault: a round steel door with bolts on the rim and a gold wheel
+  def('ic_vault', { s: '#c8d0dc', S: '#7a8494', m: '#aab4c4', M: '#8a94a6', D: '#4a5262', w: '#ffffff', y: '#ffd84a', Y: '#c98f10' }, paint(16, 16, (x, y) => {
+    const X = x + 0.5, Y = y + 0.5, r = dist(X, Y, 8, 8), ang = Math.atan2(Y - 8, X - 8);
+    if (r > 7.7) return '';
+    if (r > 6.3) {
+      const k = Math.round(ang / (Math.PI / 4)), off = Math.abs(ang - k * Math.PI / 4) * r;
+      if (off < 0.55 && r < 7.2) return 'w';
+      return X + Y < 15 ? 's' : 'S';
+    }
+    if (r > 5.5) return 'D';
+    const spoke = Math.abs(X - 8) < 0.6 || Math.abs(Y - 8) < 0.6;
+    if (r < 1.3) return 'w';
+    if (r < 3.2 && spoke) return 'Y';
+    if (r >= 3.2 && r < 4.3) return X + Y < 16 ? 'y' : 'Y';
+    if (r >= 4.3 && r < 5.3 && spoke) return 'y';
+    return X + Y < 14 ? 'm' : 'M';
+  }));
+
+  // crew: two little Looter heads side by side
+  {
+    const HEAD = [
+      '..gggg..',
+      '.gwwgggG',
+      'gwwggggG',
+      'gwggggGG',
+      'gkckkckG',
+      'gkkkkkkG',
+      'ggggggGG',
+      '.GGGGGG.',
+      'DggggggD',
+      'gggggGGG',
+    ];
+    def('ic_crew', LOOTER_PAL, stamp(16, 16, [[0, 1, HEAD], [8, 6, HEAD]]));
+  }
+
+  // plunder: a sleeved hand pinching a gold coin up out of an open chest
+  def('pk_plunder', { s: '#f2c6a0', S: '#c8906a', v: '#4f7ac8', V: '#2a4a8a', y: '#ffd84a', Y: '#c98f10', W: '#fffbe0',
+    L: '#c98f55', l: '#e0aa6a', D: '#8b5a2b', d: '#a86e38', M: '#9aa0a8', k: '#2a1a14', K: '#ffd84a' }, stamp(16, 16, [
+    [1, 8, [
+      '.DDDDDDDDDDDD.',
+      'LLLLLLLLLLLLLL',
+      'kkkkkkkkkkkkkk',
+      'MkykkyykkykyyM',
+      'LlllllKKllllLL',
+      'DdddddKKddddDD',
+      'DddddddddddddD',
+      'MDDDDDDDDDDDDM',
+    ]],
+    [5, 4, ['.yyyy.', 'yWWyyY', 'yWyyyY', 'yyyyyY', 'yyyyYY', '.YYYY.']],
+    [4, 0, [
+      '........vVV',
+      '......ssvVV',
+      '...sSsSssV.',
+      '..sSsSsssS.',
+      '.ss.......S',
+      '.s.......sS',
+      '.........s.',
+    ]],
+  ]));
+})(globalThis.G = globalThis.G || {});
+
 /* js/doll.js */
 // BTTN — the Warden's paper doll. A layered pixel character built from the
 // class and whatever is equipped: body armour in the item's colours, helmets,
@@ -7999,6 +8726,33 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   A.carnage = function (t) { if (!t) return; [0, 5, 9, 12].forEach((s, i) => tone(note(14 + s + t * 2), 0.1, 'square', 0.05, i * 0.04)); };
   A.star = function () { [0, 4, 7, 12, 16, 19].forEach((s, i) => tone(note(12 + s), 0.22, 'triangle', 0.08, i * 0.07)); thud(0.2, 0.14, 0, 600); };
   A.wave = function () { tone(98, 0.6, 'sawtooth', 0.07, 0, 131); tone(147, 0.6, 'sawtooth', 0.05, 0.05, 196); thud(0.15, 0.12, 0, 500); };
+  // a sting for each sudden event
+  const EV_STING = {
+    stampede: { seq: [0, 0, -5, -5, 0], type: 'sawtooth', base: 7, step: 0.09 },
+    goldrush: { seq: [0, 4, 7, 12, 16, 19], type: 'square', base: 24, step: 0.05 },
+    chestrain: { seq: [12, 7, 4, 0, 7, 12], type: 'triangle', base: 22, step: 0.06 },
+    goblins: { seq: [0, 3, 0, 5, 7], type: 'square', base: 19, step: 0.07 },
+    meteors: { seq: [12, 7, 2, -3], type: 'sawtooth', base: 14, step: 0.1 },
+    bloodmoon: { seq: [0, 3, 7, 6], type: 'triangle', base: 5, step: 0.16 },
+    ambush: { seq: [0, 6, 0, 6, 0, 6], type: 'sawtooth', base: 12, step: 0.07 },
+    swarm: { seq: [0, 1, 0, 1, 0, 1, 0, 1], type: 'square', base: 26, step: 0.03 },
+    frenzy: { seq: [0, 5, 7, 12, 17, 19, 24], type: 'square', base: 17, step: 0.035 },
+  };
+  A.event = function (k) {
+    const e = EV_STING[k]; if (!e) return;
+    e.seq.forEach((s, i) => tone(note(e.base + s), e.step * 1.8, e.type, 0.07, i * e.step));
+    if (k === 'stampede' || k === 'meteors' || k === 'ambush') { thud(0.3, 0.12, 0, 300); noise(0.5, 0.05, 0.05, 400); }
+  };
+  // the JACKPOT: a slot machine running up, the big chord, bells
+  A.jackpot = function () {
+    for (let i = 0; i < 24; i++) tone(note(24 + (i * 5) % 24), 0.06, 'square', 0.05, i * 0.045);
+    [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => tone(note(24 + s), 1.4, i % 2 ? 'triangle' : 'square', 0.05, 1.1 + i * 0.02));
+    for (let i = 0; i < 10; i++) tone(note(48 + [0, 7, 12, 16][i % 4]), 0.35, 'sine', 0.05, 1.3 + i * 0.16);
+    thud(0.5, 0.16, 1.1, 250); noise(1.2, 0.04, 1.1, 3000);
+  };
+  // the Button low on health: a heartbeat
+  A.heartbeat = function () { thud(0.12, 0.13, 0, 160); thud(0.1, 0.09, 0.16, 140); };
+  A.whoosh = function () { if (!throttle('whoosh', 120)) return; noise(0.35, 0.025, 0, 1800); tone(900, 0.35, 'sine', 0.012, 0, 200); };
   A.boom = function () { if (!throttle('boom', 70)) return; thud(0.15, 0.14, 0, 500); tone(80, 0.18, 'square', 0.06, 0, 40); noise(0.08, 0.05, 0, 1500); };
   A.rift = function (n) {
     if (n === 0) { noise(0.9, 0.06, 0, 200); [0, 3, 7, 12].forEach((s, i) => tone(note(7 + s), 0.6, 'sawtooth', 0.04, i * 0.12)); tone(55, 1.4, 'sine', 0.12, 0, 40); }
@@ -8094,7 +8848,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // Wire game events
   G.on('click', ev => { A.click(ev.combo, ev.crit || ev.mega); if (ev.dmg) A.bossHit(); });
-  G.on('chestOpen', loot => { if (loot.source === 'offline') return; A.chest(loot.items.reduce((m, x) => Math.max(m, x.it.r), 0)); });
+  G.on('chestOpen', loot => {
+    if (loot.source === 'offline') return;
+    // a little chest of coin: a bright tick, kept sparse when they pop in heaps
+    if (!loot.items.length) { if (throttle('coinChest', 70)) { tone(note(30 + (Math.random() * 5 | 0)), 0.05, 'square', 0.035); tone(note(37), 0.04, 'triangle', 0.03, 0.03); } return; }
+    A.chest(loot.items.reduce((m, x) => Math.max(m, x.it.r), 0));
+  });
   G.on('merge', () => A.merge());
   G.on('buy', () => A.buy());
   G.on('bossStart', b => A.bossStart(b.lord));
@@ -8148,7 +8907,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   let holdTimer = 0, holding = false;
   let hitstop = 0, slowmo = 0, kick = 0, btnFlashT = 0, fdt = 1 / 60;
   // clicks in a quick run add up into one growing number; kill gold is summed and shown at the Button
-  let clickTxt = null, killGold = 0, killGoldT = 0, frameKills = 0, comboTier = 0;
+  let clickTxt = null, killGold = 0, killGoldT = 0, frameKills = 0, comboTier = 0, openHeat = 0;
+  // how hard the party is being hit right now (drives the red edge), and the Button's damage not yet shown
+  let hurtFx = 0, btnDmg = 0, btnDmgT = 0, beatT = 0;
   const fmtSmall = v => (v < 10 ? String(+v.toFixed(2)) : G.fmt(v));
   // The Button is a spring: every click squashes it and it bounces back
   const btnSpring = { s: 1, v: 0 };
@@ -8205,18 +8966,26 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const used = new Set(); for (const [, v] of vis) used.add(v.slot);
     const n = Math.min(slots.length, G.D.slots || 6);
     for (let i = 0; i < n; i++) if (!used.has(i)) return i;
-    for (let i = 0; i < slots.length; i++) if (!used.has(i)) return i;
-    return 0;
+    return -1;
+  }
+  // a spot on the open field for a chest that has no slot by the Button: anywhere round it, clear of the middle
+  function fieldSpot() {
+    const b = btnPos();
+    const a = rand(0, Math.PI * 2), k = rand(0.42, 0.95);
+    return onField(b.x + Math.cos(a) * W * 0.46 * k, b.y + Math.sin(a) * H * 0.4 * k + 6);
   }
   function visFor(c) {
     let v = vis.get(c.id);
     if (!v) {
-      const slot = freeSlot(), s = slots[slot];
+      const slot = freeSlot(), s = slot >= 0 ? slots[slot] : fieldSpot();
       v = { slot, x: s.x, y: s.y, t: 0, drop: 1, hit: 0 };
       vis.set(c.id, v);
     }
     return v;
   }
+  // with a crowd of chests the field ones shrink to little ones
+  const miniChest = (v, c) => (c && c.small) || (v.slot < 0 && G.S.chests.length > 12);
+  const chestSpr = (c, v) => SPR.get((c.bag ? 'bag_' : miniChest(v, c) && SPR.defs['chestm_' + c.tier] ? 'chestm_' : 'chest_') + c.tier);
   St.chestScreen = function (c) { const v = vis.get(c.id); return v ? { x: v.x * S, y: v.y * S } : null; };
   // Logical stage point -> viewport pixels (for the tutorial pointer)
   St.toScreen = function (x, y) { const r = cv.getBoundingClientRect(); return { x: r.left + x * S, y: r.top + y * S }; };
@@ -8325,6 +9094,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     G.on('chestSpawn', (c, fromBoss) => {
       // Loot from a mob pops out of its body in an arc and lands where it fell
       const src = G.R.dropAt;
+      if (G.R.rain) {
+        const land = fieldSpot();
+        vis.set(c.id, { slot: -1, x: land.x, y: land.y, t: 0, drop: 0, hit: 0, arc: { sx: land.x + rand(-30, 30), sy: -30, t: 0, dur: rand(0.55, 0.85) } });
+        return;
+      }
       if (src) {
         const q = mobPos(src);
         const land = onField(q.x + rand(-10, 10), q.y + rand(-2, 6));
@@ -8333,7 +9107,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       }
       const v = visFor(c);
       v.drop = 1; v.t = 0;
-      if (c.tier >= 3) beams.push({ x: v.x, y: v.y, col: rarityCol(c.tier), life: 0.8, max: 0.8, w: 3 });
+      if (c.tier >= 3 && G.S.chests.length < 60) beams.push({ x: v.x, y: v.y, col: rarityCol(c.tier), life: 0.8, max: 0.8, w: 3 });
     });
     G.on('merge', (partsC, nc) => {
       const pts = partsC.map(c => vis.get(c.id)).filter(Boolean);
@@ -8354,9 +9128,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       else if (loot.source === 'boss' && bossVis) { const b = bossPos(); x = b.x + rand(-20, 20); y = b.y + rand(-4, 10); }
       else { const b = btnPos(); x = b.x + rand(-30, 30); y = b.y + rand(10, 25); }
       if (loot.source === 'offline') return;
+      const top = loot.items.length ? loot.items.reduce((a, b) => (b.it.r > a.it.r ? b : a), loot.items[0]) : null;
+      const r = top ? top.it.r : 0;
+      // a little chest of coin: a pop and the gold
+      if (!top) { burst(x, y - 4, ['#ffd84a', '#fff3a0', rarityCol(c.tier)], 5, 45, { life: 0.35 }); openHeat += 1; killGold += loot.gold; if (killGoldT <= 0) killGoldT = 0.3; if (coins.length < 200) coins.push({ x, y: y - 6, vx: rand(-30, 30), vy: rand(-80, -40), floor: y + rand(-2, 3), t: rand(0.35, 0.6), fly: 0 }); return; }
+      // many at once (Looters, Plunder, a full field): a pop and the gold, the good ones still in full
+      openHeat += 1;
+      if (openHeat > 6 && r < 3 && !c.mod) {
+        burst(x, y - 4, [rarityCol(c.tier), '#ffd84a'], 3, 40, { life: 0.3 });
+        killGold += loot.gold; if (killGoldT <= 0) killGoldT = 0.3;
+        return;
+      }
       opening.push({ x, y, tier: c.tier, t: 0, dur: 0.35, bag: c.bag });
-      const top = loot.items.reduce((a, b) => (b.it.r > a.it.r ? b : a), loot.items[0]);
-      const r = top.it.r;
       burst(x, y - 5, [rarityCol(r), '#ffffff', rarityCol(c.tier)], 8 + r * 4, 55 + r * 10);
       if (r >= 3) beams.push({ x, y, col: rarityCol(r), life: 1.2 + r * 0.2, max: 1.2 + r * 0.2, w: r >= 5 ? 7 : 5 });
       // Item icons pop up
@@ -8386,10 +9169,17 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     G.on('mimicFlee', c => { const v = vis.get(c.id); if (v) { burst(v.x, v.y, '#9a9aa8', 10, 40); text(v.x, v.y - 10, G.t('fled'), '#9a9aa8', 4); } vis.delete(c.id); });
     G.on('burn', (c, g) => { const v = vis.get(c.id); if (v) { burst(v.x, v.y, ['#ff7a2e', '#ffd84a', '#3a3a44'], 16, 50); text(v.x, v.y - 10, G.t('burned'), '#ff7a2e', 4); } vis.delete(c.id); });
     G.on('spill', (tier, g) => { if (g < 1) return; const b = btnPos(); text(b.x + rand(-40, 40), b.y + 30, G.t('noRoom') + ' +' + G.fmt(g), '#c8c8d4', 3, { vy: -10 }); });
-    G.on('golem', c => {
+    G.on('golem', (c, i) => {
       const v = vis.get(c.id); if (!v) return;
+      const L = i != null ? lootVis[i] : null;
+      if (L) { L.lift = 0.25; L.x = v.x - 5 * L.face; L.y = v.y + 1; burst(v.x, v.y - 6, ['#ffd84a', '#7fe9ff'], 4, 40, { life: 0.3 }); return; }
       const b = btnPos();
       shots.push({ x: b.x, y: b.y + 14, sx: b.x, sy: b.y + 14, tx: v.x, ty: v.y - 4, t: 0, dur: 0.18, col: '#ffd84a', key: true });
+    });
+    G.on('plunder', (m, c) => {
+      const v = vis.get(c.id); if (!v) return;
+      const q = mobPos(m);
+      shots.push({ x: q.x, y: q.y - 6, sx: q.x, sy: q.y - 6, tx: v.x, ty: v.y - 4, t: 0, dur: 0.22, col: '#ffd84a' });
     });
     G.on('heroAttack', onHeroAttack);
     G.on('mobDie', gore);
@@ -8541,8 +9331,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     let best = null, bd = 1e9;
     for (const c of G.S.chests) {
       const v = vis.get(c.id); if (!v) continue;
-      const dx = p.x - v.x, dy = p.y - (v.y - 5);
-      if (Math.abs(dx) <= 10 && Math.abs(dy) <= 9) { const d = dx * dx + dy * dy; if (d < bd) { bd = d; best = c; } }
+      const mini = miniChest(v, c), dx = p.x - v.x, dy = p.y - (v.y - (mini ? 3 : 5));
+      if (Math.abs(dx) <= (mini ? 7 : 10) && Math.abs(dy) <= (mini ? 6 : 9)) { const d = dx * dx + dy * dy; if (d < bd) { bd = d; best = c; } }
     }
     return best;
   }
@@ -8556,7 +9346,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     return Math.abs(p.x - b.x) <= rx && Math.abs(p.y - (b.y - 4)) <= ry;
   }
   function hitReady(p) {
-    if (!G.R.bossReady || G.R.boss || G.R.rift) return false;
+    if (!G.R.bossReady || G.R.boss || G.R.rift || G.R.inv) return false;
     const b = btnPos();
     return Math.abs(p.x - b.x) < 12 && Math.abs(p.y - (b.y - 44)) < 6;
   }
@@ -8564,11 +9354,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     G.Audio && G.Audio.unlock();
     if (hitWisp(p)) { G.catchWisp(); return 'wisp'; }
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
-    const dn = hitDowned(p);
-    if (dn != null) { G.reviveTap(dn); return 'revive'; }
+    const mt = hitMeteor(p);
+    if (mt != null && G.smashMeteor(mt)) return 'meteor';
     const ge = hitLoot(p);
     if (ge) { G.pickup(ge, 'hand'); return 'loot'; }
     if (hitShrine(p)) { G.useShrine('hand'); return 'shrine'; }
+    const dn = hitDowned(p);
+    if (dn != null) { G.reviveTap(dn); return 'revive'; }
     const c = hitChest(p);
     if (c) { G.clickChest(c); return 'chest'; }
     const m = hitMob(p);
@@ -8686,7 +9478,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // Companions hold places around the Button; the Warden keeps the left.
   const allyVis = [];
   const aVis = i => allyVis[i] || (allyVis[i] = { atk: null, face: 1, hurt: 0, heal: 0, ph: Math.random() * 6 });
-  const SLOTS_AT = [[34, 14], [-14, 36], [18, 38]];
+  // clear of the chest ring by the Button
+  const SLOTS_AT = [[34, 14], [0, 36], [-34, -4]];
   function allySlot(i) { const b = btnPos(), o = SLOTS_AT[i] || [0, 40]; return { x: b.x + o[0], y: b.y + o[1] }; }
   function unitPos(who) { return who === 'button' ? { x: btnPos().x, y: btnPos().y - 6 } : who < 0 ? heroPos() : allySlot(who); }
   St.unitPoint = who => { const q = unitPos(who); return St.toScreen(q.x, q.y - 12); };
@@ -8771,8 +9564,17 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     });
     G.on('unitHurt', (who, dmg, src) => {
       aVisOf(who).hurt = 0.12;
-      const q = unitPos(who);
-      if (Math.random() < 0.3 || src === 'boss' || src === 'slam' || src === 'barrage') text(q.x + rand(-5, 5), q.y - 28, '-' + G.fmt(dmg), '#ff6b6b', 3, { life: 0.6, max: 0.6, vy: -16 });
+      const q = unitPos(who), max = who < 0 ? G.D.wardenHp : (G.D.party[who] || {}).hp || 1, f = dmg / Math.max(1, max);
+      hurtFx = Math.min(1, hurtFx + f * 1.6);
+      const big = f > 0.12 || src === 'boss' || src === 'slam' || src === 'barrage' || src === 'meteor';
+      if (big || Math.random() < 0.35) text(q.x + rand(-5, 5), q.y - 28, '-' + G.fmt(dmg), big ? '#ff3b3b' : '#ff6b6b', big ? 4 : 3, { life: 0.7, max: 0.7, vy: -18 });
+      if (big) { burst(q.x, q.y - 8, ['#ff3b3b', '#ffffff'], 5, 50); St.shake(2); }
+    });
+    // the Button: every bite shows, summed up a few times a second so a swarm reads as one big number
+    G.on('buttonHurt', dmg => {
+      const f = dmg / Math.max(1, G.D.heroHp);
+      btnDmg += dmg; hurtFx = Math.min(1, hurtFx + f * 2.2);
+      if (f > 0.06) { btnSpring.v -= Math.min(0.35, f * 2); St.shake(Math.min(5, 1 + f * 20)); }
     });
     G.on('unitDown', who => {
       const q = unitPos(who);
@@ -8788,6 +9590,40 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     G.on('buttonFixed', () => { const b = btnPos(); burst(b.x, b.y - 8, ['#ffd84a', '#ffffff', '#56d45a'], 24, 80); text(b.x, b.y - 32, G.t('buttonFixed'), '#56d45a', 4, { life: 1.4, max: 1.4, vy: -10 }); });
     G.on('clickDead', () => { const b = btnPos(); burst(b.x + rand(-8, 8), b.y - 6, ['#6e6e7c', '#3a3a44'], 3, 25, { life: 0.3 }); });
     G.on('recruit', (m, i) => { const q = allySlot(i); burst(q.x, q.y - 10, ['#ffd84a', '#ffffff'], 30, 90); ring(q.x, q.y - 4, 20, 10, '#ffd84a', 0.5); cardText(0, G.t('joined', G.L(G.CLASS_BY_ID[m.cls].name)).toUpperCase(), '#ffd84a', 6, { life: 2.4, vy: -3, big: true }); cardText(9, G.t('role_' + G.ROLES[m.cls]), '#ffffff', 3, { life: 2.4, vy: -3 }); });
+    G.on('evStart', (ev, e) => {
+      if (e.id === 'jackpot') return; // the jackpot has a show of its own
+      cardText(0, e.name, e.col, 7, { life: 2.6, vy: -2, big: true, now: true });
+      cardText(10, e.sub, '#ffffff', 3, { life: 2.6, vy: -2 });
+      St.flash(0.3, e.col); St.shake(e.id === 'ambush' || e.id === 'stampede' ? 6 : 3);
+      if (G.Audio && G.Audio.event) G.Audio.event(e.id);
+    });
+    G.on('evEnd', (ev, e, ok, reward) => {
+      if (reward && ev.k === 'stampede') cardText(0, G.t('evHeld', reward), '#ffd84a', 6, { life: 2.2, vy: -3, big: true });
+      else if (reward && ev.k === 'ambush') cardText(0, G.t('evCleared', reward), '#ffd84a', 6, { life: 2.2, vy: -3, big: true });
+      else if (ok && ev.k === 'goblins' && ev.ids.every(id => !G.R.mobs.some(m => m.id === id)) && ev.t > 0) cardText(0, G.t('evCaught'), '#8ae07a', 6, { life: 2, vy: -3, big: true });
+      if (reward && G.Audio && G.Audio.levelUp) G.Audio.levelUp();
+    });
+    G.on('jackpot', (m, gold) => {
+      jp = { t: 0, gold };
+      hitstop = Math.max(hitstop, 0.5); slowmo = Math.max(slowmo, 2.5);
+      St.flash(1, '#fff3a0'); St.shake(10);
+      if (G.Audio && G.Audio.jackpot) G.Audio.jackpot();
+    });
+    G.on('meteorFall', () => { if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); });
+    G.on('meteorHit', mt => {
+      const q = metPos(mt);
+      burst(q.x, q.y - 3, ['#ffd84a', '#ff7a2e', '#ff3b3b', '#3a2a24'], 26, 110);
+      ring(q.x, q.y - 2, 22, 11, '#ff7a2e', 0.45);
+      decal(q.x, q.y, ['#2a1a14', '#3a2418', '#1a0e0a'], 7);
+      St.shake(3); hitstop = Math.max(hitstop, 0.03);
+      if (G.Audio && G.Audio.boom) G.Audio.boom();
+    });
+    G.on('meteorSmash', (mt, g) => {
+      const q = metPos(mt), f = 1 - mt.t / mt.T, mx = q.x + (1 - f) * 70, my = q.y - 6 - (1 - f) * 130;
+      burst(mx, my, ['#ffd84a', '#ffffff', '#ff7a2e'], 18, 90);
+      text(mx, my - 8, G.t('evSmashed', G.fmt(g)), '#ffd84a', 4, { life: 1.2, max: 1.2, vy: -14 });
+      if (G.Audio && G.Audio.click) G.Audio.click(40, true);
+    });
     G.on('slotOpen', () => { cardText(0, G.t('slotOpen'), '#ffd84a', 6, { life: 3, vy: -2, big: true }); cardText(9, G.t('slotOpenSub'), '#ffffff', 3, { life: 3, vy: -2 }); if (G.Audio && G.Audio.levelUp) G.Audio.levelUp(); });
     G.on('invasion', (r, V) => {
       St.flash(0.4, V.col); St.shake(4);
@@ -8822,7 +9658,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     for (const u of G.partyUnits ? G.partyUnits() : []) {
       if (!(u.down > 0)) continue;
       const q = unitPos(u.who);
-      if (Math.abs(p.x - q.x) <= 11 && Math.abs(p.y - (q.y - 5)) <= 10) return u.who;
+      if (Math.abs(p.x - q.x) <= 9 && Math.abs(p.y - (q.y - 3)) <= 6) return u.who;
     }
     return null;
   }
@@ -8849,6 +9685,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     return best;
   }
   function mobSprite(m, realm) {
+    if (m.gob) { const f = Math.floor(time * 8 + m.id) % 2 ? 'm_thief_1' : 'm_thief'; return SPR.defs[f] ? SPR.get(f) : SPR.get('m_hoard'); }
     // an invasion's mobs come in its own shapes
     if (m.inv && G.INV_BY_ID[m.inv]) {
       const V = G.INV_BY_ID[m.inv];
@@ -8876,6 +9713,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (v.hit > 0 && Math.random() < 0.5 && coins.length < 240) coins.push({ x: q.x, y: q.y - 8, vx: rand(-50, 50), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.4, 0.7), fly: 0 });
     }
     if (m.kind === 'magic') glow(q.x, q.y - 8, 7, '#3f7fff', 0.2 + 0.07 * Math.sin(time * 5 + m.id));
+    if (m.amb) glow(q.x, q.y - 6, 9, '#ff3b3b', 0.22 + 0.1 * Math.sin(time * 9 + m.id));
+    if (m.gob && Math.random() < 0.15 && coins.length < 200) coins.push({ x: q.x, y: q.y - 6, vx: rand(-20, 20), vy: rand(-50, -20), floor: q.y + rand(-2, 3), t: rand(0.4, 0.7), fly: 0 });
     // a spitter swells before it spits; a bomber's fuse fizzes, faster as it gets close
     if (m.kind === 'spitter' && m.p >= (G.TUNE.spitStop || 0.68) && m.atkT < 0.6) glow(q.x, q.y - 5, 5, '#b6ff5a', 0.25 + 0.5 * (0.6 - m.atkT));
     if (m.kind === 'bomber') {
@@ -9598,6 +10437,115 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (V.id === 'deep' && Math.random() < 0.4) part(rand(0, W), H + 2, pick(['#4fe0c8', '#9ff0e0']), { vx: rand(-4, 4), vy: -rand(20, 40), grav: 0, life: rand(1, 2) });
   }
   let invFade = 0, lastInv = null;
+  // ---------- Sudden events (js/events.js) ----------
+  let evFade = 0, evLastK = null;
+  const metPos = mt => mobPos({ id: -1000 - mt.id, a: mt.a, p: mt.p, kind: 'x' });
+  function drawEventFx(dt) {
+    const ev = G.R.ev;
+    evFade = clamp(evFade + (ev ? dt : -dt) * 2, 0, 1);
+    if (ev) evLastK = ev.k;
+    const k = evLastK;
+    if (evFade <= 0 || !k) return;
+    if (k === 'bloodmoon') {
+      lctx.globalAlpha = 0.2 * evFade; lctx.fillStyle = '#6a0014'; lctx.fillRect(0, 0, W, H);
+      const mo = SPR.defs.ev_bloodmoon ? SPR.get('ev_bloodmoon') : null;
+      if (mo) { lctx.globalAlpha = 0.85 * evFade; lctx.drawImage(mo, Math.round(W * 0.8 - mo.width * 1.5), 16, mo.width * 3, mo.height * 3); }
+      lctx.globalAlpha = 1;
+      if (ev && Math.random() < 0.3) part(rand(0, W), -2, pick(['#ff3b5c', '#a0102a']), { vx: rand(-4, 4), vy: rand(20, 40), grav: 0, life: 1.4 });
+    } else if (k === 'goldrush') {
+      lctx.globalAlpha = 0.07 * evFade; lctx.fillStyle = '#ffd84a'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1;
+      if (ev) for (let i = 0; i < 2; i++) if (Math.random() < 0.7) part(rand(0, W), -2, pick(['#ffd84a', '#fff3a0', '#c98f10']), { vx: rand(-6, 6), vy: rand(50, 90), grav: 40, life: 1.6, size: 2 });
+    } else if (k === 'frenzy') {
+      lctx.globalAlpha = (0.06 + 0.04 * Math.sin(time * 12)) * evFade; lctx.fillStyle = '#ffe27a'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1;
+    } else if (k === 'stampede' && ev) {
+      // dust boils up where they charge from
+      const q = mobPos({ id: -1, a: ev.a, p: 0.05, kind: 'x' });
+      for (let i = 0; i < 3; i++) if (Math.random() < 0.8) part(q.x + rand(-26, 26), q.y + rand(-14, 14), pick(['#c8b89a', '#a89878', '#e0d4b8']), { vx: rand(-10, 10), vy: rand(-14, -4), grav: 0, life: rand(0.5, 1.1), size: 2 });
+    }
+    if (k === 'meteors' && ev) for (const mt of ev.met) {
+      const q = metPos(mt), f = 1 - mt.t / mt.T;
+      // where it will land: a shrinking red ring
+      const r = Math.round(10 - 5 * f);
+      lctx.globalAlpha = 0.35 + 0.4 * f; lctx.fillStyle = '#ff3b3b';
+      for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 + time * 2; lctx.fillRect(Math.round(q.x + Math.cos(a) * r), Math.round(q.y - 2 + Math.sin(a) * r * 0.55), 1, 1); }
+      lctx.globalAlpha = 1;
+      // the rock itself, coming in from high up and to the right
+      const mx = q.x + (1 - f) * 70, my = q.y - 4 - (1 - f) * 130;
+      const spr = SPR.defs.fx_meteor ? SPR.get('fx_meteor') : null;
+      glow(mx, my - 3, 6, '#ff7a2e', 0.4);
+      if (spr) blit(spr, Math.round(mx), Math.round(my)); else { lctx.fillStyle = '#ff7a2e'; lctx.fillRect(Math.round(mx) - 2, Math.round(my) - 4, 4, 4); }
+      if (Math.random() < 0.8) part(mx + 2, my - 4, pick(['#ffd84a', '#ff7a2e', '#ff3b3b', '#6e6e7c']), { vx: rand(10, 30), vy: rand(-40, -20), grav: 0, life: 0.35 });
+    }
+  }
+  // ---------- The JACKPOT: the whole screen goes gold ----------
+  let jp = null;
+  const easeBounce = x => { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) return n * (x -= 1.5 / d) * x + 0.75; if (x < 2.5 / d) return n * (x -= 2.25 / d) * x + 0.9375; return n * (x -= 2.625 / d) * x + 0.984375; };
+  function drawJackpot(dt) {
+    if (!jp) return;
+    jp.t += dt;
+    const T = 6, t = jp.t;
+    if (t > T) { jp = null; return; }
+    const fade = Math.min(1, t / 0.25, (T - t) / 0.8);
+    const b = btnPos();
+    // the world dims, and gold rays turn round the Button
+    lctx.globalAlpha = 0.6 * fade; lctx.fillStyle = '#0c0712'; lctx.fillRect(0, 0, W, H);
+    lctx.globalAlpha = 0.22 * fade;
+    for (let i = 0; i < 16; i++) {
+      const a0 = time * 0.9 + i / 16 * Math.PI * 2, a1 = a0 + Math.PI / 22, R_ = Math.max(W, H);
+      lctx.fillStyle = i % 2 ? '#ffd84a' : '#fff3a0';
+      lctx.beginPath(); lctx.moveTo(b.x, b.y - 10); lctx.lineTo(b.x + Math.cos(a0) * R_, b.y - 10 + Math.sin(a0) * R_); lctx.lineTo(b.x + Math.cos(a1) * R_, b.y - 10 + Math.sin(a1) * R_); lctx.fill();
+    }
+    lctx.globalAlpha = 1;
+    // a golden Button drops from the sky and bounces
+    const gb = SPR.button('#ffd84a', false, 0, false);
+    // it lands just above the real one
+    const k = Math.min(1, t / 0.9), y = Math.round(-40 + (b.y - 4) * easeBounce(k));
+    glow(b.x, y - 12, 34, '#ffd84a', 0.5 * fade);
+    lctx.globalAlpha = fade; blit(gb, b.x, y, 2); lctx.globalAlpha = 1;
+    // a fountain of coins and confetti
+    if (t < T - 1) for (let i = 0; i < 7; i++) part(b.x + rand(-10, 10), y - 16, pick(['#ffd84a', '#fff3a0', '#c98f10', '#ffffff', '#ff7ae6', '#7fe9ff']), { vx: rand(-90, 90), vy: rand(-170, -80), grav: 190, life: rand(1, 1.8), size: 2 });
+  }
+  function drawJackpotText() {
+    if (!jp) return;
+    const t = jp.t, b = btnPos(), pop = 1 + 0.12 * Math.sin(t * 9) + (t < 0.3 ? (0.3 - t) * 3 : 0);
+    const alpha = Math.min(1, t / 0.2, (6 - t) / 0.8);
+    if (alpha <= 0) return;
+    ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = crisp(13 * pop) + 'px ' + FONT; ctx.lineWidth = 3; ctx.strokeStyle = '#0c0b12';
+    const str = G.t('jpTitle'), y = Math.round(cardY(0.15));
+    // every letter its own colour, running round the rainbow
+    const w = ctx.measureText(str).width;
+    let x = W / 2 - w / 2;
+    ctx.textAlign = 'left';
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i], cw = ctx.measureText(ch).width;
+      ctx.strokeText(ch, x, y + Math.sin(t * 8 + i) * 1.5);
+      ctx.fillStyle = 'hsl(' + ((t * 300 + i * 30) % 360) + ',95%,62%)';
+      ctx.fillText(ch, x, y + Math.sin(t * 8 + i) * 1.5);
+      x += cw;
+    }
+    ctx.textAlign = 'center'; ctx.font = crisp(4) + 'px ' + FONT; ctx.lineWidth = 2;
+    ctx.strokeText(G.t('jpSub'), W / 2, y + 14); ctx.fillStyle = '#fff3a0'; ctx.fillText(G.t('jpSub'), W / 2, y + 14);
+    if (jp.gold) { ctx.font = crisp(6) + 'px ' + FONT; ctx.strokeText('+' + G.fmt(jp.gold), W / 2, y + 24); ctx.fillStyle = '#ffd84a'; ctx.fillText('+' + G.fmt(jp.gold), W / 2, y + 24); }
+    ctx.restore();
+  }
+  // a fallen ally blinks TAP, so it's clear the Hand can raise them
+  function drawTapHints() {
+    if (!G.partyUnits || Math.sin(time * 6) < -0.2) return;
+    const units = G.partyUnits().filter(u => u.down > 0);
+    if (!units.length) return;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1.5; ctx.strokeStyle = '#0c0b12';
+    for (const u of units) { const q = unitPos(u.who); ctx.strokeText(G.t('tapRevive'), q.x, q.y - 22); ctx.fillStyle = '#8ae07a'; ctx.fillText(G.t('tapRevive'), q.x, q.y - 22); }
+  }
+  function hitMeteor(p) {
+    const ev = G.R.ev;
+    if (!ev || ev.k !== 'meteors') return null;
+    for (const mt of ev.met) {
+      const q = metPos(mt), f = 1 - mt.t / mt.T, mx = q.x + (1 - f) * 70, my = q.y - 6 - (1 - f) * 130;
+      if (Math.hypot(p.x - mx, p.y - my) < 11 || Math.hypot(p.x - q.x, p.y - q.y) < 9) return mt.id;
+    }
+    return null;
+  }
   function drawRiftTint() {
     const r = G.R.rift;
     if (!r) return;
@@ -9780,9 +10728,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     frameKills = 0;
     stepCards(dt);
     // a boss about to arrive on its own counts down over the Button
-    const bin = G.R.bossReady && !G.R.boss && G.S.set.autoBoss && G.R.bossIn != null && G.R.bossIn > 0 && G.bossOdds && G.bossOdds() >= 0.6 ? Math.ceil(G.R.bossIn) : 0;
+    const bin = G.R.bossReady && !G.R.boss && !G.R.inv && G.S.set.autoBoss && G.R.bossIn != null && G.R.bossIn > 0 && G.bossOdds && G.bossOdds() >= 0.6 ? Math.ceil(G.R.bossIn) : 0;
     if (bin && bin !== lastCount) { const b = btnPos(); text(b.x, b.y - 62, G.t('bossCountdown', bin), '#ff4f4f', 6, { life: 0.9, max: 0.9, vy: -6, big: true }); St.shake(1); if (G.Audio && G.Audio.bossCount) G.Audio.bossCount(bin); }
     lastCount = bin;
+    openHeat = Math.max(0, openHeat - dt * 8);
+    hurtFx = Math.max(0, hurtFx - dt * 1.1);
+    if (btnDmg > 0 && (btnDmgT -= dt) <= 0) {
+      const b = btnPos(), f = btnDmg / Math.max(1, G.D.heroHp);
+      text(b.x + rand(-12, 12), b.y - 30, '-' + fmtSmall(btnDmg), f > 0.08 ? '#ff3b3b' : '#ff7a7a', f > 0.08 ? 5 : 4, { life: 0.75, max: 0.75, vy: -20 });
+      btnDmg = 0; btnDmgT = 0.22;
+    }
+    const lowHp = G.S.hero && G.S.hero.cls && !(G.R.btnDown > 0) && G.S.hero.hp < G.D.heroHp * 0.3;
+    if (lowHp && (beatT -= dt) <= 0) { beatT = 0.85; if (G.Audio && G.Audio.heartbeat) G.Audio.heartbeat(); }
     if (killGold > 0 && (killGoldT -= dt) <= 0) { const b = btnPos(); text(b.x + rand(-6, 6), b.y + 16, '+' + fmtSmall(killGold), '#f0c850', 3, { life: 0.8, max: 0.8, vy: -10 }); killGold = 0; killGoldT = 0.3; }
     // hit-stop and slow motion only touch the visuals; the game keeps its own clock
     const vdt = dt * (hitstop > 0 ? 0.08 : slowmo > 0 ? 0.3 : 1);
@@ -9811,7 +10768,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     drawBreach();
     drawRiftTint();
     drawInvasionSky(vdt);
+    drawEventFx(vdt);
     stepGround(vdt);
+    drawJackpot(dt);
 
     // Collect drawables sorted by y
     const list = [];
@@ -9827,6 +10786,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (v.arc && (v.arc.t += vdt) >= v.arc.dur) { v.arc = null; landed(c, v); }
       list.push({ y: v.y, draw: () => drawChest(c, v) });
     }
+    // the Looters run for their chests
+    stepLooters(vdt, list);
     // Remove stale vis entries (e.g. after load)
     if (vis.size > S_.chests.length + 4) {
       const ids = new Set(S_.chests.map(c => c.id));
@@ -10035,6 +10996,14 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     vg.addColorStop(0, 'rgba(8,6,14,0)');
     vg.addColorStop(1, 'rgba(8,6,14,0.62)');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, cv.width, cv.height);
+    // hurt: the edges run red, and pulse while the Button is low
+    const lowK = G.S.hero && G.S.hero.cls && !(G.R.btnDown > 0) && G.D.heroHp ? clamp(1 - G.S.hero.hp / (G.D.heroHp * 0.3), 0, 1) : 0;
+    const red = Math.min(0.6, hurtFx * 0.6 + lowK * (0.16 + 0.12 * Math.sin(time * 7)) + (G.R.btnDown > 0 ? 0.22 : 0));
+    if (red > 0.01) {
+      const rg = ctx.createRadialGradient(cv.width / 2, cv.height * 0.55, Math.min(cv.width, cv.height) * 0.3, cv.width / 2, cv.height * 0.55, Math.max(cv.width, cv.height) * 0.72);
+      rg.addColorStop(0, 'rgba(255,30,40,0)'); rg.addColorStop(1, 'rgba(255,30,40,' + red.toFixed(3) + ')');
+      ctx.fillStyle = rg; ctx.fillRect(0, 0, cv.width, cv.height);
+    }
     if (flash > 0) {
       ctx.globalAlpha = Math.min(0.85, flash);
       ctx.fillStyle = flashCol; ctx.fillRect(0, 0, cv.width, cv.height);
@@ -10046,10 +11015,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     drawEventNames();
     drawLabels();
     drawTexts(dt);
+    drawJackpotText();
+    drawTapHints();
     drawStreak();
     if (R.rift) { /* the Rift's bar and clock live in the HUD row under the field */ }
     else if (bossVis && R.boss) { drawBossBar(); drawMoveName(); }
-    else if (R.bossReady) drawReady(b);
+    else if (R.bossReady && !R.inv) drawReady(b);
     if (hoverChest) drawChestTip(hoverChest);
     drawHeroPlate();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -10111,6 +11082,36 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (c.tier >= 5) { St.shake(3); St.flash(0.2, rarityCol(c.tier)); }
     if (G.Audio && G.Audio.drop) G.Audio.drop(c.tier);
   }
+  // ---------- The Looters ----------
+  const lootVis = [];
+  function stepLooters(dt, list) {
+    const R = G.R, L = R.looters || [];
+    lootVis.length = Math.min(lootVis.length, L.length);
+    const b = btnPos();
+    L.forEach((l, i) => {
+      const home = { x: b.x + 22 + (i % 3) * 9, y: b.y + 22 + Math.floor(i / 3) * 7 };
+      let v = lootVis[i];
+      if (!v) v = lootVis[i] = { x: home.x, y: home.y, face: 1, walk: 0, lift: 0 };
+      const cv = l.tgt != null ? vis.get(l.tgt) : null;
+      const tgt = cv && !cv.arc ? { x: cv.x - 5, y: cv.y + 1 } : home;
+      const dx = tgt.x - v.x, dy = tgt.y - v.y, d = Math.hypot(dx, dy);
+      // it arrives just as its time is up, however far the chest is
+      const left = cv ? Math.max(0.08, (G.D.autoOpen || 1) - l.acc) : 0.6;
+      const sp = Math.min(400, Math.max(28, d / left));
+      if (d > 0.5) { const k = Math.min(1, sp * dt / d); v.x += dx * k; v.y += dy * k; v.face = dx >= 0 ? 1 : -1; v.walk += dt * (6 + sp / 12); }
+      if (v.lift > 0) v.lift -= dt;
+      const moving = d > 1.5;
+      list.push({ y: v.y, draw: () => drawLooter(v, moving) });
+    });
+  }
+  function drawLooter(v, moving) {
+    const id = v.lift > 0 ? 'looter_2' : moving ? 'looter_' + (Math.floor(v.walk) % 2) : 'looter_0';
+    const spr = SPR.defs[id] ? SPR.get(id) : SPR.get('ic_key');
+    const x = Math.round(v.x), y = Math.round(v.y) - (moving && Math.floor(v.walk * 2) % 2 ? 1 : 0);
+    shadow(x, y - 1, 7);
+    if (v.face < 0) { lctx.save(); lctx.translate(x, 0); lctx.scale(-1, 1); blit(spr, 0, y); lctx.restore(); } else blit(spr, x, y);
+    if (moving && Math.random() < 0.2) part(x - v.face * 3, y - 1, '#c8b89a', { vx: -v.face * 10, vy: -6, grav: 20, life: 0.25 });
+  }
   function drawChest(c, v) {
     const dropY = v.drop > 0 ? -Math.round(v.drop * v.drop * 30) : 0;
     let x = v.x, y = v.y + dropY;
@@ -10118,21 +11119,21 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       const a = v.arc, k = Math.min(1, a.t / a.dur);
       x = Math.round(a.sx + (v.x - a.sx) * k);
       y = Math.round(a.sy + (v.y - a.sy) * k - Math.sin(k * Math.PI) * 18);
-      blit(SPR.get((c.bag ? 'bag_' : 'chest_') + c.tier), x, y);
+      blit(chestSpr(c, v), x, y);
       if (c.tier >= 3 && Math.random() < 0.6) part(x + rand(-2, 2), y - 4, rarityCol(c.tier), { vx: 0, vy: 0, grav: 0, life: 0.3 });
       return;
     }
     let sc = 1;
     if (v.hit > 0) x += Math.round(rand(-1, 1));
-    const mod = c.mod;
-    shadow(v.x, v.y - 1, 12);
-    // tier glow
-    if (c.tier >= 3 || mod) {
+    const mod = c.mod, mini = miniChest(v, c), crowd = G.S.chests.length > 40;
+    shadow(v.x, v.y - 1, mini ? 7 : 12);
+    // tier glow (in a crowd only the good ones glow)
+    if ((c.tier >= 3 || mod) && (!crowd || c.tier >= 4 || mod)) {
       const col = mod ? G.MOD_BY_ID[mod].color : rarityCol(c.tier);
-      glow(x, y - 3, 7, col, (mod ? 0.22 : 0.16) + 0.08 * Math.sin(time * 4 + c.id));
+      glow(x, y - 3, mini ? 5 : 7, col, (mod ? 0.22 : 0.16) + 0.08 * Math.sin(time * 4 + c.id));
     }
     if (c.tier === 6 && Math.random() < 0.15) part(x + rand(-6, 6), y - rand(4, 12), '#ffffff', { vy: -15, vx: 0, grav: 0, life: 0.6 });
-    let spr = SPR.get((c.bag ? 'bag_' : 'chest_') + c.tier);
+    let spr = chestSpr(c, v);
     let alpha;
     if (mod === 'ghost') { alpha = 0.55 + 0.15 * Math.sin(time * 3 + c.id); y -= 2 + Math.round(Math.sin(time * 2 + c.id) * 1.5); if (Math.random() < 0.08) part(x + rand(-5, 5), y - 3, '#ffffff', { vy: -8, vx: 0, grav: 0, life: 0.7 }); }
     if (mod === 'mimic' && c.awake) { spr = SPR.get('mimic'); x += Math.round(Math.sin(time * 30) * 1); }
@@ -10458,6 +11459,23 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.SHARE_URL = 'https://claude.ai/artifact/WcSxtLrabwMuEt2YcyxpWh';
   G.uiBusy = () => !$('#modal').hidden || !$('#intro').hidden;
 
+  // ---------- A sudden event: its name, its clock and how it's going ----------
+  let evIcoK = null;
+  function updateEventBar() {
+    const R = G.R, ev = R.ev, row = $('#evRow');
+    row.hidden = !ev;
+    if (!ev) return;
+    const e = G.EV_BY_ID[ev.k];
+    if (evIcoK !== ev.k) { evIcoK = ev.k; $('#evIco').src = ic(e.icon, 2); $('#evWrap').style.setProperty('--ev', e.col); }
+    $('#evMeter').style.width = Math.max(0, ev.t / ev.T) * 100 + '%';
+    let more = '';
+    if (ev.k === 'goblins') more = t('evGoblins', ev.ids.filter(id => !R.mobs.some(m => m.id === id)).length, ev.ids.length);
+    else if (ev.k === 'ambush') more = t('evAmbush', ev.ids.filter(id => R.mobs.some(m => m.id === id)).length);
+    else if (ev.k === 'chestrain') more = t('evRain', ev.n);
+    else if (ev.k === 'stampede') more = t('evHold');
+    else if (ev.k === 'meteors') more = t('evTap');
+    setText($('#evText'), e.name + ' · ' + Math.ceil(Math.max(0, ev.t)) + 's' + (more ? ' · ' + more : ''));
+  }
   // ---------- The party on the field: a chip per unit, tap a fallen one to raise them ----------
   let phKey = '';
   function updatePartyHud() {
@@ -10470,14 +11488,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       phKey = key;
       el.innerHTML = units.map(u => `<button class="pchip r_${u.role}" data-who="${u.who}" aria-label="${esc(u.who < 0 ? t('wardenName') : L(G.CLASS_BY_ID[u.cls].name))}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><i><u></u></i><b></b></button>`).join('');
     }
-    const chips = el.children;
+    const chips = el.children, rate = G.reviveRate ? G.reviveRate() : 1;
+    el.title = t('partyHint');
     units.forEach((u, i) => {
       const c = chips[i]; if (!c) return;
       const down = u.down > 0, k = Math.max(0, Math.min(1, u.hp / (u.max || 1)));
       setClass(c, 'down', down);
       setClass(c, 'low', !down && k < 0.35);
+      // a hit shows as a red flash on the chip
+      if (c._k != null && k < c._k - 0.02) { c.classList.remove('hit'); void c.offsetWidth; c.classList.add('hit'); }
+      c._k = k;
       c.querySelector('u').style.width = (down ? 0 : k * 100) + '%';
-      setText(c.querySelector('b'), down ? Math.ceil(u.down) + 's' : '');
+      setText(c.querySelector('b'), down ? Math.ceil(u.down / rate) + 's' : '');
     });
   }
   function bindPartyHud() {
@@ -10504,6 +11526,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     });
   }
   UI.go = function (id) {
+    if (UI.unfold) UI.unfold();
     tab = id; ascArm = 0; resetArm = 0;
     G.S.seen.tabs[id] = 1;
     UI.render();
@@ -10549,8 +11572,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     G.on('landStar', (i, bit, n) => { zoneKey = ''; UI.toast(`<span><b style="color:#ffd84a">\u2605 ${esc(G.REALMS[i].name)} · ${esc(t('starName_' + bit))}</b><br><small>${esc(t('starBonus', n === 1 ? t('star1') : t('starsN', n), '+' + +(n * G.STAR_BONUS * 100).toFixed(1) + '%'))}</small></span>`, 'ach', 'ic_star'); });
     G.on('realm', r => UI.toast(`<span>${esc(t('newLands', G.realmName(G.S.depth)))} · <b>${esc(G.REALMS[r].rule)}</b></span>`, 'ach', 'ic_star'));
     G.on('potion', p => UI.toast(`<span>${esc(t('potionDrink', L(p.name)))} <b>${esc(p.short)} ${G.S.pots[p.id]}/${G.D.potCap}</b></span>`, '', 'pot_' + p.id));
+    G.on('jackpot', (m, gold) => UI.toast(`<b>${esc(t('jpToast', fmt(gold)))}</b>`, 'ach', 'ic_jackpot'));
     G.on('chestOpen', loot => {
       if (loot.source === 'offline') return;
+      if (!loot.items.length) return; // a little chest of coin
       const top = loot.items.reduce((a, b) => (b.it.r > a.it.r ? b : a), loot.items[0]);
       if (top.it.r >= 4 && (top.isNew || top.it.r >= 6)) UI.banner(top.it);
       else if (top.isNew) UI.toast(`<span style="color:${G.RARITIES[top.it.r].color}">${esc(L(top.it.name))}</span>&nbsp;<b>${esc(t('newPet'))}</b>`, '', 'it_' + top.it.id);
@@ -10758,7 +11783,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     $('#comboMeter').style.width = Math.min(100, comboK * 100) + '%';
     setClass($('#comboWrap'), 'hot', comboK >= 1);
     setText($('#comboText'), t('combo') + ' ' + Math.floor(R.combo) + ' · ×' + (1 + R.combo * D.comboPer).toFixed(2));
-    setText($('#chestText'), t('nextChest') + ' ' + Math.floor(S.chestMeter / D.chestNeed * 100) + '%');
+    setText($('#chestText'), t('nextChest') + ' ' + Math.floor(S.chestMeter / D.chestNeed * 100) + '% · ' + S.chests.length + '/' + D.slots);
     const bossShown = !!(S.hero && S.hero.cls);
     setClass($('#stageWrap'), 'fighting', !!R.boss);
     $('#bossRow').hidden = !bossShown;
@@ -10814,12 +11839,14 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     }
     updatePerks();
     updatePartyHud();
+    updateEventBar();
     $('#hpRow').hidden = !(h && h.cls);
     if (h && h.cls) {
       const k = Math.max(0, h.hp / (D.heroHp || 1));
       $('#hpMeter').style.width = k * 100 + '%';
+      $('#hpTrail').style.width = k * 100 + '%';
       setClass($('#hpWrap'), 'low', k < 0.35);
-      setText($('#hpText'), R.stun > 0 ? t('overload') : t('buttonHp', fmt(Math.max(0, h.hp)), fmt(D.heroHp)));
+      setText($('#hpText'), R.btnDown > 0 ? t('btnBrokenFor', Math.ceil(R.btnDown)) : R.stun > 0 ? t('regroup') : t('buttonHp', fmt(Math.max(0, h.hp)), fmt(D.heroHp)));
       const ab = h.eq.ability, btn = $('#btnAbil');
       btn.hidden = !ab;
       if (ab) {
@@ -11387,6 +12414,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const who = selWho, mem = who >= 0 ? S.party[who] : null, cls = G.CLASS_BY_ID[mem ? mem.cls : h.cls];
     const salvOpts = [0, 1, 2, 3];
     body.innerHTML = `
+      <p class="note">${esc(t('partyHint'))}</p>
       <div class="partyStrip" data-strip></div>
       <div class="charCard">
         <div class="portrait"><img data-doll src="${G.Doll.portrait(mem ? { cls: mem.cls, eq: mem.eq } : h, 4)}" alt=""></div>
@@ -11478,10 +12506,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const have = [S.hero.cls].concat(S.party.map(m => m.cls)).map(c => G.ROLES[c]);
     const need = r => !have.includes(r);
     const html = `<p>${esc(t('recruitHint'))}</p><div class="classGrid">${G.CLASSES.map(c => { const r = G.ROLES[c.id]; return `
-      <button class="clsCard ${need(r) ? 'need' : ''}" data-c="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><em class="role r_${r}">${esc(G.ROLE_NAMES[r])}${need(r) ? ' · ' + esc(t('recruitNeed')) : ''}</em><small>${esc(L(c.desc))}</small></button>`; }).join('')}</div>`;
+      <button class="clsCard ${need(r) ? 'need' : ''}" data-c="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><em class="role r_${r}">${esc(G.ROLE_NAMES[r])}${need(r) ? ' · ' + esc(t('recruitNeed')) : ''}</em><small>${esc(L(c.descAlly || c.desc))}</small></button>`; }).join('')}</div>`;
     const m = UI.modal(t('recruitTitle'), html, [{ label: t('close') }]);
     m.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => {
-      if (G.recruit(b.dataset.c)) { m.hidden = true; m.innerHTML = ''; selWho = S.party.length - 1; G.Audio && G.Audio.buy(); UI.render(); }
+      if (G.recruit(b.dataset.c)) { m.hidden = true; m.innerHTML = ''; selWho = S.party.length - 1; selGear = null; G.Audio && G.Audio.buy(); UI.render(); }
     }));
   };
   updaters.hero = function (force) {
@@ -11492,13 +12520,19 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const c = mem ? (D.party[selWho] || {}).c || D.hero : D.hero;
     // the party strip: everyone, their health, and the places still to fill
     const units = G.partyUnits(), slots = G.partySlots();
-    let sh = units.map(u => `<button class="pmem ${u.who === selWho ? 'on' : ''} ${u.down > 0 ? 'down' : ''}" data-who="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small class="r_${u.role}">${esc(G.ROLE_NAMES[u.role])}</small><i><u style="width:${Math.round(100 * Math.max(0, u.hp) / u.max)}%"></u></i></button>`).join('');
-    for (let k = S.party.length; k < 3; k++) sh += k < slots ? `<button class="pmem add" data-recruit>+<small>${esc(t('recruit'))}</small></button>` : `<div class="pmem lock"><small>${esc(t('recruitAt', G.PARTY_AT[k]))}</small></div>`;
-    if (rf.strip._h !== sh) { rf.strip.innerHTML = sh; rf.strip._h = sh; }
+    // (built only when who is in it changes, so a tap is never lost to a rebuild; health updates in place)
+    const sk = JSON.stringify([units.map(u => [u.who, u.cls, G.SLOTS.map(sl => u.eq[sl] ? u.eq[sl].id + (u.eq[sl].q || '') : '')]), slots, selWho]);
+    if (rf.strip._k !== sk) {
+      let sh = units.map(u => `<button class="pmem ${u.who === selWho ? 'on' : ''}" data-who="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small class="r_${u.role}">${esc(G.ROLE_NAMES[u.role])}</small><i><u></u></i></button>`).join('');
+      for (let k = S.party.length; k < 3; k++) sh += k < slots ? `<button class="pmem add" data-recruit>+<small>${esc(t('recruit'))}</small></button>` : `<div class="pmem lock"><small>${esc(t('recruitAt', G.PARTY_AT[k]))}</small></div>`;
+      rf.strip.innerHTML = sh; rf.strip._k = sk;
+    }
+    units.forEach((u, i) => { const b = rf.strip.children[i]; if (!b) return; setClass(b, 'down', u.down > 0); const bar = b.querySelector('u'); if (bar) bar.style.width = Math.round(100 * Math.max(0, u.hp) / u.max) + '%'; });
     setText(rf.lvl, t('lvl') + ' ' + h.lvl);
     rf.xp.style.width = Math.min(100, h.xp / G.xpNeed(h.lvl) * 100) + '%';
     setText(rf.xpt, fmt(Math.floor(h.xp)) + ' / ' + fmt(G.xpNeed(h.lvl)));
-    setText(rf.pow, fmt(D.power));
+    const P = mem ? D.party[selWho] : null;
+    setText(rf.pow, fmt(P ? P.c.power : D.power));
     setText(rf.shards, fmt(h.shards));
     setText(rf.bagn, h.bag.length + '/' + G.TUNE.bagMax);
     setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
@@ -11538,9 +12572,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     $$('[data-g]', rf.bag).forEach(el => { const g = h.bag.find(x => x.u === +el.dataset.g); if (!g) return; const sl = G.slotOf(g.id); if (mem && sl === 'weapon' && !G.CLASS_BY_ID[mem.cls].weapons.includes(G.ITEM_TYPE[g.id])) return; if (G.powerWith(sl, g, selWho) > G.powerWith(sl, eqS[sl], selWho)) el.querySelector('u').hidden = false; });
     // Stats
     const cls = G.CLASS_BY_ID[mem ? mem.cls : h.cls];
+    // a companion: what it really deals and takes, after its share and the run's bonuses
     const rows = [
-      ['st_dps', fmt(c.dps, true)], ['st_hit', fmt(c.hit, true)], ['st_rate', c.rate.toFixed(2) + t('perSec')], ['st_targets', c.targets],
-      ['st_crit', Math.round(c.crit * 100) + '% · ×' + c.critMult.toFixed(1)], ['st_hp', fmt(c.hp)],
+      ['st_dps', fmt(P ? P.dps : c.dps, true)], ['st_hit', fmt(P ? P.hit : c.hit, true)], ['st_rate', (P ? P.rate : c.rate).toFixed(2) + t('perSec')], ['st_targets', c.targets],
+      ['st_crit', Math.round(c.crit * 100) + '% · ×' + c.critMult.toFixed(1)], P ? ['st_unitHp', fmt(P.hp)] : ['st_hp', fmt(c.hp)],
+      ...(P ? [] : [['st_wardenHp', fmt(D.wardenHp)]]),
       ['st_class', c.own ? t('classBonusOn') : t('classBonusOff', cls.weapons.map(w => L(G.WEAPONS[w].name)).join(', '))],
     ];
     rf.stats.innerHTML = rows.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('');
@@ -11701,7 +12737,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     for (const e of N.entries) { if (!e.ok && !e.me) continue; for (const f of Array.isArray(e.ev) ? e.ev : []) if (Array.isArray(f) && typeof f[1] === 'string' && f[1] && typeof f[0] === 'number') rows.push({ e, ts: f[0], k: f[1], s: String(f[2] || '') }); }
     rows.sort((a, b) => b.ts - a.ts);
     if (!rows.length) return `<p class="note">${esc(t('feedEmpty'))}</p>`;
-    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown' };
+    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown', jackpot: 'ic_jackpot' };
     return rows.slice(0, 12).map(r => `<div class="feedRow">${img(icon[r.k] || 'ic_star', '', 2)}<span><b>${esc(N.displayName(r.e) || t('anon'))}</b> ${esc(t('feed' + r.k[0].toUpperCase() + r.k.slice(1), r.s))}</span><small>${esc(G.fmtTime(Math.max(1, (Date.now() - r.ts) / 1000)))}</small></div>`).join('');
   }
   renderers.ladder = function (body) {
@@ -11734,7 +12770,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         return;
       }
       if (e.target.closest('[data-cloud]')) { askCloud(N.cloud); return; }
-      if (e.target.closest('[data-name]')) { UI.go('hero'); setTimeout(() => { const i = $('#heroName'); if (i) i.focus(); }, 50); return; }
+      if (e.target.closest('[data-name]')) { selWho = -1; selGear = null; UI.go('hero'); setTimeout(() => { const i = $('#heroName'); if (i) i.focus(); }, 50); return; }
       const row = e.target.closest('.lrow[data-uid]');
       if (row) inspect(row.dataset.uid);
     });
@@ -11950,7 +12986,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     tu_click: "I'm Buttonling, the Button's voice. You're the Hand now: press the Button! Every click spills gold and fills the chest bar below.",
     tu_chestWait: 'Almost! When the green Chest bar fills up, a chest drops nearby.',
     tu_chest: 'A chest! Tap it to open. The Button spills chests; mobs drop loot straight on the ground, with a label that says what it is.',
-    tu_gear: "There was gear inside. Open the Character tab and meet your Warden.",
+    tu_gear: "There was gear inside. Open the Party tab and meet your Warden.",
     tu_doll: 'This is your Warden with 4 slots: weapon, ability, armour and ring. Better items are equipped automatically. Scrap spares into shards and enchant your gear with them.',
     tu_upgWait: "Click up 15 gold and we'll buy the first upgrade.",
     tu_upg: 'You have the gold! In Upgrades, buy Iron Finger to make clicks stronger.',
@@ -11968,8 +13004,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     tip_ess: 'You have essence! Spend it in the Constellation: pick a glowing star, then Learn.',
     tip_ability: 'Your Warden has an ability. It casts itself, or press the button on the right or Q.',
     tip_asc: "You can ascend! The run restarts, but you earn fame: a permanent bonus to gold and damage. Gear and pets stay.",
-    tip_shards: 'Shards piled up. In Character, tap a worn item and enchant it.',
-    tip_break: 'Mobs broke the button and the clear bar dropped. Get tougher armour or enchant your weapon.',
+    tip_shards: 'Shards piled up. In the Party tab, tap a worn item and enchant it.',
+    tip_break: 'Mobs broke the Button: for 12 seconds your clicks do nothing. If the whole party falls before it mends, the Horde breaks through and pushes you back a depth. Get tougher armour or enchant it.',
     tip_wall: 'This boss is a wall for now. Every try rallies the Warden (+15-20% damage on it), or ascend: you earn fame, a permanent bonus, and come back much stronger. Gear and pets stay.',
     tip_loot: 'Loot falls where mobs die, and its label says what it is. Tap a label to grab it now, or the Warden gathers it in a moment. A beam means something good.',
     tip_spitter: 'A spitter: it stops at range and lobs globs at the Button. Tap it so the Warden kills it first.',
@@ -11979,20 +13015,24 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     tip_hoard: 'A Hoarder! It never bites, and it runs off with its sack in 16 seconds. Tap it so the Warden chases it: it bursts into loot.',
     tip_shrine: 'A shrine rose from the ground. Tap it for a 15-second blessing, or the Warden claims it.',
     tip_move: 'The boss is winding up a move! Tap it fast to break it: the boss staggers and takes +50% damage.',
-    tip_orb: 'You found currency. In the Character tab, pick an item, then an orb: reroll its affixes, add one, or gamble with an Orb of Ruin.',
+    tip_orb: 'You found currency. In the Party tab, pick an item, then an orb: reroll its affixes, add one, or gamble with an Orb of Ruin.',
     tip_rift: 'Rifts are open: timed runs at the level you choose, with better loot. Friends see your best Rift on the ladder.',
     tip_evo: 'Evolution ready! A maxed perk plus the right gear turns into something much stronger. Look for the golden card.',
     tip_potion: 'A potion! It raises a stat until you ascend. See them in the Garrison tab.',
     help_title: 'How to play', help_intro: 'Show the intro', help_tut: 'Replay the tutorial',
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
-    help_2: 'Loot', help_2t: 'Mobs drop loot where they fall, and its label and beam tell you what it is: tap it to grab it, or the Warden gathers it. Orbs change your gear in the Character tab, and uniques have rules of their own. The Button spills chests too; special ones (storm, frozen, mimics…) each work their own way.',
+    help_2: 'Loot', help_2t: 'Mobs drop loot where they fall, and its label and beam tell you what it is: tap it to grab it, or the Warden gathers it. Orbs change your gear in the Party tab, and uniques have rules of their own. The Button spills chests too; special ones (storm, frozen, mimics…) each work their own way.',
     help_3: 'Your Warden', help_3t: 'The Horde drops XP crystals; every level you pick one of three perks (they last until you ascend). 4 gear slots: weapon, ability, armour, ring; your class weapon type deals +50%. A stronger Warden faces a bigger Horde and clears lands faster.',
     help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and the collection stay.',
-    help_8: 'Ladder', help_8t: 'Name your hero in Character and compare depth, stars and power with friends.',
+    help_8: 'Ladder', help_8t: 'Name your hero in the Party tab and compare depth, stars and power with friends.',
     help_9: 'Lands, zones and stars', help_9t: 'Each land has five zones, the last one its lord\u2019s. Every zone brings a new kind of mob and is fought in three waves. Tap the land name for the world map: each land has three stars, kept forever, each worth +2.5% damage and gold. The Swift star needs a fresh try at the lord, not one after it escaped.',
+    help_11: 'Your party', help_11t: 'Beat depths 5, 12 and 20 to open a party slot each, and recruit a companion in the Party tab: knights tank, clerics heal, the rest deal damage. Everyone has health and can fall; tap a fallen ally to raise them sooner. When the Button breaks, clicks do nothing for 12 s, and if the whole party falls meanwhile the Horde breaks through and pushes you back a depth.',
+    help_12: 'Sudden events and invasions', help_12t: 'About every minute something happens: a stampede, a gold rush, chest rain, treasure goblins, a meteor storm (tap the rocks), a blood moon, an ambush, a swarm or an adrenaline rush. Every seven minutes or so another world invades; hold it off, then slay its herald for a heap of loot.',
+    help_13: 'Chests and Looters', help_13t: 'The Horde drops little chests of coin; the chest bar brings real ones. The Treasure Hall makes room for 10, 20, 30, 50, 100, then 200 chests. Looters run and open them for you, faster with each level, and Loot Crew hires more. When the field is full, the lowest chest bursts and half of it is lost.',
+    help_14: 'The JACKPOT', help_14t: 'About one kill in two million. The longer since the last one, the better the odds. You will know it when you see it.',
     help_10: 'Carnage', help_10t: 'Kill without pause: the streak climbs and so do gold and XP, up to +40%. Let it lapse for 2.5 seconds and it starts over.',
   });
 
@@ -12270,7 +13310,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['ic_skull', 4], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10]];
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
     G.UI.modal(t('help_title'), html, [

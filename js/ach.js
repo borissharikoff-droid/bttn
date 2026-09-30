@@ -24,6 +24,11 @@
     A('chests_1e3', 'Raider', 'Open 1,000 chests', S => S.st.chests >= 1e3),
     A('chests_1e4', 'Vault Breaker', 'Open 10,000 chests', S => S.st.chests >= 1e4),
     A('chests_1e5', 'No Lock Left', 'Open 100,000 chests', S => S.st.chests >= 1e5),
+    A('field_200', 'Wall to Wall', 'Have 200 chests on the field at once', S => S.chests.length >= 200),
+    A('events_100', 'Anything Can Happen', 'Live through 100 sudden events', S => (S.st.events || 0) >= 100),
+    A('goblins_25', 'Thief Taker', 'Catch 25 treasure goblins', S => (S.st.goblins || 0) >= 25),
+    A('smash_50', 'Rock Breaker', 'Smash 50 meteors before they land', S => (S.st.smashed || 0) >= 50),
+    A('jackpot', 'JACKPOT!', 'Hit the jackpot: about one kill in two million', S => !!(S.jp && S.jp.n > 0), true),
 
     A('rar_0', 'Junk Has Value', 'Find all Common items', S => allRarity(S, 0)),
     A('rar_1', 'Nice!', 'Find all Uncommon items', S => allRarity(S, 1)),

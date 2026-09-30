@@ -18,6 +18,8 @@
     shrineEvery: 170, shrineFirst: 100, shrineLife: 12, shrineDur: 15,
     breachEvery: 300, breachFirst: 240, breachDur: 12, breachRate: 2.5,
     invEvery: 420, invFirst: 300, invTime: 90, invNeed: 90, invBoss: 30, invFocus: 20, invBossTime: 40,
+    // the JACKPOT: odds per kill and per real chest, climbing by one each hour since the last; its gold in seconds of income
+    jpKill: 5e-7, jpChest: 1.2e-5, jpGold: 3000,
     riftTime: 90, riftNeed: 40, riftGuard: 60,
   });
   Object.assign(R, { ground: [], gUid: 0, hoardT: null, shrine: null, shr: null, shrineT: null, breach: null, breachT: null });
@@ -119,6 +121,35 @@
   }
   G.lootShower = shower;
 
+  // ---------- The JACKPOT ----------
+  // About one kill in two million or one chest in eighty thousand, and the odds climb with every hour of play
+  // since the last one: most Wardens hit their first after about three hours.
+  const jpOdds = () => { const S = S_(); return 1 + Math.max(0, ((S.st.playTime || 0) - ((S.jp && S.jp.at) || 0)) / 3600); };
+  G.jackpotOdds = jpOdds;
+  G.jackpotRoll = function (m, src) {
+    const S = S_();
+    if (!S.jp || R.rift || !S.hero || !S.hero.cls || S.tut >= 0) return false;
+    // small fry count by weight, so a thicker Horde doesn't hand out more of them
+    const k = src === 'chest' ? TUNE.jpChest : TUNE.jpKill * (m && G.SMALL[m.kind] ? m.w / 0.008 : 3);
+    if (!chance(k * jpOdds())) return false;
+    G.jackpot(m);
+    return true;
+  };
+  G.jackpot = function (m) {
+    const S = S_();
+    S.jp.n = (S.jp.n || 0) + 1; S.jp.at = S.st.playTime || 0;
+    const at = m ? undefined : { a: 0.5, p: 0.8 };
+    const gold = (G.D.incomeRef || 1) * TUNE.jpGold;
+    G.addGold(gold, 'jackpot');
+    // the haul: a heap of gear with a legendary floor, a unique for sure, a fistful of orbs
+    shower(m || null, 24, 4, 1, { floorN: 8, spread: 0.22, at, rolls: 2, wait: 1.4 });
+    for (let i = 0; i < 8; i++) drop('orb', rollOrb(), m || null, { at, wait: 1.6 + i * 0.08, spread: 0.22 });
+    G.first('jp'); G.feed('jackpot', 'the JACKPOT');
+    emit('jackpot', m, gold, S.jp.n);
+    // and then it rains for half a minute
+    if (G.startEvent) G.startEvent('jackpot');
+  };
+
   // Called by hero.js for every kill
   G.lootKill = function (m, src) {
     const S = S_(), h = S.hero;
@@ -126,13 +157,20 @@
     const k = lootMult() * (m.br ? 2 : 1) * (m.stone ? 2 : 1);
     // the very first kill always drops something worth a look, and a rare comes early
     if (!S.st.drops) return drop('gear', G.pickItem(1), m);
+    // a treasure goblin spills its sack: a real chest or two and a piece of gear
+    if (m.kind === 'hoard' && m.gob) {
+      S.st.goblins = (S.st.goblins || 0) + 1;
+      for (let i = 0; i < randInt(1, 2); i++) { R.dropAt = m; G.spawnChest(Math.max(1, G.rollTier())); R.dropAt = null; }
+      return drop('gear', rollGear(1), m);
+    }
     if (m.kind === 'hoard') { S.st.hoards++; emit('hoardDie', m); return shower(m, randInt(8, 12), 2, 0.04, { floorN: 2, spread: 0.1 }); }
     if (m.kind === 'guardian') return null; // the Rift or the invasion pays out on its own
     if (m.kind === 'rare') return shower(m, randInt(3, 5), 1, 0.006 * (uq('goldgrin') ? 1.5 : 1), { floorN: 1, spread: 0.05 });
     // the first champion ever always drops an epic
     if (m.kind === 'magic' && !S.st.firstMagic) { S.st.firstMagic = 1; return drop('gear', G.pickItem(3), m); }
     // everything else drops by its weight: a brute's worth of fodder drops about what a brute does
-    let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
+    // fodder by weight too, so thicker packs of lighter bodies drop the same
+    let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder * m.w / 0.008 : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
     p *= k;
     if (h.kills < 60 && !S.st.firstRare && chance(0.08)) { S.st.firstRare = 1; return drop('gear', G.pickItem(2), m); }
     let e = null;
@@ -239,7 +277,7 @@
     ['boss', 'First boss'], ['d5', 'The Crab King'], ['uq', 'First unique'], ['r4', 'First legendary'], ['d10', 'Depth 10'], ['rift5', 'Rift 5'],
     ['asc', 'First ascension'], ['evo', 'First evolution'], ['r5', 'First mythic'], ['d20', 'Depth 20'], ['rift15', 'Rift 15'], ['d30', 'Depth 30'],
     ['r6', 'First divine'], ['d40', 'The Mad Button'], ['rift30', 'Rift 30'], ['rift45', 'Rift 45'],
-    ['d50', 'Depth 50'], ['d60', 'Depth 60'], ['d65', 'The First Hand'], ['d75', 'The Star Eater'], ['rift60', 'Rift 60'], ['all14', 'Every unique'], ['d80', 'Depth 80'], ['rift80', 'Rift 80'],
+    ['d50', 'Depth 50'], ['d60', 'Depth 60'], ['d65', 'The First Hand'], ['d75', 'The Star Eater'], ['rift60', 'Rift 60'], ['all14', 'Every unique'], ['d80', 'Depth 80'], ['rift80', 'Rift 80'], ['jp', 'First JACKPOT'],
   ];
   G.first = function (k) {
     const S = S_();
@@ -311,6 +349,7 @@
     if (!won) for (const m of R.mobs.slice()) if (m.inv) { m.dead = true; R.mobs.splice(R.mobs.indexOf(m), 1); emit('mobFlee', m); }
     emit('invasionEnd', won, r);
   }
+  G.endInvasion = endInvasion;
   G.invasionKill = function (m) {
     const r = R.inv;
     if (!r || !m.inv) return;
@@ -342,7 +381,7 @@
       if (m.life <= 0) {
         m.dead = true; m.gone = true;
         const i = R.mobs.indexOf(m); if (i >= 0) R.mobs.splice(i, 1);
-        emit('mobFlee', m); emit('hoardFlee', m);
+        emit('mobFlee', m); if (!m.gob) emit('hoardFlee', m);
       }
     }
   };
@@ -470,7 +509,7 @@
       // the clock runs through boss fights too; the invasion waits for the fight to end
       if (R.invT == null) R.invT = S.st.invasions ? rand(0.8, 1.2) * TUNE.invEvery : TUNE.invFirst;
       if (R.invT > 0) R.invT -= dt;
-      if (R.invT <= 0 && !busy() && !R.bossReady) { R.invT = rand(0.8, 1.2) * TUNE.invEvery; startInvasion(); }
+      if (R.invT <= 0 && !busy() && !(R.bossReady && S.set.autoBoss) && !R.ev) { R.invT = rand(0.8, 1.2) * TUNE.invEvery; startInvasion(); }
     }
     // first-time timers: a Hoarder in the first minute, a shrine soon after
     if (R.hoardT == null) R.hoardT = S.st.hoards ? rand(0.6, 1.2) * TUNE.hoardEvery : TUNE.hoardFirst;
@@ -499,15 +538,21 @@
   G.worldClear = function () {
     R.ground.length = 0; R.rift = null; R.shrine = null; R.shr = null; R.breach = null; R.inv = null;
     R.hoardT = R.shrineT = R.breachT = R.invT = null;
+    R.btnDown = 0; R.stun = 0;
+    if (G.eventsClear) G.eventsClear();
   };
   G.worldReset = function () {
     G.pickupAll();
     R.rift = null; R.shrine = null; R.shr = null; R.breach = null;
+    if (R.inv) endInvasion(false);
+    R.invT = null;
+    if (G.R.ev && G.endEvent) G.endEvent(false);
   };
   // Leaving the screen for a while: the Rift collapses, the loot is gathered
   G.worldAway = function () {
     if (R.rift) riftEnd(false, 'away');
     G.pickupAll();
     R.shrine = null; R.breach = null;
+    if (G.R.ev && G.endEvent) G.endEvent(false);
   };
 })(globalThis.G = globalThis.G || {});

@@ -752,5 +752,20 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 }
 @media (max-width: 960px) and (orientation: landscape) and (max-height: 520px) {
   #app, #app.fold { grid-template-columns: minmax(0, 1fr) minmax(260px, 40%); grid-template-rows: 100%; }
+  #app.fold .tabTitle, #app.fold .tabBody, #app.fold .subRes { display: revert; }
   .foldBtn { display: none; }
 }
+
+/* ======================= 2.1: sudden events ======================= */
+.evRow { display: flex; gap: 6px; align-items: center; pointer-events: none; }
+.evRow img { width: 22px; height: 22px; image-rendering: pixelated; filter: drop-shadow(1px 1px 0 var(--ink)); animation: evPulse .6s ease-in-out infinite; }
+.evRow .meter { flex: 1; box-shadow: inset 0 0 0 1px var(--ev, #ffd84a), 0 0 8px var(--ev, #ffd84a); }
+.meter.ev > i { background: var(--ev, #ffd84a); }
+@keyframes evPulse { 50% { transform: scale(1.18); } }
+
+/* 2.1: damage you can feel */
+.meter > i.trail { background: #fff3a0; opacity: .8; transition: width .5s ease-in .35s; box-shadow: none; }
+.meter.hpm.low { animation: lowHp .8s ease-in-out infinite; }
+@keyframes lowHp { 50% { box-shadow: inset 0 0 0 1px var(--line), 0 0 10px #ff3b3b; } }
+.pchip.hit { animation: chipHit .3s ease-out; }
+@keyframes chipHit { 0% { background: #ff3b3b; transform: translateY(-2px); } }

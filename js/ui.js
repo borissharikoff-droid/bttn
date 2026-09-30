@@ -58,6 +58,23 @@
   G.SHARE_URL = 'https://claude.ai/artifact/WcSxtLrabwMuEt2YcyxpWh';
   G.uiBusy = () => !$('#modal').hidden || !$('#intro').hidden;
 
+  // ---------- A sudden event: its name, its clock and how it's going ----------
+  let evIcoK = null;
+  function updateEventBar() {
+    const R = G.R, ev = R.ev, row = $('#evRow');
+    row.hidden = !ev;
+    if (!ev) return;
+    const e = G.EV_BY_ID[ev.k];
+    if (evIcoK !== ev.k) { evIcoK = ev.k; $('#evIco').src = ic(e.icon, 2); $('#evWrap').style.setProperty('--ev', e.col); }
+    $('#evMeter').style.width = Math.max(0, ev.t / ev.T) * 100 + '%';
+    let more = '';
+    if (ev.k === 'goblins') more = t('evGoblins', ev.ids.filter(id => !R.mobs.some(m => m.id === id)).length, ev.ids.length);
+    else if (ev.k === 'ambush') more = t('evAmbush', ev.ids.filter(id => R.mobs.some(m => m.id === id)).length);
+    else if (ev.k === 'chestrain') more = t('evRain', ev.n);
+    else if (ev.k === 'stampede') more = t('evHold');
+    else if (ev.k === 'meteors') more = t('evTap');
+    setText($('#evText'), e.name + ' · ' + Math.ceil(Math.max(0, ev.t)) + 's' + (more ? ' · ' + more : ''));
+  }
   // ---------- The party on the field: a chip per unit, tap a fallen one to raise them ----------
   let phKey = '';
   function updatePartyHud() {
@@ -70,14 +87,18 @@
       phKey = key;
       el.innerHTML = units.map(u => `<button class="pchip r_${u.role}" data-who="${u.who}" aria-label="${esc(u.who < 0 ? t('wardenName') : L(G.CLASS_BY_ID[u.cls].name))}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><i><u></u></i><b></b></button>`).join('');
     }
-    const chips = el.children;
+    const chips = el.children, rate = G.reviveRate ? G.reviveRate() : 1;
+    el.title = t('partyHint');
     units.forEach((u, i) => {
       const c = chips[i]; if (!c) return;
       const down = u.down > 0, k = Math.max(0, Math.min(1, u.hp / (u.max || 1)));
       setClass(c, 'down', down);
       setClass(c, 'low', !down && k < 0.35);
+      // a hit shows as a red flash on the chip
+      if (c._k != null && k < c._k - 0.02) { c.classList.remove('hit'); void c.offsetWidth; c.classList.add('hit'); }
+      c._k = k;
       c.querySelector('u').style.width = (down ? 0 : k * 100) + '%';
-      setText(c.querySelector('b'), down ? Math.ceil(u.down) + 's' : '');
+      setText(c.querySelector('b'), down ? Math.ceil(u.down / rate) + 's' : '');
     });
   }
   function bindPartyHud() {
@@ -104,6 +125,7 @@
     });
   }
   UI.go = function (id) {
+    if (UI.unfold) UI.unfold();
     tab = id; ascArm = 0; resetArm = 0;
     G.S.seen.tabs[id] = 1;
     UI.render();
@@ -149,8 +171,10 @@
     G.on('landStar', (i, bit, n) => { zoneKey = ''; UI.toast(`<span><b style="color:#ffd84a">\u2605 ${esc(G.REALMS[i].name)} · ${esc(t('starName_' + bit))}</b><br><small>${esc(t('starBonus', n === 1 ? t('star1') : t('starsN', n), '+' + +(n * G.STAR_BONUS * 100).toFixed(1) + '%'))}</small></span>`, 'ach', 'ic_star'); });
     G.on('realm', r => UI.toast(`<span>${esc(t('newLands', G.realmName(G.S.depth)))} · <b>${esc(G.REALMS[r].rule)}</b></span>`, 'ach', 'ic_star'));
     G.on('potion', p => UI.toast(`<span>${esc(t('potionDrink', L(p.name)))} <b>${esc(p.short)} ${G.S.pots[p.id]}/${G.D.potCap}</b></span>`, '', 'pot_' + p.id));
+    G.on('jackpot', (m, gold) => UI.toast(`<b>${esc(t('jpToast', fmt(gold)))}</b>`, 'ach', 'ic_jackpot'));
     G.on('chestOpen', loot => {
       if (loot.source === 'offline') return;
+      if (!loot.items.length) return; // a little chest of coin
       const top = loot.items.reduce((a, b) => (b.it.r > a.it.r ? b : a), loot.items[0]);
       if (top.it.r >= 4 && (top.isNew || top.it.r >= 6)) UI.banner(top.it);
       else if (top.isNew) UI.toast(`<span style="color:${G.RARITIES[top.it.r].color}">${esc(L(top.it.name))}</span>&nbsp;<b>${esc(t('newPet'))}</b>`, '', 'it_' + top.it.id);
@@ -358,7 +382,7 @@
     $('#comboMeter').style.width = Math.min(100, comboK * 100) + '%';
     setClass($('#comboWrap'), 'hot', comboK >= 1);
     setText($('#comboText'), t('combo') + ' ' + Math.floor(R.combo) + ' · ×' + (1 + R.combo * D.comboPer).toFixed(2));
-    setText($('#chestText'), t('nextChest') + ' ' + Math.floor(S.chestMeter / D.chestNeed * 100) + '%');
+    setText($('#chestText'), t('nextChest') + ' ' + Math.floor(S.chestMeter / D.chestNeed * 100) + '% · ' + S.chests.length + '/' + D.slots);
     const bossShown = !!(S.hero && S.hero.cls);
     setClass($('#stageWrap'), 'fighting', !!R.boss);
     $('#bossRow').hidden = !bossShown;
@@ -414,12 +438,14 @@
     }
     updatePerks();
     updatePartyHud();
+    updateEventBar();
     $('#hpRow').hidden = !(h && h.cls);
     if (h && h.cls) {
       const k = Math.max(0, h.hp / (D.heroHp || 1));
       $('#hpMeter').style.width = k * 100 + '%';
+      $('#hpTrail').style.width = k * 100 + '%';
       setClass($('#hpWrap'), 'low', k < 0.35);
-      setText($('#hpText'), R.stun > 0 ? t('overload') : t('buttonHp', fmt(Math.max(0, h.hp)), fmt(D.heroHp)));
+      setText($('#hpText'), R.btnDown > 0 ? t('btnBrokenFor', Math.ceil(R.btnDown)) : R.stun > 0 ? t('regroup') : t('buttonHp', fmt(Math.max(0, h.hp)), fmt(D.heroHp)));
       const ab = h.eq.ability, btn = $('#btnAbil');
       btn.hidden = !ab;
       if (ab) {
@@ -987,6 +1013,7 @@
     const who = selWho, mem = who >= 0 ? S.party[who] : null, cls = G.CLASS_BY_ID[mem ? mem.cls : h.cls];
     const salvOpts = [0, 1, 2, 3];
     body.innerHTML = `
+      <p class="note">${esc(t('partyHint'))}</p>
       <div class="partyStrip" data-strip></div>
       <div class="charCard">
         <div class="portrait"><img data-doll src="${G.Doll.portrait(mem ? { cls: mem.cls, eq: mem.eq } : h, 4)}" alt=""></div>
@@ -1078,10 +1105,10 @@
     const have = [S.hero.cls].concat(S.party.map(m => m.cls)).map(c => G.ROLES[c]);
     const need = r => !have.includes(r);
     const html = `<p>${esc(t('recruitHint'))}</p><div class="classGrid">${G.CLASSES.map(c => { const r = G.ROLES[c.id]; return `
-      <button class="clsCard ${need(r) ? 'need' : ''}" data-c="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><em class="role r_${r}">${esc(G.ROLE_NAMES[r])}${need(r) ? ' · ' + esc(t('recruitNeed')) : ''}</em><small>${esc(L(c.desc))}</small></button>`; }).join('')}</div>`;
+      <button class="clsCard ${need(r) ? 'need' : ''}" data-c="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><em class="role r_${r}">${esc(G.ROLE_NAMES[r])}${need(r) ? ' · ' + esc(t('recruitNeed')) : ''}</em><small>${esc(L(c.descAlly || c.desc))}</small></button>`; }).join('')}</div>`;
     const m = UI.modal(t('recruitTitle'), html, [{ label: t('close') }]);
     m.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => {
-      if (G.recruit(b.dataset.c)) { m.hidden = true; m.innerHTML = ''; selWho = S.party.length - 1; G.Audio && G.Audio.buy(); UI.render(); }
+      if (G.recruit(b.dataset.c)) { m.hidden = true; m.innerHTML = ''; selWho = S.party.length - 1; selGear = null; G.Audio && G.Audio.buy(); UI.render(); }
     }));
   };
   updaters.hero = function (force) {
@@ -1092,13 +1119,19 @@
     const c = mem ? (D.party[selWho] || {}).c || D.hero : D.hero;
     // the party strip: everyone, their health, and the places still to fill
     const units = G.partyUnits(), slots = G.partySlots();
-    let sh = units.map(u => `<button class="pmem ${u.who === selWho ? 'on' : ''} ${u.down > 0 ? 'down' : ''}" data-who="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small class="r_${u.role}">${esc(G.ROLE_NAMES[u.role])}</small><i><u style="width:${Math.round(100 * Math.max(0, u.hp) / u.max)}%"></u></i></button>`).join('');
-    for (let k = S.party.length; k < 3; k++) sh += k < slots ? `<button class="pmem add" data-recruit>+<small>${esc(t('recruit'))}</small></button>` : `<div class="pmem lock"><small>${esc(t('recruitAt', G.PARTY_AT[k]))}</small></div>`;
-    if (rf.strip._h !== sh) { rf.strip.innerHTML = sh; rf.strip._h = sh; }
+    // (built only when who is in it changes, so a tap is never lost to a rebuild; health updates in place)
+    const sk = JSON.stringify([units.map(u => [u.who, u.cls, G.SLOTS.map(sl => u.eq[sl] ? u.eq[sl].id + (u.eq[sl].q || '') : '')]), slots, selWho]);
+    if (rf.strip._k !== sk) {
+      let sh = units.map(u => `<button class="pmem ${u.who === selWho ? 'on' : ''}" data-who="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small class="r_${u.role}">${esc(G.ROLE_NAMES[u.role])}</small><i><u></u></i></button>`).join('');
+      for (let k = S.party.length; k < 3; k++) sh += k < slots ? `<button class="pmem add" data-recruit>+<small>${esc(t('recruit'))}</small></button>` : `<div class="pmem lock"><small>${esc(t('recruitAt', G.PARTY_AT[k]))}</small></div>`;
+      rf.strip.innerHTML = sh; rf.strip._k = sk;
+    }
+    units.forEach((u, i) => { const b = rf.strip.children[i]; if (!b) return; setClass(b, 'down', u.down > 0); const bar = b.querySelector('u'); if (bar) bar.style.width = Math.round(100 * Math.max(0, u.hp) / u.max) + '%'; });
     setText(rf.lvl, t('lvl') + ' ' + h.lvl);
     rf.xp.style.width = Math.min(100, h.xp / G.xpNeed(h.lvl) * 100) + '%';
     setText(rf.xpt, fmt(Math.floor(h.xp)) + ' / ' + fmt(G.xpNeed(h.lvl)));
-    setText(rf.pow, fmt(D.power));
+    const P = mem ? D.party[selWho] : null;
+    setText(rf.pow, fmt(P ? P.c.power : D.power));
     setText(rf.shards, fmt(h.shards));
     setText(rf.bagn, h.bag.length + '/' + G.TUNE.bagMax);
     setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
@@ -1138,9 +1171,11 @@
     $$('[data-g]', rf.bag).forEach(el => { const g = h.bag.find(x => x.u === +el.dataset.g); if (!g) return; const sl = G.slotOf(g.id); if (mem && sl === 'weapon' && !G.CLASS_BY_ID[mem.cls].weapons.includes(G.ITEM_TYPE[g.id])) return; if (G.powerWith(sl, g, selWho) > G.powerWith(sl, eqS[sl], selWho)) el.querySelector('u').hidden = false; });
     // Stats
     const cls = G.CLASS_BY_ID[mem ? mem.cls : h.cls];
+    // a companion: what it really deals and takes, after its share and the run's bonuses
     const rows = [
-      ['st_dps', fmt(c.dps, true)], ['st_hit', fmt(c.hit, true)], ['st_rate', c.rate.toFixed(2) + t('perSec')], ['st_targets', c.targets],
-      ['st_crit', Math.round(c.crit * 100) + '% · ×' + c.critMult.toFixed(1)], ['st_hp', fmt(c.hp)],
+      ['st_dps', fmt(P ? P.dps : c.dps, true)], ['st_hit', fmt(P ? P.hit : c.hit, true)], ['st_rate', (P ? P.rate : c.rate).toFixed(2) + t('perSec')], ['st_targets', c.targets],
+      ['st_crit', Math.round(c.crit * 100) + '% · ×' + c.critMult.toFixed(1)], P ? ['st_unitHp', fmt(P.hp)] : ['st_hp', fmt(c.hp)],
+      ...(P ? [] : [['st_wardenHp', fmt(D.wardenHp)]]),
       ['st_class', c.own ? t('classBonusOn') : t('classBonusOff', cls.weapons.map(w => L(G.WEAPONS[w].name)).join(', '))],
     ];
     rf.stats.innerHTML = rows.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('');
@@ -1301,7 +1336,7 @@
     for (const e of N.entries) { if (!e.ok && !e.me) continue; for (const f of Array.isArray(e.ev) ? e.ev : []) if (Array.isArray(f) && typeof f[1] === 'string' && f[1] && typeof f[0] === 'number') rows.push({ e, ts: f[0], k: f[1], s: String(f[2] || '') }); }
     rows.sort((a, b) => b.ts - a.ts);
     if (!rows.length) return `<p class="note">${esc(t('feedEmpty'))}</p>`;
-    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown' };
+    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown', jackpot: 'ic_jackpot' };
     return rows.slice(0, 12).map(r => `<div class="feedRow">${img(icon[r.k] || 'ic_star', '', 2)}<span><b>${esc(N.displayName(r.e) || t('anon'))}</b> ${esc(t('feed' + r.k[0].toUpperCase() + r.k.slice(1), r.s))}</span><small>${esc(G.fmtTime(Math.max(1, (Date.now() - r.ts) / 1000)))}</small></div>`).join('');
   }
   renderers.ladder = function (body) {
@@ -1334,7 +1369,7 @@
         return;
       }
       if (e.target.closest('[data-cloud]')) { askCloud(N.cloud); return; }
-      if (e.target.closest('[data-name]')) { UI.go('hero'); setTimeout(() => { const i = $('#heroName'); if (i) i.focus(); }, 50); return; }
+      if (e.target.closest('[data-name]')) { selWho = -1; selGear = null; UI.go('hero'); setTimeout(() => { const i = $('#heroName'); if (i) i.focus(); }, 50); return; }
       const row = e.target.closest('.lrow[data-uid]');
       if (row) inspect(row.dataset.uid);
     });

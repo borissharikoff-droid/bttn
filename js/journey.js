@@ -25,7 +25,7 @@
     { text: 'Wear a rare item', cur: S => maxWorn(S, g => g.r >= 2 ? 1 : 0), need: 1, rew: { shards: 30 } },
     Object.assign(depth(5), { text: 'Clear depth 5 and slay its lord', rew: { eggs: 2 } }),
     { text: 'Find a unique', cur: uniques, need: 1, rew: { chest: 3 }, hint: 'Lords, rares, Hoarders and Rift Guardians drop them' },
-    { text: 'Collect 5 orbs', cur: S => S.st.orbs || 0, need: 5, rew: { ess: 8 }, hint: 'Use them in the Character tab: pick an item, then an orb' },
+    { text: 'Collect 5 orbs', cur: S => S.st.orbs || 0, need: 5, rew: { ess: 8 }, hint: 'Use them in the Party tab: pick an item, then an orb' },
     { text: 'Hatch 3 different pets', cur: S => Object.keys(S.pets).length, need: 3, rew: { eggs: 2 } },
     { text: 'Enchant an item to +5', cur: S => maxWorn(S, g => g.e), need: 5, rew: { ess: 10 } },
     Object.assign(depth(10), { rew: { eggs: 3 } }),

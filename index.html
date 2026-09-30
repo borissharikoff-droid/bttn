@@ -27,6 +27,7 @@
     <div class="hud bottom">
       <div class="buffs" id="buffs"></div>
       <div class="partyHud" id="partyHud" hidden></div>
+      <div class="evRow" id="evRow" hidden><img id="evIco" alt=""><div class="meter ev" id="evWrap"><i id="evMeter"></i><span id="evText"></span></div></div>
       <div class="bossRow" id="bossRow" hidden>
         <div class="meter boss" id="bossWrap"><i id="bossMeter"></i><span id="bossText"></span></div>
         <button class="btn fight" id="btnFight" hidden>⚔</button>
@@ -34,7 +35,7 @@
         <button class="btn fight" id="btnRetreat" hidden style="animation:none">✕</button>
       </div>
       <div class="hpRow" id="hpRow" hidden>
-        <div class="meter hpm" id="hpWrap"><i id="hpMeter"></i><span id="hpText"></span></div>
+        <div class="meter hpm" id="hpWrap"><i class="trail" id="hpTrail"></i><i id="hpMeter"></i><span id="hpText"></span></div>
         <button class="abil" id="btnAbil" hidden><img alt=""><i id="abilCd"></i></button>
       </div>
       <div class="meters">
@@ -72,9 +73,11 @@
 <script src="js/ach.js"></script>
 <script src="js/journey.js"></script>
 <script src="js/world.js"></script>
+<script src="js/events.js"></script>
 <script src="js/net.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/art2.js"></script>
+<script src="js/art3.js"></script>
 <script src="js/doll.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/stage.js"></script>

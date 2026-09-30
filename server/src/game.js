@@ -245,6 +245,8 @@
 
   // ---------- Heroes (idle income) ----------
   G.HERO_MILESTONES = [10, 25, 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000];
+  // how many chests fit on the field at each Treasure Hall level
+  G.HALL_SLOTS = [6, 10, 20, 30, 50, 100, 200];
   G.HEROES = [
     { id: 'rogue',    name: 'Rogue',       cost: 50,     gps: 0.2,    shot: '#9aa0a8' },
     { id: 'archer',   name: 'Archer',      cost: 400,    gps: 1.2,    shot: '#9be15d' },
@@ -288,14 +290,18 @@
       name: 'Treasure Sense',
       desc: 'Chests appear 5% more often',
       fx: (L, D) => { D.chestProg += 0.05 * L; } },
-    { id: 'hall', icon: 'ic_hall', base: 300, growth: 3.5, max: 10,
-      name: 'Spacious Hall',
-      desc: '+1 chest slot',
-      fx: (L, D) => { D.slots += L; } },
-    { id: 'golem', icon: 'ic_key', base: 2500, growth: 3, max: 20,
-      name: 'Key Golem',
-      desc: 'Opens chests for you. Each level is 12% faster',
-      fx: (L, D) => { if (L > 0) D.autoOpen = 8 * Math.pow(0.88, L - 1); } },
+    { id: 'hall', icon: 'ic_vault', base: 400, growth: 12, max: 6,
+      name: 'Treasure Hall',
+      desc: 'Room for more chests on the field: 10, 20, 30, 50, 100, then 200',
+      fx: (L, D) => { D.slots += G.HALL_SLOTS[L] - G.HALL_SLOTS[0]; } },
+    { id: 'golem', icon: 'ic_key', base: 600, growth: 3.2, max: 20,
+      name: 'Looter',
+      desc: 'A Looter runs to your chests and opens them: one every 3 s, each level 10% faster',
+      fx: (L, D) => { if (L > 0) D.autoOpen = 3 * Math.pow(0.9, L - 1); } },
+    { id: 'crew', icon: 'ic_crew', base: 40000, growth: 30, max: 4,
+      name: 'Loot Crew',
+      desc: 'One more Looter running for your chests',
+      fx: (L, D) => { D.looters += L; } },
     { id: 'clover', icon: 'ic_clover', base: 1000, growth: 2.8, max: 20,
       name: 'Four-Leaf Clover',
       desc: '+3% luck: better chests',
@@ -655,6 +661,9 @@
     wispMin: 50, wispMax: 120, wispLife: 13,
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
+    smallChestK: 0.1,       // the little chests the Horde drops are worth a tenth of a real one
+    smallItem: 0.05,        // and hold an item one time in twenty
+    overflowK: 0.5,         // a full field: the lowest chest bursts and half of it is lost
   };
 
   // ---------- State ----------
@@ -684,6 +693,8 @@
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
       uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
+      // the jackpot: how many, and the play time of the last one (its odds climb with every hour since)
+      jp: { n: 0, at: 0 },
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -701,7 +712,7 @@
   function baseD() {
     return {
       clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
-      crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, luck: 0,
+      crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
       offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 25,
@@ -856,6 +867,7 @@
     let gain = D.click * (1 + R.combo * D.comboPer);
     if (crit) { gain *= D.critMult; S.st.crits++; questProgress('crit', 1); }
     if (mega) { gain *= 30; S.st.megas++; }
+    if (G.evMul) gain *= G.evMul('click');
     addGold(gain, 'click');
     const dmg = R.boss ? D.heroHit * TUNE.clickVolley : 0;
     if (R.boss) tapBoss();
@@ -958,7 +970,7 @@
     return c;
   }
 
-  function spawnChest(tier, mod, fromBoss) {
+  function spawnChest(tier, mod, fromBoss, small) {
     const S = G.S;
     if (tier === undefined || tier === null) tier = rollTier();
     if (mod === undefined) mod = rollMod();
@@ -978,6 +990,7 @@
       }
     }
     const c = makeChest(tier, mod);
+    if (small) c.small = 1;
     S.chests.push(c);
     if (mod) S.modsSeen[mod] = 1;
     emit('chestSpawn', c, fromBoss);
@@ -1007,25 +1020,30 @@
     if (D.double && chance(D.double)) n *= 2;
     const rolls = c.mod === 'chromatic' ? 3 : 1;
     const loot = { items: [], gold: 0, ess: 0, eggs: 0, pots: [], tier: c.tier, mod: c.mod, chest: c, source };
-    const valMult = c.mod === 'blazing' ? 5 : 1;
+    // a chest that bursts for want of room spills half of it
+    const valMult = (c.mod === 'blazing' ? 5 : 1) * (source === 'overflow' ? TUNE.overflowK : 1) * (c.small ? TUNE.smallChestK : 1);
+    // a little chest from the Horde is mostly coin: an item only now and then
+    if (c.small && !chance(TUNE.smallItem)) n = 0;
     for (let i = 0; i < n; i++) {
       const li = lootItem(pickItem(rollRarity(c.tier, rolls)), source);
       li.v *= valMult;
       loot.gold += li.v;
       loot.items.push(li);
     }
+    if (c.small && !loot.items.length) loot.gold += chestValue(c.tier) * valMult;
     if (c.mod === 'golden') loot.gold += D.incomeRef * 8 * (c.tier + 1);
     addGold(loot.gold, 'chest');
-    let e = G.RARITIES[c.tier].ess * D.essMult * (c.mod === 'void' ? 10 : 1);
+    let e = c.small ? 0 : G.RARITIES[c.tier].ess * D.essMult * (c.mod === 'void' ? 10 : 1); // the little ones hold no essence
     if (c.mod === 'void') e = Math.max(e, 1 * D.essMult);
     loot.ess = e; addEssence(e, 'chest' + c.tier);
     if (c.tier >= 4 && chance(0.02 * (c.tier - 3) * D.eggMult)) loot.eggs += addEggs(1);
     if (c.tier >= 4 && chance(0.02 * (c.tier - 3))) { const p = givePotion(); if (p) loot.pots.push(p); }
-    S.opened[c.tier]++;
-    S.st.chests++;
+    // the little ones from the Horde count apart, so chest goals and quests keep their meaning
+    if (c.small) S.st.purses = (S.st.purses || 0) + 1;
+    else { S.opened[c.tier]++; S.st.chests++; questProgress('chests', 1); }
     if (c.mod) { S.st.modded++; questProgress('mod', 1); }
-    questProgress('chests', 1);
     emit('chestOpen', loot);
+    if (!c.small && source !== 'offline' && G.jackpotRoll) G.jackpotRoll(null, 'chest');
     if (c.mod === 'lightning' && !depthGuard) {
       const targets = S.chests.filter(o => o.mod !== 'mimic' && o.mod !== 'frozen').slice(0, 3);
       emit('lightning', c, targets);
@@ -1060,20 +1078,40 @@
 
   // The golem does the chores: lowest chests first, and it leaves the good ones
   // (epic and better) for the Hand for 20 seconds so the player gets to open them
-  function golemPick() {
+  function golemPick(skip) {
     const S = G.S;
-    const list = S.chests.filter(c => c.mod !== 'mimic' && (c.tier < 3 || c.age > 20 || c.mod === 'blazing'));
+    // a chest lies a moment before a Looter goes for it (and a good one waits 20 s for your own hand)
+    const list = S.chests.filter(c => c.mod !== 'mimic' && (c.age || 0) > 2 && (c.tier < 3 || c.age > 20 || c.mod === 'blazing') && !(skip && skip.has(c.id)));
     if (!list.length) return null;
     return list.find(c => c.mod === 'blazing') || list.find(c => c.mod === 'frozen') ||
       list.reduce((a, b) => (b.tier < a.tier ? b : a), list[0]);
   }
-  function golemAct() {
-    const c = golemPick();
+  function golemAct(c, i) {
+    c = c || golemPick();
     if (!c) return false;
-    emit('golem', c);
+    emit('golem', c, i);
     if (c.mod === 'frozen') { c.hp -= 2; emit('chestHit', c); if (c.hp <= 0) openChest(c, 'golem'); }
     else openChest(c, 'golem');
     return true;
+  }
+  // The Looters: each picks a chest, runs to it and opens it when its time is up
+  function lootersTick(dt) {
+    const S = G.S, n = D.autoOpen ? Math.max(1, D.looters | 0) : 0;
+    R.looters = R.looters || [];
+    R.looters.length = Math.min(R.looters.length, n);
+    while (R.looters.length < n) R.looters.push({ acc: 0, tgt: null });
+    const taken = new Set(R.looters.map(l => l.tgt).filter(x => x != null));
+    R.looters.forEach((l, i) => {
+      if (l.tgt != null && !S.chests.some(c => c.id === l.tgt)) { taken.delete(l.tgt); l.tgt = null; }
+      if (l.tgt == null) { const c = golemPick(taken); if (c) { l.tgt = c.id; l.acc = 0; taken.add(c.id); emit('looterGo', i, c); } }
+      if (l.tgt == null) return;
+      l.acc += dt;
+      if (l.acc >= D.autoOpen) {
+        const c = S.chests.find(x => x.id === l.tgt);
+        taken.delete(l.tgt); l.tgt = null; l.acc = 0;
+        if (c) golemAct(c, i);
+      }
+    });
   }
 
   // ---------- Potions ----------
@@ -1144,8 +1182,10 @@
     // a slam lands on everyone: the Button and each hero standing
     if (k === 'slam' && G.hurtButton) {
       const a = G.mobAtk(b.d) * (b.rage ? 1.5 : 1);
+      const up = G.partyUnits ? G.partyUnits().filter(u => !(u.down > 0)) : [];
       G.hurtButton(a * (b.lord ? 5 : 3.5));
-      if (G.partyUnits) for (const u of G.partyUnits()) if (!(u.down > 0)) G.hurtParty(u.who, a * (b.lord ? 3 : 2), 'slam');
+      // (a wipe on the Button's hit ends the fight: the revived party isn't hit again)
+      for (const u of up) if (R.boss === b) G.hurtParty(u.who, a * (b.lord ? 3 : 2), 'slam');
     }
     if (k === 'summon' && G.spawnPack) { G.spawnPack(true); G.spawnPack(true); }
     emit('bossMoveLand', b, k);
@@ -1175,6 +1215,9 @@
     if (G.heroBossStart) G.heroBossStart();
     R.boss = { d, lord, hp, max, scar, rally, phase: 1, inv: 0, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
+    // a boss that comes back wounded starts in the phase its health calls for
+    R.boss.phase = phaseAt(R.boss);
+    if (lord && R.boss.phase === 3) R.boss.rage = 1;
     R.bossReady = false; R.bossIn = null;
     emit('bossStart', R.boss);
     return true;
@@ -1238,7 +1281,9 @@
     const tier = b.lord ? Math.min(6, 1 + Math.floor(d / 8)) : Math.min(5, Math.floor(d / 8));
     const count = (b.lord ? 2 : 1) * om;
     if (G.heroBossEnd) G.heroBossEnd(true); // its swarm dies with it, still in this land
-    S.scar = null; S.rested = 0;
+    // only this boss's wounds heal; a deeper wall the party was pushed back from keeps its scar and Rally
+    if (S.scar && S.scar.d === d) S.scar = null;
+    S.rested = 0;
     S.depth++;
     if (S.depth > S.maxDepth) S.maxDepth = S.depth;
     if (S.depth > S.bestDepth) {
@@ -1572,7 +1617,7 @@
     if (sec >= 4 * 3600) G.S.rested = 1;
     addGold(gold);
     // Scouts and the golem keep finding chests while away (opened virtually).
-    const rate = D.scout + (D.autoOpen ? Math.min(1 / D.autoOpen, 2) * 0.25 : 0);
+    const rate = D.scout + (D.autoOpen ? Math.min((D.looters || 1) / D.autoOpen, 3) * 0.25 : 0);
     const n = Math.min(400, Math.floor(t * rate * D.offEff));
     let items = 0, ess = 0, extraGold = 0;
     for (let i = 0; i < n; i++) {
@@ -1616,6 +1661,7 @@
     spawnFromMeter();
     if (G.heroTick) G.heroTick(dt);
     if (G.worldTick) G.worldTick(dt);
+    if (G.eventsTick) G.eventsTick(dt);
     if (G.journeyTick) G.journeyTick(dt);
     // Boss
     if (R.rift) { /* the campaign waits while a Rift is open */ }
@@ -1639,15 +1685,8 @@
         if (R.bossIn <= -wait) startBoss();
       }
     }
-    // Golem auto-opener
-    if (D.autoOpen) {
-      R.golemAcc += dt;
-      let guard = 0;
-      while (R.golemAcc >= D.autoOpen && guard++ < 20) {
-        R.golemAcc -= D.autoOpen;
-        if (!golemAct()) { R.golemAcc = Math.min(R.golemAcc, D.autoOpen); break; }
-      }
-    }
+    // the Looters
+    lootersTick(dt);
     if (D.petOpen) {
       R.petOpenAcc += D.petOpen * dt;
       while (R.petOpenAcc >= 1) { R.petOpenAcc -= 1; if (!golemAct()) { R.petOpenAcc = 0; break; } }
@@ -1714,6 +1753,9 @@
     if (!('lands' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 40) delete S.rec.crowns[k];
     // saves from before 2.0: depths 65-74 were corrupted lands then, the Moon and the Star Sea now
     if (!('party' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 65) delete S.rec.crowns[k];
+    // saves from before 2.1: the hall gave one slot a level (up to 16); now it steps 10, 20, 30…
+    if (!('jp' in data) && S.upg && S.upg.hall > 0) S.upg.hall = S.upg.hall <= 4 ? 1 : 2;
+    S.jp = Object.assign({ n: 0, at: 0 }, data.jp || {});
     if (!Array.isArray(S.feed)) S.feed = [];
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
@@ -1725,6 +1767,10 @@
     // saves from before 1.0: the Journey gained 11 steps in between the old ones
     if (!('uq' in data) && G.Journey && G.Journey.fromV0) S.journey = G.Journey.fromV0(S.journey || 0);
     R.dirty = true; recalc();
+    if (S.hero && S.hero.cls) {
+      if (!(data.hero && 'whp' in data.hero)) S.hero.whp = D.wardenHp;
+      if (S.hero.hp <= 0 && G.TUNE.btnDown) R.btnDown = G.TUNE.btnDown;
+    }
     return S;
   }
   G.deserialize = deserialize;
@@ -1740,15 +1786,17 @@
   const { chance, pick, rand, randInt, emit } = G;
   const TUNE = G.TUNE;
   Object.assign(TUNE, {
-    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 4, mobAtkGrowth: 1.2,
-    mobWalk: 9, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
+    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.2,
+    mobWalk: 7, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
     // the arena is never empty: lots of small bodies, capped for the frame rate
-    mobMax: 600, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
+    mobMax: 900, packMul: 1.4, minCrowd: 40, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.07, pulseEvery: 6, smallHp: 2.2,
+    // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
+    killChest: 0.03, plunder: 0.002,
   });
 
   // ---------- Content ----------
@@ -1796,7 +1844,8 @@
   };
   G.CLASSES = [
     { id: 'knight', spr: 'h_knight', weapons: ['sword', 'katana', 'scythe'], starter: 'steel_sword', hp: 1.3, crit: 0, extra: 0,
-      name: 'Knight', desc: 'Swords, katanas and scythes. The Button is 30% tougher.' },
+      name: 'Knight', desc: 'Swords, katanas and scythes. The Button is 30% tougher. A tank: draws most of the bites.',
+      descAlly: 'Swords, katanas and scythes. A tank: draws most of the bites and shrugs off 30% of them.' },
     { id: 'archer', spr: 'h_archer', weapons: ['bow'], starter: 'short_bow', hp: 1, crit: 0, extra: 1,
       name: 'Archer', desc: 'Bows. Arrows pierce one more enemy.' },
     { id: 'wizard', spr: 'h_wizard', weapons: ['staff', 'wand'], starter: 'twig_staff', hp: 1, crit: 0, extra: 0, spd: 0.15,
@@ -1804,7 +1853,8 @@
     { id: 'rogue', spr: 'h_rogue', weapons: ['dagger'], starter: 'rusty_dagger', hp: 1, crit: 0.1, extra: 0,
       name: 'Rogue', desc: 'Daggers. +10% crit chance.' },
     { id: 'cleric', spr: 'h_priest', weapons: ['staff', 'wand'], starter: 'oak_wand', hp: 1.1, crit: 0, extra: 0,
-      name: 'Cleric', desc: 'Staves and wands. Heals the party and the Button, and raises the fallen faster. Hits softly.' },
+      name: 'Cleric', desc: 'Staves and wands. Heals the party and the Button; while they stand, the fallen get up three times faster.',
+      descAlly: 'Staves and wands. Heals the party and the Button; while they stand, the fallen get up three times faster. Hits softly.' },
   ];
   // What each class does in the party: tanks draw the bites, healers mend, the rest deal damage
   G.ROLES = { knight: 'tank', cleric: 'heal', archer: 'dps', wizard: 'dps', rogue: 'dps' };
@@ -1871,6 +1921,7 @@
   G.PERKS = {
     might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses included' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
+    plunder: { max: 3, icon: 'pk_plunder', name: 'Plunder', desc: 'Kills pop chests open on their own: a 0.2% chance each kill, per level' },
     multi:   { max: 3, icon: 'it_short_bow', name: 'Multistrike', desc: 'Each attack hits one more target' },
     cleave:  { max: 4, icon: 'it_blood_scythe', name: 'Cleave', desc: '+30% splash radius' },
     reach:   { max: 3, icon: 'it_hunter_bow', name: 'Long Reach', desc: '+20% attack range' },
@@ -1885,6 +1936,8 @@
     loot:    { max: 3, icon: 'ic_bag', name: 'Scavenger', desc: '+25% loot bag drops' },
   };
   const perk = id => (G.S.hero && G.S.hero.perks && G.S.hero.perks[id]) || 0;
+  // a sudden event's pull on the arena (js/events.js); neutral without it
+  const evMul = k => (G.evMul ? G.evMul(k) : 1);
   // Today's omen (js/journey.js); neutral where that file isn't loaded, e.g. on the ladder server
   const NO_OMEN = { xp: 1, mobHp: 1, gold: 1, horde: 1, champ: 1, loot: 1, thunder: 0, luck: 0 };
   const om = () => (G.omen ? G.omen() : NO_OMEN);
@@ -1995,6 +2048,10 @@
   // the fight goes to the victim: a party member or the Button
   function hitParty(v, dmg, src) { if (v === 'button') hurtButton(dmg); else if (v != null) hurtUnit(v, dmg, src); else checkWipe(); }
   G.hurtParty = hitParty;
+  G.victim = victim;
+  // the fallen get up three times faster while a healer stands
+  G.reviveRate = () => (G.partyUnits().some(u => u.role === 'heal' && !(u.down > 0)) ? 3 : 1);
+  G.dealHit = (m, dmg, src, crit) => dealHit(m, dmg, src, crit);
   function reviveUnit(who, frac) {
     unitDown(who, 0); unitHp(who, unitMax(who) * (frac || 0.4));
     emit('unitRevive', who);
@@ -2017,6 +2074,8 @@
     for (const m of R.mobs) emit('mobFlee', m);
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.boss) G.fleeBoss();
+    if (R.inv && G.endInvasion) G.endInvasion(false);
+    if (R.ev && G.endEvent) G.endEvent(false);
     const inRift = !!R.rift;
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
     const from = S.depth;
@@ -2293,7 +2352,7 @@
     const might = (1 + 0.12 * perk('might')) * (evo('titan') ? 1.5 : 1) * (evo('bloodpact') ? 1.25 : 1);
     const frenzy = (1 + 0.12 * perk('frenzy')) * (evo('berserk') ? 1.5 : 1) * hunt * (1 + 0.02 * (d.uq.reaper ? R.reap : 0)) * (shrine('frenzy') ? 2 : 1);
     d.heroHit = c.hit * buffDmg * might;
-    d.heroRate = c.rate * (R.hb.wing > 0 ? 2 : 1) * frenzy;
+    d.heroRate = c.rate * (R.hb.wing > 0 ? 2 : 1) * frenzy * evMul('rate');
     d.heroHp = c.hp * (1 + 0.2 * perk('bulwark')) * (evo('bastion') ? 2 : 1);
     d.heroDps = c.dps * buffDmg * might * frenzy;
     d.power = c.power;
@@ -2304,7 +2363,7 @@
       const pc = combat(m.eq, d, { cls: m.cls, lvl: h.lvl }), role = G.ROLES[m.cls];
       // companions back the Warden up: their hits count for less, a cleric's least of all
       const soft = TUNE.allyDmg * (role === 'heal' ? 0.5 : 1);
-      const o = { c: pc, role, hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy, hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) };
+      const o = { c: pc, role, hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy * evMul('rate'), hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) };
       o.dps = pc.dps * buffDmg * might * frenzy * soft;
       if (m.hp > o.hp) m.hp = o.hp;
       return o;
@@ -2331,7 +2390,7 @@
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {
-    fodder: { w: 0.008, spd: 1.3, gold: 1 },
+    fodder: { w: 0.0057, spd: 1.3, gold: 1 },
     brute:  { w: 1, spd: 1, gold: 1 },
     magic:  { w: 2, spd: 1.05, gold: 1.25 }, // blue champions, they come in pairs
     rare:   { w: 6, spd: 0.9, gold: 1.5 },   // yellow, named, one modifier, a pack of minions
@@ -2373,9 +2432,10 @@
   G.hordeScale = hordeScale;
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
-    const w = K.w * (add ? 1 : Math.max(1, (R.hs || 1) / 1.5));
+    // a stronger Warden meets a heavier Horde: half of it in heft, half in numbers (spawnPack)
+    const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
-    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1);
+    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
     const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
@@ -2408,7 +2468,9 @@
     const d = dnow(), a = at != null ? at + rand(-0.04, 0.04) : G.rng(), roll = G.rng(), L = land();
     if (R.mobs.length >= TUNE.mobMax) return;
     const room = () => R.mobs.length < TUNE.mobMax;
-    const swarm = (kind, n, spread, tail) => { for (let i = 0; i < n && room(); i++) makeMob(kind, a + rand(-spread, spread), -rand(0, tail || 0.3), add); };
+    // packs are thick: 1.4 times what they were, and more again for a Warden who outclasses the depth
+    const more = add ? 1 : TUNE.packMul * Math.sqrt(Math.max(1, (R.hs || 1) / 1.5));
+    const swarm = (kind, n, spread, tail) => { n = Math.round(n * (G.SMALL[kind] ? more : 1)); for (let i = 0; i < n && room(); i++) makeMob(kind, a + rand(-spread, spread), -rand(0, tail || 0.3), add); };
     if (add) { swarm('fodder', randInt(30, 50), 0.08, 0.25); return; }
     const rc = 0.03 * om().champ * (L.rare || 1), mc = rc + 0.07 * om().champ * (L.champ || 1);
     if (d >= 1 && roll < rc) { makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
@@ -2491,9 +2553,9 @@
     const i = R.mobs.indexOf(m);
     if (i >= 0) R.mobs.splice(i, 1);
     const K = G.MOB_KINDS[m.kind];
-    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1) * (1 + 0.2 * perk('greed')) * (evo('midas') ? 2 : 1) * om().gold * (shrine('greed') ? 2 : 1) * cm;
+    const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1) * (1 + 0.2 * perk('greed')) * (evo('midas') ? 2 : 1) * om().gold * (shrine('greed') ? 2 : 1) * cm * evMul('gold');
     G.addGold(gold, 'mob');
-    gainXp(2.5 * (1 + dnow()) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (m.br ? 1.5 : 1) * (shrine('slaughter') ? 2 : 1) * (D.xpMult || 1) * (L.xp || 1) * cm);
+    gainXp(2.5 * (1 + dnow()) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (m.br ? 1.5 : 1) * (shrine('slaughter') ? 2 : 1) * (D.xpMult || 1) * (L.xp || 1) * cm * evMul('xp'));
     h.kills++;
     if (G.landKill && !m.add) G.landKill(m);
     if (m.kind === 'magic' || m.kind === 'rare') h.elites++;
@@ -2505,6 +2567,19 @@
     if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 4);
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
+    // a chest spills out of the body now and then, where it fell
+    if (!m.add && !R.rift && m.kind !== 'guardian' && G.spawnChest) {
+      // by weight, so a pack split into more, smaller bodies drops the same
+      const pc = TUNE.killChest * (G.SMALL[m.kind] ? m.w / 0.008 : 1 + 20 * Math.min(6, m.w)) * evMul('chest') * (1 + 0.25 * perk('loot'));
+      if (chance(Math.min(1, pc))) { R.dropAt = m; G.spawnChest(undefined, null, false, true); R.dropAt = null; }
+    }
+    // one in a million or so: the JACKPOT
+    if (!m.add && G.jackpotRoll) G.jackpotRoll(m, 'kill');
+    // Plunder: a kill now and then pops a chest open on its own
+    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder'))) {
+      const c = S.chests.find(x => x.mod !== 'mimic' && x.mod !== 'frozen');
+      if (c) { emit('plunder', m, c); G.openChest(c, 'plunder'); }
+    }
     else if (!m.add) {
       const greed = (R.hb.scroll > 0 ? 3 : 1) * (1 + 0.25 * perk('loot')) * (evo('midas') ? 1.5 : 1) * om().loot;
       const p = m.kind === 'rare' ? 1 : m.kind === 'magic' ? 0.4 * greed : TUNE.mobChest * m.w * greed;
@@ -2664,26 +2739,27 @@
   function partyTick(dt, regen) {
     const S = G.S, D = G.D, h = S.hero;
     const units = G.partyUnits();
-    const cleric = units.some(u => u.role === 'heal' && !(u.down > 0));
+    const cleric = G.reviveRate() > 1;
     for (const u of units) {
       if (u.down > 0) { const left = unitDown(u.who, u.down - dt * (cleric ? 3 : 1)); if (left <= 0) reviveUnit(u.who, 0.4); }
       else unitHp(u.who, Math.min(u.max, u.hp + u.max * regen * dt));
     }
     // a broken Button mends on its own
-    if (R.btnDown > 0 && (R.btnDown -= dt) <= 0) { R.btnDown = 0; h.hp = D.heroHp * 0.5; emit('buttonFixed'); }
-    // clerics heal whoever is worst off, the Button included
+    if (R.btnDown > 0 && (R.btnDown -= dt) <= 0) { R.btnDown = 0; h.hp = Math.max(h.hp, D.heroHp * 0.5); emit('buttonFixed'); }
+    // clerics heal whoever is worst off, the Button included (a cleric Warden too)
+    const healFrom = src => {
+      let best = null, bk = 0.98;
+      for (const u of G.partyUnits()) if (!(u.down > 0) && u.hp / u.max < bk) { bk = u.hp / u.max; best = u.who; }
+      if (!(R.btnDown > 0) && h.hp / D.heroHp < bk) { bk = h.hp / D.heroHp; best = 'button'; }
+      if (best === 'button') { h.hp = Math.min(D.heroHp, h.hp + D.heroHp * TUNE.healPct * 1.5); emit('heal', src, 'button'); }
+      else if (best != null) { unitHp(best, Math.min(unitMax(best), unitHp(best) + unitMax(best) * TUNE.healPct * (1 + 0.1 * Math.min(10, h.lvl / 5)))); emit('heal', src, best); }
+    };
+    if (G.ROLES[h.cls] === 'heal' && !(h.wdown > 0) && (h.healT = (h.healT || 0) - dt) <= 0) { h.healT = TUNE.healEvery; healFrom(-1); }
     S.party.forEach((m, i) => {
       if (m.down > 0) return;
       const P = D.party[i];
       if (!P) return;
-      if (P.role === 'heal' && (m.healT = (m.healT || 0) - dt) <= 0) {
-        m.healT = TUNE.healEvery;
-        let best = null, bk = 0.98;
-        for (const u of G.partyUnits()) if (!(u.down > 0) && u.hp / u.max < bk) { bk = u.hp / u.max; best = u.who; }
-        if (!(R.btnDown > 0) && h.hp / D.heroHp < bk) { bk = h.hp / D.heroHp; best = 'button'; }
-        if (best === 'button') { h.hp = Math.min(D.heroHp, h.hp + D.heroHp * TUNE.healPct * 1.5); emit('heal', i, 'button'); }
-        else if (best != null) { unitHp(best, Math.min(unitMax(best), unitHp(best) + unitMax(best) * TUNE.healPct * (1 + 0.1 * Math.min(10, h.lvl / 5)))); emit('heal', i, best); }
-      }
+      if (P.role === 'heal' && (m.healT = (m.healT || 0) - dt) <= 0) { m.healT = TUNE.healEvery; healFrom(i); }
       // companions attack on their own
       m.acc = (m.acc || 0) + dt * P.rate;
       let guard = 0;
@@ -2805,8 +2881,8 @@
             emit('wave', wv + 1);
           }
         }
-        // the arena is never empty: fewer than 20 on the field brings the next pack now
-        if (R.hordeAcc < 1) { let vis = 0; for (const m of R.mobs) if (!m.add && m.p >= 0 && ++vis >= 20) break; if (vis < 20) R.hordeAcc = 1; }
+        // the arena is never empty: fewer than minCrowd on the field brings the next pack now
+        if (R.hordeAcc < 1) { let vis = 0; for (const m of R.mobs) if (!m.add && m.p >= 0 && ++vis >= TUNE.minCrowd) break; if (vis < TUNE.minCrowd) R.hordeAcc = 1; }
         if (R.hordeAcc >= 1 && aliveWeight(false) < cap && R.mobs.length < TUNE.mobMax) {
           const w0 = aliveWeight(false);
           spawnPack(false);
@@ -2815,8 +2891,8 @@
       }
     }
     // walk & bite
-    const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1);
-    const atk = mobAtk(dnow());
+    const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1) * evMul('speed');
+    const atk = mobAtk(dnow()) * evMul('bite');
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
@@ -2965,7 +3041,8 @@
     for (const k in S.rec.crowns || {}) cr[k] = Math.max(0.1, +S.rec.crowns[k] || 0.1);
     const snap = {
       // the best level reached, so ascending (which starts the level over) doesn't sink you on the ladder
-      v: 1, name: (S.profile.name || '').slice(0, 16), cls: h.cls, lvl: Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
+      // v2: 2.0 and later, where depths 65-74 are the Moon and the Star Sea
+      v: 2, name: (S.profile.name || '').slice(0, 16), cls: h.cls, lvl: Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
       depth: S.bestDepth, asc: S.ascensions, fame: S.fameTotal, mad: Math.round(S.rec.madTime || 0), gear, ts: Date.now(),
       rift: rf.best | 0, rt: Math.round(rf.bestT || 0), rd: today, uq: Object.keys(S.uq || {}).length, kills: h.kills | 0, ls: G.starCount ? G.starCount() : 0,
       ev: (S.feed || []).slice(-6), fs: Object.assign({}, S.rec.firsts || {}), cr,
@@ -3011,7 +3088,7 @@
     const numMap = (o, n) => o == null || (typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length <= n && Object.keys(o).every(k => k.length <= 8 && typeof o[k] === 'number' && o[k] > 0));
     // firsts: known milestones only, dated after the release and not in the future, and actually reached
     const FS = { boss: 0, d5: 0, d10: 0, d20: 0, d30: 0, d40: 0, d50: 0, d60: 0, d65: 0, d75: 0, d80: 0, uq: 0, r4: 0, r5: 0, r6: 0, asc: 0, evo: 0, all14: 0,
-      rift5: 0, rift15: 0, rift30: 0, rift45: 0, rift60: 0, rift80: 0 };
+      rift5: 0, rift15: 0, rift30: 0, rift45: 0, rift60: 0, rift80: 0, jp: 0 };
     const fsOk = k => {
       const v = snap.fs[k];
       if (!(k in FS) || v < 1.75e12 || (typeof snap.ts === 'number' && v > snap.ts + 864e5)) return false;
