@@ -2034,7 +2034,8 @@
     ctx.font = crisp(4) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
     const s = G.t('bossReadyTap');
-    ctx.strokeText(s, b.x, y - 9); ctx.fillStyle = '#ff7a2e'; ctx.fillText(s, b.x, y - 9);
+    if (cardT <= 0) ctx.strokeText(s, b.x, y - 9);
+    if (cardT > 0) { ctx.restore(); return; } ctx.fillStyle = '#ff7a2e'; ctx.fillText(s, b.x, y - 9);
     ctx.restore();
   }
   function drawHeroPlate() {

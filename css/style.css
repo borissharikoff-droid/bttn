@@ -653,3 +653,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 .invite p { margin: 2px 0 0; }
 /* short landscape screens: only the land strip and the goal */
 @media (max-height: 520px) and (orientation: landscape) { #realmSub, #omenLine, #rivalLine { display: none !important; } }
+/* a boss the Warden can't take yet: the button stops begging */
+.btn.fight.long { animation: none; opacity: .75; }
+@media (pointer: coarse) { .btn.fight { font-size: 20px; } .node { min-width: 28px; min-height: 28px; } }
+@media (max-width: 960px) and (orientation: landscape) and (max-height: 520px) {
+  .classGrid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .clsCard img { width: 48px; } .clsCard small { display: none; }
+}

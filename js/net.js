@@ -177,7 +177,7 @@
 
   // Called every few seconds by the main loop; `force` pushes right away.
   // Save and ladder uploads are independent, so one failing never blocks the other.
-  let pending = false;
+  let pending = false, lastLadderPush = 0;
   Net.tick = async function (force) {
     if (!backend || Net.status !== 'online' || Net.readOnly || Net.hold) return;
     if (busy) { if (force) pending = true; return; }
@@ -197,7 +197,8 @@
         const mine = Net.entries.find(e => e.me);
         const behind = mine && mine.ok && ((mine.depth || 0) > snap.depth || (mine.rift || 0) > snap.rift);
         if (behind) Net.behind = true;
-        else { Net.behind = false; if (key !== lastLadderKey) { await backend.pushLadder(snap); lastLadderKey = key; } Net.lastLadderAt = now; }
+        // re-send every 6 hours even when nothing changed, so friends see you're still around
+        else { Net.behind = false; if (key !== lastLadderKey || now - lastLadderPush > 6 * 3600e3) { await backend.pushLadder(snap); lastLadderKey = key; lastLadderPush = now; } Net.lastLadderAt = now; }
       } catch (e) { note(e); }
     }
     if (force || now - Net.lastSaveAt > SAVE_EVERY) {

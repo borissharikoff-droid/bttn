@@ -661,6 +661,13 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 .invite p { margin: 2px 0 0; }
 /* short landscape screens: only the land strip and the goal */
 @media (max-height: 520px) and (orientation: landscape) { #realmSub, #omenLine, #rivalLine { display: none !important; } }
+/* a boss the Warden can't take yet: the button stops begging */
+.btn.fight.long { animation: none; opacity: .75; }
+@media (pointer: coarse) { .btn.fight { font-size: 20px; } .node { min-width: 28px; min-height: 28px; } }
+@media (max-width: 960px) and (orientation: landscape) and (max-height: 520px) {
+  .classGrid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .clsCard img { width: 48px; } .clsCard small { display: none; }
+}
 
 </style>
 </head>
@@ -1338,7 +1345,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     tab_ladder: 'Ladder', rankBy: 'Sort', byDepth: 'Depth', byPower: 'Gear score',
     ladderRules: 'Ladder power counts only gear, level and class, the same for everyone. Every entry is re-checked on every client: gear with impossible enchants, affixes or item levels is flagged and kept off the ladder.',
     netArtifact: 'Online: shared ladder and cloud save', netHttp: 'Online: connected to the server', netConnecting: 'Connecting…',
-    netError: 'Network error: {0}', netOff: 'Offline', netOffHint: 'The ladder and cloud save work in the version of the game shared on claude.ai. Progress is kept in this browser.', netSignin: 'Sign in to claude.ai to join the ladder', netSigninHint: 'You can play right away: progress is kept in this browser. To race your friends, open the link signed in to claude.ai with the account they invited.', netDown: 'Can\u2019t reach the ladder right now', netDownHint: 'Your progress is safe in this browser and will sync when the ladder is back.', notYet: 'not yet', agoT: '{0} ago',
+    netError: 'Network error: {0}', netOff: 'Offline', netOffHint: 'The ladder and cloud save work in the version of the game shared on claude.ai. Progress is kept in this browser.', netSignin: 'Sign in to claude.ai to join the ladder', netSigninHint: 'You can play right away: progress is kept in this browser. To race your friends, open the link signed in to claude.ai with the account they invited.', netDown: 'Can\u2019t reach the ladder right now', netFull: 'The ladder is full or busy: tell whoever shared the game', netRevoked: 'Your access to the ladder was removed', netRetry: 'Something went wrong syncing; it will retry', netDownHint: 'Your progress is safe in this browser and will sync when the ladder is back.', notYet: 'not yet', agoT: '{0} ago',
     netSynced: 'Cloud save: {0} · ladder: {1}', netReadOnly: 'You have view-only access: you can see the ladder, but your results are not sent.',
     noNameYet: 'Your Warden has no name, so the ladder shows them as nameless.', setName: 'Set a name', syncNow: 'Send now', synced: 'Sent',
     loadCloud: 'Load from the cloud', ladderEmpty: 'Nobody here yet. Your result appears within half a minute.', ladderOffline: 'The ladder is unavailable offline.',
@@ -4530,7 +4537,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 
   // Called every few seconds by the main loop; `force` pushes right away.
   // Save and ladder uploads are independent, so one failing never blocks the other.
-  let pending = false;
+  let pending = false, lastLadderPush = 0;
   Net.tick = async function (force) {
     if (!backend || Net.status !== 'online' || Net.readOnly || Net.hold) return;
     if (busy) { if (force) pending = true; return; }
@@ -4550,7 +4557,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
         const mine = Net.entries.find(e => e.me);
         const behind = mine && mine.ok && ((mine.depth || 0) > snap.depth || (mine.rift || 0) > snap.rift);
         if (behind) Net.behind = true;
-        else { Net.behind = false; if (key !== lastLadderKey) { await backend.pushLadder(snap); lastLadderKey = key; } Net.lastLadderAt = now; }
+        // re-send every 6 hours even when nothing changed, so friends see you're still around
+        else { Net.behind = false; if (key !== lastLadderKey || now - lastLadderPush > 6 * 3600e3) { await backend.pushLadder(snap); lastLadderKey = key; lastLadderPush = now; } Net.lastLadderAt = now; }
       } catch (e) { note(e); }
     }
     if (force || now - Net.lastSaveAt > SAVE_EVERY) {
@@ -9277,7 +9285,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     ctx.font = crisp(4) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
     const s = G.t('bossReadyTap');
-    ctx.strokeText(s, b.x, y - 9); ctx.fillStyle = '#ff7a2e'; ctx.fillText(s, b.x, y - 9);
+    if (cardT <= 0) ctx.strokeText(s, b.x, y - 9);
+    if (cardT > 0) { ctx.restore(); return; } ctx.fillStyle = '#ff7a2e'; ctx.fillText(s, b.x, y - 9);
     ctx.restore();
   }
   function drawHeroPlate() {
@@ -9652,6 +9661,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
         const narrow = innerWidth < 600;
         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
         setClass($('#bossWrap'), 'waves', true);
+        setClass($('#btnFight'), 'long', R.bossReady && odds < 0.6);
         setClass($('#bossWrap'), 'weak', weak && !R.bossReady);
         $('#btnFight').hidden = !R.bossReady; $('#btnRetreat').hidden = true;
       }
@@ -10395,6 +10405,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (G.S.hero.cls) return;
     // Let the cloud save answer first: a returning player on a new device gets their hero back
     const N = G.Net;
+    if (N && N.hold && N.cloud && $('#modal').hidden && $('#intro').hidden) { askCloud(N.cloud); setTimeout(UI.pickClass, 500); return; }
     if (!$('#modal').hidden || !$('#intro').hidden || (N && N.hold) || (N && N.status === 'connecting' && pickWait++ < 16)) { setTimeout(UI.pickClass, 500); return; }
     const html = `<p>${esc(t('pickClassHint'))}</p><div class="classGrid">${G.CLASSES.map(c => `
       <button class="clsCard" data-c="${c.id}">${img(c.spr, '', 6)}<b>${esc(L(c.name))}</b><small>${esc(L(c.desc))}</small></button>`).join('')}</div>`;
@@ -10573,7 +10584,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       ${S.profile.name ? '' : `<p>${esc(t('noNameYet'))} <button class="btn" data-name>${esc(t('setName'))}</button></p>`}
       <div class="act">${N.status === 'online' && !N.readOnly ? `<button class="btn gold" data-push>${esc(t('syncNow'))}</button>` : ''}
         ${N.cloud ? `<button class="btn" data-cloud>${esc(t('loadCloud'))}</button>` : ''}</div>
-      ${N.error && N.status === 'online' && !N.readOnly ? `<p style="color:var(--bad)">${esc(N.error === 'unavailable' ? t('netDown') : t('netError', N.error))}</p>` : ''}
+      ${N.error && N.status === 'online' && !N.readOnly ? `<p style="color:var(--bad)">${esc(N.error === 'unavailable' ? t('netDown') : N.error === 'resource_exhausted' ? t('netFull') : N.error === 'revoked' || N.error === 'permission_denied' ? t('netRevoked') : t('netRetry'))}</p>` : ''}
       ${N.behind ? `<p class="note warn">${esc(t('netBehind'))}</p>` : ''}
       ${(() => { const mine = N.entries.find(e => e.me); return mine && !mine.ok ? `<p class="note warn">${esc(t('myHidden', (mine.problems || []).join(', ')))}</p>` : ''; })()}`;
     if (rf.net._h !== netHtml) { rf.net.innerHTML = netHtml; rf.net._h = netHtml; }
@@ -10861,7 +10872,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     { id: 'move', when: () => G.R.boss && G.R.boss.move, point: P.button, text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
     { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('hero'), text: 'tip_orb', until: () => G.UI.tab() === 'hero' },
     { id: 'rift', when: () => G.riftOpenable() && !G.R.boss, point: () => P.el('#btnRift') || P.tab('rift'), text: 'tip_rift', until: () => G.UI.tab() === 'rift' || !!G.R.rift },
-    { id: 'spitter', when: () => (G.R.mobs || []).some(m => m.kind === 'spitter' && m.p >= G.TUNE.spitStop), point: () => { const m = G.R.mobs.find(x => x.kind === 'spitter' && x.p >= G.TUNE.spitStop); return m && G.Stage.mobPoint(m); }, text: 'tip_spitter', until: () => !(G.R.mobs || []).some(m => m.kind === 'spitter') },
+    { id: 'spitter', when: () => (G.R.mobs || []).some(m => m.kind === 'spitter' && m.spit), point: () => { const m = G.R.mobs.find(x => x.kind === 'spitter' && x.p >= G.TUNE.spitStop); return m && G.Stage.mobPoint(m); }, text: 'tip_spitter', until: () => !(G.R.mobs || []).some(m => m.kind === 'spitter') },
     { id: 'bomber', when: () => (G.R.mobs || []).some(m => m.kind === 'bomber' && m.p > 0.3), point: () => { const m = G.R.mobs.find(x => x.kind === 'bomber' && x.p > 0.3); return m && G.Stage.mobPoint(m); }, text: 'tip_bomber', until: () => !(G.R.mobs || []).some(m => m.kind === 'bomber') },
     { id: 'map', when: S => S.depth >= 1 && !G.R.boss, point: () => { const r = document.querySelector('#realmBox').getBoundingClientRect(); return { x: r.right + 14, y: Math.max(50, r.bottom) }; }, text: 'tip_map', until: () => !!G.UI.mapSeen },
     { id: 'carnage', when: () => G.carnage && G.carnage().tier >= 1, point: null, text: 'tip_carnage' },
@@ -10924,7 +10935,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   Tut.update = function () {
     const S = G.S;
     const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
-    if (!S || !$('#coach') || busy) { hidePointer(); if (busy) $('#coach').hidden = true; return; }
+    if (!S || !$('#coach') || busy) { hidePointer(); if (busy) $('#coach').hidden = true; stepAt.t += 120; return; }
     if (!S.hero || !S.hero.cls) { hide(); return; }
     // tips for things that come and go (a Hoarder, loot, a shrine, a boss move) may cut into the tutorial
     if (tip) {
