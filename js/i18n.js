@@ -96,7 +96,7 @@
     orbNo_max: 'Already at +{0}', orbNo_none: 'Pick an item first', corrupted: 'Corrupted', unique: 'Unique', uniques: 'Uniques', uqFound: '{0} of {1} found',
     uqDrops: 'Drops from depth {0}', uqDropsBoss: 'Only {0} and deep Rifts', uqNew: 'NEW UNIQUE', uqBanner: 'UNIQUE!',
     lootFilter: 'Hide labels on common drops', shrineBuff: '{0} {1}s', rule: 'Land rule', feedUq: 'found {0}', feedRift: 'cleared {0}', feedLord: 'slew {0}', feedCrown: 'took the crown of {0}',
-    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', jpTitle: 'JACKPOT!!!', jpSub: 'ONE IN A MILLION', jpToast: 'JACKPOT! +{0} gold, and it rains chests', recent: 'Recent', feedEmpty: 'Nothing yet. Big drops and records from everyone show up here.',
+    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', rec_jp: 'JACKPOT', jpOdds: 'odds ×{0}', jpTitle: 'JACKPOT!!!', jpSub: 'ONE IN A MILLION', jpToast: 'JACKPOT! +{0} gold, and it rains chests', recent: 'Recent', feedEmpty: 'Nothing yet. Big drops and records from everyone show up here.',
     byRift: 'Rift', byToday: 'Today', byUq: 'Uniques', byStars: 'Land stars', rivalUp: 'You passed {0} · {1} #{2}', rivalDown: '{0} passed you · {1}', brag: 'Copy brag', bragged: 'Copied. Paste it to your friends',
     bragText: 'BTTN · {0} lv {1} · gear score {2}\n{3}\nUniques {4}/{5}: {6}\nCan you beat me?',
     byCrowns: 'Crowns', byFirsts: 'Firsts', crownsHint: 'Each lord\u2019s crown goes to the fastest kill of a fresh (unwounded) lord.', firstsHint: 'Who got there first among everyone on this ladder.',

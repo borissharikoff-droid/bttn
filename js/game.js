@@ -303,7 +303,8 @@
   function tryMerge() {
     const S = G.S;
     for (let t = 0; t < 6; t++) {
-      const same = S.chests.filter(c => c.tier === t && !c.mod);
+      // the Horde's little chests of coin don't fuse into real ones
+      const same = S.chests.filter(c => c.tier === t && !c.mod && !c.small);
       if (same.length >= 3) {
         const parts = same.slice(0, 3);
         S.chests = S.chests.filter(c => !parts.includes(c));

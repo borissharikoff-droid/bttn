@@ -82,8 +82,14 @@
   // a spot on the open field for a chest that has no slot by the Button: anywhere round it, clear of the middle
   function fieldSpot() {
     const b = btnPos();
-    const a = rand(0, Math.PI * 2), k = rand(0.42, 0.95);
-    return onField(b.x + Math.cos(a) * W * 0.46 * k, b.y + Math.sin(a) * H * 0.4 * k + 6);
+    const a = rand(0, Math.PI * 2), k = Math.sqrt(rand(0.18, 0.9));
+    return inField(b.x + Math.cos(a) * W * 0.44 * k, b.y + Math.sin(a) * H * 0.38 * k + 6);
+  }
+  // chests keep inside an oval round the Button, not in heaps along the edges of the screen
+  function inField(x, y) {
+    const b = btnPos(), rx = W * 0.44, ry = H * 0.38, dx = x - b.x, dy = y - b.y - 6, r = Math.hypot(dx / rx, dy / ry);
+    if (r > 1) { const k = rand(0.8, 0.98) / r; x = b.x + dx * k; y = b.y + 6 + dy * k; }
+    return onField(x, y);
   }
   function visFor(c) {
     let v = vis.get(c.id);
@@ -212,7 +218,7 @@
       }
       if (src) {
         const q = mobPos(src);
-        const land = onField(q.x + rand(-10, 10), q.y + rand(-2, 6));
+        const land = inField(q.x + rand(-10, 10), q.y + rand(-2, 6));
         vis.set(c.id, { slot: -1, x: land.x, y: land.y, t: 0, drop: 0, hit: 0, arc: { sx: q.x, sy: q.y - 8, t: 0, dur: 0.5 } });
         return;
       }

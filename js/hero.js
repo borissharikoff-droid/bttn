@@ -788,6 +788,12 @@
     if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 4);
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
+    else if (!m.add) {
+      // (without js/world.js, e.g. on the ladder server: the old loot bags)
+      const greed = (R.hb.scroll > 0 ? 3 : 1) * (1 + 0.25 * perk('loot')) * (evo('midas') ? 1.5 : 1) * om().loot;
+      const p = m.kind === 'rare' ? 1 : m.kind === 'magic' ? 0.4 * greed : TUNE.mobChest * m.w * greed;
+      if (chance(p)) chest = dropBag(m);
+    }
     // a chest spills out of the body now and then, where it fell
     if (!m.add && !R.rift && m.kind !== 'guardian' && G.spawnChest) {
       // by weight, so a pack split into more, smaller bodies drops the same
@@ -797,14 +803,9 @@
     // one in a million or so: the JACKPOT
     if (!m.add && G.jackpotRoll) G.jackpotRoll(m, 'kill');
     // Plunder: a kill now and then pops a chest open on its own
-    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder'))) {
+    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder') * (G.SMALL[m.kind] ? m.w / 0.008 : 1))) {
       const c = S.chests.find(x => x.mod !== 'mimic' && x.mod !== 'frozen');
       if (c) { emit('plunder', m, c); G.openChest(c, 'plunder'); }
-    }
-    else if (!m.add) {
-      const greed = (R.hb.scroll > 0 ? 3 : 1) * (1 + 0.25 * perk('loot')) * (evo('midas') ? 1.5 : 1) * om().loot;
-      const p = m.kind === 'rare' ? 1 : m.kind === 'magic' ? 0.4 * greed : TUNE.mobChest * m.w * greed;
-      if (chance(p)) chest = dropBag(m);
     }
     if (perk('leech')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.003 * perk('leech') * (G.SMALL[m.kind] ? 0.3 : 4) * (evo('bloodpact') ? 4 : 1));
     if (uq('sporeheart')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.004 * (G.SMALL[m.kind] ? 0.3 : 4));
