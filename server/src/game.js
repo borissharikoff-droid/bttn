@@ -409,7 +409,7 @@
       (L, D) => { D.wispRate *= 1 + 0.2 * L; }),
     C('a_nest', -4, -1, 'arcane', ['a_bond'], 2, 60, 4, 'Great Nest', '+1 pet slot',
       (L, D) => { D.petSlots += L; }),
-    C('a_hunt', -4, 1, 'arcane', ['a_time'], 1, 30, 1, 'The Hunt', 'Bosses start on their own when the Warden can take them; the clear bar needs 20% fewer kills',
+    C('a_hunt', -4, 1, 'arcane', ['a_time'], 1, 30, 1, 'The Hunt', 'A boss you can\u2019t beat yet comes back after 20s instead of 60s; the clear bar needs 20% fewer kills',
       (L, D) => { if (L) { D.autoBoss = true; D.bossNeed *= 0.8; } }),
     C('a_astral', -5, 0, 'arcane', ['a_nest', 'a_hunt', 'a_wisp'], 1, 220, 1, 'Astral', 'Potion cap +5, potion power +50%',
       (L, D) => { if (L) { D.potCap += 5; D.potPow *= 1.5; } }),
@@ -624,6 +624,7 @@
     bossBase: 400,          // boss hp at depth 0
     bossGrowth: 2.5,        // boss hp growth per depth
     lordHp: 3,
+    bossCall: 3,            // seconds of warning before a ready boss arrives on its own
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
     maxManualCps: 25,
@@ -1133,7 +1134,7 @@
     if (G.heroBossStart) G.heroBossStart();
     R.boss = { d, lord, hp, max, scar, rally, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
-    R.bossReady = false;
+    R.bossReady = false; R.bossIn = null;
     emit('bossStart', R.boss);
     return true;
   }
@@ -1567,9 +1568,15 @@
         else bossMoves(b, dt);
       }
     } else if (S.bossMeter >= D.bossNeed) {
-      if (!R.bossReady) { R.bossReady = true; emit('bossReady'); }
-      // the Hunt only calls a boss it can beat, or tries again after a minute and a half so Rally can build
-      if (D.autoBoss && S.set.autoBoss && (bossOdds() >= 1 || (R.autoWait = (R.autoWait || 0) + dt) > 90)) { R.autoWait = 0; startBoss(); }
+      if (!R.bossReady) { R.bossReady = true; R.bossIn = TUNE.bossCall; emit('bossReady'); }
+      // Bosses come on their own: after a short countdown when the Warden can take it, or after a
+      // longer wait when it can't yet (Rally builds with each try; The Hunt shortens the wait).
+      // ⚔ calls it right away.
+      if (S.set.autoBoss) {
+        R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
+        const wait = bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
+        if (R.bossIn <= -wait) startBoss();
+      }
     }
     // Golem auto-opener
     if (D.autoOpen) {
@@ -2293,7 +2300,8 @@
       S.st.rares = (S.st.rares || 0) + 1;
       if (uq('headhunter')) { R.hb.hh = Math.min(60, Math.max(0, R.hb.hh || 0) + 20); G.dirty(); emit('headhunter', m); }
     }
-    if (!m.add && !R.rift) S.bossMeter += m.w;
+    // a Warden far too strong for this depth clears it up to four times faster, so the game moves on
+    if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 4);
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
     else if (!m.add) {

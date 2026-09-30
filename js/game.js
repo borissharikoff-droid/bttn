@@ -11,6 +11,7 @@
     bossBase: 400,          // boss hp at depth 0
     bossGrowth: 2.5,        // boss hp growth per depth
     lordHp: 3,
+    bossCall: 3,            // seconds of warning before a ready boss arrives on its own
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
     maxManualCps: 25,
@@ -520,7 +521,7 @@
     if (G.heroBossStart) G.heroBossStart();
     R.boss = { d, lord, hp, max, scar, rally, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
-    R.bossReady = false;
+    R.bossReady = false; R.bossIn = null;
     emit('bossStart', R.boss);
     return true;
   }
@@ -954,9 +955,15 @@
         else bossMoves(b, dt);
       }
     } else if (S.bossMeter >= D.bossNeed) {
-      if (!R.bossReady) { R.bossReady = true; emit('bossReady'); }
-      // the Hunt only calls a boss it can beat, or tries again after a minute and a half so Rally can build
-      if (D.autoBoss && S.set.autoBoss && (bossOdds() >= 1 || (R.autoWait = (R.autoWait || 0) + dt) > 90)) { R.autoWait = 0; startBoss(); }
+      if (!R.bossReady) { R.bossReady = true; R.bossIn = TUNE.bossCall; emit('bossReady'); }
+      // Bosses come on their own: after a short countdown when the Warden can take it, or after a
+      // longer wait when it can't yet (Rally builds with each try; The Hunt shortens the wait).
+      // ⚔ calls it right away.
+      if (S.set.autoBoss) {
+        R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
+        const wait = bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
+        if (R.bossIn <= -wait) startBoss();
+      }
     }
     // Golem auto-opener
     if (D.autoOpen) {

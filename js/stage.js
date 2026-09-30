@@ -840,7 +840,7 @@
   const aoePx = a => ({ rx: a * W * 0.62, ry: a * W * 0.62 * 0.55 });
 
   const streak = { n: 0, t: 9, pop: 0 };
-  let multiCd = 0;
+  let multiCd = 0, lastCount = 0;
   const STREAKS = [[50, 'sk_25'], [100, 'sk_50'], [200, 'sk_100'], [400, 'sk_200'], [800, 'sk_400'], [1500, 'sk_800'], [3000, 'sk_3000'], [6000, 'sk_6000'], [10000, 'sk_10000']];
   function gore(m, gold, chest, src) {
     const q = mobPos(m);
@@ -1458,6 +1458,10 @@
     }
     frameKills = 0;
     stepCards(dt);
+    // a boss about to arrive on its own counts down over the Button
+    const bin = G.R.bossReady && !G.R.boss && G.S.set.autoBoss && G.R.bossIn != null && G.R.bossIn > 0 && G.bossOdds && G.bossOdds() >= 0.6 ? Math.ceil(G.R.bossIn) : 0;
+    if (bin && bin !== lastCount) { const b = btnPos(); text(b.x, b.y - 62, G.t('bossCountdown', bin), '#ff4f4f', 6, { life: 0.9, max: 0.9, vy: -6, big: true }); St.shake(1); if (G.Audio && G.Audio.bossCount) G.Audio.bossCount(bin); }
+    lastCount = bin;
     if (killGold > 0 && (killGoldT -= dt) <= 0) { const b = btnPos(); text(b.x + rand(-6, 6), b.y + 16, '+' + fmtSmall(killGold), '#f0c850', 3, { life: 0.8, max: 0.8, vy: -10 }); killGold = 0; killGoldT = 0.3; }
     // hit-stop and slow motion only touch the visuals; the game keeps its own clock
     const vdt = dt * (hitstop > 0 ? 0.08 : slowmo > 0 ? 0.3 : 1);
@@ -2009,7 +2013,10 @@
     const tt = Math.ceil(b.t) + 's';
     if (b.scar < 1) {
       const ws = G.t('wounded', Math.round((1 - b.scar) * 100)) + (b.rally ? ' · ' + G.t('rally', Math.round(b.rally * 100)) : '');
-      ctx.textAlign = 'center'; ctx.strokeText(ws, x + w / 2, y + 8); ctx.fillStyle = '#ff9a7a'; ctx.fillText(ws, x + w / 2, y + 8); ctx.textAlign = 'right';
+      // on its own line under the name, so the two never overlap
+      ctx.font = crisp(3) + 'px ' + FONT; ctx.textAlign = 'left';
+      ctx.strokeText(ws, x, y + 15); ctx.fillStyle = '#ff9a7a'; ctx.fillText(ws, x, y + 15);
+      ctx.font = crisp(4) + 'px ' + FONT; ctx.textAlign = 'right';
     }
     ctx.strokeText(tt, x + w, y + 8); ctx.fillStyle = b.t < 6 ? '#ff4f4f' : '#ffe27a'; ctx.fillText(tt, x + w, y + 8);
     const hpT = G.fmt(Math.max(0, b.hp)) + ' / ' + G.fmt(b.max);

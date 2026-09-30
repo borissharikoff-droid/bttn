@@ -276,7 +276,7 @@
       (L, D) => { D.wispRate *= 1 + 0.2 * L; }),
     C('a_nest', -4, -1, 'arcane', ['a_bond'], 2, 60, 4, 'Great Nest', '+1 pet slot',
       (L, D) => { D.petSlots += L; }),
-    C('a_hunt', -4, 1, 'arcane', ['a_time'], 1, 30, 1, 'The Hunt', 'Bosses start on their own when the Warden can take them; the clear bar needs 20% fewer kills',
+    C('a_hunt', -4, 1, 'arcane', ['a_time'], 1, 30, 1, 'The Hunt', 'A boss you can\u2019t beat yet comes back after 20s instead of 60s; the clear bar needs 20% fewer kills',
       (L, D) => { if (L) { D.autoBoss = true; D.bossNeed *= 0.8; } }),
     C('a_astral', -5, 0, 'arcane', ['a_nest', 'a_hunt', 'a_wisp'], 1, 220, 1, 'Astral', 'Potion cap +5, potion power +50%',
       (L, D) => { if (L) { D.potCap += 5; D.potPow *= 1.5; } }),

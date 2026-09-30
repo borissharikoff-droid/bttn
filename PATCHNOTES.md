@@ -1,3 +1,15 @@
+# BTTN 1.2.1 — Bosses come to you
+
+A player reported being level 44 with 34,706 kills and still at depth 2: mobs died in one hit, the land never changed and no boss ever came. The clear bar was full 168 times over and the Warden would have killed the boss in a fiftieth of its time limit, but a boss only started when you pressed the small ⚔ button (or the skull above the Button). Bosses only came on their own with The Hunt, deep in the Constellation.
+
+- **Bosses come on their own.** When the clear bar is full, a boss the Warden can take arrives after a 3-second countdown ("BOSS IN 3") over the Button. A boss it can't take yet comes after 60 seconds, so Rally builds with each try; The Hunt shortens that wait to 20 s. ⚔ still calls it right away, and Settings can turn this off.
+- **A Warden far too strong for the depth clears it up to 4× faster,** so an overpowered player races through the lands instead of farming the first one. The reported save now goes from depth 2 to depth 9 in two minutes on its own, then meets a real wall at depth 12, where it needs gear from deeper down.
+- The boss bar shows the countdown ("Sand Crab in 3s · ⚔ now"), and "Wounded" and "Rally" sit on their own line under the boss's name instead of on top of it.
+
+Checked by playing two fresh accounts from the intro through the real interface for 40 minutes of game time: a Knight who sometimes presses ⚔ and a Wizard who never does. Both reached depth 25–26 through five lands, with a new land about every 7–8 minutes and bosses dying in 4–45 seconds. The persona playtests keep their pace, and the casual player's longest wait in minutes 10–30 dropped from 289 to 160 seconds.
+
+---
+
 # BTTN 1.2 — Ready for friends
 
 The patch that gets BTTN ready to hand to friends. Six audits went over the game the way a friend would meet it: a new player's first 15 minutes on desktop, three phones (portrait, small, landscape), a bug hunt with thousands of simulated hours, pacing over days of casual play, playing together on the ladder, and every word on screen. Each finding was then checked again by a second, skeptical pass. Everything below was confirmed and fixed.

@@ -1135,7 +1135,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       (L, D) => { D.wispRate *= 1 + 0.2 * L; }),
     C('a_nest', -4, -1, 'arcane', ['a_bond'], 2, 60, 4, 'Great Nest', '+1 pet slot',
       (L, D) => { D.petSlots += L; }),
-    C('a_hunt', -4, 1, 'arcane', ['a_time'], 1, 30, 1, 'The Hunt', 'Bosses start on their own when the Warden can take them; the clear bar needs 20% fewer kills',
+    C('a_hunt', -4, 1, 'arcane', ['a_time'], 1, 30, 1, 'The Hunt', 'A boss you can\u2019t beat yet comes back after 20s instead of 60s; the clear bar needs 20% fewer kills',
       (L, D) => { if (L) { D.autoBoss = true; D.bossNeed *= 0.8; } }),
     C('a_astral', -5, 0, 'arcane', ['a_nest', 'a_hunt', 'a_wisp'], 1, 220, 1, 'Astral', 'Potion cap +5, potion power +50%',
       (L, D) => { if (L) { D.potCap += 5; D.potPow *= 1.5; } }),
@@ -1371,7 +1371,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     lvl: 'lv', max: 'MAX', buy: 'Buy', learn: 'Learn', locked: 'Locked',
     crit: 'CRIT!', fusion: 'Fusion!', potionGot: 'Potion!', mimic: 'MIMIC!', fled: 'Fled…', burned: 'Burned',
     noRoom: 'No room', victory: 'VICTORY!', bossFled: 'Boss escaped', bossReadyTap: 'BOSS! TAP',
-    bossMeter: 'Boss in {0} chests', bossReady: 'Boss ready!', bossReadyTo: 'Fight {0} to reach {1}', bossReadyShort: '\u2694 {0}!', bossOdds: 'Warden alone: {0}%', restedNote: 'Rested: your next boss fight hits 40% harder.', fight: 'Fight!', retreat: 'Retreat',
+    bossMeter: 'Boss in {0} chests', bossReady: 'Boss ready!', bossReadyTo: 'Fight {0} to reach {1}', bossIn: '{0} in {1}s · \u2694 now', bossInShort: '\u2694 {0} in {1}s', bossCountdown: 'BOSS IN {0}', bossReadyShort: '\u2694 {0}!', bossOdds: 'Warden alone: {0}%', restedNote: 'Rested: your next boss fight hits 40% harder.', fight: 'Fight!', retreat: 'Retreat',
     nextChest: 'Chest', combo: 'Combo',
     hire: 'Hire', each: 'each', total: 'total', toMilestone: 'to ×2: {0}', heroLocked: 'Unknown fighter',
     heroLockedHint: 'Earn {0} gold to reveal',
@@ -1397,7 +1397,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     ascBtn: 'Ascend', ascConfirm: 'Sure? Tap again', hallOfFame: 'Hall of Fame', hallHint: 'Permanent upgrades bought with fame. They never reset.',
     ascDone: 'You ascended! +{0} fame', famePassive: 'Fame: {0} (+{1}% gold, +{2}% Warden damage)',
     sound: 'Sound effects', music: 'Music', volume: 'Volume', hold: 'Hold the button to click', shake: 'Screen shake',
-    autoBoss: 'Bosses start on their own (after The Hunt)', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
+    autoBoss: 'Bosses come on their own', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code and press Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Everything is deleted forever',
     saved: 'Game saved', badSave: "That save code didn't load. Check that you copied all of it.", imported: 'Save loaded',
     keysHint: 'Keys: Space — click, E — open the best chest, Q — ability, B — call the boss, 1–0 — tabs.',
@@ -1479,6 +1479,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     bossBase: 400,          // boss hp at depth 0
     bossGrowth: 2.5,        // boss hp growth per depth
     lordHp: 3,
+    bossCall: 3,            // seconds of warning before a ready boss arrives on its own
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
     maxManualCps: 25,
@@ -1988,7 +1989,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     if (G.heroBossStart) G.heroBossStart();
     R.boss = { d, lord, hp, max, scar, rally, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
-    R.bossReady = false;
+    R.bossReady = false; R.bossIn = null;
     emit('bossStart', R.boss);
     return true;
   }
@@ -2422,9 +2423,15 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
         else bossMoves(b, dt);
       }
     } else if (S.bossMeter >= D.bossNeed) {
-      if (!R.bossReady) { R.bossReady = true; emit('bossReady'); }
-      // the Hunt only calls a boss it can beat, or tries again after a minute and a half so Rally can build
-      if (D.autoBoss && S.set.autoBoss && (bossOdds() >= 1 || (R.autoWait = (R.autoWait || 0) + dt) > 90)) { R.autoWait = 0; startBoss(); }
+      if (!R.bossReady) { R.bossReady = true; R.bossIn = TUNE.bossCall; emit('bossReady'); }
+      // Bosses come on their own: after a short countdown when the Warden can take it, or after a
+      // longer wait when it can't yet (Rally builds with each try; The Hunt shortens the wait).
+      // ⚔ calls it right away.
+      if (S.set.autoBoss) {
+        R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
+        const wait = bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
+        if (R.bossIn <= -wait) startBoss();
+      }
     }
     // Golem auto-opener
     if (D.autoOpen) {
@@ -3148,7 +3155,8 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
       S.st.rares = (S.st.rares || 0) + 1;
       if (uq('headhunter')) { R.hb.hh = Math.min(60, Math.max(0, R.hb.hh || 0) + 20); G.dirty(); emit('headhunter', m); }
     }
-    if (!m.add && !R.rift) S.bossMeter += m.w;
+    // a Warden far too strong for this depth clears it up to four times faster, so the game moves on
+    if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 4);
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
     else if (!m.add) {
@@ -7121,6 +7129,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   };
   A.breach = function () { noise(0.8, 0.08, 0, 300); tone(70, 1.2, 'sawtooth', 0.08, 0, 45); tone(105, 1.2, 'sawtooth', 0.05, 0.1, 70); };
   // a heap of the Horde dying in one frame: a deep crunch with a bright top
+  A.bossCount = function (n) { tone(n === 1 ? 660 : 440, 0.12, 'square', 0.07); thud(0.08, 0.1, 0, 500); };
   A.heap = function (n) { if (!throttle('heap', 180)) return; thud(0.14, 0.16, 0, 700); noise(0.12, 0.08, 0, 900); tone(note(7 + Math.min(12, Math.log2(n / 10) * 4)), 0.08, 'square', 0.05, 0.02); };
   A.spit = function () { if (!throttle('spit', 120)) return; tone(420, 0.06, 'triangle', 0.04, 0, 260); noise(0.04, 0.03, 0, 3000); };
   A.carnage = function (t) { if (!t) return; [0, 5, 9, 12].forEach((s, i) => tone(note(14 + s + t * 2), 0.1, 'square', 0.05, i * 0.04)); };
@@ -8091,7 +8100,7 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
   const aoePx = a => ({ rx: a * W * 0.62, ry: a * W * 0.62 * 0.55 });
 
   const streak = { n: 0, t: 9, pop: 0 };
-  let multiCd = 0;
+  let multiCd = 0, lastCount = 0;
   const STREAKS = [[50, 'sk_25'], [100, 'sk_50'], [200, 'sk_100'], [400, 'sk_200'], [800, 'sk_400'], [1500, 'sk_800'], [3000, 'sk_3000'], [6000, 'sk_6000'], [10000, 'sk_10000']];
   function gore(m, gold, chest, src) {
     const q = mobPos(m);
@@ -8709,6 +8718,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     }
     frameKills = 0;
     stepCards(dt);
+    // a boss about to arrive on its own counts down over the Button
+    const bin = G.R.bossReady && !G.R.boss && G.S.set.autoBoss && G.R.bossIn != null && G.R.bossIn > 0 && G.bossOdds && G.bossOdds() >= 0.6 ? Math.ceil(G.R.bossIn) : 0;
+    if (bin && bin !== lastCount) { const b = btnPos(); text(b.x, b.y - 62, G.t('bossCountdown', bin), '#ff4f4f', 6, { life: 0.9, max: 0.9, vy: -6, big: true }); St.shake(1); if (G.Audio && G.Audio.bossCount) G.Audio.bossCount(bin); }
+    lastCount = bin;
     if (killGold > 0 && (killGoldT -= dt) <= 0) { const b = btnPos(); text(b.x + rand(-6, 6), b.y + 16, '+' + fmtSmall(killGold), '#f0c850', 3, { life: 0.8, max: 0.8, vy: -10 }); killGold = 0; killGoldT = 0.3; }
     // hit-stop and slow motion only touch the visuals; the game keeps its own clock
     const vdt = dt * (hitstop > 0 ? 0.08 : slowmo > 0 ? 0.3 : 1);
@@ -9260,7 +9273,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
     const tt = Math.ceil(b.t) + 's';
     if (b.scar < 1) {
       const ws = G.t('wounded', Math.round((1 - b.scar) * 100)) + (b.rally ? ' · ' + G.t('rally', Math.round(b.rally * 100)) : '');
-      ctx.textAlign = 'center'; ctx.strokeText(ws, x + w / 2, y + 8); ctx.fillStyle = '#ff9a7a'; ctx.fillText(ws, x + w / 2, y + 8); ctx.textAlign = 'right';
+      // on its own line under the name, so the two never overlap
+      ctx.font = crisp(3) + 'px ' + FONT; ctx.textAlign = 'left';
+      ctx.strokeText(ws, x, y + 15); ctx.fillStyle = '#ff9a7a'; ctx.fillText(ws, x, y + 15);
+      ctx.font = crisp(4) + 'px ' + FONT; ctx.textAlign = 'right';
     }
     ctx.strokeText(tt, x + w, y + 8); ctx.fillStyle = b.t < 6 ? '#ff4f4f' : '#ffe27a'; ctx.fillText(tt, x + w, y + 8);
     const hpT = G.fmt(Math.max(0, b.hp)) + ' / ' + G.fmt(b.max);
@@ -9659,7 +9675,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
         const wave = Math.min(3, 1 + Math.floor(3 * S.bossMeter / need));
         const odds = R.bossReady && G.bossOdds ? G.bossOdds() : 1;
         const narrow = innerWidth < 600;
-        setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
+        // the countdown to a boss that comes on its own
+        const callIn = R.bossReady && S.set.autoBoss && R.bossIn != null ? Math.max(0, Math.ceil(R.bossIn + (odds >= 0.6 ? 0 : D.autoBoss ? 20 : 60))) : -1;
+        if (callIn >= 0) setText($('#bossText'), narrow ? t('bossInShort', L(G.bossName(S.depth)), callIn) : t('bossIn', L(G.bossName(S.depth)), callIn) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : ''));
+        else         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
         setClass($('#bossWrap'), 'waves', true);
         setClass($('#btnFight'), 'long', R.bossReady && odds < 0.6);
         setClass($('#bossWrap'), 'weak', weak && !R.bossReady);
