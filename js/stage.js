@@ -1962,20 +1962,36 @@
   // ---------- The Town (2.4) ----------
   // A square of cobbles round a well; each building opens its own window (see UI.townOpen). The field
   // holds still meanwhile. Places are fractions of the view: bottom-centre of each building's sprite.
+  // 3.0: eleven buildings and the portal. A wide view has two rows; a narrow one (phones) three.
+  // w/n: [x as a fraction of the view, row] for the wide and the narrow layout.
   const TOWN = [
-    { id: 'forge', spr: 'tw_forge', npc: 'npc_smith', x: 0.22, y: 0.5 },
-    { id: 'enchant', spr: 'tw_tower', npc: 'npc_witch', x: 0.37, y: 0.44 },
-    { id: 'portal', spr: 'tw_portal', x: 0.5, y: 0.38 },
-    { id: 'stars', spr: 'tw_obs', npc: 'npc_sage', x: 0.63, y: 0.44 },
-    { id: 'alch', spr: 'tw_alch', npc: 'npc_alch', x: 0.78, y: 0.5 },
-    { id: 'tavern', spr: 'tw_tavern', npc: 'npc_keeper', x: 0.27, y: 0.8 },
-    { id: 'quests', spr: 'tw_board', x: 0.5, y: 0.78 },
-    { id: 'pets', spr: 'tw_nest', x: 0.73, y: 0.8 },
+    { id: 'barracks', spr: 'tw_barracks', w: [0.08, 0], n: [0.13, 1] },
+    { id: 'forge', spr: 'tw_forge', npc: 'npc_smith', w: [0.22, 0], n: [0.2, 0] },
+    { id: 'enchant', spr: 'tw_tower', npc: 'npc_witch', w: [0.36, 0], n: [0.33, 1] },
+    { id: 'portal', spr: 'tw_portal', w: [0.5, 0], n: [0.5, 0] },
+    { id: 'stars', spr: 'tw_obs', npc: 'npc_sage', w: [0.64, 0], n: [0.67, 1] },
+    { id: 'alch', spr: 'tw_alch', npc: 'npc_alch', w: [0.78, 0], n: [0.8, 0] },
+    { id: 'temple', spr: 'tw_temple', w: [0.92, 0], n: [0.87, 1] },
+    { id: 'museum', spr: 'tw_museum', w: [0.11, 1], n: [0.1, 2] },
+    { id: 'tavern', spr: 'tw_tavern', npc: 'npc_keeper', w: [0.29, 1], n: [0.3, 2] },
+    { id: 'quests', spr: 'tw_board', w: [0.5, 1], n: [0.5, 2] },
+    { id: 'pets', spr: 'tw_nest', w: [0.71, 1], n: [0.7, 2] },
+    { id: 'rift', spr: 'tw_rift', w: [0.89, 1], n: [0.9, 2] },
   ];
   St.TOWN = TOWN;
-  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; townHover = null; townTop = 0; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
+  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; critters.length = 0; townHover = null; townTop = 0; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
+  G.on('build', id => { const t = TOWN.find(x => x.id === id); if (!t || !G.R.town) return; const q = townPlace(t); burst(q.x, q.y0 + q.h / 2, ['#ffd84a', '#ffffff', '#ffe27a'], 40, 90); ring(q.x, q.y - 4, 30, 14, '#ffd84a', 0.6); St.flash(0.15, '#ffe27a'); });
   let townGround = null, townKey = '', townHover = null;
   const sprOr = id => (SPR.defs[id] ? SPR.get(id) : null);
+  const narrowTown = () => W < 400;
+  // a building still to open stands as scaffolding; one built up three times or more takes its grander look
+  const townOpen = t => t.id === 'portal' || !G.bldOpen || G.bldOpen(t.id);
+  const townLv = t => (G.bldLvl ? G.bldLvl(t.id) : 0);
+  function townSpr(t) {
+    if (!townOpen(t) && SPR.defs.tw_build) return 'tw_build';
+    if (townLv(t) >= 3 && SPR.defs[t.spr + '_2']) return t.spr + '_2';
+    return SPR.defs[t.spr] ? t.spr : null;
+  }
   // the town is laid out below the top HUD: the back row stands its tallest building's height under it
   let townTop = 0, townTopT = 0;
   function townRows() {
@@ -1985,14 +2001,16 @@
       const el = typeof document !== 'undefined' && document.querySelector('.hud.top .hudBtns'), cr = cv.getBoundingClientRect();
       townTop = el ? Math.max(0, (el.getBoundingClientRect().bottom - cr.top) / S) : 20;
     }
+    if (narrowTown()) {
+      const r0 = Math.round(townTop + 70), r2 = H - 6, r1 = Math.round((r0 + r2) / 2);
+      return { rows: [r0, r1, r2], r1: r0, r2, mid: r1, wellY: r1 - 2 };
+    }
     const r1 = Math.round(Math.max(H * 0.42, townTop + 66)), r2 = Math.round(Math.min(H - 6, Math.max(r1 + 74, H * 0.8)));
-    return { r1, r2, mid: Math.round((r1 + r2) / 2) };
+    return { rows: [r1, r2], r1, r2, mid: Math.round((r1 + r2) / 2), wellY: Math.round((r1 + r2) / 2) + 10 };
   }
   function townPlace(t) {
-    const c = sprOr(t.spr), w = c ? c.width : 40, h = c ? c.height : 34, rw = townRows();
-    // back row (y < 0.6): the rows' own heights, nudged by the place's offset from its row
-    const back = t.y < 0.6, y = Math.round(back ? rw.r1 + (t.y - 0.44) * 60 : t.y < 0.79 ? rw.r2 - 4 : rw.r2);
-    const x = Math.round(W * t.x);
+    const id = townSpr(t), c = id ? SPR.get(id) : null, w = c ? c.width : 40, h = c ? c.height : 34, rw = townRows();
+    const at = narrowTown() ? t.n : t.w, y = rw.rows[at[1]], x = Math.round(W * at[0]);
     return { x, y, w, h, c, x0: x - w / 2, y0: y - h };
   }
   function buildTownGround() {
@@ -2000,7 +2018,7 @@
     // grass round the edge, cobbles in the square
     x.fillStyle = '#3e6b34'; x.fillRect(0, 0, W, H);
     for (let i = 0; i < W * H / 14; i++) { x.fillStyle = rnd() < 0.5 ? '#4b7d3e' : '#355d2d'; x.fillRect(Math.floor(rnd() * W), Math.floor(rnd() * H), 1, 1); }
-    const rw = townRows(), cx = W / 2, cy = rw.mid + 6, rx = W * 0.37, ry = Math.max(H * 0.3, (rw.r2 - rw.r1) * 0.75 + 24);
+    const rw = townRows(), cx = W / 2, cy = rw.mid + 6, rx = W * (narrowTown() ? 0.46 : 0.37), ry = Math.max(H * 0.3, (rw.r2 - rw.r1) * 0.75 + 24);
     for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
       const dx = (xx - cx) / rx, dy = (yy - cy) / ry, d = dx * dx + dy * dy;
       if (d > 1 + (rnd() - 0.5) * 0.06) continue;
@@ -2018,16 +2036,20 @@
     for (let i = 0; i < 26; i++) { const px = rnd() * W, py = rnd() * H, dx = (px - cx) / rx, dy = (py - cy) / ry; if (dx * dx + dy * dy > 1.05) put('tw_flower', px, py); }
     // a ring of trees round the square, thicker at the back
     for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, px = cx + Math.cos(a) * rx * k, py = cy + Math.sin(a) * ry * k + 10; if (py > 20) put('tw_tree', px, py); }
-    put('tw_lamp', cx - 34, cy + 2); put('tw_lamp', cx + 34, cy + 2);
-    put('tw_barrel', W * 0.36, rw.r2 + 2); put('tw_crate', W * 0.3, cy - 4); put('tw_barrel', W * 0.7, cy - 4); put('tw_crate', W * 0.64, rw.r2 + 2);
-    put('tw_barrel', W * 0.15, cy + 2); put('tw_crate', W * 0.86, cy + 4);
-    put('tw_banner', W * 0.42, rw.r1 + 2); put('tw_banner', W * 0.58, rw.r1 + 2);
+    const wy = rw.wellY;
+    put('tw_lamp', cx - 34, wy + 2); put('tw_lamp', cx + 34, wy + 2);
+    put('tw_barrel', W * 0.4, rw.r2 + 3); put('tw_crate', W * 0.2, wy + 6); put('tw_barrel', W * 0.8, wy + 6); put('tw_crate', W * 0.6, rw.r2 + 3);
+    put('tw_banner', W * 0.43, rw.r1 + 2); put('tw_banner', W * 0.57, rw.r1 + 2);
+    // market stalls and benches round the fountain
+    if (!narrowTown()) { put('tw_stall', cx - 62, wy + 8); put('tw_stall2', cx + 62, wy + 8); }
+    put('tw_bench', cx - 22, wy + 18); put('tw_bench', cx + 22, wy + 18);
     return c;
   }
-  const villagers = [];
+  const villagers = [], critters = [];
+  // townsfolk: more of them the more the town is built up
   function stepVillagers(dt, cx, cy) {
-    const ids = ['npc_sage', 'npc_keeper', 'npc_alch', 'npc_smith'];
-    while (villagers.length < 5) villagers.push({ x: cx + rand(-60, 60), y: cy + rand(-20, 30), tx: cx, ty: cy, id: pick(ids), w: rand(0, 3) });
+    const ids = ['npc_sage', 'npc_keeper', 'npc_alch', 'npc_smith', 'npc_witch'], want = Math.min(16, 5 + Math.floor((G.townLvl ? G.townLvl() : 0) / 3));
+    while (villagers.length < want) villagers.push({ x: cx + rand(-60, 60), y: cy + rand(-20, 30), tx: cx, ty: cy, id: pick(ids), w: rand(0, 3) });
     for (const v of villagers) {
       if (v.w > 0) v.w -= dt;
       else {
@@ -2042,10 +2064,39 @@
       else lctx.drawImage(c, Math.round(v.x) - (c.width >> 1), Math.round(v.y) - c.height);
     }
   }
+  // a cat on the steps, a dog trotting about, chickens pecking by the stalls
+  function stepCritters(dt, cx, cy) {
+    if (!critters.length && SPR.defs.tw_cat) {
+      critters.push({ k: 'cat', x: cx - 40, y: cy + 14, w: 0 }, { k: 'dog', x: cx + 30, y: cy + 20, w: 1 }, { k: 'chicken', x: cx - 70, y: cy + 22, w: 0.5 }, { k: 'chicken', x: cx + 74, y: cy + 24, w: 2 });
+      critters.forEach(c => { c.tx = c.x; c.ty = c.y; c.face = 1; c.pk = 0; });
+    }
+    for (const c of critters) {
+      const sp = c.k === 'dog' ? 22 : c.k === 'cat' ? 9 : 6;
+      if (c.w > 0) { c.w -= dt; if (c.k === 'chicken') c.pk = Math.random() < 0.04 ? 0.3 : Math.max(0, c.pk - dt); }
+      else {
+        const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
+        if (d < 1) { c.w = c.k === 'cat' ? rand(4, 10) : rand(1, 4); const r = c.k === 'dog' ? 90 : 30; c.tx = clamp(c.x + rand(-r, r), 10, W - 10); c.ty = clamp(c.y + rand(-r / 3, r / 3), cy - 30, H - 10); }
+        else { const k = Math.min(1, sp * dt / d); c.x += dx * k; c.y += dy * k; c.face = dx >= 0 ? 1 : -1; }
+      }
+      const id = c.k === 'cat' ? (Math.floor(time * 0.7) % 2 ? 'tw_cat2' : 'tw_cat') : c.k === 'chicken' ? (c.pk > 0 ? 'tw_chicken2' : 'tw_chicken') : 'tw_dog';
+      const im = sprOr(id); if (!im) continue;
+      const bob = c.k === 'dog' && c.w <= 0 ? Math.floor(time * 8) % 2 : 0;
+      const x = Math.round(c.x), y = Math.round(c.y) - bob;
+      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(x - 3, Math.round(c.y), 6, 1);
+      if (c.face < 0) { lctx.save(); lctx.translate(x, 0); lctx.scale(-1, 1); lctx.drawImage(im, -(im.width >> 1), y - im.height); lctx.restore(); }
+      else lctx.drawImage(im, x - (im.width >> 1), y - im.height);
+    }
+  }
   function hitTown(p) {
     // front to back, as they're drawn
-    for (const t of TOWN.slice().sort((a, b) => b.y - a.y)) { const q = townPlace(t); if (p.x >= q.x0 - 2 && p.x <= q.x0 + q.w + 2 && p.y >= q.y0 - 2 && p.y <= q.y + 6) return t; }
+    for (const t of townSorted(true)) { const q = townPlace(t); if (p.x >= q.x0 - 2 && p.x <= q.x0 + q.w + 2 && p.y >= q.y0 - 2 && p.y <= q.y + 6) return t; }
     return null;
+  }
+  // back to front (front to back with rev): by row, then left to right
+  function townSorted(rev) {
+    const row = t => (narrowTown() ? t.n : t.w)[1];
+    const l = TOWN.slice().sort((a, b) => row(a) - row(b));
+    return rev ? l.reverse() : l;
   }
   St.townHit = p => hitTown(p);
   St.townPoint = id => { const t = TOWN.find(x => x.id === id); if (!t) return null; const q = townPlace(t), r = cv.getBoundingClientRect(); return { x: r.left + q.x * S, y: r.top + q.y0 * S }; };
@@ -2054,33 +2105,47 @@
     if (k !== townKey || !townGround) { townKey = k; townGround = buildTownGround(); }
     lctx.imageSmoothingEnabled = false;
     lctx.drawImage(townGround, 0, 0);
-    const cx = Math.round(W / 2), cy = townRows().mid + 6;
-    // the well in the middle, the party round it
-    const well = sprOr('tw_well'); if (well) lctx.drawImage(well, cx - (well.width >> 1), cy - well.height + 4);
+    const rw = townRows(), cx = Math.round(W / 2), cy = rw.wellY;
+    // the fountain in the middle (the well, without the art), the party round it
+    const fid = SPR.defs.tw_fountain ? (Math.floor(time * 3.5) % 2 ? 'tw_fountain2' : 'tw_fountain') : 'tw_well', well = sprOr(fid);
+    if (well) lctx.drawImage(well, cx - (well.width >> 1), cy - well.height + 4);
+    if (Math.random() < 0.3) part(cx + rand(-4, 4), cy - (well ? well.height : 16) + 6, pick(['#bfe8ff', '#ffffff', '#7fc8ff']), { vx: rand(-8, 8), vy: -rand(10, 20), grav: 60, life: 0.5 });
     const S0 = G.S, units = [S0.hero && S0.hero.cls].concat((S0.party || []).map(m => m.cls)).filter(Boolean);
     units.forEach((cls, i) => {
       const C = G.CLASS_BY_ID[cls], sp = C && sprOr(C.spr); if (!sp) return;
-      const a = Math.PI * 0.75 + i * Math.PI * 0.5, px = Math.round(cx + Math.cos(a) * 22), py = Math.round(cy + 10 + Math.sin(a) * 9 + (Math.floor(time * 2 + i) % 2));
+      const a = Math.PI * 0.75 + i * Math.PI * 0.5, px = Math.round(cx + Math.cos(a) * 24), py = Math.round(cy + 10 + Math.sin(a) * 9 + (Math.floor(time * 2 + i) % 2));
       lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(px - 4, py, 8, 1);
       lctx.drawImage(sp, px - (sp.width >> 1), py - sp.height);
     });
+    stepCritters(dt, cx, cy);
     // buildings, back to front
-    for (const t of TOWN.slice().sort((a, b) => a.y - b.y)) {
-      const q = townPlace(t);
+    for (const t of townSorted()) {
+      const q = townPlace(t), open = townOpen(t), lv = townLv(t);
       let c = q.c;
-      if (t.id === 'portal' && Math.floor(time * 4) % 2 && SPR.defs.tw_portal2) c = SPR.get('tw_portal2');
+      if (open && t.id === 'portal' && Math.floor(time * 4) % 2 && SPR.defs.tw_portal2) c = SPR.get('tw_portal2');
+      if (open && t.id === 'rift' && Math.floor(time * 4) % 2 && SPR.defs.tw_rift2) c = SPR.get('tw_rift2');
       lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(Math.round(q.x0 + 2), q.y - 1, q.w - 4, 2);
+      // a fully built one glows gold underneath
+      if (lv >= G.BLD_MAX) glow(q.x, q.y - q.h * 0.4, q.w * 0.6, '#ffd84a', 0.14 + 0.05 * Math.sin(time * 2 + q.x));
       if (c) lctx.drawImage(c, Math.round(q.x0), q.y0);
       else { lctx.fillStyle = '#6a4a30'; lctx.fillRect(Math.round(q.x0), q.y0, q.w, q.h); }
       if (townHover === t) { lctx.globalAlpha = 0.18 + 0.08 * Math.sin(time * 8); lctx.fillStyle = '#ffe27a'; lctx.fillRect(Math.round(q.x0) - 1, q.y0 - 1, q.w + 2, q.h + 2); lctx.globalAlpha = 1; }
+      if (!open) continue;
+      // lanterns by the door once it's built up
+      if (lv >= 1) { const ln = sprOr('tw_lantern'); if (ln) { lctx.drawImage(ln, Math.round(q.x0) - 2, q.y - 22); if (lv >= 2) lctx.drawImage(ln, Math.round(q.x0 + q.w) - 4, q.y - 22); glow(q.x0 + 1, q.y - 15, 6, '#ffd27a', 0.2 + 0.05 * Math.sin(time * 3 + q.x)); } }
       // its keeper at the door, idling on two frames
-      if (t.npc) { const f = Math.floor(time * 1.6 + t.x * 7) % 2 && SPR.defs[t.npc + '2'] ? t.npc + '2' : t.npc, n = sprOr(f); if (n) lctx.drawImage(n, Math.round(q.x + q.w / 2 - n.width + 2), q.y - n.height + 2); }
-      if (t.id === 'forge' && Math.random() < 0.3) part(q.x0 + q.w * 0.75, q.y0 + 2, pick(['#6a6a72', '#8a8a92', '#4a4a52']), { vx: rand(-3, 3), vy: -rand(8, 16), grav: 0, life: rand(1, 2) });
+      if (t.npc) { const f = Math.floor(time * 1.6 + q.x * 0.1) % 2 && SPR.defs[t.npc + '2'] ? t.npc + '2' : t.npc, n = sprOr(f); if (n) lctx.drawImage(n, Math.round(q.x + q.w / 2 - n.width + 2), q.y - n.height + 2); }
+      if (t.id === 'forge' && Math.random() < 0.3 + 0.1 * lv) part(q.x0 + q.w * 0.75, q.y0 + 2, pick(lv >= 3 ? ['#ff9a3a', '#ffd84a', '#6a6a72'] : ['#6a6a72', '#8a8a92', '#4a4a52']), { vx: rand(-3, 3), vy: -rand(8, 16), grav: 0, life: rand(1, 2) });
+      if (t.id === 'tavern' && Math.random() < 0.15) part(q.x0 + q.w * 0.3, q.y0 + 2, pick(['#8a8a92', '#6a6a72']), { vx: rand(-2, 2), vy: -rand(6, 12), grav: 0, life: rand(1.2, 2) });
       if (t.id === 'portal' && Math.random() < 0.5) part(q.x + rand(-8, 8), q.y0 + q.h * 0.5 + rand(-8, 8), pick(['#7fe9ff', '#4fa8ff', '#ffffff']), { vx: rand(-6, 6), vy: -rand(4, 12), grav: 0, life: 0.6 });
+      if (t.id === 'rift' && Math.random() < 0.4) part(q.x + rand(-6, 6), q.y0 + q.h * 0.5 + rand(-8, 8), pick(['#c88aff', '#ffffff', '#7a3aff']), { vx: rand(-8, 8), vy: -rand(4, 12), grav: 0, life: 0.6 });
+      if (t.id === 'temple' && Math.random() < 0.2) part(q.x + rand(-10, 10), q.y0 + rand(0, 10), pick(['#fff4c0', '#ffd84a']), { vx: rand(-2, 2), vy: -rand(4, 10), grav: 0, life: 1.2 });
       if (t.id === 'enchant' && Math.random() < 0.15) part(q.x + rand(-6, 6), q.y0 + 4, pick(['#c88aff', '#ffffff']), { vx: rand(-4, 4), vy: -rand(4, 10), grav: 0, life: 1 });
+      if (lv >= G.BLD_MAX && Math.random() < 0.1) part(q.x + rand(-q.w / 2, q.w / 2), q.y0 + rand(0, q.h), '#ffe27a', { vx: 0, vy: -rand(4, 10), grav: 0, life: 0.8 });
     }
-    // townsfolk strolling between the doors
+    // townsfolk strolling between the doors, fireflies in the dusk
     stepVillagers(dt, cx, cy);
+    if (Math.random() < 0.08) part(rand(0, W), rand(rw.r1 - 30, H), pick(['#e8ff8a', '#ffe27a']), { vx: rand(-4, 4), vy: rand(-4, 4), grav: 0, life: rand(1.5, 3) });
     stepDrawParts(dt);
     // warm evening light, darker at the edges
     const vgl = lctx.createRadialGradient(cx, cy, 30, cx, cy, Math.max(W, H) * 0.7);
@@ -2095,17 +2160,25 @@
     ctx.setTransform(kk, 0, 0, kk, 0, 0);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
     for (const t of TOWN) {
-      const q = townPlace(t), on = townHover === t, nm = G.t('town_' + t.id);
+      const q = townPlace(t), on = townHover === t, open = townOpen(t), lv = townLv(t), nm = G.t('town_' + t.id);
       ctx.font = crisp(on ? 4 : 3) + 'px ' + FONT;
       const y = q.y0 - 5 + (on ? Math.sin(time * 6) : 0);
-      ctx.strokeText(nm, q.x, y); ctx.fillStyle = on ? '#ffe27a' : t.id === 'portal' ? '#7fe9ff' : '#ffffff'; ctx.fillText(nm, q.x, y);
+      ctx.strokeText(nm, q.x, y); ctx.fillStyle = !open ? '#8a8494' : on ? '#ffe27a' : t.id === 'portal' ? '#7fe9ff' : lv >= G.BLD_MAX ? '#ffd84a' : '#ffffff'; ctx.fillText(nm, q.x, y);
+      // what it wants from you: a red mark when there's something to do, a gold arrow when you can build it up
+      const ping = open && G.UI && G.UI.bldPing && G.UI.bldPing(t.id), up = open && G.UI && G.UI.bldCanBuild && G.UI.bldCanBuild(t.id);
+      if (ping || up) {
+        const w = ctx.measureText(nm).width, bx = q.x + w / 2 + 3, by = y - 1 + Math.sin(time * 5) * 0.8;
+        ctx.fillStyle = '#0c0b12'; ctx.fillRect(bx - 2, by - 2, 4, 4);
+        ctx.fillStyle = ping ? '#ff4f4f' : '#ffd84a'; ctx.fillRect(bx - 1.5, by - 1.5, 3, 3);
+      }
     }
     // (the town's name only where the HUD leaves room for it)
     if (W >= 320) {
     ctx.font = crisp(6) + 'px ' + FONT; const ty = H * 0.13;
     ctx.lineWidth = 2; ctx.strokeText(G.t('townTitle'), W / 2, ty); ctx.fillStyle = '#ffe27a'; ctx.fillText(G.t('townTitle'), W / 2, ty);
     ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1;
-    ctx.strokeText(G.t('townSub'), W / 2, ty + 9); ctx.fillStyle = '#e8e0d0'; ctx.fillText(G.t('townSub'), W / 2, ty + 9);
+    const sub = G.townLvl ? G.t('dirLvl', G.townLvl()) + ' · ' + G.t('townSub') : G.t('townSub');
+    ctx.strokeText(sub, W / 2, ty + 9); ctx.fillStyle = '#e8e0d0'; ctx.fillText(sub, W / 2, ty + 9);
     }
     drawTexts(dt);
     ctx.setTransform(1, 0, 0, 1, 0, 0);

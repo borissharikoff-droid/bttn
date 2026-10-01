@@ -24,8 +24,9 @@
     // 2.5: the new kinds: a pack's chance to be led by one (base + per depth, capped); Warded takes this share
     // of the Hand's damage; menders heal this share of health round them every few seconds; callers call
     // callN small fry every callEvery s; chargers run chargeSpd times faster for the last stretch
-    // 3.0: the tank holds mobs at tankP within tankArc of its angle (tankHold at most), walking tankWalk a second
-    tankP: 0.68, tankArc: 0.09, tankHold: 30, tankWalk: 0.35,
+    // 3.0: with a companion along, the tank holds mobs at tankP within tankArc of its angle (tankHold at most,
+    // fewer in a small party) and they swing at it every tankBiteEvery s; it walks tankWalk a second
+    tankP: 0.68, tankArc: 0.09, tankHold: 30, tankWalk: 0.35, tankBiteEvery: 2,
     newKindBase: 0.12, newKindPer: 0.007, newKindMax: 0.38, wardedTake: 0.08, healerEvery: 2.2, healerPct: 0.12, callEvery: 3.2, callN: 7, chargeSpd: 4,
   });
 
@@ -157,6 +158,8 @@
   //   click()                                         a manual click that landed
   G.HOOKS = G.HOOKS || { hit: [], kill: [], bite: [], tick: [], stats: [], click: [] };
   G.hook = (name, fn) => { (G.HOOKS[name] = G.HOOKS[name] || []).push(fn); };
+  // the tutorial's Horde bites at half strength, so the first boss is reached while learning
+  G.hook('bite', (m, who, bd) => (G.UI && G.S && G.S.tut >= 0 ? bd * 0.5 : null));
   G.PERKS = {
     might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses too' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
@@ -1221,7 +1224,7 @@
     // 2.2: a bite is never nothing: its depth's damage, or a sliver of the Button's health per unit of weight
     const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite') * (R.rift ? 1 : G.torment().bite);
     // the tank's line this tick
-    const tk = R.boss ? null : tankUp(); let blocked = 0; const tkA = R.tankA == null ? 0.5 : R.tankA;
+    const tk = R.boss || !(G.S.party && G.S.party.length) ? null : tankUp(); let blocked = 0; const tkA = R.tankA == null ? 0.5 : R.tankA;
     if (tk) stepTank(dt);
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
@@ -1250,10 +1253,11 @@
         if (m.p >= TUNE.spitStop) continue;
       }
       // the tank's line: mobs in its arc stop there and fight it (a few dozen at most; the rest slip by)
-      if (tk && blocked < TUNE.tankHold && m.p >= TUNE.tankP && Math.abs(m.a - tkA) < TUNE.tankArc && m.kind !== 'bomber' && m.kind !== 'spitter' && m.kind !== 'hoard' && m.kind !== 'guardian' && !m.gob) {
+      if (tk && blocked < TUNE.tankHold * (0.4 + 0.2 * G.S.party.length) && m.p >= TUNE.tankP && Math.abs(m.a - tkA) < TUNE.tankArc && m.kind !== 'bomber' && m.kind !== 'spitter' && m.kind !== 'hoard' && m.kind !== 'guardian' && !m.gob) {
         blocked++; m.p = TUNE.tankP; m.held = 1;
+        // (a held mob swings at the tank's shield: half as often as at the Button)
         if ((m.atkT -= dt) <= 0) {
-          m.atkT = 1;
+          m.atkT = TUNE.tankBiteEvery;
           let bd = atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1);
           for (const f of G.HOOKS.bite) { const x = f(m, tk.who, bd); if (x != null) bd = x; }
           m.bit = tk.who; hitParty(tk.who, bd, 'bite'); emit('mobBite', m, tk.who);

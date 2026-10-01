@@ -721,6 +721,8 @@
       jp: { n: 0, at: 0 },
       // 2.3: the chosen Torment level (see G.torment)
       torment: 0, tormentRun: 0,
+      // 3.0: the town's building levels (kept through ascension)
+      bld: {},
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -790,6 +792,8 @@
     d.spdMult *= 1 + 0.05 * P.spd * pp; d.crit += 0.005 * P.dex * pp;
     d.gpsMult *= 1 + 0.05 * P.vit * pp; d.essMult *= 1 + 0.05 * P.wis * pp;
     d.goldMult *= 1 + 0.03 * P.life * pp; d.petMult *= 1 + 0.04 * P.mana * pp;
+    // the town's buildings
+    if (S.bld && G.BLD) for (const b of G.BLD) { const L = S.bld[b.id] || 0; if (L) b.fx(L, d); }
 
     // Achievements & fame
     d.achCount = Object.keys(S.ach).length;
@@ -1184,7 +1188,7 @@
   // ---------- Potions ----------
   // 2.4: the Town. Between fights the party can walk into town: the field holds still (the Garrison keeps
   // earning) while you gear up at the Forge, brew at the Alchemist, recruit at the Tavern.
-  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !(G.S.tut >= 0) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
+  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
   G.enterTown = function () {
     if (R.town || !G.townOk()) return false;
     R.town = true;
@@ -1198,6 +1202,36 @@
     if (!R.town) return false;
     R.town = false;
     emit('town', false);
+    return true;
+  };
+  // 3.0: the town grows. Each building can be built up five times with gold for a lasting bonus that
+  // outlives ascension; a building stands as scaffolding until what it holds is open (G.bldOpen, set by the UI)
+  G.BLD = [
+    { id: 'forge', v: 0.06, fx: (L, d) => { d.heroMult *= 1 + 0.06 * L; } },
+    { id: 'tavern', v: 0.06, fx: (L, d) => { d.hpMult *= 1 + 0.06 * L; } },
+    { id: 'enchant', v: 0.15, fx: (L, d) => { d.critMult += 0.15 * L; } },
+    { id: 'alch', v: 1, fx: (L, d) => { d.potCap += L; } },
+    { id: 'barracks', v: 0.1, fx: (L, d) => { d.gpsMult *= 1 + 0.1 * L; } },
+    { id: 'museum', v: 0.06, fx: (L, d) => { d.itemMult *= 1 + 0.06 * L; } },
+    { id: 'quests', v: 0.1, fx: (L, d) => { d.questMult *= 1 + 0.1 * L; } },
+    { id: 'stars', v: 0.06, fx: (L, d) => { d.essMult *= 1 + 0.06 * L; } },
+    { id: 'pets', v: 0.06, fx: (L, d) => { d.petMult *= 1 + 0.06 * L; } },
+    { id: 'temple', v: 0.06, fx: (L, d) => { d.fameMult *= 1 + 0.06 * L; } },
+    { id: 'rift', v: 0.06, fx: (L, d) => { d.chestProg += 0.06 * L; } },
+  ];
+  G.BLD_BY_ID = {}; G.BLD.forEach(b => { G.BLD_BY_ID[b.id] = b; });
+  G.BLD_MAX = 5;
+  G.bldLvl = id => ((G.S.bld || {})[id] || 0);
+  G.townLvl = () => G.BLD.reduce((a, b) => a + G.bldLvl(b.id), 0);
+  G.bldCost = id => { const L = G.bldLvl(id); return Math.round(Math.max(400 * Math.pow(9, L), D.incomeRef * 200 * Math.pow(2.4, L))); };
+  G.buildUp = function (id) {
+    const S = G.S, b = G.BLD_BY_ID[id];
+    if (!b || G.bldLvl(id) >= G.BLD_MAX || (G.bldOpen && !G.bldOpen(id))) return false;
+    const c = G.bldCost(id);
+    if (S.gold < c) return false;
+    S.gold -= c; S.bld = S.bld || {}; S.bld[id] = G.bldLvl(id) + 1;
+    R.dirty = true; recalc();
+    emit('build', id, S.bld[id]);
     return true;
   };
   // the Alchemist brews the potion you ask for: dearer with every one you already drink
@@ -2014,8 +2048,9 @@
     // 2.5: the new kinds: a pack's chance to be led by one (base + per depth, capped); Warded takes this share
     // of the Hand's damage; menders heal this share of health round them every few seconds; callers call
     // callN small fry every callEvery s; chargers run chargeSpd times faster for the last stretch
-    // 3.0: the tank holds mobs at tankP within tankArc of its angle (tankHold at most), walking tankWalk a second
-    tankP: 0.68, tankArc: 0.09, tankHold: 30, tankWalk: 0.35,
+    // 3.0: with a companion along, the tank holds mobs at tankP within tankArc of its angle (tankHold at most,
+    // fewer in a small party) and they swing at it every tankBiteEvery s; it walks tankWalk a second
+    tankP: 0.68, tankArc: 0.09, tankHold: 30, tankWalk: 0.35, tankBiteEvery: 2,
     newKindBase: 0.12, newKindPer: 0.007, newKindMax: 0.38, wardedTake: 0.08, healerEvery: 2.2, healerPct: 0.12, callEvery: 3.2, callN: 7, chargeSpd: 4,
   });
 
@@ -2147,6 +2182,8 @@
   //   click()                                         a manual click that landed
   G.HOOKS = G.HOOKS || { hit: [], kill: [], bite: [], tick: [], stats: [], click: [] };
   G.hook = (name, fn) => { (G.HOOKS[name] = G.HOOKS[name] || []).push(fn); };
+  // the tutorial's Horde bites at half strength, so the first boss is reached while learning
+  G.hook('bite', (m, who, bd) => (G.UI && G.S && G.S.tut >= 0 ? bd * 0.5 : null));
   G.PERKS = {
     might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses too' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
@@ -3211,7 +3248,7 @@
     // 2.2: a bite is never nothing: its depth's damage, or a sliver of the Button's health per unit of weight
     const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite') * (R.rift ? 1 : G.torment().bite);
     // the tank's line this tick
-    const tk = R.boss ? null : tankUp(); let blocked = 0; const tkA = R.tankA == null ? 0.5 : R.tankA;
+    const tk = R.boss || !(G.S.party && G.S.party.length) ? null : tankUp(); let blocked = 0; const tkA = R.tankA == null ? 0.5 : R.tankA;
     if (tk) stepTank(dt);
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
@@ -3240,10 +3277,11 @@
         if (m.p >= TUNE.spitStop) continue;
       }
       // the tank's line: mobs in its arc stop there and fight it (a few dozen at most; the rest slip by)
-      if (tk && blocked < TUNE.tankHold && m.p >= TUNE.tankP && Math.abs(m.a - tkA) < TUNE.tankArc && m.kind !== 'bomber' && m.kind !== 'spitter' && m.kind !== 'hoard' && m.kind !== 'guardian' && !m.gob) {
+      if (tk && blocked < TUNE.tankHold * (0.4 + 0.2 * G.S.party.length) && m.p >= TUNE.tankP && Math.abs(m.a - tkA) < TUNE.tankArc && m.kind !== 'bomber' && m.kind !== 'spitter' && m.kind !== 'hoard' && m.kind !== 'guardian' && !m.gob) {
         blocked++; m.p = TUNE.tankP; m.held = 1;
+        // (a held mob swings at the tank's shield: half as often as at the Button)
         if ((m.atkT -= dt) <= 0) {
-          m.atkT = 1;
+          m.atkT = TUNE.tankBiteEvery;
           let bd = atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1);
           for (const f of G.HOOKS.bite) { const x = f(m, tk.who, bd); if (x != null) bd = x; }
           m.bit = tk.who; hitParty(tk.who, bd, 'bite'); emit('mobBite', m, tk.who);

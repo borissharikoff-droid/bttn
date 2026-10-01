@@ -61,7 +61,7 @@
     autoBoss: 'Auto-call bosses', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code, then Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Deletes everything forever',
     saved: 'Game saved', badSave: 'Save code didn\u2019t load. Copied all of it?', imported: 'Save loaded',
-    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · T town · 1–0 tabs',
+    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · T town',
     welcomeBack: 'Welcome back!', awayFor: 'Away {0}. Your garrison:', earned: 'earned', foundChests: 'found chests',
     divineLoot: 'DIVINE LOOT', legendLoot: 'LEGENDARY LOOT', mythicLoot: 'MYTHIC LOOT', newLands: 'New land: {0}',
     unlocked: 'Unlocked: {0}', achievement: 'Achievement', questDone: 'Quest complete!', potionDrink: 'Potion drunk: {0}',
@@ -128,6 +128,24 @@
     starReqs: 'Slay the lord · Slay {0} of its Horde · Slay it within {1}s on a fresh try', landLocked: 'Undiscovered', landHere: 'You are here',
     landKills: '{0}/{1} slain', outerLands: 'Past the Button', bomberPop: 'BOOM', zoneOf: 'Zone {0}/5', slainTotal: '{0} slain',
   };
+  // 3.0: the town as the hub
+  Object.assign(STR, {
+    town_barracks: 'Barracks', town_museum: 'Museum', town_temple: 'Temple', town_rift: 'Rift Gate',
+    twBarracksSub: 'Hire the Garrison: they earn gold on their own.', twMuseumSub: 'Your collection and trophies.',
+    twTempleSub: 'Ascend: start over stronger, for fame.', twRiftSub: 'Timed runs for the ladder.',
+    twBoardSub: 'Quests, bounties and the daily gift.', twObsSub: 'Spend Essence on the stars.', twNestSub: 'Hatch eggs into pets.',
+    twSubParty: 'Party', twSubChar: 'Character', tab_towndir: 'Town',
+    bldFx_forge: 'party damage +{0}%', bldFx_tavern: 'party health +{0}%', bldFx_enchant: 'crit damage +{0}%', bldFx_alch: 'potion cap +{0}',
+    bldFx_barracks: 'Garrison gold +{0}%', bldFx_museum: 'item value +{0}%', bldFx_quests: 'quest rewards +{0}%', bldFx_stars: 'Essence +{0}%',
+    bldFx_pets: 'pet power +{0}%', bldFx_temple: 'fame +{0}%', bldFx_rift: 'chest bar +{0}%',
+    bldLvl: 'Lv {0}/{1}', bldUp: 'Build up', bldMax: 'Fully built', bldNow: 'now', bldNext: 'next',
+    bldLocked: 'Under construction', bldOpens: 'Opens when you {0}', bldDone: '{0} built up to Lv {1}!',
+    lock_barracks: 'earn 40 gold', lock_museum: 'open a chest', lock_quests: 'open 5 chests', lock_stars: 'earn Essence',
+    lock_pets: 'find an egg', lock_temple: 'reach depth 15', lock_rift: 'reach depth 5',
+    dirHint: 'Tap a building here or in the square. Build them up for bonuses that last through ascension.',
+    dirLvl: 'Town level {0}', dirBack: 'Back to the field (T)', dirSet: 'Settings',
+    goTown: 'That is in town: tap TOWN (T).',
+  });
   G.STR = STR;
   G.t = function (key) {
     let s = STR[key] || key;

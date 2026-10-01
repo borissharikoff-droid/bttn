@@ -20,25 +20,25 @@
     tu_click: "I'm Buttonling. You're the Hand: press the Button! Clicks spill gold and fill the chest bar.",
     tu_chestWait: 'Keep going! A full green bar drops a chest.',
     tu_chest: 'A chest! Tap it to open.',
-    tu_gear: 'Gear inside! Open the Party tab.',
-    tu_doll: 'Your Warden has 4 slots. Better gear equips itself; scrap spares into shards to enchant.',
+    tu_gear: 'Gear inside! Tap TOWN, then the Forge.', tu_toField: 'Tap FIELD to fight on.',
+    tu_doll: 'Your Warden has 4 slots. EQUIP BEST dresses the party; scrap spares into shards to upgrade.',
     tu_upgWait: 'Click up 15 gold for your first upgrade.',
-    tu_upg: 'Now buy Iron Finger in Upgrades for stronger clicks.',
+    tu_upg: 'Back to the field: buy Iron Finger in Upgrades for stronger clicks.',
     tu_mobs: 'The Horde! Your Warden fights alone; clicks zap mobs near the Button. Tap a mob to focus it.',
     tu_garrisonWait: 'Nice! Save 50 gold to hire a fighter.',
-    tu_garrison: 'In Garrison, hire a Rogue. The garrison earns gold without clicks.',
+    tu_garrison: 'In town, at the Barracks, hire a Rogue. The Garrison earns gold without clicks.',
     tu_boss: 'Kill mobs to fill the orange bar. Then the boss comes.',
     tu_bossReady: 'Boss ready! Press ⚔ or the skull. You have 30 seconds: click like mad.',
     tu_bossFight: 'Hit the boss! Too slow and it leaves, but it comes back.',
-    tu_pets: 'An egg! Hatch it in Pets: pets fight with you.',
-    tu_final: 'That’s it! Go deeper, ascend for fame, climb the Ladder. Press ? any time.',
+    tu_pets: 'An egg! Hatch it at the Hatchery in town: pets fight with you.',
+    tu_final: 'That’s it! Go deeper, build up the town, climb the Ladder at the Tavern. Press ? any time.',
     tip_wisp: 'A wisp! Catch it for a buff or gold.',
     tip_mod: 'Special chest — {0}: {1}.',
     tip_bossReady: 'Boss ready. Press ⚔ when you are.',
-    tip_ess: 'Essence! In Constellation, pick a glowing star, then Learn.',
+    tip_ess: 'Essence! At the Observatory in town, pick a glowing star, then Learn.',
     tip_ability: 'Your Warden has an ability. It casts itself, or tap its button (Q).',
-    tip_asc: 'You can ascend! Restart for fame: permanent gold and damage. Gear and pets stay.',
-    tip_shards: 'Shards piled up. Enchant an item in the Party tab.',
+    tip_asc: 'You can ascend at the Temple in town! Restart for fame: permanent gold and damage. Gear, pets and the town stay.',
+    tip_shards: 'Shards piled up. Upgrade an item at the Forge in town.',
     tip_break: 'The Button broke: clicks do nothing for 12 seconds. If the party falls meanwhile, you lose a depth.',
     tip_wall: 'Stuck on this boss? Each try adds +5% damage on it (max +15%). Or ascend for fame; gear and pets stay.',
     tip_loot: 'Loot! Tap a label to grab it, or the Warden will. A beam means something good.',
@@ -52,27 +52,27 @@
     tip_move: 'Boss wind-up! Tap the glowing weak point (not the Button) or Smite with Z. Broken, it takes +50% damage.',
     tip_town: 'Better gear in your bag! Go to TOWN (T): EQUIP BEST at the Forge dresses everyone. The field waits.',
     tip_torment: 'Torment is open! Raise it for a tougher Horde and more gold, XP and loot. Lower it any time outside a fight.',
-    tip_orb: 'Currency! In the Party tab, pick an item, then an orb: reroll affixes, add one, or gamble (Orb of Ruin).',
-    tip_rift: 'Rifts open: timed runs at your chosen level, better loot. Your best shows on the ladder.',
+    tip_orb: 'Currency! At the Enchanter in town, pick an item, then an orb: reroll affixes, add one, or gamble (Orb of Ruin).',
+    tip_rift: 'The Rift Gate in town is open: timed runs at your chosen level, better loot. Your best shows on the ladder.',
     tip_evo: 'Evolution ready! A maxed perk plus the right gear evolves. Look for the golden card.',
     tip_potion: 'A potion! It boosts a stat until you ascend. See Garrison.',
     help_title: 'How to play', help_intro: 'Watch intro', help_tut: 'Replay tutorial',
     help_1: 'You are the Hand', help_1t: 'Clicks spill gold, fill the chest bar and zap mobs near the Button. Fast clicks build a combo.',
-    help_2: 'Loot', help_2t: 'Tap loot to grab it, or the Warden will; beams mark good drops. Orbs reshape gear in the Party tab.',
+    help_2: 'Loot', help_2t: 'Tap loot to grab it, or the Warden will; beams mark good drops. Orbs reshape gear at the Enchanter in town.',
     help_3: 'Your Warden', help_3t: 'Each level, pick one of three perks (they last until you ascend). Your class weapon deals +50%.',
     help_4: 'Horde and bosses', help_4t: 'Tap a mob to target it. Fill the clear bar for the boss (30 s, 45 for a lord); tap its glowing weak point to break its moves. Ward its DOOM; out of time it ENRAGES. Warded mobs shrug off the Hand: your party kills them.',
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests. The Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence buys stars; boss eggs hatch pets.',
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and collection stay.',
-    help_8: 'Ladder', help_8t: 'Name your hero in the Party tab and compare with friends.',
+    help_8: 'Ladder', help_8t: 'Name your hero at the Tavern (Character) and compare with friends there.',
     help_9: 'Lands and stars', help_9t: 'Each land has five zones and three stars (+2.5% damage and gold each, forever). Tap the land name for the map.',
-    help_11: 'Your party', help_11t: 'Beat depths 5, 12 and 20 for party slots; recruit in the Party tab. Tap a fallen ally to raise them sooner.',
+    help_11: 'Your party', help_11t: 'Beat depths 5, 12 and 20 for party slots; recruit at the Tavern. Tap a fallen ally to raise them sooner.',
     help_12: 'Events and invasions', help_12t: 'About every minute, an event hits. Every seven minutes or so, a world invades: slay its herald for loot.',
     help_13: 'Chests and Looters', help_13t: 'The chest bar brings chests; the Treasure Hall holds more. Looters open them for you.',
     help_14: 'JACKPOT', help_14t: 'About one kill in two million, and the odds grow over time. You’ll know it.',
     help_15: 'Your powers', help_15t: 'Z Smite (18 s): break wind-ups, hit hard. X Ward (26 s): no damage for 3.5 s. C Mend (40 s): heal and raise everyone.',
     help_16: 'Torment', help_16t: 'Conquer a land to open a Torment level (up to ten). Raise it with + under the land name: tougher foes, more rewards.',
-    help_17: 'Town', help_17t: 'Tap TOWN (or press T) between fights; the field waits. At the Forge, EQUIP BEST dresses the party in one tap.',
+    help_17: 'Town', help_17t: 'Everything but Upgrades is in town: tap TOWN (or press T) between fights; the field waits. EQUIP BEST at the Forge dresses the party in one tap. Build up each building for a bonus that lasts through ascension.',
     help_10: 'Carnage', help_10t: 'Kill without a 2.5-second pause to raise gold and XP, up to +40%.',
   });
 
@@ -83,7 +83,15 @@
     mob: () => { const ms = (G.R.mobs || []).slice().sort((a, b) => b.p - a.p); return ms.length ? G.Stage.mobPoint(ms[0]) : null; },
     wisp: () => G.Stage.wispPoint(),
     el: sel => { const e = typeof sel === 'string' ? $(sel) : sel; if (!e || !e.offsetParent) return null; const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top - 2, el: e }; },
-    tab: id => P.el(`.tab[data-tab="${id}"]`),
+    // a page lives in a town building: point at TOWN, then the building, in the square or the panel's list
+    tab: id => {
+      const b = G.UI.bldOf && G.UI.bldOf(id);
+      if (!b) return P.el(`.tab[data-tab="${id}"]`);
+      if (!G.R.town) return P.el('#btnTown');
+      if (G.UI.townId() === b) return null;
+      const q = G.Stage.townPoint && G.Stage.townPoint(b);
+      return q ? { x: q.x, y: q.y - 4 } : P.el(`[data-dir="${b}"]`);
+    },
     inTab: (id, sel) => (G.UI.tab() === id ? P.el(sel) : P.tab(id)),
   };
   const val = (f, S) => (typeof f === 'function' ? f(S) : f);
@@ -92,16 +100,16 @@
   const STEPS = [
     { id: 'click', text: 'tu_click', point: P.button, done: S => S.clicks >= 12 },
     { id: 'chest', text: S => (S.chests.length ? 'tu_chest' : 'tu_chestWait'), point: S => (S.chests.length ? P.chest() : P.button()), done: S => S.st.chests >= 1 },
-    { id: 'gear', text: 'tu_gear', point: () => P.tab('hero'), done: () => G.UI.tab() === 'hero' },
-    { id: 'doll', text: 'tu_doll', point: () => P.inTab('hero', '.doll'), manual: true },
-    { id: 'upg', text: S => (S.gold >= 15 || S.upg.finger ? 'tu_upg' : 'tu_upgWait'), point: S => (S.gold >= 15 ? P.inTab('upg', '.row[data-u="finger"]') : P.button()), done: S => (S.upg.finger || 0) >= 1 },
+    { id: 'gear', town: 1, text: 'tu_gear', point: () => P.tab('forge'), done: () => G.UI.townId() === 'forge' },
+    { id: 'doll', town: 1, text: 'tu_doll', point: () => (G.UI.townId() === 'forge' ? P.el('.twDoll') : P.tab('forge')), manual: true },
+    { id: 'upg', town: 1, text: S => (S.gold >= 15 || S.upg.finger ? 'tu_upg' : 'tu_upgWait'), point: S => (S.gold >= 15 ? P.inTab('upg', '.row[data-u="finger"]') : P.button()), done: S => (S.upg.finger || 0) >= 1 },
     { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), minT: 7000, done: S => S.hero.kills - (seen().tutK || 0) >= 40 },
-    { id: 'garrison', text: S => (S.gold >= 50 ? 'tu_garrison' : 'tu_garrisonWait'), point: S => (S.gold >= 50 ? P.inTab('heroes', '.row[data-h="rogue"]') : P.button()), done: S => (S.heroes.rogue || 0) >= 1 },
+    { id: 'garrison', town: 1, text: S => (S.gold >= 50 ? 'tu_garrison' : 'tu_garrisonWait'), point: S => (S.gold >= 50 ? P.inTab('heroes', '.row[data-h="rogue"]') : P.button()), done: S => (S.heroes.rogue || 0) >= 1 },
     { id: 'boss', text: () => (G.R.boss ? 'tu_bossFight' : G.R.bossReady ? 'tu_bossReady' : 'tu_boss'),
       point: () => (G.R.boss ? P.button() : G.R.bossReady ? (P.el('#btnFight') || P.button()) : P.el('#bossRow')), done: S => S.st.bossKills >= 1 },
-    { id: 'pets', text: 'tu_pets', point: () => P.inTab('pets', '[data-pull="1"]'), done: S => Object.keys(S.pets).length >= 1,
+    { id: 'pets', town: 1, text: 'tu_pets', point: () => P.inTab('pets', '[data-pull="1"]'), done: S => Object.keys(S.pets).length >= 1,
       skip: S => S.eggs < 1 && !Object.keys(S.pets).length },
-    { id: 'final', text: 'tu_final', point: () => P.tab('ladder'), manual: true },
+    { id: 'final', town: 1, text: 'tu_final', point: () => P.tab('ladder'), manual: true },
   ];
 
   // ---------- One-time tips (after the tutorial) ----------
@@ -112,7 +120,7 @@
     { id: 'bossReady', when: () => G.R.bossReady && !G.R.boss, point: () => P.el('#btnFight'), text: 'tip_bossReady', until: () => !G.R.bossReady },
     { id: 'ess', when: S => S.essence >= 1 && !Object.keys(S.nodes).length, point: () => P.inTab('stars', '[data-detail] [data-buy]'), text: 'tip_ess', until: S => Object.keys(S.nodes).length > 0 },
     { id: 'ability', when: S => S.hero.eq.ability, point: () => P.el('#btnAbil'), text: 'tip_ability' },
-    { id: 'shards', when: S => S.hero.shards >= 40, point: () => P.tab('hero'), text: 'tip_shards', until: () => G.UI.tab() === 'hero' },
+    { id: 'shards', when: S => S.hero.shards >= 40, point: () => P.tab('forge'), text: 'tip_shards', until: () => G.UI.tab() === 'hero' },
     { id: 'asc', when: () => G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_asc', until: () => G.UI.tab() === 'asc' },
     { id: 'loot', when: () => (G.R.ground || []).some(e => e.t > 0.6 && (e.k !== 'gear' || e.r >= 1)), point: () => { const e = (G.R.ground || []).find(x => x.t > 0.6 && (x.k !== 'gear' || x.r >= 1)); return e && G.Stage.lootPoint(e); }, text: 'tip_loot', until: () => !(G.R.ground || []).length },
     { id: 'hoard', when: () => (G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob), point: () => { const m = G.R.mobs.find(x => x.kind === 'hoard' && !x.gob); return m && G.Stage.mobPoint(m); }, text: 'tip_hoard', until: () => !(G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob) },
@@ -121,7 +129,7 @@
     { id: 'move', when: () => G.R.boss && G.R.boss.move, point: () => G.Stage.weakPoint && G.Stage.weakPoint() && (() => { const w = G.Stage.weakPoint(), r = document.querySelector('#stage').getBoundingClientRect(); return { x: r.left + w.x, y: r.top + w.y - 10 }; })(), text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
     { id: 'town', when: () => G.UI._up && G.townOk() && !G.R.town, point: () => P.el('#btnTown'), text: 'tip_town', until: () => !!G.R.town },
     { id: 'torment', when: () => G.tormentMax() >= 1 && !G.R.boss, point: () => P.el('#torment'), text: 'tip_torment' },
-    { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('hero'), text: 'tip_orb', until: () => G.UI.tab() === 'hero' },
+    { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('enchant'), text: 'tip_orb', until: () => G.UI.townId() === 'enchant' },
     { id: 'rift', when: () => G.riftOpenable() && !G.R.boss, point: () => P.el('#btnRift') || P.tab('rift'), text: 'tip_rift', until: () => G.UI.tab() === 'rift' || !!G.R.rift },
     { id: 'spitter', when: () => (G.R.mobs || []).some(m => m.kind === 'spitter' && m.spit), point: () => { const m = G.R.mobs.find(x => x.kind === 'spitter' && x.p >= G.TUNE.spitStop); return m && G.Stage.mobPoint(m); }, text: 'tip_spitter', until: () => !(G.R.mobs || []).some(m => m.kind === 'spitter') },
     { id: 'bomber', when: () => (G.R.mobs || []).some(m => m.kind === 'bomber' && m.p > 0.3), point: () => { const m = G.R.mobs.find(x => x.kind === 'bomber' && x.p > 0.3); return m && G.Stage.mobPoint(m); }, text: 'tip_bomber', until: () => !(G.R.mobs || []).some(m => m.kind === 'bomber') },
@@ -133,6 +141,7 @@
   let tip = null, tipT = 0, lastHl = null, shownT = 0, nextTipAt = 0;
   const TIP_GAP = 40000; // after the tutorial, one tip at a time with a breather between them
   const stepAt = { i: -1, t: 0 };
+  const TOWN_TIPS = { shards: 1, orb: 1, asc: 1, ess: 1, rift: 1, wall: 1 };
   const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1, spitter: 1, bomber: 1, powers: 1 };
 
   function seen() { const S = G.S; S.seen = S.seen || {}; S.seen.tips = S.seen.tips || {}; return S.seen; }
@@ -186,8 +195,13 @@
   // Called ~8 times a second from UI.update
   Tut.update = function () {
     const S = G.S;
-    // in town the field's tips have nothing to point at
-    if (G.R && G.R.town) { hidePointer(); if ($('#coach')) $('#coach').hidden = true; return; }
+    // in town only the steps and tips about the town speak; the field's other steps point the way back (FIELD)
+    const inTown = !!(G.R && G.R.town);
+    if (inTown) {
+      const st = active() && STEPS[S.tut];
+      if (st && !st.town) { render(st.id + ':town', t('tu_toField') + ' ' + t(val(st.text, S)), t('tu_step', S.tut + 1, STEPS.length), st.manual); point(P.el('#btnTown')); return; }
+      if (!st && tip && !TOWN_TIPS[tip.id]) { tip = null; hide(); return; }
+    }
     const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
     if (!S || !$('#coach') || busy) { hidePointer(); if (busy) $('#coach').hidden = true; stepAt.t += 120; return; }
     if (!S.hero || !S.hero.cls) { hide(); return; }
@@ -217,7 +231,7 @@
     if (S.scar && S.scar.n >= 3 && seen().tips.wall && seen().wallD !== S.scar.d) { delete seen().tips.wall; seen().wallD = S.scar.d; }
     const rest = performance.now() < nextTipAt;
     for (const tp of TIPS) {
-      if (seen().tips[tp.id]) continue;
+      if (seen().tips[tp.id] || (inTown && !TOWN_TIPS[tp.id])) continue;
       // tips about something on screen right now can't wait; the rest keep their distance
       if (rest && !EVENT_TIPS[tp.id]) continue;
       if (tp.when(S)) { showTip(tp); return; }

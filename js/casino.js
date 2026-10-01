@@ -44,14 +44,15 @@
   ];
   // how often each symbol shows up on a miss (sevens tease now and then)
   const MISS_W = { coin: 5, chest: 4, bolt: 4, skull: 4, gem: 3, seven: 2 };
-  // Payouts. Gold in seconds of the reference income (G.D.incomeRef).
+  // Payouts. Gold in seconds of income: what the purse has really been taking in lately (G.casinoIncome),
+  // never less than the reference income G.D.incomeRef.
   const PAY = G.SLOT_PAY = {
-    coin:  { 2: { gold: 15 }, 3: { gold: 60 } },
+    coin:  { 2: { gold: 8 }, 3: { gold: 30 } },
     chest: { 2: { chests: 1 }, 3: { chests: 3, small: 6 } },
     bolt:  { 2: { boost: ['rush', 1.5, 6] }, 3: { boost: ['rush', 2, 10] } },
     skull: { 2: { xp: 0.15 }, 3: { xp: 0.6, carnage: 1 } },
     gem:   { 2: { orbs: 1 }, 3: { orbs: 3, good: 1 } },
-    seven: { 2: { gold: 30 }, 3: { gold: 600, chests: 4, small: 8, boost: ['rush', 2, 15], boost2: ['gold2', 2, 15] } },
+    seven: { 2: { gold: 15 }, 3: { gold: 300, chests: 4, small: 8, boost: ['rush', 2, 15], boost2: ['gold2', 2, 15] } },
   };
 
   // ---------- Boosts ----------
@@ -72,8 +73,8 @@
   };
 
   function fresh() {
-    return { meter: 0, ready: false, readyT: 0, spin: null, last: null, boosts: {}, bubbles: [], bubT: rand(TUNE.bubMin, TUNE.bubMax) * 0.5,
-      bubWant: false, uid: 0, clock: 0, casc: 0, cascAt: -9, cascPeak: 0 };
+    return { meter: 0, ready: false, readyT: 0, spin: null, last: null, boosts: {}, bubbles: [], bubT: null,
+      bubWant: false, uid: 0, clock: 0, casc: 0, cascAt: -9, cascPeak: 0, rate: 0, gPrev: -1, own: 0 };
   }
   const C = () => R.casino || (R.casino = fresh());
   C();
@@ -115,6 +116,9 @@
   function roll() {
     let r = rng(), sym = null, n = 0;
     for (const [s, k, p] of ODDS) { if (r < p) { sym = s; n = k; break; } r -= p; }
+    return lay(sym, n);
+  }
+  function lay(sym, n) {
     let reels;
     if (n === 3) reels = [sym, sym, sym];
     else if (n === 2) {
@@ -128,12 +132,12 @@
     return { reels, sym, n };
   }
 
-  // Pull the lever. how: 'tap' | 'key' | 'auto'. o.instant pays at once (tests)
+  // Pull the lever. how: 'tap' | 'key' | 'auto'. o.instant pays at once; o.force: [sym, n] picks the outcome (tests)
   G.spin = function (how, o) {
     const c = C();
     if (!G.spinReady()) return null;
     o = o || {};
-    const { reels, sym, n } = roll();
+    const { reels, sym, n } = o.force ? lay(o.force[0], o.force[1]) : roll();
     const tease = reels[0] === reels[1];
     const stops = TUNE.spinStops.slice();
     if (tease) stops[2] += TUNE.spinTease;
@@ -177,14 +181,14 @@
   }
 
   function payout(res) {
-    const c = C(), S = G.S, D = G.D, s = st();
+    const c = C(), S = G.S, s = st();
     if (res.done) return;
     res.done = true;
     if (c.spin === res) c.spin = null;
     c.last = res;
     const P = res.n ? PAY[res.sym][res.n] : null, paid = {};
     if (P) {
-      if (P.gold) { paid.gold = (D.incomeRef || 1) * P.gold; G.addGold(paid.gold, 'casino'); }
+      if (P.gold) { paid.gold = income() * P.gold; c.own += paid.gold; G.addGold(paid.gold, 'casino'); }
       if (P.chests) paid.chests = chests(P.chests, false, res.n === 3);
       if (P.small) paid.small = chests(P.small, true, true);
       if (P.xp && G.gainXp && G.xpNeed) { paid.xp = G.xpNeed(S.hero.lvl) * P.xp; G.gainXp(paid.xp); }
@@ -205,6 +209,9 @@
     res.paid = paid;
     emit('spinResult', res);
   }
+  // gold a second, as earned over the last half minute or so (the casino's own payouts left out)
+  function income() { return Math.max(G.D.incomeRef || 1, C().rate || 0); }
+  G.casinoIncome = income;
   G.spinPayout = () => { const c = C(); if (c.spin) payout(c.spin); };
 
   // ---------- Bubbles ----------
@@ -306,6 +313,12 @@
     const c = C();
     if (!on()) return;
     c.clock += dt;
+    const S = G.S;
+    if (c.gPrev >= 0 && dt > 0) {
+      const got = S.goldTotal - c.gPrev - c.own;
+      if (got >= 0) c.rate += (got / dt - c.rate) * Math.min(1, dt / 30);
+    }
+    c.gPrev = S.goldTotal; c.own = 0;
     // boosts run out
     let changed = false;
     for (const id in c.boosts) {
@@ -322,6 +335,8 @@
       const b = c.bubbles[i];
       if ((b.t += dt) >= b.life) { c.bubbles.splice(i, 1); emit('bubbleGone', b); }
     }
+    // (the first wait is rolled on the first tick, once the run's seed is set)
+    if (c.bubT == null) c.bubT = rand(TUNE.bubMin, TUNE.bubMax) * 0.5;
     if (!c.bubWant && (c.bubT -= dt) <= 0) { c.bubWant = true; c.bubT = rand(TUNE.bubMin, TUNE.bubMax); }
     // the cascade breaks when no crit follows in time
     if (c.casc > 0 && c.clock - c.cascAt > TUNE.cascGap) { const n = c.casc; c.casc = 0; if (n >= 2) emit('cascadeEnd', n); }

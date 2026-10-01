@@ -14,48 +14,48 @@
   const rng = () => G.rng();
 
   Object.assign(G.PERKS, {
-    burn:      { max: 3, icon: 'fx_meteor', name: 'Kindling', desc: 'Hits set mobs ablaze: +25% of the hit over 3s' },
+    burn:      { max: 3, icon: 'fx_meteor', name: 'Kindling', desc: 'Hits set mobs ablaze: +20% of the hit over 3s' },
     frost:     { max: 3, icon: 'it_frost_staff', name: 'Frostbite', desc: 'Hits chill mobs: 12% slower for 2s' },
-    execute:   { max: 3, icon: 'ic_skull', name: 'Executioner', desc: 'Hits finish mobs under 6% health' },
+    execute:   { max: 3, icon: 'ic_skull', name: 'Executioner', desc: 'Hits finish mobs under 8% health' },
     ricochet:  { max: 3, icon: 'ic_arrow', name: 'Ricochet', desc: 'Attacks 10% to bounce to a mob for 60%' },
-    overkill:  { max: 3, icon: 'it_shadow_katana', name: 'Overkill', desc: '35% of overkill damage spills to the next mob' },
+    overkill:  { max: 3, icon: 'it_shadow_katana', name: 'Overkill', desc: '30% of overkill damage spills to the next mob' },
     corpse:    { max: 3, icon: 'ic_tomb', name: 'Corpse Blast', desc: 'Big kills explode for 50% of your hit' },
     souls:     { max: 3, icon: 'wisp', name: 'Soul Harvest', desc: 'Every 40 souls: heal all 2%, the fallen rise 1s sooner' },
-    thorns:    { max: 3, icon: 'it_void_cloak', name: 'Thorns', desc: 'Biters take 120% of your hit back' },
+    thorns:    { max: 3, icon: 'ic_echo', name: 'Thorns', desc: 'Biters take 120% of your hit back' },
     aegis:     { max: 3, icon: 'pot_def', name: 'Aegis', desc: 'A shield soaks 8% health of bites, every 8s' },
     secondwind:{ max: 1, icon: 'it_hp_potion', name: 'Second Wind', desc: 'Once per depth at 15% health: heal 50%, 3s safe' },
-    crush:     { max: 3, icon: 'ic_finger', name: 'Crushing Blow', desc: 'Every 12th click strikes for 3× your hit' },
-    mark:      { max: 3, icon: 'ic_eye', name: 'Hunter’s Mark', desc: 'Clicked mobs take +20% damage for 4s' },
+    crush:     { max: 3, icon: 'l_hand', name: 'Crushing Blow', desc: 'Every 12th click strikes for 3× your hit' },
+    mark:      { max: 3, icon: 'ic_eye', name: 'Hunter’s Mark', desc: 'Clicked mobs take +15% damage for 4s' },
     glass:     { max: 1, icon: 'it_crystal_dagger', name: 'Glass Cannon', desc: '+60% damage, −30% health. Not with Fortress' },
     fortress:  { max: 1, icon: 'tw_tower', name: 'Fortress', desc: '+50% health, −15% damage. Not with Glass Cannon' },
     avarice:   { max: 1, icon: 'ic_vault', name: 'Avarice', desc: '+100% kill gold, −20% damage' },
-    momentum:  { max: 3, icon: 'ev_frenzy', name: 'Momentum', desc: 'Kills stack +2% attack speed (max 10); 3s to lapse' },
+    momentum:  { max: 3, icon: 'ev_frenzy', name: 'Momentum', desc: 'Kills stack +1.5% attack speed, max 10; lapse in 3s' },
     laststand: { max: 3, icon: 'ev_bloodmoon', name: 'Last Stand', desc: 'Up to +25% damage as the Button’s health drops' },
     warband:   { max: 3, icon: 'ic_crew', name: 'Warband', desc: 'Companions +25% damage, tanks take 10% less' },
   });
   // (per-rank numbers are said once in each desc; the card shows the rank)
   Object.assign(G.EVOS, {
     inferno:    { from: 'burn', slot: 'weapon', types: ['staff', 'wand'], need: 'a staff or wand', icon: 'it_sun_staff', name: 'Inferno', desc: 'Burns ×2 and leap to 2 mobs when the burning die' },
-    shatter:    { from: 'frost', slot: 'ability', types: ['orb', 'skull'], need: 'an orb or skull', icon: 'it_moon_orb', name: 'Shatter', desc: 'Chilled mobs take +35% damage' },
-    guillotine: { from: 'execute', slot: 'weapon', types: ['scythe', 'katana'], need: 'a scythe or katana', icon: 'it_blood_scythe', name: 'Guillotine', desc: 'Execute line ×2; big executions repair the Button' },
+    shatter:    { from: 'frost', slot: 'ability', types: ['orb', 'skull'], need: 'an orb or skull', icon: 'ic_shard', name: 'Shatter', desc: 'Chilled mobs take +35% damage' },
+    guillotine: { from: 'execute', slot: 'weapon', types: ['scythe', 'katana'], need: 'a scythe or katana', icon: 'it_necro_skull', name: 'Guillotine', desc: 'Execute line ×2; big executions repair the Button' },
     hoard:      { from: 'avarice', slot: 'ring', types: ['crown', 'amulet'], need: 'a crown or amulet', icon: 'it_king_crown', name: 'Dragon’s Hoard', desc: 'No damage cost; kills 2% to burst 10× gold' },
   });
 
   // ---------- tuning, in one place ----------
   const P = {
-    burnPct: 0.25, burnT: 3, burnTick: 0.5, burnCap: 250,
+    burnPct: 0.20, burnT: 3, burnTick: 0.5, burnCap: 250,
     frostSlow: 0.12, frostT: 2, frostCap: 400,
-    execPct: 0.06,
+    execPct: 0.08,
     bounceCh: 0.10, bounceDmg: 0.6, bounceR: 0.3,
-    spillPct: 0.35, spillCapHits: 2, spillR: 0.25, spillDepth: 3,
+    spillPct: 0.30, spillCapHits: 1, spillR: 0.25, spillDepth: 1,
     corpsePct: 0.5, corpseR: 0.12, corpseN: 25,
     soulsEvery: 40, soulHeal: 0.02,
     thornsPct: 1.2,
     aegisPct: 0.08, aegisEvery: 8,
     swAt: 0.15, swHeal: 0.5, swSafe: 3,
     crushEvery: 12, crushMul: 3, crushBoss: 0.5, crushR: 0.1,
-    markPct: 0.2, markT: 4,
-    momPer: 0.02, momMax: 10, momLapse: 3,
+    markPct: 0.15, markT: 4,
+    momPer: 0.015, momMax: 10, momLapse: 3,
     lastPct: 0.25,
     warDmg: 0.25, warTank: 0.10,
     shatter: 0.35, coinCh: 0.02, coinMul: 10,
@@ -75,7 +75,7 @@
   let T = 0;                         // game clock (s), runs with the arena
   // time-based budgets so a frame never does unbounded work, whatever the tick length
   const bucket = (rate, cap) => ({ rate, cap, v: cap });
-  const B = { bounce: bucket(60, 20), spill: bucket(80, 25), corpse: bucket(6, 4), thorns: bucket(40, 15), spread: bucket(20, 8), coins: bucket(3, 2) };
+  const B = { bounce: bucket(60, 20), spill: bucket(40, 12), corpse: bucket(6, 4), thorns: bucket(40, 15), spread: bucket(20, 8), coins: bucket(3, 2) };
   const take = b => (b.v >= 1 ? (b.v -= 1, true) : false);
 
   // R.mobs is kept in spawn order, so ids rise along it: a binary search finds a mob, and its array
@@ -116,12 +116,12 @@
     }
     if (rk.evo_shatter && m.fz && m.fzT > 0) d *= 1 + P.shatter;
     // Executioner: a hit that leaves a mob under the line finishes it (rares and guardians at half the line)
-    if (rk.execute && !m.ex) {
+    if (rk.execute) {
       let line = P.execPct * rk.execute * (rk.evo_guillotine ? 2 : 1);
       if (m.kind === 'rare' || m.kind === 'guardian' || m.kind === 'hoard') line *= 0.5;
       const eff = m.mod === 'stone' || m.stone ? d * 0.5 : d;
       if (m.hp > eff && m.hp - eff < m.max * line) {
-        m.ex = 1; d = m.hp * 2 + 1;
+        d = m.hp * 20 + 1; // (enough to get through Stoneskin and Warded)
         if (!SMALL(m.kind)) {
           emit('pkExecute', m);
           if (rk.evo_guillotine && !(R.btnDown > 0)) { const h = hp(); h.hp = Math.min(G.D.heroHp, h.hp + G.D.heroHp * 0.005); }
@@ -225,6 +225,12 @@
   G.hook('bite', (m, who, dmg) => {
     let d = dmg;
     if (who == null) return;
+    // Glass Cannon / Fortress: a bite is at least a share of the Button's health (hero.js), which would cancel a
+    // change in health; measure that share against the health before the perk so the trade-off is real
+    if (curHm !== 1) {
+      const ma = G.mobAtk(G.depthNow()), bf = TUNE.biteFloor || 0, now = G.D.heroHp || 0;
+      d *= Math.max(ma, now / curHm * bf) / Math.max(ma, now * bf, 1e-9);
+    }
     // Warband: tanks shrug off more
     if (rk.warband && who !== 'button') {
       const u = who < 0 ? G.S.hero : G.S.party[who];
@@ -265,15 +271,17 @@
   });
 
   // ---------- stats: trade-offs, momentum, last stand, warband ----------
-  let lastBucket = 0;
+  let lastBucket = 0, curHm = 1;
   G.hook('stats', d => {
     ranks();
     const h = G.S.hero;
+    curHm = 1;
     if (!h || !h.cls) return;
     let dm = 1, hm = 1;
     if (rk.glass) { dm *= 1.6; hm *= 0.7; }
     if (rk.fortress) { dm *= 0.85; hm *= 1.5; }
     if (rk.avarice && !rk.evo_hoard) dm *= 0.8;
+    curHm = hm;
     // what runs out in seconds: kept out of the "steady" numbers a boss's health is measured by
     const tmpD = rk.laststand ? 1 + P.lastPct * rk.laststand * lastBucket : 1;
     const rm = rk.momentum ? 1 + P.momPer * Math.floor(momS) : 1;
@@ -296,16 +304,18 @@
     d.heroHp *= hm; if (d.wardenHp != null) d.wardenHp *= hm;
   });
 
-  // Glass Cannon and Fortress don't go together: once one is taken the other stops being offered
+  // Glass Cannon and Fortress don't go together: once one is taken the other stops being offered;
+  // and Warband waits until there is a companion to lead
   const EXCL = { glass: 'fortress', fortress: 'glass' };
+  const unfit = k => (EXCL[k] && G.perk(EXCL[k]) > 0) || (k === 'warband' && !(G.S.party && G.S.party.length));
   G.on('perkOffer', list => {
     if (!Array.isArray(list)) return;
     for (let i = 0; i < list.length; i++) {
-      const ex = EXCL[list[i]];
-      if (!ex || !(rk[ex] || G.perk(ex))) continue;
-      const open = Object.keys(G.PERKS).filter(k => !EXCL[k] && G.perk(k) < G.PERKS[k].max && !list.includes(k));
+      if (!unfit(list[i])) continue;
+      const open = Object.keys(G.PERKS).filter(k => !unfit(k) && G.perk(k) < G.PERKS[k].max && !list.includes(k));
       if (open.length) list[i] = open[Math.floor(rng() * open.length)]; else list.splice(i--, 1);
     }
+    if (!list.length && G.S.hero && G.S.hero.offer === list) { G.S.hero.offer = null; G.S.hero.perkPts = 0; }
   });
   G.on('perk', () => ranks());
   G.on('evolve', () => ranks());
@@ -356,7 +366,7 @@
     } else lastBucket = 0;
   });
   // a new run or a boss clearing the field leaves nothing behind
-  const clear = () => { for (const m of chilled) { if (!m.dead) m.sp *= m.fz; m.fz = 0; } for (const m of burning) m.bl = 0; chilled.length = 0; burning.length = 0; momS = 0; souls = 0; };
+  const clear = () => { G.dirty(); for (const m of chilled) { if (!m.dead) m.sp *= m.fz; m.fz = 0; } for (const m of burning) m.bl = 0; chilled.length = 0; burning.length = 0; momS = 0; souls = 0; };
   G.on('bossStart', clear);
   G.on('ascend', () => { clear(); shield = 0; R.swUsed = null; });
 })(globalThis.G = globalThis.G || {});

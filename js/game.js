@@ -67,6 +67,8 @@
       jp: { n: 0, at: 0 },
       // 2.3: the chosen Torment level (see G.torment)
       torment: 0, tormentRun: 0,
+      // 3.0: the town's building levels (kept through ascension)
+      bld: {},
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -136,6 +138,8 @@
     d.spdMult *= 1 + 0.05 * P.spd * pp; d.crit += 0.005 * P.dex * pp;
     d.gpsMult *= 1 + 0.05 * P.vit * pp; d.essMult *= 1 + 0.05 * P.wis * pp;
     d.goldMult *= 1 + 0.03 * P.life * pp; d.petMult *= 1 + 0.04 * P.mana * pp;
+    // the town's buildings
+    if (S.bld && G.BLD) for (const b of G.BLD) { const L = S.bld[b.id] || 0; if (L) b.fx(L, d); }
 
     // Achievements & fame
     d.achCount = Object.keys(S.ach).length;
@@ -530,7 +534,7 @@
   // ---------- Potions ----------
   // 2.4: the Town. Between fights the party can walk into town: the field holds still (the Garrison keeps
   // earning) while you gear up at the Forge, brew at the Alchemist, recruit at the Tavern.
-  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !(G.S.tut >= 0) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
+  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
   G.enterTown = function () {
     if (R.town || !G.townOk()) return false;
     R.town = true;
@@ -544,6 +548,36 @@
     if (!R.town) return false;
     R.town = false;
     emit('town', false);
+    return true;
+  };
+  // 3.0: the town grows. Each building can be built up five times with gold for a lasting bonus that
+  // outlives ascension; a building stands as scaffolding until what it holds is open (G.bldOpen, set by the UI)
+  G.BLD = [
+    { id: 'forge', v: 0.06, fx: (L, d) => { d.heroMult *= 1 + 0.06 * L; } },
+    { id: 'tavern', v: 0.06, fx: (L, d) => { d.hpMult *= 1 + 0.06 * L; } },
+    { id: 'enchant', v: 0.15, fx: (L, d) => { d.critMult += 0.15 * L; } },
+    { id: 'alch', v: 1, fx: (L, d) => { d.potCap += L; } },
+    { id: 'barracks', v: 0.1, fx: (L, d) => { d.gpsMult *= 1 + 0.1 * L; } },
+    { id: 'museum', v: 0.06, fx: (L, d) => { d.itemMult *= 1 + 0.06 * L; } },
+    { id: 'quests', v: 0.1, fx: (L, d) => { d.questMult *= 1 + 0.1 * L; } },
+    { id: 'stars', v: 0.06, fx: (L, d) => { d.essMult *= 1 + 0.06 * L; } },
+    { id: 'pets', v: 0.06, fx: (L, d) => { d.petMult *= 1 + 0.06 * L; } },
+    { id: 'temple', v: 0.06, fx: (L, d) => { d.fameMult *= 1 + 0.06 * L; } },
+    { id: 'rift', v: 0.06, fx: (L, d) => { d.chestProg += 0.06 * L; } },
+  ];
+  G.BLD_BY_ID = {}; G.BLD.forEach(b => { G.BLD_BY_ID[b.id] = b; });
+  G.BLD_MAX = 5;
+  G.bldLvl = id => ((G.S.bld || {})[id] || 0);
+  G.townLvl = () => G.BLD.reduce((a, b) => a + G.bldLvl(b.id), 0);
+  G.bldCost = id => { const L = G.bldLvl(id); return Math.round(Math.max(400 * Math.pow(9, L), D.incomeRef * 200 * Math.pow(2.4, L))); };
+  G.buildUp = function (id) {
+    const S = G.S, b = G.BLD_BY_ID[id];
+    if (!b || G.bldLvl(id) >= G.BLD_MAX || (G.bldOpen && !G.bldOpen(id))) return false;
+    const c = G.bldCost(id);
+    if (S.gold < c) return false;
+    S.gold -= c; S.bld = S.bld || {}; S.bld[id] = G.bldLvl(id) + 1;
+    R.dirty = true; recalc();
+    emit('build', id, S.bld[id]);
     return true;
   };
   // the Alchemist brews the potion you ask for: dearer with every one you already drink

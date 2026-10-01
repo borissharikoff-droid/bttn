@@ -105,7 +105,18 @@
     c.f((x, y, ch) => (ch === '.' ? null : ''), x0, y0, x0 + bw - 1, y0 + bh);
     if (emblem) c.s(x0 + Math.floor((bw - emblem[0].length) / 2), y0 + 3, emblem);
   }
-  const clearDots = (c, x0, y0, x1, y1) => c.f(() => '', x0, y0, x1, y1);
+  // draw a prop in its own layer (fn gets a grid), then paste it with a 'k' line where it meets the building
+  function prop(c, fn, oc) {
+    const q = grid(c.w, c.h);
+    fn(q);
+    const rows = q.rows();
+    for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) {
+      if (rows[y][x] !== '.') continue;
+      const n = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => (rows[y + dy] || '')[x + dx] && rows[y + dy][x + dx] !== '.');
+      if (n && c.at(x, y) !== '.') c.p(x, y, oc || 'k');
+    }
+    c.s(0, 0, rows);
+  }
   // generic dome (half-ellipse above row cy), lit from the top-left; ch light→dark
   function dome(c, cx, cy, rx, ry, ch, ribs) {
     c.f((x, y) => {
@@ -175,47 +186,53 @@
     c.r(1, 40, 54, 1, 'S').r(1, 43, 54, 1, 'D');
     c.r(21, 40, 14, 1, 's').r(22, 40, 12, 1, 'S');
     // weapon rack (left): two posts, a bar, spears + a sword, a shield leaning on it
-    c.r(1, 30, 2, 12, 'w').r(1, 30, 1, 12, 'W').r(10, 30, 2, 12, 'b').r(10, 30, 1, 12, 'w');
-    for (const sx of [3, 6]) {
-      c.r(sx, 26, 1, 15, 'w').p(sx, 22, 'j').r(sx, 23, 1, 2, 'j').p(sx + 1, 23, 'i').p(sx + 1, 24, 'I').p(sx, 25, 'I');
-    }
-    c.p(8, 25, 'Y').r(8, 26, 1, 2, 'B').r(7, 28, 3, 1, 'y').p(9, 28, 'z');
-    c.r(8, 29, 1, 11, 'j').r(9, 29, 1, 11, 'i').p(8, 40, 'i');
-    c.r(0, 31, 13, 2, 'w').r(0, 31, 13, 1, 'W').r(0, 32, 13, 1, 'b');
-    c.r(0, 37, 13, 1, 'b');
-    c.f((x, y) => {
-      const X = x + 0.5, Y = y + 0.5, d = dist(X, Y, 5.5, 39.5);
-      if (d > 4) return '';
-      if (d > 3.1) return X + Y < 45 ? 'i' : 'I';
-      if (d < 1.2) return d < 0.7 ? 'j' : 'i';
-      return X + Y < 44 ? 'a' : X + Y < 47 ? 'A' : 'e';
-    }, 1, 35, 10, 43);
+    prop(c, (q) => {
+      // three spears standing in the rack
+      for (const sx of [2, 6, 10]) {
+        q.r(sx, 27, 1, 14, 'W').p(sx, 33, 'b');
+        q.s(sx - 1, 23, ['.j.', 'jji', 'jiI', '.I.']);
+      }
+      q.r(0, 30, 2, 12, 'w').r(0, 30, 1, 12, 'W').r(11, 30, 2, 12, 'b').r(11, 30, 1, 12, 'w');
+      q.r(0, 31, 13, 2, 'w').r(0, 31, 13, 1, 'W').r(0, 32, 13, 1, 'b');
+      q.r(0, 38, 13, 1, 'b').r(0, 38, 3, 1, 'w');
+      // a round shield leaning in front
+      q.f((x, y) => {
+        const X = x + 0.5, Y = y + 0.5, d = dist(X, Y, 6, 39.5);
+        if (d > 4) return '';
+        if (d > 3.1) return X + Y < 45 ? 'i' : 'I';
+        if (d < 1.2) return d < 0.7 ? 'j' : 'i';
+        return X + Y < 44 ? 'a' : X + Y < 47 ? 'A' : 'e';
+      }, 1, 35, 10, 43);
+    });
     // training dummy (right): post on a cross foot, straw body and head, a painted target
-    c.r(49, 33, 2, 9, 'w').r(49, 33, 1, 9, 'W');
-    c.r(46, 42, 8, 1, 'b').r(46, 41, 8, 1, 'w').r(46, 41, 2, 1, 'W');
-    c.r(44, 29, 12, 2, 'w').r(44, 29, 12, 1, 'W').r(44, 30, 12, 1, 'b');
-    c.s(43, 28, ['n.', 'Nn', 'n.']).s(54, 28, ['.N', 'NZ', '.N']);
-    c.f((x, y) => {
-      const X = x + 0.5, Y = y + 0.5, u = (X - 50) / 4.2, v = (Y - 34.5) / 5.2, d = u * u + v * v;
-      if (d > 1) return '';
-      const hatch = (x * 2 + y * 3) % 5 === 0;
-      const t = (X - 46) / 8 + (Y - 30) / 20;
-      let q = t < 0.45 ? 0 : t < 0.8 ? 1 : 2;
-      if (hatch) q = Math.min(2, q + 1);
-      return ['n', 'N', 'Z'][q];
-    }, 44, 29, 55, 40);
-    c.f((x, y) => {
-      const X = x + 0.5, Y = y + 0.5, d = dist(X, Y, 50, 34);
-      if (d > 2.9) return '';
-      return d > 2 ? 'a' : d > 1.1 ? 'p' : 'a';
-    }, 46, 31, 54, 37);
-    c.f((x, y) => {
-      const X = x + 0.5, Y = y + 0.5, d = dist(X, Y, 50, 24.5);
-      if (d > 3.3) return '';
-      const t = (X - 47) / 6 + (Y - 21.5) / 8;
-      return t < 0.5 ? 'p' : t < 0.95 ? 'P' : 'N';
-    }, 46, 21, 54, 28);
-    c.r(48, 28, 4, 1, 'b').p(49, 24, 'k').p(51, 24, 'k').r(49, 26, 3, 1, 'N');
+    prop(c, (q) => {
+      q.r(49, 36, 2, 6, 'w').r(49, 36, 1, 6, 'W');
+      q.r(46, 42, 9, 1, 'B').r(46, 41, 9, 1, 'w').r(46, 41, 3, 1, 'W');
+      q.r(44, 29, 12, 2, 'w').r(44, 29, 12, 1, 'W').r(44, 30, 12, 1, 'b');
+      q.s(43, 28, ['n.', 'Nn', 'n.']).s(54, 28, ['.N', 'NZ', '.N']);
+      q.f((x, y) => {
+        const X = x + 0.5, Y = y + 0.5, u = (X - 50) / 4.2, v = (Y - 33.5) / 4.8, d = u * u + v * v;
+        if (d > 1) return '';
+        const hatch = (x * 2 + y * 3) % 5 === 0;
+        const t = (X - 46) / 8 + (Y - 30) / 20;
+        let q2 = t < 0.45 ? 0 : t < 0.8 ? 1 : 2;
+        if (hatch) q2 = Math.min(2, q2 + 1);
+        return ['n', 'N', 'Z'][q2];
+      }, 44, 28, 55, 39);
+      q.f((x, y) => {
+        const X = x + 0.5, Y = y + 0.5, d = dist(X, Y, 50, 33.5);
+        if (d > 2.9) return '';
+        return d > 2 ? 'a' : d > 1.1 ? 'p' : 'a';
+      }, 46, 30, 54, 37);
+      q.r(48, 38, 4, 1, 'b');
+      q.f((x, y) => {
+        const X = x + 0.5, Y = y + 0.5, d = dist(X, Y, 50, 24.5);
+        if (d > 3.3) return '';
+        const t = (X - 47) / 6 + (Y - 21.5) / 8;
+        return t < 0.5 ? 'n' : t < 0.95 ? 'N' : 'Z';
+      }, 46, 21, 54, 28);
+      q.r(48, 28, 4, 1, 'b').p(49, 24, 'k').p(51, 24, 'k').r(49, 26, 3, 1, 'Z');
+    });
     def('tw_barracks', TP(Object.assign({ r: '#7a96d0', R: '#5674b0', q: '#3c5490', Q: '#283a6c' }, RED, GOLD, STRAW)), c.rows());
   }
 
@@ -344,15 +361,16 @@
       if (d > 5.2 && d < 6.4 && Y < 11) return X < cx ? 'y' : 'Y';
       return '';
     }, 14, 0, 30, 11);
-    c.p(cx - 1, 0, 'h').p(cx, 0, 'y').p(cx - 7, 6, 'y').p(cx + 6, 6, 'Y').p(cx - 8, 6, 'h').p(cx + 7, 6, 'y');
-    c.s(18, 2, [
-      '...hy...',
-      '..yhhY..',
-      '..yhhy..',
-      '.yhhhyY.',
-      '.yhhhyY.',
-      'oYyhyYYo',
-      '.oYyYYo.',
+    c.p(cx - 8, 6, 'h').p(cx + 7, 6, 'y').p(cx - 1, 0, 'h');
+    c.s(19, 1, [
+      '...y..',
+      '..hy..',
+      '..hyY.',
+      '.yhhY.',
+      '.hhhyY',
+      'yhhhyY',
+      'yhhhyY',
+      '.yhyz.',
     ]);
     c.s(16, 9, [
       'yyyyyyYYzz',
@@ -392,11 +410,11 @@
         if (!inPointed(X, Y, Ro)) return '';
         if (inPointed(X, Y, Ri)) return 'Z';
         if (inPointed(X, Y, Ri + 1.1)) return 'V';
-        const facet = (Math.floor((X * 0.8 + Y * 0.5) / 3) + Math.floor((X * 0.6 - Y * 0.7 + 40) / 4)) % 3;
         const lit = X < cx ? 1 : 0;
         if (!inPointed(X, Y, Ro - 1.1)) return lit ? 'x' : 'X';
-        if (facet === 0) return lit ? 'x' : 'z';
-        if (facet === 1) return lit ? 'X' : 'z';
+        const u = (X * 0.7 + Y * 0.7 + 100) % 6, v = (X * 0.7 - Y * 0.7 + 100) % 6;
+        if (u < 1) return lit ? 'x' : 'X';
+        if (u + v < 6) return lit ? 'X' : 'z';
         return lit ? 'z' : 'Z';
       });
       // jagged shards jutting from the outer edge
@@ -415,8 +433,9 @@
         if (dx < hw * 0.35) return 'n';
         if (dx < hw * 0.75) return 'v';
         if (dx < hw + 0.6) return 'V';
-        const sw = (Math.sin(X * 0.9 + Y * 0.45 + seed * 2.1) + Math.sin(Y * 0.8 - X * 0.3 - seed)) * 0.5;
-        return sw > 0.45 ? 'u' : sw > -0.2 ? 'U' : 'Z';
+        const sw = Math.sin((Y - top) * 0.5 - dx * 0.9 + seed * 1.7);
+        const far = (dx - hw) / (Ri - hw + 0.01);
+        return far < 0.3 ? (sw > 0.2 ? 'u' : 'U') : far < 0.75 ? (sw > 0.6 ? 'u' : 'U') : 'Z';
       });
       // crackles: short forking bolts from the tear to the rim
       for (let n = 0; n < 5; n++) {
@@ -465,7 +484,7 @@
     }
     // scaffolding: three poles, two plank decks, braces
     for (const px of [4, 19, 34]) c.r(px, 3, 2, 25, 'w').r(px, 3, 1, 25, 'W').p(px, 3, 'W').p(px + 1, 3, 'W');
-    for (let k = 0; k < 13; k++) { c.p(6 + k, 15 - Math.round(k * 5 / 12), 'b'); c.p(21 + k, 10 + Math.round(k * 5 / 12), 'b'); }
+    for (let k = 0; k < 13; k++) { c.p(6 + k, 15 - Math.round(k * 4 / 12), 'b'); c.p(21 + k, 11 + Math.round(k * 4 / 12), 'b'); }
     c.r(2, 9, 36, 2, 'w').r(2, 9, 36, 1, 'W').r(2, 10, 36, 1, 'b').r(32, 9, 6, 1, 'w');
     c.r(2, 16, 36, 2, 'w').r(2, 16, 36, 1, 'W').r(2, 17, 36, 1, 'b').r(32, 16, 6, 1, 'w');
     c.p(11, 9, 'b').p(24, 9, 'b').p(13, 16, 'b').p(28, 16, 'b');
@@ -568,20 +587,14 @@
     c.r(2, 6, 2, 20, 'w').r(2, 6, 1, 20, 'W').r(24, 6, 2, 20, 'b').r(24, 6, 1, 20, 'w');
     // awning: ridge pole, striped canopy, scalloped edge
     c.r(1, 0, 26, 1, 'b').r(1, 0, 3, 1, 'w');
+    const stripe = (x) => Math.floor(x / 4) % 2;
     c.f((x, y) => {
-      const stripe = Math.floor((x - 1) / 3) % 2;
-      const shade = y > 5 || x > 22 ? 1 : 0;
-      if (y === 1 && (x < 1 || x > 26)) return '';
-      return stripe ? (shade ? 'P' : 'p') : (shade ? 'A' : 'a');
+      const shade = y > 4 || x > 22 ? 1 : 0;
+      if (y === 1) return stripe(x) ? 'h' : 'r';
+      return stripe(x) ? (shade ? 'P' : 'p') : (shade ? 'A' : 'a');
     }, 0, 1, 27, 6);
     c.p(0, 1, '.').p(27, 1, '.');
-    for (let x = 0; x < 28; x++) {
-      const lx = x % 3;
-      if (lx !== 2) { const stripe = Math.floor((x - 1) / 3) % 2; c.p(x, 7, stripe ? 'P' : 'A'); }
-    }
-    c.r(0, 6, 28, 1, 'e');
-    c.f((x, y, ch) => (ch === 'e' ? (Math.floor((x - 1) / 3) % 2 ? 'P' : 'A') : ''), 0, 6, 27, 6);
-    c.f((x, y, ch) => (ch === 'p' && y === 1 ? 'h' : ch === 'a' && y === 1 ? 'r' : ''), 0, 1, 27, 1);
+    for (let x = 0; x < 28; x++) { const lx = x % 4; if (lx === 1 || lx === 2) c.p(x, 7, stripe(x) ? 'P' : 'e'); }
     // wares on the counter
     wares(c);
     // counter: plank front with a cloth drape
@@ -601,12 +614,12 @@
     c.f((x, y) => {
       const X = x + 0.5, Y = y + 0.5, d = dist(X, Y * 1.3, 8, 16.2 * 1.3);
       if (d > 4.6 || Y > 16) return '';
-      return (x + y * 2) % 3 === 0 ? 'A' : (x + y) % 4 === 0 ? 'h' : 'm';
+      return (x + y * 2) % 3 === 0 ? 'A' : (x + y) % 4 === 0 ? 'x' : 'm';
     }, 3, 11, 13, 15);
     c.s(12, 11, ['.oYo.Yo', 'YoYYoYo', 'BbbbbbB', '.bwWwb.', '..BBB..']);
     c.s(19, 12, ['.lg.gl', 'lgGlgG', 'gGgGGG', '.GGGG.']);
-    c.r(5, 9, 1, 2, 'P').r(10, 9, 1, 2, 'P').r(15, 9, 1, 2, 'P').r(21, 9, 1, 2, 'P');
-    c.s(4, 11, ['mA'].map(r => r)).s(9, 11, ['yY']).s(14, 11, ['.']).s(20, 11, ['g']);
+    c.s(5, 8, ['P', 'P', 'g']).s(22, 8, ['P', 'P', 'Y']).r(6, 9, 15, 1, 'P');
+    c.s(9, 10, ['a', 'A']).s(13, 10, ['l', 'G']).s(17, 10, ['Y', 'o']);
   });
   stall('tw_stall2', { a: '#4f8ae0', A: '#2f5aa8', r: '#8ab8ff', e: '#1e3a7a' }, (c) => {
     // bread loaves, a wheel of cheese, jars
@@ -614,13 +627,12 @@
     c.s(9, 13, ['.WWw.', 'WWwwb', '.wbB.']);
     c.s(14, 11, ['.yyyyY.', 'yhyyyYz', 'yyyyYYz', 'zyyYYzz', '.zzzzz.']);
     c.s(21, 11, ['.jI', 'uvU', 'uuU', 'UUU']).s(18, 12, ['jI', 'mM', 'mM', 'MM']);
-    c.r(5, 9, 1, 2, 'P').r(11, 9, 1, 2, 'P').r(17, 9, 1, 2, 'P').r(22, 9, 1, 2, 'P');
-    c.s(4, 11, ['yY']).s(10, 11, ['y']).s(16, 11, ['.']).s(21, 10, ['m']);
+    c.r(6, 9, 15, 1, 'P').s(8, 10, ['W', 'b']).s(12, 10, ['y', 'z']).s(16, 10, ['W', 'b']).s(20, 10, ['j', 'i']);
   });
   // stall palette extras (wares)
   {
-    const extra = { m: '#ff4f4f', h: '#ffd0c0', z: '#c0841e', u: '#7fd0ff', v: '#e0f8ff', U: '#3f8ae0' };
-    for (const id of ['tw_stall', 'tw_stall2']) Object.assign(SPR.defs[id].pal, extra, id === 'tw_stall2' ? { m: '#d06ad0', M: '#8a3a9a', h: '#fff6c8' } : {});
+    const extra = { m: '#ff4f4f', x: '#ffd0c0', z: '#c0841e', u: '#7fd0ff', v: '#e0f8ff', U: '#3f8ae0' };
+    for (const id of ['tw_stall', 'tw_stall2']) Object.assign(SPR.defs[id].pal, extra, id === 'tw_stall2' ? { m: '#d06ad0', M: '#8a3a9a' } : {});
   }
 
   // ================= SMALL PROPS =================
@@ -747,7 +759,6 @@
     // stone base with a gold trim
     blocks(c, 1, 36 + o, 50, 6, 6, 3, ['S', 's', 'd'], 'D');
     c.r(1, 36 + o, 50, 1, 'S').r(1, 41 + o, 50, 1, 'D');
-    c.r(1, 37 + o, 17, 1, 'Y').r(39, 37 + o, 12, 1, 'Y');
     c.r(18, 36 + o, 21, 1, 'x');
     // the anvil, hot metal glowing on it and sparks flying
     c.s(4, 31 + o, [
@@ -763,7 +774,7 @@
       '..BBBBBBBBB.',
     ]);
     c.s(5, 28 + o, ['..y..h.', 'y..hy..', '.hhyYYo']).r(4, 31 + o, 11, 1, 'Y').r(6, 31 + o, 6, 1, 'y');
-    c.p(2, 27 + o, 'y').p(13, 26 + o, 'Y');
+    c.p(13, 26 + o, 'Y');
     def('tw_forge_2', TP(Object.assign({ r: '#7a7898', R: '#5a5874', q: '#42405a', Q: '#2e2c42', x: '#8a4220', X: '#4a2420' }, RED)), c.rows());
   }
 
@@ -773,14 +784,14 @@
     blocks(c, 44, 1, 6, 9, 3, 3, ['S', 's', 'd'], 'D');
     c.r(43, 0, 8, 2, 's').r(43, 0, 8, 1, 'S').r(45, 1, 4, 1, 'k');
     // a second chimney
-    blocks(c, 11, 3, 4, 7, 2, 3, ['S', 's', 'd'], 'D');
-    c.r(10, 2, 6, 2, 's').r(10, 2, 6, 1, 'S').r(11, 3, 4, 1, 'k');
+    blocks(c, 11, 1, 4, 9, 2, 3, ['S', 's', 'd'], 'D');
+    c.r(10, 0, 6, 2, 's').r(10, 0, 6, 1, 'S').r(11, 1, 4, 1, 'k');
     roof(c, 2, 13, 13, 46, 1, ['r', 'R', 'q', 'Q']);
     // a dormer window in the roof
     c.s(26, 4, ['...rr...', '..rRRq..', '.rRRRRq.', 'rrRRRRqQ', '.bbbbbB.', '.bhyyYB.', '.byyYoB.', '.bbbbbB.']);
     c.r(0, 14, 60, 1, 'B').r(1, 14, 58, 1, 'b');
     // two plaster storeys
-    const storey = (y0) => {
+    const storey = (y0, shutters) => {
       c.r(4, y0, 52, 11, 'p');
       c.f((x, y) => (x > 49 || y > y0 + 8 ? 'P' : ''), 4, y0, 55, y0 + 10);
       for (const px of [4, 18, 30, 42]) c.r(px, y0, 2, 11, 'b').r(px, y0, 1, 11, 'w');
@@ -792,11 +803,12 @@
       window_(c, 46, y0 + 2, 6, 6, 'b', ['y', 'Y', 'o'], true);
       // flower boxes under each window
       for (const wx of [9, 22, 34, 46]) {
+        if (shutters) c.r(wx - 1, y0 + 2, 1, 6, 't').r(wx + 6, y0 + 2, 1, 6, 'T').p(wx - 1, y0 + 4, 'T').p(wx + 6, y0 + 4, 'G');
         c.r(wx - 1, y0 + 8, 8, 2, 'w').r(wx - 1, y0 + 8, 8, 1, 'W').r(wx + 5, y0 + 9, 2, 1, 'b');
-        c.s(wx - 1, y0 + 6, [(wx % 2 ? 'm.u.m.um' : 'u.m.u.mu'), 'gGlgGlgG']);
+        c.s(wx - 1, y0 + 7, [(wx % 2 ? 'mluGmlug' : 'ulmGulmg')]);
       }
     };
-    storey(15);
+    storey(15, true);
     c.r(2, 26, 56, 1, 'w').r(2, 27, 56, 1, 'b');
     storey(28);
     // jetty beam with a string of lights
@@ -806,7 +818,7 @@
     for (let x = 3; x < 57; x++) {
       const sag = Math.round(Math.sin(((x - 3) % 9) / 9 * Math.PI) * 1.4);
       c.p(x, 28 + o + sag, 'K');
-      if ((x - 3) % 9 === 4) c.p(x, 29 + o + sag, (x % 2 ? 'h' : 'y'));
+      if ((x - 3) % 9 === 4) c.p(x, 29 + o + sag, 'hmyu'[Math.floor((x - 3) / 9) % 4]);
     }
     window_(c, 6, 31 + o, 7, 6, 'B', ['h', 'y', 'Y'], true);
     window_(c, 46, 31 + o, 7, 6, 'B', ['y', 'Y', 'o'], true);
@@ -824,9 +836,7 @@
       'BwWwbwwbbB',
     ]);
     // lanterns either side of the door
-    const LAN = ['.I.', 'IiI', 'hyY', 'yYo', 'III'];
-    c.s(21, 31 + o, LAN).s(36, 31 + o, LAN);
-    c.r(22, 30 + o, 1, 1, 'I').r(37, 30 + o, 1, 1, 'I');
+    const LAN = ['.I.', '.I.', 'IiI', 'hyY', 'yYo', 'III'];
     // base + step
     blocks(c, 2, 40 + o, 56, 4, 7, 2, ['S', 's', 'd'], 'D');
     c.r(2, 40 + o, 56, 1, 'S').r(2, 43 + o, 56, 1, 'D');
@@ -859,8 +869,9 @@
     ];
     c.s(38, 31 + o, BARREL.slice(0, 4));
     c.s(35, 35 + o, BARREL).s(42, 35 + o, BARREL);
-    c.s(14, 38 + o, ['.mlum.', 'gGgGgG', 'WwwwbB', '.wwbB.']);
-    def('tw_tavern_2', TP(Object.assign({ r: '#d0604a', R: '#a63e34', q: '#7a2a28', Q: '#541a1e', m: '#ff5a7a', u: '#b682f0' }, GOLD)), c.rows());
+    c.s(1, 36 + o, ['.mlum.', 'gGgGgG', 'WwwwbB', '.wwbB.']);
+    c.s(2, 28 + o, LAN).s(55, 28 + o, LAN);
+    def('tw_tavern_2', TP(Object.assign({ r: '#d0604a', R: '#a63e34', q: '#7a2a28', Q: '#541a1e', m: '#ff5a7a', u: '#b682f0', t: '#5aa84e', T: '#3a7a3a' }, GOLD)), c.rows());
   }
 
   // ================= UPGRADED ALCHEMIST (46x44: a greenhouse dome, more potions) =================
@@ -967,52 +978,52 @@
   def('ic_barracks', TP(Object.assign({}, RED, GOLD)), [
     'j........j',
     'ij......ji',
-    '.ijaaaAji.',
-    '..aayaAA..',
-    '..ayyzAe..',
-    '..aazaAe..',
-    '.y.aaAe.y.',
-    '.by.aA.yb.',
-    'b...ee...b',
+    '.iaaaaaAi.',
+    '..ayyyAA..',
+    '..aaYaAe..',
+    '..aaYAAe..',
+    '.y.aAAe.y.',
+    '..y.Ae.y..',
+    '.b.y..y.b.',
     'Y........Y',
   ]);
-  // trophy hall: a golden cup on a dark plinth
-  def('ic_museum', TP(GOLD), [
-    '..hyyyYz..',
-    'yyhyyyYzzz',
-    'y.hyyyYz.z',
-    '.yyhyyYzz.',
-    '...yyYz...',
+  // trophy hall: a copper dome over white columns, a golden cup in the doorway (ic_trophy is the bare cup)
+  def('ic_museum', TP(Object.assign({ c: '#a8f0d8', C: '#62c4a8', v: '#3a9484', V: '#24605a' }, MARBLE, GOLD)), [
     '....yz....',
-    '...yyYz...',
-    '..hyyYzz..',
-    '.bWWwwwbB.',
-    '.bbbbbbBB.',
+    '...cCCv...',
+    '..cCCvvV..',
+    '.mmmmmMnN.',
+    '.mNhyYNnN.',
+    '.mNyyzNnN.',
+    '.mNNyNNnN.',
+    '.mNyYzNnN.',
+    '.mmmmMMnN.',
+    'mmmMMMnnNN',
   ]);
   // temple: a white shrine with a gold flame on top
   def('ic_temple', TP(Object.assign({}, MARBLE, GOLD)), [
     '....hy....',
     '...yhyY...',
-    '...yhYY...',
-    '..zyyYYz..',
-    '.mmmmmMnN.',
-    '..yyyYYz..',
-    '..mMyhMn..',
-    '..mMhyMn..',
-    '.mmmmMMnN.',
-    'mmmMMMnnNN',
+    '....yY....',
+    '...mmMn...',
+    '..mmmMMn..',
+    '.yyyyYYYz.',
+    '.mMNhyNnN.',
+    '.mMNyYNnN.',
+    '.mMNyYNnN.',
+    'mmmmMMMnnN',
   ]);
   // rift gate: an obsidian arch around a violet tear
   def('ic_riftgate', TP({ x: '#6a5a92', X: '#463a6a', z: '#2c2444', Z: '#18122a', n: '#fbeaff', v: '#e09cff', V: '#a656f0', u: '#6a28c0' }), [
-    '....xz....',
-    '...xXzz...',
-    '..xXVVzz..',
-    '..xVvnVz..',
-    '.xXVnnVzZ.',
-    '.xXuvnVzZ.',
-    '.xXVnvuzZ.',
-    '.xXuvnVzZ.',
-    '.xXVnvVzZ.',
-    'xxXXzzzZZZ',
+    '...xXXz...',
+    '..xXzzXz..',
+    '.xXVVVVzZ.',
+    '.xVuvnVVZ.',
+    'xXVuvnuVzZ',
+    'xXVvnvuVzZ',
+    'xXVunvuVzZ',
+    'xXVvnuuVzZ',
+    'xXVuvnuVzZ',
+    'xxXXzzzzZZ',
   ]);
 })(globalThis.G = globalThis.G || {});

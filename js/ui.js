@@ -78,6 +78,25 @@
     { id: 'set', icon: 'ic_gear', unlock: () => true },
   ];
   const tabOpen = id => { const d = TABS.find(x => x.id === id); return d && d.unlock(G.S); };
+  // 3.0: the panel keeps only the Upgrades (and Settings); every other page lives in a town building
+  const BLDS = {
+    forge: { npc: 'npc_smith', subs: ['forge'] }, enchant: { npc: 'npc_witch', subs: ['enchant'] }, alch: { npc: 'npc_alch', subs: ['alch'] },
+    tavern: { npc: 'npc_keeper', subs: ['tavern', 'hero', 'ladder'] },
+    barracks: { npc: 'npc_keeper', subs: ['heroes'], sub: 'twBarracksSub' }, museum: { npc: 'npc_sage', subs: ['coll', 'ach'], sub: 'twMuseumSub' },
+    quests: { npc: 'npc_keeper', subs: ['quests'], sub: 'twBoardSub' }, stars: { npc: 'npc_sage', subs: ['stars'], sub: 'twObsSub' },
+    pets: { npc: 'npc_alch', subs: ['pets'], sub: 'twNestSub' }, temple: { npc: 'npc_sage', subs: ['asc'], sub: 'twTempleSub' },
+    rift: { npc: 'npc_witch', subs: ['rift'], sub: 'twRiftSub' },
+  };
+  const BLD_ORDER = ['forge', 'enchant', 'alch', 'tavern', 'barracks', 'museum', 'quests', 'stars', 'pets', 'temple', 'rift'];
+  const BLD_SPR = { forge: 'tw_forge', enchant: 'tw_tower', alch: 'tw_alch', tavern: 'tw_tavern', barracks: 'tw_barracks', museum: 'tw_museum', quests: 'tw_board', stars: 'tw_obs', pets: 'tw_nest', temple: 'tw_temple', rift: 'tw_rift' };
+  const CUSTOM = { forge: 1, enchant: 1, alch: 1, tavern: 1 };
+  const TAB_BLD = {}; Object.keys(BLDS).forEach(b => BLDS[b].subs.forEach(x => { TAB_BLD[x] = b; }));
+  const subOpen = x => !!CUSTOM[x] || tabOpen(x);
+  const bldOpen = id => !!BLDS[id] && BLDS[id].subs.some(subOpen);
+  G.bldOpen = bldOpen;
+  // a page shown in a town window (its renderer and updater run there), or null
+  let wtab = null;
+  const curTab = () => wtab || (G.R && G.R.town && tab !== 'set' ? 'towndir' : tab);
 
   // ---------- Shell ----------
   UI.init = function () {
@@ -101,7 +120,10 @@
     if (G.Tut) G.Tut.init();
     if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
-  UI.tab = () => tab;
+  // the page in view: the Forge and Enchanter count as the Party page, for the tips that point there
+  UI.tab = () => (tw.id === 'forge' || tw.id === 'enchant' ? 'hero' : curTab());
+  UI.townId = () => tw.id;
+  UI.bldOf = id => TAB_BLD[id] || null;
   // the game's own link, for the brag line
   G.SHARE_URL = 'https://claude.ai/artifact/WcSxtLrabwMuEt2YcyxpWh';
   G.uiBusy = () => !$('#modal').hidden || !$('#intro').hidden;
@@ -171,29 +193,47 @@
       const who = +c.dataset.who;
       if (G.reviveTap(who)) { G.Audio.click(0, false); return; }
       // a standing unit: open their page in the Party tab
-      selWho = who; selGear = null; UI.unfold(); UI.go('hero');
+      selWho = who; selGear = null; tw.who = who; UI.go('forge');
     });
     $('#btnFold').addEventListener('click', () => { $('#app').classList.toggle('fold'); $('#btnFold').textContent = $('#app').classList.contains('fold') ? '▴' : '▾'; setTimeout(() => G.Stage && G.Stage.resize && G.Stage.resize(), 0); });
   }
   UI.unfold = function () { if ($('#app').classList.contains('fold')) { $('#app').classList.remove('fold'); $('#btnFold').textContent = '▾'; setTimeout(() => G.Stage && G.Stage.resize && G.Stage.resize(), 0); } };
 
+  const NAV = [{ id: 'upg', icon: 'ic_rune', k: 'tab_upg' }, { id: 'town', icon: 'ic_town', k: 'tab_towndir' }, { id: 'set', icon: 'ic_gear', k: 'tab_set' }];
   function buildTabs() {
     const nav = $('#tabs');
-    nav.innerHTML = TABS.map((x, i) => `<button class="tab" data-tab="${x.id}" aria-label="${esc(t('tab_' + x.id))}" title="${esc(t('tab_' + x.id))}${i < 10 ? ` (${(i + 1) % 10})` : ''}">${img(x.icon, '', 3)}<span class="dot" hidden></span></button>`).join('');
+    nav.classList.add('slim');
+    nav.innerHTML = NAV.map(x => `<button class="tab" data-tab="${x.id}" aria-label="${esc(t(x.k))}" title="${esc(t(x.k))}">${img(G.SPR.defs[x.icon] ? x.icon : 'ic_tomb', '', 3)}<b>${esc(t(x.k))}</b><span class="dot" hidden></span></button>`).join('');
+    if (nav._bound) return;
+    nav._bound = true;
     nav.addEventListener('click', e => {
       const b = e.target.closest('.tab'); if (!b) return;
       const id = b.dataset.tab;
-      if (!tabOpen(id)) { G.Audio.error(); return; }
+      G.Audio.unlock();
       UI.unfold();
+      if (id === 'town') {
+        if (G.R.town) { if (tab === 'set') { tab = 'upg'; UI.render(); } return; }
+        if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); }
+        return;
+      }
+      if (id === 'upg' && G.R.town) { G.leaveTown(); tab = 'upg'; UI.render(); return; }
       UI.go(id);
     });
   }
   UI.go = function (id) {
     if (UI.unfold) UI.unfold();
-    tab = id; ascArm = 0; resetArm = 0;
-    G.S.seen.tabs[id] = 1;
-    UI.render();
-    $('#tabBody').scrollTop = 0;
+    ascArm = 0; resetArm = 0;
+    if (!TAB_BLD[id]) {
+      if (id === 'set' && wtab) UI.townClose(true);
+      tab = id === 'set' ? 'set' : 'upg';
+      G.S.seen.tabs[tab] = 1;
+      UI.render();
+      $('#tabBody').scrollTop = 0;
+      return;
+    }
+    // any other page: walk into town and open its building
+    if (!G.R.town && !G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
+    UI.townOpen(TAB_BLD[id], id);
   };
 
   function bindHud() {
@@ -201,7 +241,7 @@
     if (window.innerWidth < 700) G.TUNE.mobMax = Math.min(G.TUNE.mobMax, 750);
     bindTown();
     $('#btnTown').addEventListener('click', () => { G.Audio.unlock(); if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } });
-    G.on('town', on => { if (!on) UI.townClose(); document.getElementById('app').classList.toggle('inTown', on); UI.update(true); });
+    G.on('town', on => { if (!on) UI.townClose(true); document.getElementById('app').classList.toggle('inTown', on); if (tab === 'set') tab = 'upg'; UI.render(); });
     $('#torment').addEventListener('click', e => { const b = e.target.closest('[data-tm]'); if (!b) return; G.Audio.unlock(); if (G.setTorment((G.S.torment || 0) + +b.dataset.tm)) { G.Audio.buy(); updateTorment(); } else G.Audio.error(); });
     $('#realmBox').addEventListener('click', () => { if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#realmBox').addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); e.stopPropagation(); if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
@@ -239,16 +279,12 @@
       else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
       else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
       else if (e.code === 'KeyC') { if (!G.uiBusy()) G.usePower('mend'); }
-      else if (/^Digit[0-9]$/.test(e.code)) {
-        const d = TABS[(+e.code.slice(5) + 9) % 10];
-        if (d && tabOpen(d.id)) UI.go(d.id);
-      }
     });
   }
 
   // ---------- Events ----------
   function listen() {
-    G.on('achievement', a => { UI.toast(`<span>${esc(t('achievement'))}: <b>${esc(L(a.name))}</b></span>`, 'ach', 'ic_trophy'); if (tab === 'ach') UI.render(); });
+    G.on('achievement', a => { UI.toast(`<span>${esc(t('achievement'))}: <b>${esc(L(a.name))}</b></span>`, 'ach', 'ic_trophy'); if (curTab() === 'ach') UI.render(); });
     G.on('questDone', q => UI.toast(`<b>${esc(t('questDone'))}</b>`, '', 'ic_scroll'));
     G.on('landStar', (i, bit, n) => { zoneKey = ''; UI.toast(`<span><b style="color:#ffd84a">\u2605 ${esc(G.REALMS[i].name)} · ${esc(t('starName_' + bit))}</b><br><small>${esc(t('starBonus', n === 1 ? t('star1') : t('starsN', n), '+' + +(n * G.STAR_BONUS * 100).toFixed(1) + '%'))}</small></span>`, 'ach', 'ic_star'); });
     G.on('realm', r => UI.toast(`<span>${esc(t('newLands', G.realmName(G.S.depth)))} · <b>${esc(G.REALMS[r].rule)}</b></span>`, 'ach', 'ic_star'));
@@ -270,13 +306,13 @@
     });
     G.on('torment', () => updateTorment());
     G.on('pull', res => showPull(res));
-    G.on('buy', (kind) => { if ((kind === 'hero' && tab === 'heroes') || (kind === 'upg' && tab === 'upg') || (kind === 'node' && tab === 'stars') || (kind === 'legacy' && tab === 'asc')) UI.update(true); if (kind === 'node' && tab === 'stars') UI.render(); });
+    G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'asc')) UI.update(true); if (kind === 'node' && curTab() === 'stars') UI.render(); });
     G.on('ascend', g => { if (g) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
     G.on('quests', () => dirtyTab('quests'));
-    G.on('questClaim', () => { if (tab === 'quests') UI.render(); });
-    G.on('daily', () => { if (tab === 'quests') UI.render(); });
-    G.on('journey', (st, got) => { UI.toast(`<span><b>${esc(t('journeyDone'))}</b> · ${esc(st.text)}</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_trophy'); G.Audio && G.Audio.achievement(); if (tab === 'quests') UI.render(); });
-    G.on('bounty', got => { UI.toast(`<span><b>${esc(t('bounty'))}</b> ✓</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_skull'); if (tab === 'quests') UI.render(); });
+    G.on('questClaim', () => { if (curTab() === 'quests') UI.render(); });
+    G.on('daily', () => { if (curTab() === 'quests') UI.render(); });
+    G.on('journey', (st, got) => { UI.toast(`<span><b>${esc(t('journeyDone'))}</b> · ${esc(st.text)}</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_trophy'); G.Audio && G.Audio.achievement(); if (curTab() === 'quests') UI.render(); });
+    G.on('bounty', got => { UI.toast(`<span><b>${esc(t('bounty'))}</b> ✓</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_skull'); if (curTab() === 'quests') UI.render(); });
     G.on('evolve', id => {
       const E = G.EVOS[id], el = $('#banner');
       el.innerHTML = `<div class="inner" style="color:#ffd84a"><h2>${esc(t('evoTitle'))}</h2><img class="ico" src="${ic(E.icon, 10)}" alt=""><p>${esc(E.name)}</p><p style="font-size:15px;color:#d8dce8">${esc(E.desc)}</p></div>`;
@@ -285,9 +321,9 @@
       bannerT = setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; }, 400); }, 2600);
       G.Audio && G.Audio.achievement();
     });
-    G.on('pets', () => { if (tab === 'pets') UI.render(); });
-    G.on('ladder', () => { if (tab === 'ladder') updaters.ladder(); if (tab === 'rift') updaters.rift(); });
-    G.on('net', () => { if (tab === 'ladder') updaters.ladder(); });
+    G.on('pets', () => { if (curTab() === 'pets') UI.render(); });
+    G.on('ladder', () => { if (curTab() === 'ladder') updaters.ladder(); if (curTab() === 'rift') updaters.rift(); });
+    G.on('net', () => { if (curTab() === 'ladder') updaters.ladder(); });
     G.on('cloudNewer', c => { const ask = () => { if ($('#modal').hidden) askCloud(c); else setTimeout(ask, 1500); }; setTimeout(ask, 1200); });
     G.on('pickup', (e, how, res) => {
       if (e.k === 'uq') { UI.bannerU(e.q, res && res.first); dirtyTab('coll'); dirtyTab('hero'); return; }
@@ -298,7 +334,7 @@
       dirtyTab('coll');
     });
     G.on('riftEnd', r => {
-      if (tab === 'rift') UI.render();
+      if (curTab() === 'rift') UI.render();
       if (r.win && r.lvl >= r.best && G.Net) G.Net.pushNow();
     });
     G.on('feed', () => { if (G.Net) setTimeout(() => G.Net.pushNow(), 1500); });
@@ -431,32 +467,22 @@
     $('#essChip').hidden = !tabOpen('stars');
     $('#eggChip').hidden = !(S.eggs > 0 || Object.keys(S.pets).length);
     $('#fameChip').hidden = !(S.fameTotal > 0);
-    // Tabs
+    // Pages opening up: a toast names the building that now holds them
     for (const d of TABS) {
-      const b = $(`.tab[data-tab="${d.id}"]`);
-      const open = d.unlock(S);
-      setClass(b, 'locked', !open);
-      setClass(b, 'on', d.id === tab);
-      const dot = b.querySelector('.dot');
-      const showDot = open && !S.seen.tabs[d.id] && d.id !== 'set';
-      if (dot.hidden === showDot) dot.hidden = !showDot;
-      if (open && !S.seen.tabs['_u_' + d.id]) {
-        S.seen.tabs['_u_' + d.id] = 1;
-        if (d.id !== 'set' && d.id !== tab) UI.toast(`<span>${esc(t('unlocked', t('tab_' + d.id)))}</span>`, '', d.icon);
-      }
+      if (!d.unlock(S) || S.seen.tabs['_u_' + d.id]) continue;
+      S.seen.tabs['_u_' + d.id] = 1;
+      const bd = TAB_BLD[d.id];
+      if (bd && !CUSTOM[d.id] && d.id !== 'hero' && d.id !== 'ladder' && BLDS[bd].subs[0] === d.id) UI.toast(`<span>${esc(t('unlocked', t('town_' + bd)))}</span>`, '', d.icon);
     }
-    // Gold marker on shop tabs when something is affordable
-    let canUpg = false, canHero = false, canNode = false;
+    // the panel's three buttons, and a mark on TOWN when something there wants you
+    let canUpg = false;
     for (const u of G.UPGRADES) { const L_ = S.upg[u.id] || 0; if ((!u.max || L_ < u.max) && !u.secret && S.gold >= G.upgCost(u)) { canUpg = true; break; } }
-    for (const h of G.HEROES) { if (S.gold >= G.heroCost(h, 1)) { canHero = true; break; } }
-    if (tabOpen('stars')) for (const n of G.NODES) { if ((S.nodes[n.id] || 0) < n.max && G.nodeAvailable(n) && S.essence >= G.nodeCost(n)) { canNode = true; break; } }
+    const pt = G.R.town && tab !== 'set' ? 'town' : tab;
+    for (const x of NAV) { const b = $(`.tab[data-tab="${x.id}"]`); if (b) setClass(b, 'on', x.id === pt); }
     setClass($('.tab[data-tab="upg"]'), 'afford', canUpg);
-    setClass($('.tab[data-tab="heroes"]'), 'afford', canHero && tabOpen('heroes'));
-    setClass($('.tab[data-tab="stars"]'), 'afford', canNode);
-    // an open party slot marks the Party tab until it is filled
-    if (S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length) { $('.tab[data-tab="hero"] .dot').hidden = false; }
-    const qDot = $(`.tab[data-tab="quests"] .dot`);
-    if (tabOpen('quests') && (S.quests.some(q => q.done) || G.dailyAvailable())) qDot.hidden = false;
+    const ping = townPing();
+    const td = $('.tab[data-tab="town"] .dot'); if (td && td.hidden === !!ping) td.hidden = !ping;
+    setClass($('#btnTown'), 'ping', !!ping && !G.R.town);
     // HUD
     const realm = G.REALMS[G.realmIndex(S.depth)];
     // in a Rift the HUD names the Rift's land, not the campaign's
@@ -574,10 +600,36 @@
     $('#btnSound').classList.toggle('off', !S.set.sound);
     $('#btnMusic').classList.toggle('off', !S.set.music);
 
-    if (dirty[tab]) { dirty[tab] = false; if (tab === 'coll' || tab === 'quests' || tab === 'asc') { updaters[tab] && updaters[tab](true); } }
-    if (updaters[tab]) updaters[tab](force);
+    const ct = curTab();
+    if (dirty[ct]) { dirty[ct] = false; if (ct === 'coll' || ct === 'quests' || ct === 'asc') { updaters[ct] && updaters[ct](true); } }
+    if (updaters[ct]) updaters[ct](force);
+    if (G.R.town && tw.id) twFootLive();
   };
 
+  // what in town wants a visit: a building just opened, a finished quest or the daily gift, an empty
+  // party seat, a star or a Garrison hire you can afford, a building you can build up
+  function bldPing(id) {
+    const S = G.S;
+    if (!bldOpen(id)) return false;
+    const f = BLDS[id].subs.find(x => !CUSTOM[x] && x !== 'hero' && x !== 'ladder');
+    if (f && !S.seen.tabs[f]) return true;
+    if (id === 'quests') return S.quests.some(q => q.done) || G.dailyAvailable();
+    if (id === 'tavern') return !!(S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length);
+    if (id === 'barracks') return G.HEROES.some(h => S.gold >= G.heroCost(h, 1) * 3);
+    if (id === 'stars') return G.NODES.some(n => (S.nodes[n.id] || 0) < n.max && G.nodeAvailable(n) && S.essence >= G.nodeCost(n));
+    if (id === 'pets') return S.eggs >= 1;
+    if (id === 'forge') return G.S.hero.bag.some(g => G.powerWith(G.slotOf(g.id), g, -1) > G.powerWith(G.slotOf(g.id), G.S.hero.eq[G.slotOf(g.id)], -1));
+    return false;
+  }
+  const bldCanBuild = id => bldOpen(id) && G.bldLvl(id) < G.BLD_MAX && G.S.gold >= G.bldCost(id);
+  UI.bldPing = bldPing; UI.bldCanBuild = bldCanBuild;
+  let pingT = 0, pingV = null;
+  function townPing() {
+    const now = performance.now();
+    if (now - pingT < 500) return pingV;
+    pingT = now; pingV = BLD_ORDER.find(id => bldPing(id) || bldCanBuild(id)) || null;
+    return pingV;
+  }
   // ---------- Render tabs ----------
   const renderers = {}, updaters = {};
   function applyStatic() {
@@ -590,10 +642,13 @@
     // a fresh element per render, so the old tab's click handlers go with it
     const old = $('#tabBody'), body = old.cloneNode(false);
     old.replaceWith(body);
+    // in town the panel lists the buildings; a page opened in one renders in its window (renderTown)
+    const pt = G.R && G.R.town && tab !== 'set' ? 'towndir' : tab;
     const title = $('#tabTitle');
-    title.innerHTML = `<span>${esc(t('tab_' + tab))}</span><small id="tabSub"></small>`;
+    title.innerHTML = `<span>${esc(t('tab_' + pt))}</span><small ${wtab ? '' : 'id="tabSub"'}></small>`;
     body.innerHTML = '';
-    (renderers[tab] || (() => {}))(body);
+    (renderers[pt] || (() => {}))(body);
+    if (wtab && tw.id) renderTown(true);
     UI.update(true);
   };
 
@@ -908,7 +963,7 @@
     const best = res.reduce((m, r) => Math.max(m, r.pet.tier + (r.golden ? 1 : 0)), 0);
     G.Audio.pull(best);
     UI.modal(t('pullTitle'), `<div class="pullGrid" style="${res.length === 1 ? 'grid-template-columns:1fr;justify-items:center' : ''}">${cards}</div>`, [{ label: t('ok'), cls: 'gold' }]);
-    if (tab === 'pets') UI.update(true);
+    if (curTab() === 'pets') UI.update(true);
   }
 
   // Quests
@@ -1320,18 +1375,77 @@
   // window with the orbs first. Alchemist: brew the potion you want. Tavern: the party and new recruits.
   const tw = { id: null, who: -1, sel: null, filter: 'all', salv: 2 };
   const twEl = () => $('#townWin');
-  UI.townOpen = function (id) {
+  UI.townOpen = function (id, sub) {
     if (!G.R.town) return;
-    if (id === 'quests' || id === 'stars' || id === 'pets') {
-      // the board, the observatory and the hatchery open their tab in the panel
-      if (!tabOpen(id)) { UI.toast(esc(t('townLocked')), '', 'ic_scroll'); return; }
-      UI.unfold && UI.unfold(); UI.go(id); return;
-    }
-    tw.id = id; tw.sel = null;
+    // a page's id opens the building that holds it
+    if (!BLDS[id] && TAB_BLD[id]) { sub = id; id = TAB_BLD[id]; }
+    const B = BLDS[id]; if (!B) return;
+    if (!bldOpen(id)) { G.Audio.error(); UI.toast(esc(t('bldOpens', t('lock_' + id))), '', 'ic_scroll'); return; }
+    if (!sub || !B.subs.includes(sub) || !subOpen(sub)) sub = B.subs.find(subOpen);
+    tw.id = id; tw.sub = sub; tw.sel = null;
+    if (tab === 'set') tab = 'upg';
+    wtab = CUSTOM[sub] ? null : sub;
+    G.S.seen.tabs[sub] = 1; pingT = 0;
     if (tw.who >= (G.S.party || []).length) tw.who = -1;
-    twEl().hidden = false; renderTown();
+    twEl().hidden = false;
+    UI.render();
+    if (CUSTOM[sub]) renderTown();
+    const sc = twEl().querySelector('.twTabBody'); if (sc) sc.scrollTop = 0;
   };
-  UI.townClose = function () { tw.id = null; const el = twEl(); if (el) { el.hidden = true; el.innerHTML = ''; } };
+  UI.townClose = function (quiet) {
+    const had = !!wtab;
+    tw.id = null; wtab = null;
+    const el = twEl(); if (el) { el.hidden = true; el.innerHTML = ''; }
+    if (had && !quiet) UI.render(); else if (!quiet && G.R.town) UI.render();
+  };
+  // a building's tabs (the Tavern: party, character, ladder; the Museum: collection, trophies)
+  function twSubRow(id) {
+    const B = BLDS[id]; if (!B || B.subs.length < 2) return '';
+    return `<nav class="twSubs">${B.subs.map(x => `<button class="${x === tw.sub ? 'on' : ''}" data-twsub="${x}" ${subOpen(x) ? '' : 'disabled'}>${esc(x === 'tavern' ? t('twSubParty') : x === 'hero' ? t('twSubChar') : t('tab_' + x))}</button>`).join('')}</nav>`;
+  }
+  const bldVal = (id, L) => { const b = G.BLD_BY_ID[id]; return b.v >= 1 ? L * b.v : Math.round(L * b.v * 100); };
+  // building it up: its level, what it gives now and next, the price
+  function twBldFoot(id) {
+    if (!G.BLD_BY_ID[id]) return '';
+    const L = G.bldLvl(id), M = G.BLD_MAX, c = G.bldCost(id), can = L < M && G.S.gold >= c;
+    return `<footer class="twBld"><span class="lv"><b>${esc(t('bldLvl', L, M))}</b>${'<i class="pip on"></i>'.repeat(L)}${'<i class="pip"></i>'.repeat(M - L)}</span>
+      <span class="fx">${esc(t('bldFx_' + id, bldVal(id, L)))}${L < M ? ` <em>→ ${esc(t('bldFx_' + id, bldVal(id, L + 1)))}</em>` : ''}</span>
+      ${L < M ? `<button class="btn ${can ? 'gold' : ''}" data-twbuild="${id}">${esc(t('bldUp'))} ${img('ic_coin', '', 2)}${fmt(c)}</button>` : `<b class="max">${esc(t('bldMax'))}</b>`}</footer>`;
+  }
+  function twFootLive() {
+    const b = twEl().querySelector('[data-twbuild]'); if (!b) return;
+    setClass(b, 'gold', G.S.gold >= G.bldCost(b.dataset.twbuild));
+  }
+  // the panel, in town: every building, what it does, how built up it is, what opens it
+  renderers.towndir = function (body) {
+    const S = G.S;
+    body.innerHTML = `<p class="note">${esc(t('dirHint'))}</p>
+      <div class="dirLvl">${esc(t('dirLvl', G.townLvl()))} <small>/ ${G.BLD.length * G.BLD_MAX}</small></div>
+      <div class="dirList">${BLD_ORDER.map(id => {
+        const open = bldOpen(id), L = G.bldLvl(id), sp = G.SPR.defs[BLD_SPR[id]] ? BLD_SPR[id] : 'ic_scroll';
+        return `<button class="dirRow ${open ? '' : 'locked'} ${tw.id === id ? 'on' : ''}" data-dir="${id}">
+          <span class="pic">${img(open ? sp : (G.SPR.defs.tw_build ? 'tw_build' : sp), '', 1)}</span>
+          <span class="txt"><b>${esc(t('town_' + id))}</b><small>${open ? esc(t('bldLvl', L, G.BLD_MAX) + ' · ' + (L ? '' : t('bldNext') + ': ') + t('bldFx_' + id, bldVal(id, Math.max(1, L)))) : esc(t('bldLocked') + ': ' + t('bldOpens', t('lock_' + id)))}</small></span>
+          <span class="dot" hidden></span><i class="up" hidden>▲</i></button>`;
+      }).join('')}</div>
+      <button class="btn big" data-dirback>${esc(t('dirBack'))}</button>`;
+    body.addEventListener('click', e => {
+      const r = e.target.closest('[data-dir]');
+      if (r) { G.Audio.unlock(); G.Audio.buy && G.Audio.buy(); UI.townOpen(r.dataset.dir); return; }
+      if (e.target.closest('[data-dirback]')) { G.Audio.unlock(); G.leaveTown(); }
+    });
+    refs.dir = { rows: $$('[data-dir]', body) };
+  };
+  updaters.towndir = function () {
+    const rf = refs.dir; if (!rf) return;
+    for (const r of rf.rows) {
+      const id = r.dataset.dir, d = r.querySelector('.dot'), u = r.querySelector('.up'), p = bldPing(id), c = bldCanBuild(id);
+      if (d.hidden === p) d.hidden = !p;
+      if (u.hidden === c) u.hidden = !c;
+      setClass(r, 'on', tw.id === id);
+      if (r.classList.contains('locked') === bldOpen(id)) { UI.render(); return; }
+    }
+  };
   const memOf = who => (who >= 0 ? G.S.party[who] : null);
   const clsOf = who => (who >= 0 ? G.S.party[who].cls : G.S.hero.cls);
   const canWear = (g, who) => G.slotOf(g.id) !== 'weapon' || who < 0 || G.CLASS_BY_ID[clsOf(who)].weapons.includes(G.ITEM_TYPE[g.id]);
@@ -1442,14 +1556,28 @@
       <div class="twParty"><div class="twMem lead"><img src="${G.Doll.portrait(S.hero, 3)}" alt=""><b>${esc(S.profile.name || t('wardenName'))}</b><small>${esc(L(G.CLASS_BY_ID[S.hero.cls].name))} · ${esc(t('lvl'))} ${S.hero.lvl}</small><button class="btn" data-twgear="-1">${esc(t('twGearUp'))}</button></div>${mem}</div>
       ${recruits}</div>`;
   }
-  function renderTown() {
+  function renderTown(full) {
     const el = twEl(); if (!el || !tw.id) return;
     if (!G.S.hero || !G.S.hero.cls) { UI.townClose(); return; }
     if (tw.who >= (G.S.party || []).length) { tw.who = -1; tw.sel = null; }
+    const B = BLDS[tw.id];
+    if (!CUSTOM[tw.sub]) {
+      // a page hosted here: its renderer draws it once (full), its updater keeps it live
+      if (!full) { twFootLive(); return; }
+      const old = el.querySelector('.twTabBody'), y = old ? old.scrollTop : 0;
+      el.innerHTML = `<div class="tw host">${twHeader(B.npc, t('town_' + tw.id), t(B.sub || 'twTavernSub'))}${twSubRow(tw.id)}
+        <div class="twTabHead"><b>${esc(tw.sub === 'hero' ? t('twSubChar') : t('tab_' + tw.sub))}</b><small id="tabSub"></small></div><div class="tabBody twTabBody"></div>${twBldFoot(tw.id)}</div>`;
+      const body = el.querySelector('.twTabBody');
+      (renderers[tw.sub] || (() => {}))(body);
+      body.scrollTop = y;
+      return;
+    }
     const sc = el.querySelector('.twBody, .twPots, .tw.tavern'), y = sc ? sc.scrollTop : 0, gy = el.querySelector('.twGrid') ? el.querySelector('.twGrid').scrollTop : 0;
     if (tw.id === 'forge' || tw.id === 'enchant') renderForge(el);
     else if (tw.id === 'alch') renderAlch(el);
     else if (tw.id === 'tavern') renderTavern(el);
+    const head = el.querySelector('.twHead'); if (head) head.insertAdjacentHTML('afterend', twSubRow(tw.id));
+    const root = el.querySelector('.tw'); if (root) root.insertAdjacentHTML('beforeend', twBldFoot(tw.id));
     const sc2 = el.querySelector('.twBody, .twPots, .tw.tavern'); if (sc2) sc2.scrollTop = y;
     const g2 = el.querySelector('.twGrid'); if (g2) g2.scrollTop = gy;
   }
@@ -1463,16 +1591,25 @@
       if (e.target.matches('[data-twsalv]')) { tw.salv = +e.target.value; renderTown(); }
     });
     el.addEventListener('click', e => {
-      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb]');
+      // (a page hosted here handles its own clicks)
+      if (e.target.closest('.twTabBody')) return;
+      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb],[data-twsub],[data-twbuild]');
       if (!b) { if (e.target === el) UI.townClose(); return; }
       G.Audio.unlock();
       const h = G.S.hero;
       if (b.dataset.tw === 'close') { UI.townClose(); return; }
+      if (b.dataset.twsub) { UI.townOpen(tw.id, b.dataset.twsub); return; }
+      if (b.dataset.twbuild) {
+        const id = b.dataset.twbuild;
+        if (G.buildUp(id)) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('bldDone', t('town_' + id), G.bldLvl(id))), 'ach', G.SPR.defs[BLD_SPR[id]] ? BLD_SPR[id] : 'ic_town'); pingT = 0; UI.render(); if (CUSTOM[tw.sub]) renderTown(); }
+        else G.Audio.error();
+        return;
+      }
       if (b.dataset.twwho != null) { tw.who = +b.dataset.twwho; tw.sel = null; }
       else if (b.dataset.twg != null) { tw.sel = +b.dataset.twg; }
       else if (b.dataset.twf != null) { tw.filter = b.dataset.twf; tw.sel = null; }
       else if (b.dataset.twflt != null) { tw.filter = b.dataset.twflt; }
-      else if (b.dataset.twgear != null) { tw.id = 'forge'; tw.who = +b.dataset.twgear; tw.sel = null; }
+      else if (b.dataset.twgear != null) { tw.who = +b.dataset.twgear; UI.townOpen('forge'); return; }
       else if (b.dataset.twrec) { if (G.recruit(b.dataset.twrec)) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twRecruited', L(G.CLASS_BY_ID[b.dataset.twrec].name))), 'ach', G.CLASS_BY_ID[b.dataset.twrec].spr); } else G.Audio.error(); }
       else if (b.dataset.twbrew) { const p = G.brewPotion(b.dataset.twbrew); if (p) G.Audio.buy(); else G.Audio.error(); }
       else if (b.dataset.orb) {
@@ -1543,6 +1680,7 @@
       if (b) { const v = b.dataset.rl; riftSel = v === 'max' ? G.riftMax() : Math.max(1, Math.min(G.riftMax(), riftSel + +v)); updaters.rift(true); return; }
       if (e.target.closest('[data-ropen]')) {
         G.Audio.unlock();
+        if (G.R.town) G.leaveTown();
         if (!G.riftStart(riftSel)) { G.Audio.error(); UI.toast(esc(t('riftBusy')), '', 'ic_rift'); return; }
         updaters.rift(true);
       }
