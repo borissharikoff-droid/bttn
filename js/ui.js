@@ -7,7 +7,27 @@
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const ic = (id, sc, o) => G.SPR.url(id, sc || 4, o);
-  const img = (id, cls, sc, o) => `<img src="${ic(id, sc, o)}" alt="" class="${cls || ''}" draggable="false">`;
+  // each icon carries its sprite's size, so it can be shown at a whole multiple of it (see snapPixels)
+  const sprW = id => { try { const c = G.SPR.get(id); return c ? c.width + 'x' + c.height : ''; } catch (e) { return ''; } };
+  const img = (id, cls, sc, o) => `<img src="${ic(id, sc, o)}" alt="" class="${cls || ''}" data-b="${typeof id === 'string' ? sprW(id) : ''}" draggable="false">`;
+  // Pixel art only looks right at whole multiples: snap every icon's CSS size to the nearest one that fits
+  function snapPixels(root) {
+    for (const im of (root || document).querySelectorAll('img[data-b]:not([data-snap])')) {
+      const [bw, bh] = (im.dataset.b || '').split('x').map(Number);
+      if (!bw || !bh) continue;
+      im.style.width = ''; im.style.height = '';
+      const w = im.getBoundingClientRect().width;
+      if (!w) continue;
+      // whole screen pixels per art pixel, so no pixel comes out wider than its neighbour
+      const dpr = window.devicePixelRatio || 1, wd = w * dpr;
+      let k = Math.round(wd / bw);
+      if (k * bw > wd * 1.2) k = Math.floor(wd / bw);
+      k = Math.max(1, k);
+      im.style.width = k * bw / dpr + 'px'; im.style.height = k * bh / dpr + 'px';
+      im.dataset.snap = '1';
+    }
+  }
+  UI.snapPixels = snapPixels;
   const fmt = G.fmt, t = G.t, L = G.L;
 
   let tab = 'upg', buyAmt = 1, selNode = 'spark', selItem = null, ascArm = 0, resetArm = 0, selWho = -1;
@@ -58,6 +78,22 @@
   G.SHARE_URL = 'https://claude.ai/artifact/WcSxtLrabwMuEt2YcyxpWh';
   G.uiBusy = () => !$('#modal').hidden || !$('#intro').hidden;
 
+  // ---------- The Hand's powers: three buttons with their cooldowns ----------
+  function updatePowers() {
+    const el = $('#powers'), h = G.S.hero;
+    if (!el) return;
+    el.hidden = !(h && h.cls);
+    if (el.hidden) return;
+    if (!el.children.length) {
+      el.innerHTML = Object.keys(G.POWERS).map(id => { const P = G.POWERS[id]; return `<button class="pw" data-pw="${id}" title="${esc(t('pw_' + id) + ' (' + P.key + '): ' + t('pw_' + id + '_d'))}" aria-label="${esc(t('pw_' + id))}">${img(P.icon, '', 3)}<i></i><kbd>${P.key}</kbd></button>`; }).join('');
+      el.addEventListener('click', e => { const b = e.target.closest('[data-pw]'); if (b && !G.usePower(b.dataset.pw)) G.Audio.error(); });
+    }
+    for (const b of el.children) {
+      const id = b.dataset.pw, cd = G.R.pw[id] || 0, tot = G.POWERS[id].cd;
+      b.querySelector('i').style.height = (cd > 0 ? cd / tot * 100 : 0) + '%';
+      setClass(b, 'ready', !(cd > 0));
+    }
+  }
   // ---------- A sudden event: its name, its clock and how it's going ----------
   let evIcoK = null;
   function updateEventBar() {
@@ -157,6 +193,9 @@
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
+      else if (e.code === 'KeyZ') { G.usePower('smite'); }
+      else if (e.code === 'KeyX') { G.usePower('ward'); }
+      else if (e.code === 'KeyC') { G.usePower('mend'); }
       else if (/^Digit[0-9]$/.test(e.code)) {
         const d = TABS[(+e.code.slice(5) + 9) % 10];
         if (d && tabOpen(d.id)) UI.go(d.id);
@@ -267,6 +306,9 @@
     box.hidden = !on;
     // the day's twist, and what it does
     setText($('#omenLine'), on ? t('omenLine', G.omen().name) + ' · ' + G.omen().desc : '');
+    // (2.2: the omen lives in the land box's tooltip, off the field)
+    const rb = $('#realmBox'), tip = on ? t('omenLine', G.omen().name) + ' · ' + G.omen().desc : '';
+    if (rb && rb.title !== tip) rb.title = tip;
     // where you stand among friends, right on the play screen
     const N = G.Net, rl = $('#rivalLine');
     const list = on && N && N.entries.length > 1 ? N.sorted('depth') : [];
@@ -309,8 +351,10 @@
     }
     if (offer) setText(box.querySelector('[data-auto]'), (h.autoPerk ? t('perkAuto', Math.max(0, Math.ceil(12 - (h.offerT || 0)))) + ' · ' : '') + t('perkHint'));
   }
+  let snapT = 0;
   UI.update = function (force) {
     const S = G.S, D = G.D, R = G.R;
+    if (performance.now() - snapT > 250) { snapT = performance.now(); snapPixels(); }
     // the gold number rolls toward the real value and bumps on a real gain
     const gShow = UI._gold == null ? S.gold : UI._gold + (S.gold - UI._gold) * 0.45;
     const now = performance.now();
@@ -375,7 +419,7 @@
     $('#zonePips').hidden = !!R.rift;
     setText($('#zoneName'), R.rift ? t('riftName', R.rift.lvl) : G.ZONE_NAME(S.depth) + (innerWidth < 600 ? ' · ' + t('depthShort') + (S.depth + 1) : ''));
     if (R.rift) setText($('#realmSub'), t('riftName', R.rift.lvl) + ' · ' + t('depth') + ' ' + (R.rift.d + 1));
-    else setText($('#realmSub'), t('depth') + ' ' + (S.depth + 1) + ' · ' + (G.isLord(S.depth) ? t('lordTitle') + ': ' : t('bossTitle') + ': ') + L(G.bossName(S.depth)));
+    else setText($('#realmSub'), t('depth') + ' ' + (S.depth + 1));
     const cm = $('#chestMeter');
     cm.style.width = Math.min(100, S.chestMeter / D.chestNeed * 100) + '%';
     const comboK = R.combo / (D.comboCap || 1);
@@ -439,6 +483,7 @@
     updatePerks();
     updatePartyHud();
     updateEventBar();
+    updatePowers();
     // the level-up cards sit just above whatever the bottom HUD holds right now
     const hb = $('.hud.bottom'); if (hb) { const hh = hb.offsetHeight + 8; if (hh !== UI._hudB) { UI._hudB = hh; $('#stageWrap').style.setProperty('--hudB', hh + 'px'); } }
     $('#hpRow').hidden = !(h && h.cls);

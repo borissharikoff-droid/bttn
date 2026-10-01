@@ -43,6 +43,7 @@ Existing saves skip the intro and tutorial automatically. On a new device, the "
 | Pick up loot | tap its label; the Warden gathers the rest | — |
 | Shrine | tap it | — |
 | Break a boss move | tap the boss while it winds up | Space |
+| Smite / Ward / Mend | the three buttons right of the Button bar | Z / X / C |
 | Open a Rift | the ◈ button by the clear bar, or the Rifts tab | — |
 | Raise a fallen ally | tap them on the field or on the party bar | — |
 | Fold the panel (phones) | ▾ next to the gold; any tab opens it again | — |

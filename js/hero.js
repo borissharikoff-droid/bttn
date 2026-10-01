@@ -17,7 +17,7 @@
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.07, pulseEvery: 6, smallHp: 2.2,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002,
+    killChest: 0.03, plunder: 0.002, biteFloor: 0.006,
   });
 
   // ---------- Content ----------
@@ -255,6 +255,7 @@
   }
   function hurtUnit(who, dmg, src) {
     if (unitDown(who) > 0) return;
+    if (R.ward > 0) { emit('warded', who); return; }
     const role = G.ROLES[who < 0 ? G.S.hero.cls : G.S.party[who].cls];
     if (role === 'tank') dmg *= 0.7;
     const hp = unitHp(who, unitHp(who) - dmg);
@@ -267,8 +268,25 @@
     }
   }
   // the fight goes to the victim: a party member or the Button
-  function hitParty(v, dmg, src) { if (v === 'button') hurtButton(dmg); else if (v != null) hurtUnit(v, dmg, src); else checkWipe(); }
+  function hitParty(v, dmg, src) {
+    // the Hand's Ward: nothing gets through for a moment
+    if (R.ward > 0 && v != null) { emit('warded', v); return; }
+    if (v === 'button') hurtButton(dmg); else if (v != null) hurtUnit(v, dmg, src); else checkWipe();
+  }
   G.hurtParty = hitParty;
+  // a boss's blow: its depth's damage, or a share of what it hits, whichever is more
+  G.blowParty = function (v, dmg, pct, src) {
+    if (v == null) return hitParty(v, dmg, src);
+    const max = v === 'button' ? G.D.heroHp : unitMax(v);
+    hitParty(v, Math.max(dmg, (max || 0) * pct), src);
+  };
+  // Mend: heal everyone standing and lift the fallen
+  G.mendParty = function (frac) {
+    for (const u of G.partyUnits()) {
+      if (u.down > 0) reviveUnit(u.who, frac);
+      else unitHp(u.who, Math.min(unitMax(u.who), unitHp(u.who) + unitMax(u.who) * frac));
+    }
+  };
   G.victim = victim;
   // the fallen get up three times faster while a healer stands
   G.reviveRate = () => (G.partyUnits().some(u => u.role === 'heal' && !(u.down > 0)) ? 3 : 1);
@@ -785,8 +803,8 @@
       S.st.rares = (S.st.rares || 0) + 1;
       if (uq('headhunter')) { R.hb.hh = Math.min(60, Math.max(0, R.hb.hh || 0) + 20); G.dirty(); emit('headhunter', m); }
     }
-    // a Warden far too strong for this depth clears it up to four times faster, so the game moves on
-    if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 4);
+    // a Warden far too strong for this depth clears it up to twice as fast, so the game moves on
+    if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 2);
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
     else if (!m.add) {
@@ -1018,6 +1036,7 @@
   function hurtButton(dmg) {
     const h = G.S.hero;
     if (R.stun > 0 || R.btnDown > 0) return;
+    if (R.ward > 0) { emit('warded', 'button'); return; }
     h.hp -= dmg;
     emit('buttonHurt', dmg);
     if (h.hp <= 0) breakButton();
@@ -1115,7 +1134,8 @@
     }
     // walk & bite
     const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1) * evMul('speed');
-    const atk = mobAtk(dnow()) * evMul('bite');
+    // 2.2: a bite is never nothing: its depth's damage, or a sliver of the Button's health per unit of weight
+    const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite');
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
@@ -1153,7 +1173,7 @@
     // the boss hits the button too
     if (R.boss) {
       R.bossAtkT -= dt;
-      if (R.bossAtkT <= 0) { R.bossAtkT = 2 / (1 + 0.25 * ((R.boss.phase || 1) - 1)); const b = R.boss, v = victim(); emit('bossHit', b, v); hitParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1), 'boss'); }
+      if (R.bossAtkT <= 0) { R.bossAtkT = 2 / (1 + 0.25 * ((R.boss.phase || 1) - 1)); const b = R.boss, v = victim(); emit('bossHit', b, v); G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1), (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1), 'boss'); }
     }
     // perks that work on their own
     const hit = D.heroHit;

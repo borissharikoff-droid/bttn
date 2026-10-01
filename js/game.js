@@ -18,6 +18,8 @@
     wispMin: 50, wispMax: 120, wispLife: 13,
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
+    // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
+    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25,
     smallChestK: 0.1,       // the little chests the Horde drops are worth a tenth of a real one
     smallItem: 0.05,        // and hold an item one time in twenty
     overflowK: 0.5,         // a full field: the lowest chest bursts and half of it is lost
@@ -212,6 +214,7 @@
     while (mt.length && now - mt[0] > 1000) mt.shift();
     if (mt.length >= TUNE.maxManualCps) return null;
     mt.push(now);
+    R.clickN = (R.clickN || 0) + 1;
 
     // a broken Button gives nothing: no gold, no lightning, until it mends
     if (R.btnDown > 0) { emit('clickDead'); return null; }
@@ -535,20 +538,59 @@
     // the move lands
     const k = b.move.k;
     b.move = null; b.moveT = (b.lord ? 5 : 7) / (1 + 0.3 * ((b.phase || 1) - 1));
+    // 2.2: a boss's blows take a share of what they hit, so a fight is never safe; its depth's curve is the floor
+    const rage = b.rage ? 1.5 : 1;
     if (k === 'barrage' && G.partyUnits) {
-      const a = G.mobAtk(b.d) * (b.rage ? 1.5 : 1);
-      for (let i = 0; i < 3 && R.boss === b; i++) { const up = G.partyUnits().filter(u => !(u.down > 0)); const v = up.length && chance(0.75) ? up[Math.floor(G.rng() * up.length)].who : 'button'; G.hurtParty(v, a * 2.2, 'barrage'); emit('barrageHit', b, v, i); }
+      const a = G.mobAtk(b.d) * rage;
+      for (let i = 0; i < 3 && R.boss === b; i++) { const up = G.partyUnits().filter(u => !(u.down > 0)); const v = up.length && chance(0.75) ? up[Math.floor(G.rng() * up.length)].who : 'button'; G.blowParty(v, a * 2.2, 0.1 * rage, 'barrage'); emit('barrageHit', b, v, i); }
     }
     // a slam lands on everyone: the Button and each hero standing
     if (k === 'slam' && G.hurtButton) {
-      const a = G.mobAtk(b.d) * (b.rage ? 1.5 : 1);
+      const a = G.mobAtk(b.d) * rage;
       const up = G.partyUnits ? G.partyUnits().filter(u => !(u.down > 0)) : [];
-      G.hurtButton(a * (b.lord ? 5 : 3.5));
+      G.blowParty('button', a * (b.lord ? 5 : 3.5), (b.lord ? 0.2 : 0.15) * rage, 'slam');
       // (a wipe on the Button's hit ends the fight: the revived party isn't hit again)
-      for (const u of up) if (R.boss === b) G.hurtParty(u.who, a * (b.lord ? 3 : 2), 'slam');
+      for (const u of up) if (R.boss === b) G.blowParty(u.who, a * (b.lord ? 3 : 2), (b.lord ? 0.18 : 0.13) * rage, 'slam');
     }
     if (k === 'summon' && G.spawnPack) { G.spawnPack(true); G.spawnPack(true); }
     emit('bossMoveLand', b, k);
+  }
+  // ---------- The Hand's powers (2.2): three choices with cooldowns ----------
+  // Smite hits the boss for five seconds of the party's damage and breaks its wind-up (or blasts the
+  // crowd at the Button); Ward makes the Button and the party untouchable for a moment; Mend heals
+  // everyone and lifts the fallen.
+  G.POWERS = {
+    smite: { cd: 18, icon: 'ic_bolt', key: 'Z' },
+    ward: { cd: 26, dur: 3.5, icon: 'it_knight_shield', key: 'X' },
+    mend: { cd: 40, icon: 'ic_heart', key: 'C' },
+  };
+  R.pw = { smite: 0, ward: 0, mend: 0 };
+  G.powerReady = id => !(R.pw[id] > 0) && G.S.hero && G.S.hero.cls && !(R.stun > 0);
+  G.usePower = function (id) {
+    const P = G.POWERS[id];
+    if (!P || !G.powerReady(id)) return false;
+    R.pw[id] = P.cd;
+    const S = G.S;
+    if (id === 'smite') {
+      const b = R.boss;
+      if (b && !b.dead) {
+        if (b.move) { const mk = b.move.k; b.move = null; b.moveT = b.lord ? 5 : 7; b.stagger = 3; emit('bossStagger', b, mk); }
+        hitBoss((D.heroDps || 1) * (D.bossMult || 1) * 5);
+      } else if (G.dealHit) for (const m of R.mobs.slice()) if (!m.dead && m.p > 0.45 && m.kind !== 'guardian') G.dealHit(m, (D.heroHit || 1) * 8, 'smite', false);
+    } else if (id === 'ward') {
+      R.ward = P.dur;
+    } else if (id === 'mend') {
+      const h = S.hero;
+      if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.35);
+      if (G.mendParty) G.mendParty(0.4);
+    }
+    S.st.powers = (S.st.powers || 0) + 1;
+    emit('power', id);
+    return true;
+  };
+  function powersTick(dt) {
+    for (const k in R.pw) if (R.pw[k] > 0) R.pw[k] = Math.max(0, R.pw[k] - dt);
+    if (R.ward > 0) R.ward = Math.max(0, R.ward - dt);
   }
   function tapBoss() {
     const b = R.boss;
@@ -565,7 +607,7 @@
     if (R.boss || R.rift || !R.bossReady || R.inv) return false;
     const d = S.depth;
     const lord = isLord(d);
-    const max = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
+    const max = bossMax(d);
     // a boss that got away comes back with the wounds it took
     const scar = S.scar && S.scar.d === d ? S.scar.k : 1;
     // every failed try rallies the Warden: +20% damage on a lord (+15% on a boss), up to five tries,
@@ -584,10 +626,21 @@
   }
   G.startBoss = startBoss;
   // How much of this depth's boss the Warden would take down in the time limit, without clicking (1 = all of it)
+  // a boss's health: its depth's, but never less than a real fight's worth of the party's damage
+  function bossMax(d) {
+    const curve = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
+    // (the party's damage and the Hand's own: clicks at the pace you've been clicking)
+    const clickDps = (R.cps || 0) * (D.heroHit || 0) * TUNE.clickVolley * (1 + D.crit * (D.critMult - 1));
+    // a full fight only on new ground: a depth already beaten (climbing back after an ascension) goes quicker
+    const fresh = d >= (G.S.bestDepth || 0) ? 1 : TUNE.bossMinOld;
+    const floor = ((D.heroDps || 0) + clickDps) * (D.bossMult || 1) * (isLord(d) ? TUNE.bossMinLord : TUNE.bossMin) * fresh;
+    return Math.max(curve, floor);
+  }
+  G.bossMax = bossMax;
   function bossOdds() {
     const S = G.S, d = S.depth, lord = isLord(d);
     const scar = S.scar && S.scar.d === d ? S.scar : null;
-    const hp = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1) * (scar ? scar.k : 1);
+    const hp = bossMax(d) * (scar ? scar.k : 1);
     const rally = (scar ? (lord ? 0.2 : 0.15) * Math.min(5, scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     return (D.heroDps || 0) * (D.bossMult || 1) * (1 + rally) * (D.bossTime + (lord ? 15 : 0)) / Math.max(1e-9, hp);
   }
@@ -1049,6 +1102,9 @@
     }
     // the Looters
     lootersTick(dt);
+    powersTick(dt);
+    // how fast you've been clicking lately (a 10-second average)
+    R.cps = (R.cps || 0) + ((R.clickN || 0) / Math.max(dt, 1e-3) - (R.cps || 0)) * Math.min(1, dt / 10); R.clickN = 0;
     if (D.petOpen) {
       R.petOpenAcc += D.petOpen * dt;
       while (R.petOpenAcc >= 1) { R.petOpenAcc -= 1; if (!golemAct()) { R.petOpenAcc = 0; break; } }

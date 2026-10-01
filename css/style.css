@@ -411,10 +411,10 @@ textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--in
 .power b { font: 16px/1 var(--font-display); color: var(--gold); text-shadow: 2px 2px 0 var(--ink); }
 .power small { color: var(--dim); }
 .doll { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
-.dslot { display: grid; justify-items: center; gap: 3px; padding: 5px 3px; background: var(--panel2); border: 2px solid var(--ink); cursor: pointer; }
+.dslot { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; min-width: 0; gap: 3px; padding: 5px 3px; background: var(--panel2); border: 2px solid var(--ink); cursor: pointer; }
 .dslot .lbl { font: 8px/1 var(--font-display); color: var(--dim); }
 .dslot [data-in] { width: 100%; }
-.dslot .empty { display: grid; place-items: center; aspect-ratio: 1; background: var(--slot); border: 2px solid var(--ink); }
+.dslot .empty { display: grid; place-items: center; aspect-ratio: 1; background: var(--slot); border: 2px solid var(--ink); width: 100%; overflow: hidden; }
 .dslot .empty img { width: 50%; opacity: .5; }
 .gear { position: relative; width: 100%; aspect-ratio: 1; padding: 0; display: grid; place-items: center; cursor: pointer;
   background: var(--slot); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--rc), inset 0 -4px 0 rgba(0,0,0,.25); }
@@ -769,3 +769,20 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 @keyframes lowHp { 50% { box-shadow: inset 0 0 0 1px var(--line), 0 0 10px #ff3b3b; } }
 .pchip.hit:not(.down) { animation: chipHit .3s ease-out; }
 @keyframes chipHit { 0% { background: #ff3b3b; transform: translateY(-2px); } }
+
+/* 2.2: the Hand's powers */
+.powers { display: flex; gap: 4px; pointer-events: auto; }
+.pw { position: relative; width: 38px; height: 38px; padding: 0; display: grid; place-items: center; cursor: pointer; overflow: hidden;
+  background: var(--panel2); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line), 0 3px 0 var(--ink); }
+.pw img { width: 30px; height: 30px; position: relative; z-index: 1; }
+.pw i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(10,9,16,.72); z-index: 2; }
+.pw kbd { position: absolute; right: 1px; bottom: 0; z-index: 3; font: 7px/1 var(--font-display); color: #fff; text-shadow: 1px 1px 0 var(--ink); }
+.pw.ready { box-shadow: inset 0 0 0 2px var(--gold), 0 3px 0 var(--ink); }
+.pw:active { transform: translateY(1px); }
+@media (max-width: 860px) { .pw { width: 34px; height: 34px; } .pw img { width: 26px; height: 26px; } }
+
+/* 2.2: a quieter field */
+#omenLine { display: none !important; }
+.realm small#realmSub { font-size: 13px; }
+#toasts .toast:nth-last-child(n+3) { display: none; }
+.goalBox { max-width: 240px; font-size: 13px; padding: 3px 7px 4px; }

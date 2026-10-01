@@ -53,7 +53,7 @@ function run(name, seed, minutes) {
   G.on('journey', () => mark('goal'));
   // every boss attempt: where the boss started, what was left, how strong the Warden was
   const attempts = [];
-  G.on('bossStart', b => attempts.push({ t: +(clock.now / 60).toFixed(1), d: b.d, start: +(b.hp / b.max).toFixed(2), cap: +G.mightRatio().toFixed(2), t0: clock.now }));
+  G.on('bossStart', b => attempts.push({ t: +(clock.now / 60).toFixed(1), d: b.d, start: +(b.hp / b.max).toFixed(2), cap: +G.mightRatio().toFixed(2), t0: clock.now, fresh: b.d >= (G.S.bestDepth || 0) }));
   G.on('bossFail', b => Object.assign(attempts[attempts.length - 1] || {}, { res: 'fail', left: +(Math.max(0, b.hp) / b.max).toFixed(2), secs: Math.round(clock.now - attempts[attempts.length - 1].t0) }));
   G.on('bossWin', () => Object.assign(attempts[attempts.length - 1] || {}, { res: 'win', secs: Math.round(clock.now - attempts[attempts.length - 1].t0) }));
   G.on('evolve', () => mark('evolve'));
@@ -110,6 +110,13 @@ function run(name, seed, minutes) {
           else G.manualClick(0, 0);
         }
         if (G.R.wisp && r() < P.wisp * dt) G.catchWisp();
+      }
+      // the Hand's powers, as a person would use them (active players well, casual ones now and then)
+      if (on && P.events && G.usePower && r() < P.events * dt * 4) {
+        const R_ = G.R, b = R_.boss, h = s.hero, low = h.hp < G.D.heroHp * 0.45 || (G.partyUnits && G.partyUnits().some(u => u.down > 0 || u.hp < u.max * 0.35));
+        if (b && b.move && (b.move.k === 'slam' || b.move.k === 'barrage') && b.move.t < 1) G.usePower('ward');
+        else if (low) G.usePower('mend');
+        else if (b && !(b.inv > 0)) G.usePower('smite');
       }
       G.tick(dt);
       if (Math.round(t / dt) % 5 === 0) { crowd.push(G.R.mobs.length); chests.field.push(G.S.chests.length); }

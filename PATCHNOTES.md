@@ -1,6 +1,85 @@
+# BTTN 2.2 — Hold the Line
+
+2.1 made the arena busy, but a strong Warden still won without trying: bosses died in a couple of seconds, the Horde barely scratched the Button, and every depth of a land looked the same. 2.2 makes the fights real, gives you something to decide, and makes each zone look like a place of its own. It also clears the screen and sharpens the icons.
+
+## At a glance
+
+- **Bosses on new ground put up a real fight,** however strong you are: at least 12 seconds of your damage, 30 for a lord.
+- **Boss blows hurt the strong too.** Each one takes a share of its target's health, not a flat number you can outgrow.
+- **Three powers of the Hand,** on buttons next to the Button bar and on the keys **Z, X and C:**
+  - **Smite** breaks a wind-up and hits hard;
+  - **Ward** blocks everything for 3.5 seconds;
+  - **Mend** heals everyone and raises the fallen.
+- **The Horde bites back,** even when you outclass the depth.
+- **Every zone looks different:** dawn, midday, dusk, night and the lord's red ground. Each has its own light, weather and scenery, and the field dips to black between zones.
+- **A quieter screen** and **crisp icons**.
+
+## Bosses
+
+- **A real fight on new ground.** A boss at your deepest depth has at least as much health as 12 seconds of your party's damage, or 30 seconds for a lord. If you click a lot, your clicks count toward that damage too. In testing, a boss at an active player's front line now lasts about 15 seconds, where it used to fall in two or three.
+- **Climbing back is quick.** On depths you've already beaten, for example after an ascension, the floor is a quarter of that.
+- **Blows that scale with you.** Each boss blow takes at least a share of its target's maximum health:
+
+  | Blow | Boss | Lord | Notes |
+  |---|---|---|---|
+  | Regular blow | 9% | 12% | |
+  | Slam | 15% of the Button, 13% of each member | 20% of the Button, 18% of each member | |
+  | Barrage | 10% per bolt | 10% per bolt | |
+
+  In a lord's rage, all of them hit harder. Stacking health no longer makes a boss harmless.
+
+## Powers of the Hand
+
+Three buttons sit at the right of the Button bar. Each shows its key and counts down while it recharges. The first boss fight brings a tip about them, and the help screen describes them too.
+
+| Power | Key | Recharge | What it does |
+|---|---|---|---|
+| **Smite** | Z | 18 s | Three bolts strike the boss: it loses its wind-up, staggers for 3 seconds and takes 5 seconds of the party's damage. With no boss up, it blasts the crowd near the Button for eight hits each. |
+| **Ward** | X | 26 s | A golden dome: for 3.5 seconds nothing reaches the Button or the party ("BLOCKED"). Save it for a slam or a barrage. |
+| **Mend** | C | 40 s | Heals the Button by 35% and every member by 40%. Fallen members get straight back up. |
+
+## The Horde
+
+- **Bites have a floor.** Each mob's bite does at least 0.6% of the Button's health per unit of its weight. A huge Button no longer shrugs off the whole Horde, and a crowd at the Button is something to deal with.
+- **Overkill clears less.** When you far outclass a depth, the clear bar fills up to twice as fast, down from four times. You go deeper by beating bosses, not by skipping zones.
+
+## Zones
+
+The five zones of each land now each have a look of their own:
+
+| Zone | Light | Weather | Scenery |
+|---|---|---|---|
+| **Dawn** | warm low sun from the east | morning mist drifts across | the land's full scenery |
+| **Midday** | plain daylight | cloud shadows slide over the ground | sparse |
+| **Dusk** | orange | falling leaves blow through | thick |
+| **Night** | dark | fireflies; only the ground round the Button stays lit | the land's full scenery |
+| **The lord's ground** | blood red, pulsing | embers rise | bare |
+
+- **Each zone has its own ground pattern and its own share of the land's scenery,** so even the same land looks different from one depth to the next.
+- **Stepping into a new zone** dips the field to black and back.
+
+## A quieter screen
+
+- **Loot labels** show only for what matters while the loot filter is on: epic and better, uniques, and the rarer orbs (Ruin, Ascent, Grace). Hover over anything else to see it.
+- **Gold numbers:**
+  - gold from ordinary mobs, brutes and chests adds into a single running number instead of a cloud of little ones;
+  - named rares and champions still show their own;
+  - item names pop up over an opened chest only for epics and better.
+- **The Warden's name plate** above the field is gone.
+- **The omen line** has left the field. The day's omen is now in the land box's tooltip, and the line under the land name just reads "Depth N".
+- **At most two cards** show at once in the top right corner.
+- **The goal box is smaller.**
+- **Buttonling's tips** wait 40 seconds after one closes before the next appears. Tips about something on screen right now (a Hoarder, a boss's wind-up, your powers) still come at once.
+
+## Crisp icons
+
+- **Icons in the panel** now scale by whole pixels on your actual screen, including 125% and 150% displays, so pixel art no longer smears or comes out lopsided.
+- **The empty Ability, Armour and Ring slots** in the Party tab line up with their labels again.
+- **The keys line and the help screen** list Z, X and C.
+
 # BTTN 2.1 — Loot Storm
 
-2.0 and 2.1 come out together. 2.0 brought the party, boss phases, invasions and two new lands. 2.1 fills the arena. Something sudden happens every minute, chests pile up by the hundred and little Looters run for them, the Horde comes much thicker, and every hit on you shows. About one kill in two million, the JACKPOT hits.
+2.0 and 2.1 came out together. 2.0 brought the party, boss phases, invasions and two new lands. 2.1 fills the arena. Something sudden happens every minute, chests pile up by the hundred and little Looters run for them, the Horde comes much thicker, and every hit on you shows. About one kill in two million, the JACKPOT hits.
 
 ## At a glance
 

@@ -269,8 +269,8 @@
       loot.items.slice(0, 5).forEach((li, i) => {
         flyers.push({ x: x + (i - (Math.min(5, loot.items.length) - 1) / 2) * 9, y: y - 8, vy: -26, t: 0, dur: 1.1, spr: 'it_' + li.it.id, float: true, r: li.it.r });
       });
-      text(x, y - 14, '+' + G.fmt(loot.gold), '#ffd84a', 4, { vy: -16 });
-      if (r >= 2) text(x, y - 22, G.L(top.it.name), rarityCol(r), 4, { vy: -12, life: 1.6, max: 1.6 });
+      killGold += loot.gold; if (killGoldT <= 0) killGoldT = 0.3;
+      if (r >= 3) text(x, y - 22, G.L(top.it.name), rarityCol(r), 4, { vy: -12, life: 1.6, max: 1.6 });
       if (loot.pots.length) text(x, y - 30, G.t('potionGot'), '#ff7ae6', 4, { vy: -10, life: 1.6, max: 1.6 });
       if (r >= 5) { St.shake(4); St.flash(r === 6 ? 0.7 : 0.35, rarityCol(r)); }
       if (c.mod === 'golden') burst(x, y - 4, ['#ffd84a', '#fff3a0'], 30, 90);
@@ -747,6 +747,27 @@
       text(mx, my - 8, G.t('evSmashed', G.fmt(g)), '#ffd84a', 4, { life: 1.2, max: 1.2, vy: -14 });
       if (G.Audio && G.Audio.click) G.Audio.click(40, true);
     });
+    // the Hand's powers
+    G.on('power', id => {
+      const b = btnPos();
+      if (id === 'smite') {
+        const tp = bossVis ? bossPos() : b;
+        // three bolts from the top of the sky
+        for (let i = 0; i < 3; i++) { const x0 = tp.x + rand(-30, 30), pts = [[x0, 0]]; for (let j = 1; j < 7; j++) pts.push([x0 + (tp.x - x0) * j / 7 + rand(-6, 6), (tp.y - 10) * j / 7]); pts.push([tp.x + rand(-4, 4), tp.y - 10]); bolts.push({ pts, life: 0.35 }); }
+        burst(tp.x, tp.y - 10, ['#ffffff', '#7fe9ff', '#ffd84a'], 40, 140); ring(tp.x, tp.y - 6, 40, 20, '#7fe9ff', 0.6);
+        St.flash(0.45, '#bff4ff'); St.shake(6); hitstop = Math.max(hitstop, 0.08);
+        if (G.Audio && G.Audio.boom) G.Audio.boom();
+      } else if (id === 'ward') {
+        ring(b.x, b.y - 6, 46, 26, '#ffd84a', 0.6); St.flash(0.2, '#ffd84a');
+        if (G.Audio && G.Audio.pulse) G.Audio.pulse();
+      } else if (id === 'mend') {
+        for (const u of G.partyUnits ? G.partyUnits() : []) { const q = unitPos(u.who); burst(q.x, q.y - 10, ['#8ae07a', '#ffffff'], 12, 50, { grav: -30, life: 0.7 }); }
+        burst(b.x, b.y - 8, ['#8ae07a', '#ffffff'], 20, 60, { grav: -30, life: 0.8 });
+        if (G.Audio && G.Audio.revive) G.Audio.revive();
+      }
+    });
+    let blockT = 0;
+    G.on('warded', who => { if (time - blockT < 0.35) return; blockT = time; const q = unitPos(who); text(q.x + rand(-6, 6), q.y - 26, G.t('blocked'), '#ffd84a', 3, { life: 0.6, max: 0.6, vy: -16 }); });
     G.on('slotOpen', () => { cardText(0, G.t('slotOpen'), '#ffd84a', 6, { life: 3, vy: -2, big: true }); cardText(9, G.t('slotOpenSub'), '#ffffff', 3, { life: 3, vy: -2 }); if (G.Audio && G.Audio.levelUp) G.Audio.levelUp(); });
     G.on('invasion', (r, V) => {
       St.flash(0.4, V.col); St.shake(4);
@@ -1152,7 +1173,7 @@
     for (let i = 0; i < ng && gems.length < 260; i++) gems.push({ x: c + rand(-3, 3), y: q.y - 4, vx: rand(-30, 30), vy: rand(-70, -30), floor: q.y + rand(-2, 3), t: rand(0.3, 0.6), fly: 0, col: gc, big: m.kind !== 'fodder' });
     const nc = m.kind === 'rare' ? 10 : m.kind === 'magic' ? 4 : m.kind === 'tank' ? 5 : !fod ? 2 : Math.random() < 0.04 ? 1 : 0;
     for (let i = 0; i < nc && coins.length < 220; i++) coins.push({ x: c, y: q.y - 6, vx: rand(-40, 40), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.45, 0.8), fly: 0 });
-    if (gold && !fod && !m.add && m.kind !== 'bomber') text(c, q.y - 16, '+' + G.fmt(gold), m.kind === 'brute' ? '#e8d890' : '#ffd84a', m.kind === 'brute' ? 3 : 4, { life: 0.8, max: 0.8 });
+    if (gold && !fod && !m.add && m.kind !== 'bomber') { if (m.kind === 'rare' || m.kind === 'magic') text(c, q.y - 16, '+' + G.fmt(gold), '#ffd84a', 4, { life: 0.8, max: 0.8 }); else { killGold += gold; if (killGoldT <= 0) killGoldT = 0.3; } }
     // kill streak
     streak.n = G.carnage ? Math.max(G.R.carn, 0) : streak.n + 1; streak.t = 0; streak.pop = 0.15;
     const sk = streak.n !== streak.last && STREAKS.find(s => s[0] === streak.n);
@@ -1456,8 +1477,9 @@
     for (const { e, v } of list) {
       const st = lstyle(e);
       if (st.dim && filter) continue;
-      // a crowded floor shows the plates that matter; the rest waits for a hover
-      if (busy && loud(e) < 2 && hoverLoot !== e) continue;
+      // 2.2: only the loot that matters wears a plate (epic and up, the better orbs, uniques); the rest
+      // shows on hover, and a crowded floor keeps only the best
+      if ((filter ? loud(e) < 3 : busy && loud(e) < 2) && hoverLoot !== e) continue;
       const sz = crisp(st.sz);
       ctx.font = sz + 'px ' + FONT;
       const txt = lname(e);
@@ -1879,8 +1901,10 @@
     if (streak.pop > 0) streak.pop -= dt;
     const S_ = G.S, R = G.R;
     const realm = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
-    const gk = realm.id + '|' + W + 'x' + H;
-    if (gk !== groundKey) { if (groundKey.split('|')[0] !== realm.id) St.clearStain(); groundKey = gk; groundCanvas = buildGround(realm.id); }
+    // every zone of a land has its own light and ground (in a Rift, the Rift's)
+    const zone = G.R.rift ? 1 : G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth);
+    const gk = realm.id + '|' + zone + '|' + W + 'x' + H;
+    if (gk !== groundKey) { if (groundKey.split('|')[0] !== realm.id) St.clearStain(); if (groundKey) zoneFade = 1; groundKey = gk; groundCanvas = buildGround(realm.id, zone); }
     buildHeroes();
 
     // hold-to-click
@@ -1896,6 +1920,7 @@
     drawBreach();
     drawRiftTint();
     drawInvasionSky(vdt);
+    drawZoneFx(vdt);
     drawEventFx(vdt);
     stepGround(vdt);
     drawJackpot(dt);
@@ -2005,6 +2030,12 @@
     list.sort((a, c) => a.y - c.y);
     for (const d of list) d.draw();
     drawMeteors();
+    if (G.R.ward > 0) {
+      const wb = btnPos(), k = Math.min(1, G.R.ward / 0.5);
+      lctx.globalAlpha = (0.16 + 0.06 * Math.sin(time * 10)) * k; lctx.fillStyle = '#ffd84a';
+      lctx.beginPath(); lctx.ellipse(wb.x, wb.y + 4, 52, 34, 0, 0, Math.PI * 2); lctx.fill();
+      lctx.globalAlpha = 0.6 * k; lctx.strokeStyle = '#fff3a0'; lctx.lineWidth = 1; lctx.stroke(); lctx.globalAlpha = 1;
+    }
     drawLootBeams();
     drawShotsInFlight();
     drawBeamsFx(vdt);
@@ -2168,24 +2199,74 @@
     }
   }
 
-  function buildGround(realmId) {
-    const g = SPR.ground(realmId, W, H, 7 + realmId.length * 13);
+  // The five zones of a land: dawn, midday, dusk, night, and the lord's own ground. Each has its
+  // own grade of light, its own scatter of the land's decor, and (in drawZoneFx) its own weather.
+  const ZONE_LOOK = [
+    { grade: '#ffb070', ga: 0.3, mode: 'soft-light', decor: 1, keep: [0, 1, 2, 3] },
+    { grade: null, ga: 0, mode: 'source-over', decor: 0.7, keep: [0, 2] },
+    { grade: '#ff7a3a', ga: 0.2, mode: 'multiply', decor: 1.3, keep: [1, 3] },
+    { grade: '#2a3470', ga: 0.55, mode: 'multiply', decor: 0.9, keep: [0, 1, 2, 3] },
+    { grade: '#6a1030', ga: 0.45, mode: 'multiply', decor: 0.55, keep: [2, 3] },
+  ];
+  function buildGround(realmId, zone) {
+    const Z = ZONE_LOOK[zone || 0] || ZONE_LOOK[1];
+    const g = SPR.ground(realmId, W, H, 7 + realmId.length * 13 + (zone || 0) * 101);
     const c = SPR.makeCanvas(W, H), x = c.getContext('2d');
     x.drawImage(g, 0, 0);
-    // scatter decor away from the centre
+    // scatter decor away from the centre: each zone keeps its own share of the land's pieces
     const cfg = SPR.REALM_GROUND[realmId];
-    const rnd = G.seeded(99 + realmId.length);
+    const pool = cfg.decor.filter((_, i) => Z.keep.includes(i % 4));
+    const decor = pool.length ? pool : cfg.decor;
+    const rnd = G.seeded(99 + realmId.length + (zone || 0) * 31);
     const b = btnPos();
-    const n = Math.round(W * H / 900);
+    const n = Math.round(W * H / 900 * Z.decor);
     for (let i = 0; i < n; i++) {
       const px = Math.round(rnd() * W), py = Math.round(rnd() * H);
       const dx = (px - b.x) / (W * 0.33), dy = (py - b.y) / (H * 0.36);
       if (dx * dx + dy * dy < 1 || py < 14) continue;
-      const spr = SPR.get(cfg.decor[Math.floor(rnd() * cfg.decor.length)]);
+      const spr = SPR.get(decor[Math.floor(rnd() * decor.length)]);
       x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(px - 3, py, 6, 1);
       x.drawImage(spr, Math.round(px - spr.width / 2), py - spr.height + 1);
     }
+    // the zone's light
+    if (Z.grade) { x.globalCompositeOperation = Z.mode; x.globalAlpha = Z.ga; x.fillStyle = Z.grade; x.fillRect(0, 0, W, H); x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1; }
     return c;
+  }
+  // weather and light that move: mist at dawn, leaves at dusk, fireflies and a lit circle at night,
+  // embers and a red sky on the lord's ground; and a dip to black between zones
+  let zoneFade = 0;
+  function drawZoneFx(dt) {
+    if (G.R.rift) return;
+    const z = G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth), b = btnPos();
+    if (z === 0) {
+      // low sun from the east: warm light across the field
+      const lg = lctx.createLinearGradient(0, 0, W * 0.8, H);
+      lg.addColorStop(0, 'rgba(255,196,120,0.26)'); lg.addColorStop(0.55, 'rgba(255,196,120,0.05)'); lg.addColorStop(1, 'rgba(255,196,120,0)');
+      lctx.fillStyle = lg; lctx.fillRect(0, 0, W, H);
+    }
+    if (z === 1) {
+      // midday: clouds drift over and drag their shadows across the ground
+      lctx.fillStyle = '#000000';
+      for (let i = 0; i < 3; i++) {
+        const cx = ((time * (6 + i * 2) + i * W * 0.45) % (W + 160)) - 80, cy = H * (0.2 + i * 0.3);
+        lctx.globalAlpha = 0.07; lctx.beginPath(); lctx.ellipse(cx | 0, cy | 0, 70 + i * 14, 26 + i * 6, 0, 0, 6.3); lctx.fill();
+      }
+      lctx.globalAlpha = 1;
+    }
+    if (z === 0) { lctx.fillStyle = '#ffffff'; for (let i = 0; i < 3; i++) { lctx.globalAlpha = 0.05; const y = (H * (0.3 + i * 0.25) + Math.sin(time * 0.3 + i) * 8) | 0; lctx.fillRect(0, y, W, 6 + i * 3); } lctx.globalAlpha = 1; }
+    if (z === 2 && Math.random() < 0.35) part(W + 4, rand(0, H), pick(['#c86a2a', '#e8a040', '#a04a1a']), { vx: -rand(20, 40), vy: rand(4, 12), grav: 0, life: rand(2, 4) });
+    if (z === 3) {
+      // the night closes in, the Button lights the ground round it
+      const rg = lctx.createRadialGradient(b.x, b.y, 30, b.x, b.y, Math.max(W, H) * 0.6);
+      rg.addColorStop(0, 'rgba(10,12,40,0)'); rg.addColorStop(1, 'rgba(6,8,26,0.5)');
+      lctx.fillStyle = rg; lctx.fillRect(0, 0, W, H);
+      if (Math.random() < 0.3) part(rand(0, W), rand(20, H), pick(['#d8ff7a', '#fff3a0']), { vx: rand(-4, 4), vy: rand(-4, 4), grav: 0, life: rand(1, 2.5) });
+    }
+    if (z === 4) {
+      lctx.globalAlpha = 0.06 + 0.03 * Math.sin(time * 1.5); lctx.fillStyle = '#ff2a4a'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1;
+      if (Math.random() < 0.5) part(rand(0, W), H + 2, pick(['#ff7a2e', '#ff3b3b', '#ffd84a']), { vx: rand(-6, 6), vy: -rand(18, 40), grav: 0, life: rand(1.5, 3) });
+    }
+    if (zoneFade > 0) { lctx.globalAlpha = Math.min(1, zoneFade); lctx.fillStyle = '#0c0b12'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; zoneFade = Math.max(0, zoneFade - dt * 1.6); }
   }
   function drawWater() {
     const cfg = SPR.REALM_GROUND.shore;
@@ -2510,7 +2591,7 @@
   }
   function drawHeroPlate() {
     const h = G.S.hero;
-    if (!h || !h.cls) return;
+    if (!h || !h.cls || !G.S.set.plate) return;
     const hp = heroPos();
     ctx.font = crisp(3) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12';
