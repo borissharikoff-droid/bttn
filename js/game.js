@@ -534,7 +534,8 @@
   // ---------- Potions ----------
   // 2.4: the Town. Between fights the party can walk into town: the field holds still (the Garrison keeps
   // earning) while you gear up at the Forge, brew at the Alchemist, recruit at the Tavern.
-  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
+  // 3.0: everything lives in town, so it's open at any time but a Rift (the field, boss and all, holds still)
+  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.rift;
   G.enterTown = function () {
     if (R.town || !G.townOk()) return false;
     R.town = true;
@@ -569,7 +570,7 @@
   G.BLD_MAX = 5;
   G.bldLvl = id => ((G.S.bld || {})[id] || 0);
   G.townLvl = () => G.BLD.reduce((a, b) => a + G.bldLvl(b.id), 0);
-  G.bldCost = id => { const L = G.bldLvl(id); return Math.round(Math.max(400 * Math.pow(9, L), D.incomeRef * 200 * Math.pow(2.4, L))); };
+  G.bldCost = id => Math.round(500 * Math.pow(10, G.bldLvl(id)));
   G.buildUp = function (id) {
     const S = G.S, b = G.BLD_BY_ID[id];
     if (!b || G.bldLvl(id) >= G.BLD_MAX || (G.bldOpen && !G.bldOpen(id))) return false;
@@ -1177,10 +1178,12 @@
   // ---------- Offline ----------
   function applyOffline(sec) {
     if (sec < 60) return null;
+    R.bossHold = 25; // back from a break: a moment to look round before a boss comes on its own
     if (G.worldAway) G.worldAway();
     recalc();
     const t = Math.min(sec, D.offCap);
-    const gold = D.gpsBase * t * D.offEff;
+    // (3.0: a held Button keeps clicking while you're away, at a quarter of its rate)
+    const gold = (D.gpsBase + (D.holdRate || 0) * (D.clickBase || 0) * 0.25) * t * D.offEff;
     // back after a long rest: the next boss fight hits harder
     if (sec >= 4 * 3600) G.S.rested = 1;
     addGold(gold);
@@ -1204,6 +1207,10 @@
     S.st.playTime += dt;
     // in town the field holds still: only the Garrison's income and the clock run
     if (R.town) { addGold(D.gps * dt, 'gps'); return; }
+    // (3.0: and while a window is open over it: nothing runs out behind a card you're reading)
+    if (G.uiBusy && G.uiBusy()) { addGold(D.gps * dt, 'gps'); return; }
+    // the very first moment waits for the player's first press
+    if (G.tutFreeze && G.tutFreeze()) return;
     // 3.0: a cinematic (a relic dropping) holds the whole game still while it plays
     if (R.cine > 0) { R.cine = Math.max(0, R.cine - dt); return; }
 
@@ -1257,9 +1264,11 @@
       // ⚔ calls it right away.
       // (an invasion is fought out first)
       // (an invasion or a sudden event is fought out first; the Jackpot Frenzy carries on through a boss)
-      if (S.set.autoBoss && !R.inv && !(R.ev && R.ev.k !== 'jackpot')) {
-        R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
-        const wait = bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
+      if (S.set.autoBoss && !R.inv && !(R.ev && R.ev.k !== 'jackpot') && !(G.tutHold && G.tutHold())) {
+        if (R.bossHold > 0) R.bossHold -= dt;
+        else R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
+        // (lost here twice: the party farms this ground a minute and a half before it tries again)
+        const wait = S.scar && S.scar.d === S.depth && S.scar.n >= 2 ? 90 : bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
         if (R.bossIn <= -wait) startBoss();
       }
     }

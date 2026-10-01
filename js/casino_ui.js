@@ -284,6 +284,8 @@
     const room = hudTop - 8 - (btnBottom + 4);
     const natH = 104, natW = 200;
     let k = Math.max(0.62, Math.min(wr.width > 700 ? 1.3 : 0.88, room / natH)), cx = wr.width / 2;
+    // 3.0: no room under the Button (a phone): a smaller machine in the bottom-right corner, off the Button and the boss
+    if (room < natH * 0.8) { k = Math.min(0.6, (wr.width * 0.4) / natW); cx = wr.width - natW * k / 2 - 6; }
     // the level-up cards take the bottom middle of the field on wide screens: step aside for them
     const pk = $('#perks');
     if (pk && !pk.hidden) {

@@ -343,7 +343,7 @@ input[type=range] { accent-color: var(--gold); width: 140px; }
 textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--ink); color: var(--text); border: 2px solid var(--line); padding: 8px; font: 12px/1.3 ui-monospace, monospace; -webkit-user-select: text; user-select: text; }
 
 /* Modal */
-#modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(6,5,10,.72); padding: 16px; }
+#modal { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; background: rgba(6,5,10,.72); padding: 16px; }
 #modal .box { width: min(460px, 100%); max-height: 90%; overflow-y: auto; padding: 18px; background: var(--panel); border: 3px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line-hi), 0 6px 0 var(--ink); display: grid; gap: 12px; animation: toastIn .2s ease-out; }
 #modal h2 { margin: 0; font: 16px/1.5 var(--font-display); color: var(--gold); text-align: center; }
 #modal p { margin: 0; color: var(--dim); text-align: center; }
@@ -946,6 +946,24 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .twBld { position: sticky; bottom: 0; z-index: 2; }
 .chapter .story { font-size: 18px; line-height: 1.4; color: #ffe8c0; font-style: italic; margin: 6px 0 12px; }
 .chapter .next { color: #ffd84a; }
+/* the coach never blocks what it points at: only its own buttons take taps */
+#coach { pointer-events: none; }
+#coach button, #coach a, #coach [data-ok], #coach [data-skip] { pointer-events: auto; }
+/* 3.0 phones: building windows take the whole screen, bar text is bigger, no keyboard letters */
+@media (max-width: 700px) {
+  #townWin { position: fixed; inset: 0; z-index: 30; padding: 0; }
+  #townWin .tw { width: 100%; height: 100%; max-height: 100%; border-width: 0; overflow: auto; background: #14121e; }
+  #townWin .tw.host { overflow: hidden; }
+  #townWin .tw.tavern .twHead { position: sticky; top: 0; z-index: 3; }
+  .twBld { padding: 6px 10px; gap: 6px; }
+  .twBld .fx { min-width: 0; font-size: 13px; }
+  .meter > span { font-size: 10px; }
+  .realm, .goalBox b { font-size: 10px; }
+}
+@media (hover: none) {
+  .pw kbd, kbd.hint { display: none; }
+}
+.twGrid > .note { grid-column: 1 / -1; }
 
 </style>
 <div id="app">
@@ -1715,7 +1733,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     st_clicks: 'Clicks', st_chests: 'Chests opened', st_boss: 'Bosses defeated', st_lords: 'Lords slain', st_best: 'Best depth',
     st_crits: 'Crits', st_combo: 'Best combo', st_wisps: 'Wisps caught', st_merges: 'Fusions', st_divine: 'Divine items',
     st_time: 'Time played', st_asc: 'Ascensions', st_goldTotal: 'All-time gold',
-    ascTitle: 'Ascension', ascText: 'Resets gold, upgrades, garrison, constellation, depth, potions, Warden level and perks; you pick a class again. Keeps gear, orbs, uniques, land stars, collection, pets, Rift levels, achievements and fame.',
+    ascTitle: 'Ascension', ascText: 'Resets gold, upgrades, garrison, constellation, depth, potions, Warden level and perks; you pick a class again. Keeps the town and its buildings, gear, orbs, uniques, relics, land stars, collection, pets, Rift levels, achievements and fame.',
     ascGain: 'Fame gained', ascNeed: 'Beat the depth 15 lord for fame', ascEach: 'Each fame: +1% gold, +0.5% Warden damage, forever.',
     ascBtn: 'Ascend', ascConfirm: 'Sure? Tap again', hallOfFame: 'Hall of Fame', hallHint: 'Fame upgrades. Never reset.',
     ascDone: 'Ascended! +{0} fame', famePassive: 'Fame: {0} (+{1}% gold, +{2}% Warden damage)',
@@ -1758,7 +1776,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     orbNo_max: 'Already at +{0}', orbNo_none: 'Pick an item first', corrupted: 'Corrupted', unique: 'Unique', uniques: 'Uniques', uqFound: '{0} of {1} found',
     uqDrops: 'Drops from depth {0}', uqDropsBoss: 'Only {0} and deep Rifts', uqNew: 'NEW UNIQUE', uqBanner: 'UNIQUE!',
     lootFilter: 'Hide common drop labels', shrineBuff: '{0} {1}s', rule: 'Land rule', feedUq: 'found {0}', feedRift: 'cleared {0}', feedLord: 'slew {0}', feedCrown: 'took the crown of {0}',
-    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', pw_smite: 'Smite', pw_smite_d: 'Hits the boss for 5 s of party damage and breaks its wind-up; no boss: blasts the crowd at the Button', pw_ward: 'Ward', pw_ward_d: 'Blocks all damage to the Button and party for 3.5 s', pw_mend: 'Mend', pw_mend_d: 'Heals Button 35%, party 40%, and lifts the fallen', blocked: 'BLOCKED', townBtn: 'TOWN', townBack: 'FIELD', townTip: 'Town (T): gear up, brew, recruit. The field waits.', townBackTip: 'Back to the field (T)', townNo: 'Not now: no town during a boss, Rift, invasion, event, tutorial or broken Button.', townTitle: 'BUTTONHOLD', townSub: 'Tap a building · the field waits', townLocked: 'Not yet: play a bit more.',
+    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', pw_smite: 'Smite', pw_smite_d: 'Hits the boss for 5 s of party damage and breaks its wind-up; no boss: blasts the crowd at the Button', pw_ward: 'Ward', pw_ward_d: 'Blocks all damage to the Button and party for 3.5 s', pw_mend: 'Mend', pw_mend_d: 'Heals Button 35%, party 40%, and lifts the fallen', blocked: 'BLOCKED', townBtn: 'TOWN', townBack: 'FIELD', townTip: 'Town (T): gear up, brew, recruit. The field waits.', townBackTip: 'Back to the field (T)', townNo: 'Not now: finish the Rift first.', townTitle: 'BUTTONHOLD', townSub: 'Tap a building · the field waits', townLocked: 'Not yet: play a bit more.',
     town_forge: 'Forge', town_enchant: 'Enchanter', town_portal: 'To the field', town_stars: 'Observatory', town_alch: 'Alchemist', town_tavern: 'Tavern', town_quests: 'Quest board', town_pets: 'Hatchery',
     twForgeSub: 'Pick a hero, tap an item to compare, then equip, upgrade or break it down.', twEnchSub: 'Tap an item, then an orb: whetstones upgrade free, Flux rerolls, Ascent adds, Grace improves, Ruin gambles.',
     twAlchSub: 'Each potion is a bonus until you ascend; each repeat costs more.', twTavernSub: 'Your party. Recruit when a seat opens; tanks take blows, clerics heal.',
@@ -2378,7 +2396,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // ---------- Potions ----------
   // 2.4: the Town. Between fights the party can walk into town: the field holds still (the Garrison keeps
   // earning) while you gear up at the Forge, brew at the Alchemist, recruit at the Tavern.
-  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
+  // 3.0: everything lives in town, so it's open at any time but a Rift (the field, boss and all, holds still)
+  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.rift;
   G.enterTown = function () {
     if (R.town || !G.townOk()) return false;
     R.town = true;
@@ -2413,7 +2432,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.BLD_MAX = 5;
   G.bldLvl = id => ((G.S.bld || {})[id] || 0);
   G.townLvl = () => G.BLD.reduce((a, b) => a + G.bldLvl(b.id), 0);
-  G.bldCost = id => { const L = G.bldLvl(id); return Math.round(Math.max(400 * Math.pow(9, L), D.incomeRef * 200 * Math.pow(2.4, L))); };
+  G.bldCost = id => Math.round(500 * Math.pow(10, G.bldLvl(id)));
   G.buildUp = function (id) {
     const S = G.S, b = G.BLD_BY_ID[id];
     if (!b || G.bldLvl(id) >= G.BLD_MAX || (G.bldOpen && !G.bldOpen(id))) return false;
@@ -3021,10 +3040,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // ---------- Offline ----------
   function applyOffline(sec) {
     if (sec < 60) return null;
+    R.bossHold = 25; // back from a break: a moment to look round before a boss comes on its own
     if (G.worldAway) G.worldAway();
     recalc();
     const t = Math.min(sec, D.offCap);
-    const gold = D.gpsBase * t * D.offEff;
+    // (3.0: a held Button keeps clicking while you're away, at a quarter of its rate)
+    const gold = (D.gpsBase + (D.holdRate || 0) * (D.clickBase || 0) * 0.25) * t * D.offEff;
     // back after a long rest: the next boss fight hits harder
     if (sec >= 4 * 3600) G.S.rested = 1;
     addGold(gold);
@@ -3048,6 +3069,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     S.st.playTime += dt;
     // in town the field holds still: only the Garrison's income and the clock run
     if (R.town) { addGold(D.gps * dt, 'gps'); return; }
+    // (3.0: and while a window is open over it: nothing runs out behind a card you're reading)
+    if (G.uiBusy && G.uiBusy()) { addGold(D.gps * dt, 'gps'); return; }
+    // the very first moment waits for the player's first press
+    if (G.tutFreeze && G.tutFreeze()) return;
     // 3.0: a cinematic (a relic dropping) holds the whole game still while it plays
     if (R.cine > 0) { R.cine = Math.max(0, R.cine - dt); return; }
 
@@ -3101,9 +3126,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       // ⚔ calls it right away.
       // (an invasion is fought out first)
       // (an invasion or a sudden event is fought out first; the Jackpot Frenzy carries on through a boss)
-      if (S.set.autoBoss && !R.inv && !(R.ev && R.ev.k !== 'jackpot')) {
-        R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
-        const wait = bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
+      if (S.set.autoBoss && !R.inv && !(R.ev && R.ev.k !== 'jackpot') && !(G.tutHold && G.tutHold())) {
+        if (R.bossHold > 0) R.bossHold -= dt;
+        else R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
+        // (lost here twice: the party farms this ground a minute and a half before it tries again)
+        const wait = S.scar && S.scar.d === S.depth && S.scar.n >= 2 ? 90 : bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
         if (R.bossIn <= -wait) startBoss();
       }
     }
@@ -3563,6 +3590,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function wipe() {
     const S = G.S, h = S.hero;
     S.st.wipes = (S.st.wipes || 0) + 1;
+    const hadBoss = !!R.boss;
     for (const m of R.mobs) emit('mobFlee', m);
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.boss) G.fleeBoss();
@@ -3572,13 +3600,14 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
     const from = S.depth;
     // pushed back: the clear bar is lost and, past the first depth, a depth with it
-    if (!inRift) { S.bossMeter = 0; if (S.depth > 0) S.depth--; R.bossReady = false; }
+    if (!inRift) { S.bossMeter = 0; if (hadBoss && S.depth > 0) S.depth--; R.bossReady = false; }
     if (R.ground) R.ground.length = 0;
     R.btnDown = 0; h.hp = G.D.heroHp;
     for (const u of G.partyUnits()) reviveUnit(u.who, 1);
     R.stun = 4; // the party regroups
+    R.bossHold = 25; // and no boss comes on its own for a while
     G.dirty(); G.recalc();
-    emit('wipe', from, S.depth, inRift);
+    emit('wipe', from, S.depth, inRift, hadBoss);
   }
   G.wipe = wipe;
 
@@ -3649,6 +3678,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
   G.ranksAt = ranksAt;
   G.nextRank = lvl => G.RANKS.find(x => x.lv > lvl) || null;
+  // 3.0: left to itself, a level-up picks a solid card, never one with a downside
+  G.PERK_ORDER = ['might', 'frenzy', 'momentum', 'nova', 'blades', 'corpse', 'multi', 'overkill', 'aura', 'chain', 'burn', 'execute', 'laststand', 'cleave', 'crush', 'thunder', 'mark', 'ricochet', 'bulwark', 'aegis', 'thorns', 'secondwind', 'warband', 'frost', 'souls', 'greed', 'reach', 'leech', 'loot', 'plunder', 'fortress', 'avarice', 'glass'];
+  G.autoPerk = offer => offer.slice().sort((a, b) => { const i = x => { const k = G.PERK_ORDER.indexOf(x); return k < 0 ? 28 : k; }; return i(a) - i(b); })[0];
   // Full combat numbers for a given set of equipped items
   function combat(eq, d, who) {
     const h = who || G.S.hero;
@@ -4575,7 +4607,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     }
     // a pending level-up choice is made for the player if they leave it
     // (the clock stops while a window covers the cards, so they can't be picked for you unseen)
-    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[Math.floor(G.rng() * h.offer.length)]); // (2.3: left to itself, a card at random, not the best one)
+    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(G.autoPerk(h.offer));
     // hero attacks
     R.heroAcc += h.wdown > 0 ? 0 : dt * D.heroRate;
     let guard = 0;
@@ -15841,7 +15873,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
-      else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else G.enterTown(); }
+      else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } }
       else if (e.code === 'Escape' && G.R.town && !G.uiBusy()) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
       else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
       else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
@@ -15877,6 +15909,15 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (mx > (sn.tmax || 0)) { sn.tmax = mx; UI.toast(esc(t('tormentOpen', mx)), 'ach', 'ic_skull'); updateTorment(); }
     });
     G.on('torment', () => updateTorment());
+    // 3.0: a wipe says why, in one line, and what to do about it
+    G.on('wipe', (from, to, rift, boss) => {
+      const S = G.S, h = S.hero;
+      let k = 'wipeWhy_up';
+      if (G.partySlots && G.partySlots() > S.party.length) k = 'wipeWhy_seat';
+      else if (h.bag.some(g => { const sl = G.slotOf(g.id); return G.powerWith(sl, g, -1) > G.powerWith(sl, h.eq[sl], -1); })) k = 'wipeWhy_gear';
+      else if (boss) k = 'wipeWhy_boss';
+      setTimeout(() => UI.toast(`<span><b>${esc(t('wipeWhy'))}</b> ${esc(t(k))}</span>`, '', 'ic_skull'), 1800);
+    });
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'asc')) UI.update(true); if (kind === 'node' && curTab() === 'stars') UI.render(); });
     G.on('ascend', g => { if (g) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
@@ -16188,8 +16229,6 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (f && !S.seen.tabs[f]) return true;
     if (id === 'quests') return S.quests.some(q => q.done) || G.dailyAvailable();
     if (id === 'tavern') return !!(S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length);
-    if (id === 'barracks') return G.HEROES.some(h => S.gold >= G.heroCost(h, 1) * 3);
-    if (id === 'stars') return G.NODES.some(n => (S.nodes[n.id] || 0) < n.max && G.nodeAvailable(n) && S.essence >= G.nodeCost(n));
     if (id === 'pets') return S.eggs >= 1;
     if (id === 'forge') return G.S.hero.bag.some(g => G.powerWith(G.slotOf(g.id), g, -1) > G.powerWith(G.slotOf(g.id), G.S.hero.eq[G.slotOf(g.id)], -1));
     return false;
@@ -17008,11 +17047,17 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
           <span class="txt"><b>${esc(t('town_' + id))}</b><small>${open ? esc(t('bldLvl', L, G.BLD_MAX) + ' · ' + (L ? '' : t('bldNext') + ': ') + t('bldFx_' + id, bldVal(id, Math.max(1, L)))) : esc(t('bldLocked') + ': ' + t('bldOpens', t('lock_' + id)))}</small></span>
           <span class="dot" hidden></span><i class="up" hidden>▲</i></button>`;
       }).join('')}</div>
+      <button class="btn gold" data-dirall>${esc(t('dirBuildAll'))}</button>
       <button class="btn big" data-dirback>${esc(t('dirBack'))}</button>`;
     body.addEventListener('click', e => {
       const r = e.target.closest('[data-dir]');
       if (r) { G.Audio.unlock(); G.Audio.buy && G.Audio.buy(); UI.townOpen(r.dataset.dir); return; }
       if (e.target.closest('[data-dirback]')) { G.Audio.unlock(); G.leaveTown(); }
+      if (e.target.closest('[data-dirall]')) {
+        G.Audio.unlock(); let n = 0;
+        for (let k = 0; k < 60; k++) { const id = BLD_ORDER.filter(bldCanBuild).sort((x, y) => G.bldCost(x) - G.bldCost(y))[0]; if (!id || !G.buildUp(id)) break; n++; }
+        if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('dirBuilt', n)), 'ach', 'ic_town'); pingT = 0; UI.render(); } else G.Audio.error();
+      }
     });
     refs.dir = { rows: $$('[data-dir]', body) };
   };
@@ -17592,6 +17637,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     tu_click: "I'm Buttonling. You're the Hand: press the Button! Clicks spill gold and fill the chest bar.",
     tu_chestWait: 'Keep going! A full green bar drops a chest.',
     tu_chest: 'A chest! Tap it to open.',
+    tip_seat: 'A seat opened in your party! Recruit a companion at the Tavern in town: a Knight takes the hits, a Cleric heals.',
     tu_gear: 'Gear inside! Tap TOWN, then the Forge.', tu_toField: 'Tap FIELD to fight on.',
     tu_doll: 'Your Warden has 4 slots. EQUIP BEST dresses the party; scrap spares into shards to upgrade.',
     tu_upgWait: 'Click up 15 gold for your first upgrade.',
@@ -17657,13 +17703,21 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     chest: () => { const cs = G.S.chests; if (!cs.length) return null; const c = cs.reduce((a, b) => (b.tier > a.tier ? b : a), cs[0]); return G.Stage.chestPoint(c); },
     mob: () => { const ms = (G.R.mobs || []).slice().sort((a, b) => b.p - a.p); return ms.length ? G.Stage.mobPoint(ms[0]) : null; },
     wisp: () => G.Stage.wispPoint(),
-    el: sel => { const e = typeof sel === 'string' ? $(sel) : sel; if (!e || !e.offsetParent) return null; const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top - 2, el: e }; },
+    el: sel => {
+      let e = typeof sel === 'string' ? $(sel) : sel; if (!e || !e.offsetParent) return null;
+      // a town window covering the target (a phone's full-screen one): point at its close button first
+      const tw = $('#townWin');
+      if (tw && !tw.hidden && !tw.contains(e)) { const a = tw.getBoundingClientRect(), b = e.getBoundingClientRect(); if (b.left < a.right && b.right > a.left && b.top < a.bottom && b.bottom > a.top) e = tw.querySelector('.twX') || e; }
+      const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top - 2, el: e };
+    },
     // a page lives in a town building: point at TOWN, then the building, in the square or the panel's list
     tab: id => {
       const b = G.UI.bldOf && G.UI.bldOf(id);
       if (!b) return P.el(`.tab[data-tab="${id}"]`);
       if (!G.R.town) return P.el('#btnTown');
       if (G.UI.townId() === b) return null;
+      // a window covers the square: the building's row in the panel's list, or the window's close button
+      if (G.UI.townId()) return P.el(`[data-dir="${b}"]`) || P.el('#townWin .twX');
       const q = G.Stage.townPoint && G.Stage.townPoint(b);
       return q ? { x: q.x, y: q.y - 4 } : P.el(`[data-dir="${b}"]`);
     },
@@ -17703,6 +17757,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     { id: 'powers', when: () => G.R.boss && G.R.boss.t < G.R.boss.T - 2, point: () => P.el('#powers'), text: 'tip_powers', until: () => !G.R.boss },
     { id: 'move', when: () => G.R.boss && G.R.boss.move, point: () => G.Stage.weakPoint && G.Stage.weakPoint() && (() => { const w = G.Stage.weakPoint(), r = document.querySelector('#stage').getBoundingClientRect(); return { x: r.left + w.x, y: r.top + w.y - 10 }; })(), text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
     { id: 'town', when: () => G.UI._up && G.townOk() && !G.R.town, point: () => P.el('#btnTown'), text: 'tip_town', until: () => !!G.R.town },
+    { id: 'seat', when: S => S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length, point: () => P.tab('tavern'), text: 'tip_seat', until: S => G.partySlots() <= S.party.length || G.UI.townId() === 'tavern' },
     { id: 'torment', when: () => G.tormentMax() >= 1 && !G.R.boss, point: () => P.el('#torment'), text: 'tip_torment' },
     { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('enchant'), text: 'tip_orb', until: () => G.UI.townId() === 'enchant' },
     { id: 'rift', when: () => G.riftOpenable() && !G.R.boss, point: () => P.el('#btnRift') || P.tab('rift'), text: 'tip_rift', until: () => G.UI.tab() === 'rift' || !!G.R.rift },
@@ -17716,7 +17771,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   let tip = null, tipT = 0, lastHl = null, shownT = 0, nextTipAt = 0;
   const TIP_GAP = 40000; // after the tutorial, one tip at a time with a breather between them
   const stepAt = { i: -1, t: 0 };
-  const TOWN_TIPS = { shards: 1, orb: 1, asc: 1, ess: 1, rift: 1, wall: 1 };
+  // bosses don't come on their own before the tutorial's boss step; the field waits for the first press
+  G.tutHold = () => active() && G.S.tut < 7;
+  G.tutFreeze = () => G.S.tut === 0 && !(G.S.clicks > 0) && !!(G.S.hero && G.S.hero.cls);
+  const TOWN_TIPS = { seat: 1, shards: 1, orb: 1, asc: 1, ess: 1, rift: 1, wall: 1 };
   const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1, spitter: 1, bomber: 1, powers: 1 };
 
   function seen() { const S = G.S; S.seen = S.seen || {}; S.seen.tips = S.seen.tips || {}; return S.seen; }
@@ -17778,7 +17836,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (!st && tip && !TOWN_TIPS[tip.id]) { tip = null; hide(); return; }
     }
     const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
-    if (!S || !$('#coach') || busy) { hidePointer(); if (busy) $('#coach').hidden = true; stepAt.t += 120; return; }
+    if (!S || !$('#coach') || busy) {
+      hidePointer(); if (busy) $('#coach').hidden = true;
+      // a step already done still finishes behind a level-up card; only a real window holds the clock back
+      if (active() && S.hero && S.hero.cls) { const st = STEPS[S.tut]; if (!st.manual && st.done(S) && performance.now() - stepAt.t > (st.minT || 3500)) { complete(); return; } }
+      if (!$('#modal').hidden || !$('#intro').hidden) stepAt.t += 120;
+      return;
+    }
     if (!S.hero || !S.hero.cls) { hide(); return; }
     // tips for things that come and go (a Hoarder, loot, a shrine, a boss move) may cut into the tutorial
     if (tip) {
@@ -17792,7 +17856,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (stepAt.i !== S.tut) { stepAt.i = S.tut; stepAt.t = performance.now(); }
       const target = val(st.point, S);
       const inPanel = !!(target && target.el && target.el.closest('#panel'));
-      const ev = !inPanel && TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && tp.when(S));
+      const ev = !inPanel && S.tut >= 3 && TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && tp.when(S));
       if (ev) { showTip(ev); return; }
       if (st.skip && st.skip(S)) { S.tut++; if (!active()) S.tut = -1; return; }
       // a step that finishes on its own still stays up long enough to be read
@@ -17877,9 +17941,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     }
     if (!el.firstChild) el.innerHTML = img('ic_arrow', 5);
     el.hidden = false;
-    el.style.transform = `translate(${Math.round(p.x - 25)}px, ${Math.round(p.y - 50)}px)`;
+    // (a target at the very top of the screen: the arrow comes from below, pointing up)
+    const up = p.y < 56 && p.el;
+    const ub = up ? p.el.getBoundingClientRect().bottom + 2 : 0;
+    el.style.transform = up ? `translate(${Math.round(p.x - 25)}px, ${Math.round(ub)}px) rotate(180deg)` : `translate(${Math.round(p.x - 25)}px, ${Math.round(p.y - 50)}px)`;
     // Arrow plus the thing it points at
-    aim = { top: p.y - 58, bottom: p.y + 44 }; aimEl = p.el || null;
+    aim = up ? { top: p.y - 4, bottom: ub + 54 } : { top: p.y - 58, bottom: p.y + 44 }; aimEl = p.el || null;
     if (p.el) { const er = p.el.getBoundingClientRect(); aim.top = Math.min(aim.top, er.top); aim.bottom = Math.max(aim.bottom, er.bottom); }
     place();
   }
@@ -18246,6 +18313,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const room = hudTop - 8 - (btnBottom + 4);
     const natH = 104, natW = 200;
     let k = Math.max(0.62, Math.min(wr.width > 700 ? 1.3 : 0.88, room / natH)), cx = wr.width / 2;
+    // 3.0: no room under the Button (a phone): a smaller machine in the bottom-right corner, off the Button and the boss
+    if (room < natH * 0.8) { k = Math.min(0.6, (wr.width * 0.4) / natW); cx = wr.width - natW * k / 2 - 6; }
     // the level-up cards take the bottom middle of the field on wide screens: step aside for them
     const pk = $('#perks');
     if (pk && !pk.hidden) {

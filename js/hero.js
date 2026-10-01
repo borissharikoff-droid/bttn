@@ -349,6 +349,7 @@
   function wipe() {
     const S = G.S, h = S.hero;
     S.st.wipes = (S.st.wipes || 0) + 1;
+    const hadBoss = !!R.boss;
     for (const m of R.mobs) emit('mobFlee', m);
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.boss) G.fleeBoss();
@@ -358,13 +359,14 @@
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
     const from = S.depth;
     // pushed back: the clear bar is lost and, past the first depth, a depth with it
-    if (!inRift) { S.bossMeter = 0; if (S.depth > 0) S.depth--; R.bossReady = false; }
+    if (!inRift) { S.bossMeter = 0; if (hadBoss && S.depth > 0) S.depth--; R.bossReady = false; }
     if (R.ground) R.ground.length = 0;
     R.btnDown = 0; h.hp = G.D.heroHp;
     for (const u of G.partyUnits()) reviveUnit(u.who, 1);
     R.stun = 4; // the party regroups
+    R.bossHold = 25; // and no boss comes on its own for a while
     G.dirty(); G.recalc();
-    emit('wipe', from, S.depth, inRift);
+    emit('wipe', from, S.depth, inRift, hadBoss);
   }
   G.wipe = wipe;
 
@@ -435,6 +437,9 @@
   }
   G.ranksAt = ranksAt;
   G.nextRank = lvl => G.RANKS.find(x => x.lv > lvl) || null;
+  // 3.0: left to itself, a level-up picks a solid card, never one with a downside
+  G.PERK_ORDER = ['might', 'frenzy', 'momentum', 'nova', 'blades', 'corpse', 'multi', 'overkill', 'aura', 'chain', 'burn', 'execute', 'laststand', 'cleave', 'crush', 'thunder', 'mark', 'ricochet', 'bulwark', 'aegis', 'thorns', 'secondwind', 'warband', 'frost', 'souls', 'greed', 'reach', 'leech', 'loot', 'plunder', 'fortress', 'avarice', 'glass'];
+  G.autoPerk = offer => offer.slice().sort((a, b) => { const i = x => { const k = G.PERK_ORDER.indexOf(x); return k < 0 ? 28 : k; }; return i(a) - i(b); })[0];
   // Full combat numbers for a given set of equipped items
   function combat(eq, d, who) {
     const h = who || G.S.hero;
@@ -1361,7 +1366,7 @@
     }
     // a pending level-up choice is made for the player if they leave it
     // (the clock stops while a window covers the cards, so they can't be picked for you unseen)
-    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[Math.floor(G.rng() * h.offer.length)]); // (2.3: left to itself, a card at random, not the best one)
+    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(G.autoPerk(h.offer));
     // hero attacks
     R.heroAcc += h.wdown > 0 ? 0 : dt * D.heroRate;
     let guard = 0;

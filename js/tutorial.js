@@ -20,6 +20,7 @@
     tu_click: "I'm Buttonling. You're the Hand: press the Button! Clicks spill gold and fill the chest bar.",
     tu_chestWait: 'Keep going! A full green bar drops a chest.',
     tu_chest: 'A chest! Tap it to open.',
+    tip_seat: 'A seat opened in your party! Recruit a companion at the Tavern in town: a Knight takes the hits, a Cleric heals.',
     tu_gear: 'Gear inside! Tap TOWN, then the Forge.', tu_toField: 'Tap FIELD to fight on.',
     tu_doll: 'Your Warden has 4 slots. EQUIP BEST dresses the party; scrap spares into shards to upgrade.',
     tu_upgWait: 'Click up 15 gold for your first upgrade.',
@@ -85,13 +86,21 @@
     chest: () => { const cs = G.S.chests; if (!cs.length) return null; const c = cs.reduce((a, b) => (b.tier > a.tier ? b : a), cs[0]); return G.Stage.chestPoint(c); },
     mob: () => { const ms = (G.R.mobs || []).slice().sort((a, b) => b.p - a.p); return ms.length ? G.Stage.mobPoint(ms[0]) : null; },
     wisp: () => G.Stage.wispPoint(),
-    el: sel => { const e = typeof sel === 'string' ? $(sel) : sel; if (!e || !e.offsetParent) return null; const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top - 2, el: e }; },
+    el: sel => {
+      let e = typeof sel === 'string' ? $(sel) : sel; if (!e || !e.offsetParent) return null;
+      // a town window covering the target (a phone's full-screen one): point at its close button first
+      const tw = $('#townWin');
+      if (tw && !tw.hidden && !tw.contains(e)) { const a = tw.getBoundingClientRect(), b = e.getBoundingClientRect(); if (b.left < a.right && b.right > a.left && b.top < a.bottom && b.bottom > a.top) e = tw.querySelector('.twX') || e; }
+      const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top - 2, el: e };
+    },
     // a page lives in a town building: point at TOWN, then the building, in the square or the panel's list
     tab: id => {
       const b = G.UI.bldOf && G.UI.bldOf(id);
       if (!b) return P.el(`.tab[data-tab="${id}"]`);
       if (!G.R.town) return P.el('#btnTown');
       if (G.UI.townId() === b) return null;
+      // a window covers the square: the building's row in the panel's list, or the window's close button
+      if (G.UI.townId()) return P.el(`[data-dir="${b}"]`) || P.el('#townWin .twX');
       const q = G.Stage.townPoint && G.Stage.townPoint(b);
       return q ? { x: q.x, y: q.y - 4 } : P.el(`[data-dir="${b}"]`);
     },
@@ -131,6 +140,7 @@
     { id: 'powers', when: () => G.R.boss && G.R.boss.t < G.R.boss.T - 2, point: () => P.el('#powers'), text: 'tip_powers', until: () => !G.R.boss },
     { id: 'move', when: () => G.R.boss && G.R.boss.move, point: () => G.Stage.weakPoint && G.Stage.weakPoint() && (() => { const w = G.Stage.weakPoint(), r = document.querySelector('#stage').getBoundingClientRect(); return { x: r.left + w.x, y: r.top + w.y - 10 }; })(), text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
     { id: 'town', when: () => G.UI._up && G.townOk() && !G.R.town, point: () => P.el('#btnTown'), text: 'tip_town', until: () => !!G.R.town },
+    { id: 'seat', when: S => S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length, point: () => P.tab('tavern'), text: 'tip_seat', until: S => G.partySlots() <= S.party.length || G.UI.townId() === 'tavern' },
     { id: 'torment', when: () => G.tormentMax() >= 1 && !G.R.boss, point: () => P.el('#torment'), text: 'tip_torment' },
     { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('enchant'), text: 'tip_orb', until: () => G.UI.townId() === 'enchant' },
     { id: 'rift', when: () => G.riftOpenable() && !G.R.boss, point: () => P.el('#btnRift') || P.tab('rift'), text: 'tip_rift', until: () => G.UI.tab() === 'rift' || !!G.R.rift },
@@ -144,7 +154,10 @@
   let tip = null, tipT = 0, lastHl = null, shownT = 0, nextTipAt = 0;
   const TIP_GAP = 40000; // after the tutorial, one tip at a time with a breather between them
   const stepAt = { i: -1, t: 0 };
-  const TOWN_TIPS = { shards: 1, orb: 1, asc: 1, ess: 1, rift: 1, wall: 1 };
+  // bosses don't come on their own before the tutorial's boss step; the field waits for the first press
+  G.tutHold = () => active() && G.S.tut < 7;
+  G.tutFreeze = () => G.S.tut === 0 && !(G.S.clicks > 0) && !!(G.S.hero && G.S.hero.cls);
+  const TOWN_TIPS = { seat: 1, shards: 1, orb: 1, asc: 1, ess: 1, rift: 1, wall: 1 };
   const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1, spitter: 1, bomber: 1, powers: 1 };
 
   function seen() { const S = G.S; S.seen = S.seen || {}; S.seen.tips = S.seen.tips || {}; return S.seen; }
@@ -206,7 +219,13 @@
       if (!st && tip && !TOWN_TIPS[tip.id]) { tip = null; hide(); return; }
     }
     const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
-    if (!S || !$('#coach') || busy) { hidePointer(); if (busy) $('#coach').hidden = true; stepAt.t += 120; return; }
+    if (!S || !$('#coach') || busy) {
+      hidePointer(); if (busy) $('#coach').hidden = true;
+      // a step already done still finishes behind a level-up card; only a real window holds the clock back
+      if (active() && S.hero && S.hero.cls) { const st = STEPS[S.tut]; if (!st.manual && st.done(S) && performance.now() - stepAt.t > (st.minT || 3500)) { complete(); return; } }
+      if (!$('#modal').hidden || !$('#intro').hidden) stepAt.t += 120;
+      return;
+    }
     if (!S.hero || !S.hero.cls) { hide(); return; }
     // tips for things that come and go (a Hoarder, loot, a shrine, a boss move) may cut into the tutorial
     if (tip) {
@@ -220,7 +239,7 @@
       if (stepAt.i !== S.tut) { stepAt.i = S.tut; stepAt.t = performance.now(); }
       const target = val(st.point, S);
       const inPanel = !!(target && target.el && target.el.closest('#panel'));
-      const ev = !inPanel && TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && tp.when(S));
+      const ev = !inPanel && S.tut >= 3 && TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && tp.when(S));
       if (ev) { showTip(ev); return; }
       if (st.skip && st.skip(S)) { S.tut++; if (!active()) S.tut = -1; return; }
       // a step that finishes on its own still stays up long enough to be read
@@ -305,9 +324,12 @@
     }
     if (!el.firstChild) el.innerHTML = img('ic_arrow', 5);
     el.hidden = false;
-    el.style.transform = `translate(${Math.round(p.x - 25)}px, ${Math.round(p.y - 50)}px)`;
+    // (a target at the very top of the screen: the arrow comes from below, pointing up)
+    const up = p.y < 56 && p.el;
+    const ub = up ? p.el.getBoundingClientRect().bottom + 2 : 0;
+    el.style.transform = up ? `translate(${Math.round(p.x - 25)}px, ${Math.round(ub)}px) rotate(180deg)` : `translate(${Math.round(p.x - 25)}px, ${Math.round(p.y - 50)}px)`;
     // Arrow plus the thing it points at
-    aim = { top: p.y - 58, bottom: p.y + 44 }; aimEl = p.el || null;
+    aim = up ? { top: p.y - 4, bottom: ub + 54 } : { top: p.y - 58, bottom: p.y + 44 }; aimEl = p.el || null;
     if (p.el) { const er = p.el.getBoundingClientRect(); aim.top = Math.min(aim.top, er.top); aim.bottom = Math.max(aim.bottom, er.bottom); }
     place();
   }

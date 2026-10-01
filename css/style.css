@@ -341,7 +341,7 @@ input[type=range] { accent-color: var(--gold); width: 140px; }
 textarea { width: 100%; min-height: 84px; resize: vertical; background: var(--ink); color: var(--text); border: 2px solid var(--line); padding: 8px; font: 12px/1.3 ui-monospace, monospace; -webkit-user-select: text; user-select: text; }
 
 /* Modal */
-#modal { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(6,5,10,.72); padding: 16px; }
+#modal { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; background: rgba(6,5,10,.72); padding: 16px; }
 #modal .box { width: min(460px, 100%); max-height: 90%; overflow-y: auto; padding: 18px; background: var(--panel); border: 3px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line-hi), 0 6px 0 var(--ink); display: grid; gap: 12px; animation: toastIn .2s ease-out; }
 #modal h2 { margin: 0; font: 16px/1.5 var(--font-display); color: var(--gold); text-align: center; }
 #modal p { margin: 0; color: var(--dim); text-align: center; }
@@ -944,3 +944,21 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .twBld { position: sticky; bottom: 0; z-index: 2; }
 .chapter .story { font-size: 18px; line-height: 1.4; color: #ffe8c0; font-style: italic; margin: 6px 0 12px; }
 .chapter .next { color: #ffd84a; }
+/* the coach never blocks what it points at: only its own buttons take taps */
+#coach { pointer-events: none; }
+#coach button, #coach a, #coach [data-ok], #coach [data-skip] { pointer-events: auto; }
+/* 3.0 phones: building windows take the whole screen, bar text is bigger, no keyboard letters */
+@media (max-width: 700px) {
+  #townWin { position: fixed; inset: 0; z-index: 30; padding: 0; }
+  #townWin .tw { width: 100%; height: 100%; max-height: 100%; border-width: 0; overflow: auto; background: #14121e; }
+  #townWin .tw.host { overflow: hidden; }
+  #townWin .tw.tavern .twHead { position: sticky; top: 0; z-index: 3; }
+  .twBld { padding: 6px 10px; gap: 6px; }
+  .twBld .fx { min-width: 0; font-size: 13px; }
+  .meter > span { font-size: 10px; }
+  .realm, .goalBox b { font-size: 10px; }
+}
+@media (hover: none) {
+  .pw kbd, kbd.hint { display: none; }
+}
+.twGrid > .note { grid-column: 1 / -1; }

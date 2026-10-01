@@ -291,7 +291,7 @@
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
-      else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else G.enterTown(); }
+      else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } }
       else if (e.code === 'Escape' && G.R.town && !G.uiBusy()) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
       else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
       else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
@@ -327,6 +327,15 @@
       if (mx > (sn.tmax || 0)) { sn.tmax = mx; UI.toast(esc(t('tormentOpen', mx)), 'ach', 'ic_skull'); updateTorment(); }
     });
     G.on('torment', () => updateTorment());
+    // 3.0: a wipe says why, in one line, and what to do about it
+    G.on('wipe', (from, to, rift, boss) => {
+      const S = G.S, h = S.hero;
+      let k = 'wipeWhy_up';
+      if (G.partySlots && G.partySlots() > S.party.length) k = 'wipeWhy_seat';
+      else if (h.bag.some(g => { const sl = G.slotOf(g.id); return G.powerWith(sl, g, -1) > G.powerWith(sl, h.eq[sl], -1); })) k = 'wipeWhy_gear';
+      else if (boss) k = 'wipeWhy_boss';
+      setTimeout(() => UI.toast(`<span><b>${esc(t('wipeWhy'))}</b> ${esc(t(k))}</span>`, '', 'ic_skull'), 1800);
+    });
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'asc')) UI.update(true); if (kind === 'node' && curTab() === 'stars') UI.render(); });
     G.on('ascend', g => { if (g) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
@@ -638,8 +647,6 @@
     if (f && !S.seen.tabs[f]) return true;
     if (id === 'quests') return S.quests.some(q => q.done) || G.dailyAvailable();
     if (id === 'tavern') return !!(S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length);
-    if (id === 'barracks') return G.HEROES.some(h => S.gold >= G.heroCost(h, 1) * 3);
-    if (id === 'stars') return G.NODES.some(n => (S.nodes[n.id] || 0) < n.max && G.nodeAvailable(n) && S.essence >= G.nodeCost(n));
     if (id === 'pets') return S.eggs >= 1;
     if (id === 'forge') return G.S.hero.bag.some(g => G.powerWith(G.slotOf(g.id), g, -1) > G.powerWith(G.slotOf(g.id), G.S.hero.eq[G.slotOf(g.id)], -1));
     return false;
@@ -1458,11 +1465,17 @@
           <span class="txt"><b>${esc(t('town_' + id))}</b><small>${open ? esc(t('bldLvl', L, G.BLD_MAX) + ' · ' + (L ? '' : t('bldNext') + ': ') + t('bldFx_' + id, bldVal(id, Math.max(1, L)))) : esc(t('bldLocked') + ': ' + t('bldOpens', t('lock_' + id)))}</small></span>
           <span class="dot" hidden></span><i class="up" hidden>▲</i></button>`;
       }).join('')}</div>
+      <button class="btn gold" data-dirall>${esc(t('dirBuildAll'))}</button>
       <button class="btn big" data-dirback>${esc(t('dirBack'))}</button>`;
     body.addEventListener('click', e => {
       const r = e.target.closest('[data-dir]');
       if (r) { G.Audio.unlock(); G.Audio.buy && G.Audio.buy(); UI.townOpen(r.dataset.dir); return; }
       if (e.target.closest('[data-dirback]')) { G.Audio.unlock(); G.leaveTown(); }
+      if (e.target.closest('[data-dirall]')) {
+        G.Audio.unlock(); let n = 0;
+        for (let k = 0; k < 60; k++) { const id = BLD_ORDER.filter(bldCanBuild).sort((x, y) => G.bldCost(x) - G.bldCost(y))[0]; if (!id || !G.buildUp(id)) break; n++; }
+        if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('dirBuilt', n)), 'ach', 'ic_town'); pingT = 0; UI.render(); } else G.Audio.error();
+      }
     });
     refs.dir = { rows: $$('[data-dir]', body) };
   };
