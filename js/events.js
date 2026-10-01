@@ -11,21 +11,21 @@
 
   // at: the best depth it needs; t: how long it lasts; mul: what it does to the arena while it lasts
   const EVENTS = G.EVENTS = [
-    { id: 'stampede', at: 1, w: 3, t: 12, col: '#ff7a2e', icon: 'ev_stampede', name: 'STAMPEDE!', sub: 'The Horde charges from one side: hold the line for a chest shower',
+    { id: 'stampede', at: 1, w: 3, t: 12, col: '#ff7a2e', icon: 'ev_stampede', name: 'STAMPEDE!', sub: 'Horde charges from one side; hold for chests',
       mul: { speed: 1.5 } },
-    { id: 'goldrush', at: 0, w: 3, t: 15, col: '#ffd84a', icon: 'ev_goldrush', name: 'GOLD FEVER', sub: 'Every kill pays six times the gold, every click three',
+    { id: 'goldrush', at: 0, w: 3, t: 15, col: '#ffd84a', icon: 'ev_goldrush', name: 'GOLD FEVER', sub: 'Kill gold ×6, click gold ×3',
       mul: { gold: 6, click: 3 } },
     { id: 'chestrain', at: 0, w: 3, t: 6, col: '#ffe27a', icon: 'ev_chestrain', name: 'CHEST RAIN', sub: 'Chests fall from the sky' },
-    { id: 'goblins', at: 2, w: 2, t: 20, col: '#8ae07a', icon: 'ev_goblins', name: 'TREASURE GOBLINS', sub: 'Thieves with sacks of loot: catch them before they run' },
-    { id: 'meteors', at: 3, w: 2, t: 12, col: '#ff5a2e', icon: 'ev_meteors', name: 'METEOR STORM', sub: 'Rocks from the sky crush the Horde. Tap one to smash it for gold' },
-    { id: 'bloodmoon', at: 5, w: 2, t: 20, col: '#ff3b5c', icon: 'ev_bloodmoon', name: 'CRIMSON MOON', sub: 'The Horde is twice as tough and bites twice as hard. XP ×3, and kills drop three times the chests',
+    { id: 'goblins', at: 2, w: 2, t: 20, col: '#8ae07a', icon: 'ev_goblins', name: 'TREASURE GOBLINS', sub: 'Loot thieves: catch them before they flee' },
+    { id: 'meteors', at: 3, w: 2, t: 12, col: '#ff5a2e', icon: 'ev_meteors', name: 'METEOR STORM', sub: 'Meteors crush the Horde; tap one for gold' },
+    { id: 'bloodmoon', at: 5, w: 2, t: 20, col: '#ff3b5c', icon: 'ev_bloodmoon', name: 'CRIMSON MOON', sub: 'Horde HP and damage ×2; XP and chests ×3',
       mul: { mobHp: 2, bite: 2, xp: 3, chest: 3 } },
-    { id: 'ambush', at: 4, w: 2, t: 14, col: '#ff4f4f', icon: 'ev_ambush', name: 'AMBUSH!', sub: 'Champions right at the Button: cut them down for a reward' },
-    { id: 'swarm', at: 2, w: 2, t: 9, col: '#b6ff5a', icon: 'ev_swarm', name: 'THE FLOOD', sub: 'Hundreds of little ones pour in from everywhere' },
-    { id: 'frenzy', at: 1, w: 2, t: 10, col: '#ffe27a', icon: 'ev_frenzy', name: 'ADRENALINE', sub: 'The whole party attacks twice as fast',
+    { id: 'ambush', at: 4, w: 2, t: 14, col: '#ff4f4f', icon: 'ev_ambush', name: 'AMBUSH!', sub: 'Champions at the Button; kill them for chests' },
+    { id: 'swarm', at: 2, w: 2, t: 9, col: '#b6ff5a', icon: 'ev_swarm', name: 'THE FLOOD', sub: 'Hundreds of small mobs pour in' },
+    { id: 'frenzy', at: 1, w: 2, t: 10, col: '#ffe27a', icon: 'ev_frenzy', name: 'ADRENALINE', sub: 'Party attack speed ×2',
       mul: { rate: 2 } },
     // never by chance: only the JACKPOT (js/world.js) sets it off
-    { id: 'jackpot', at: 0, w: 0, t: 30, col: '#ffd84a', icon: 'ic_jackpot', name: 'JACKPOT FRENZY', sub: 'Gold ×10 and it rains chests',
+    { id: 'jackpot', at: 0, w: 0, t: 30, col: '#ffd84a', icon: 'ic_jackpot', name: 'JACKPOT FRENZY', sub: 'Gold ×10, chests rain',
       mul: { gold: 10, click: 10, chest: 4 } },
   ];
   const EV_BY_ID = G.EV_BY_ID = {};
