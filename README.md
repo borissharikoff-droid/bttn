@@ -44,6 +44,7 @@ Existing saves skip the intro and tutorial automatically. On a new device, the "
 | Shrine | tap it | — |
 | Break a boss move | tap the glowing weak point beside the boss while it winds up | Z (Smite) |
 | Torment | − / + under the land name | — |
+| Town | TOWN at the top right (between fights) | T, Esc to leave |
 | Smite / Ward / Mend | the three buttons right of the Button bar | Z / X / C |
 | Open a Rift | the ◈ button by the clear bar, or the Rifts tab | — |
 | Raise a fallen ally | tap them on the field or on the party bar | — |

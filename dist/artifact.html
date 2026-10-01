@@ -1668,7 +1668,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     autoBoss: 'Bosses come on their own', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code and press Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Everything is deleted forever',
     saved: 'Game saved', badSave: "That save code didn't load. Check that you copied all of it.", imported: 'Save loaded',
-    keysHint: 'Keys: Space — click, E — open the best chest, Q — ability, Z X C — Smite, Ward, Mend, B — call the boss, 1–0 — tabs.',
+    keysHint: 'Keys: Space — click, E — open the best chest, Q — ability, Z X C — Smite, Ward, Mend, B — call the boss, T — town, 1–0 — tabs.',
     welcomeBack: 'Welcome back!', awayFor: 'You were away for {0}. Meanwhile your garrison:', earned: 'earned', foundChests: 'found chests',
     divineLoot: 'DIVINE LOOT', legendLoot: 'LEGENDARY LOOT', mythicLoot: 'MYTHIC LOOT', newLands: 'New land: {0}',
     unlocked: 'Unlocked: {0}', achievement: 'Achievement', questDone: 'Quest complete!', potionDrink: 'Potion drunk: {0}',
@@ -14872,6 +14872,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     tip_shrine: 'A shrine rose from the ground. Tap it for a 15-second blessing, or the Warden claims it.',
     tip_powers: 'Your powers! Z, Smite: break a wind-up and hit hard. X, Ward: 3.5 s of no damage at all, for the big blows. C, Mend: heal the Button and the whole party.',
     tip_move: 'The boss is winding up a move! Tap the glowing weak point beside it to break it (clicking the Button won\u2019t), or Smite it with Z. Broken, it staggers and takes +50% damage.',
+    tip_town: 'Better gear is waiting in your bag! Walk into TOWN (or press T): at the Forge, EQUIP BEST dresses the whole party in one tap. The field waits while you are there.',
     tip_torment: 'Torment is open! Raise it here for a tougher Horde and bosses, and more gold, XP and loot. You can lower it again any time outside a fight.',
     tip_orb: 'You found currency. In the Party tab, pick an item, then an orb: reroll its affixes, add one, or gamble with an Orb of Ruin.',
     tip_rift: 'Rifts are open: timed runs at the level you choose, with better loot. Friends see your best Rift on the ladder.',
@@ -14893,6 +14894,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     help_14: 'The JACKPOT', help_14t: 'About one kill in two million. The longer since the last one, the better the odds (your odds now are in the Party tab\u2019s records). You will know it when you see it.',
     help_15: 'Your powers', help_15t: 'Three powers of the Hand, on the buttons by the Button bar or the keys Z, X and C. Smite (18 s) breaks a boss\u2019s wind-up and hits it hard. Ward (26 s) stops all damage for 3.5 s: save it for a slam or a barrage. Mend (40 s) heals the Button and the whole party and raises the fallen.',
     help_16: 'Torment', help_16t: 'Conquer a land and a level of Torment opens, up to ten. Raise it with + under the land name: the Horde and the bosses get tougher and hit harder, and you get more gold, XP, loot and fame, and rarer gear sooner. New ground clears at a set pace, so strength alone no longer rushes you through: go as hard as you can hold.',
+    help_17: 'The Town', help_17t: 'Tap TOWN at the top (or press T) between fights: the field holds still while you are there. The Forge dresses the party (EQUIP BEST does it in one tap), compares items and upgrades them with shards; the Enchanter uses your orbs; the Alchemist brews the potion you choose; the Tavern recruits companions; the board, the observatory and the hatchery open your quests, the constellation and the pets.',
     help_10: 'Carnage', help_10t: 'Kill without pause: the streak climbs and so do gold and XP, up to +40%. Let it lapse for 2.5 seconds and it starts over.',
   });
 
@@ -14939,6 +14941,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     { id: 'shrine', when: () => G.R.shrine, point: () => G.Stage.shrinePoint(), text: 'tip_shrine', until: () => !G.R.shrine },
     { id: 'powers', when: () => G.R.boss && G.R.boss.t < G.R.boss.T - 2, point: () => P.el('#powers'), text: 'tip_powers', until: () => !G.R.boss },
     { id: 'move', when: () => G.R.boss && G.R.boss.move, point: () => G.Stage.weakPoint && G.Stage.weakPoint() && (() => { const w = G.Stage.weakPoint(), r = document.querySelector('#stage').getBoundingClientRect(); return { x: r.left + w.x, y: r.top + w.y - 10 }; })(), text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
+    { id: 'town', when: () => G.UI._up && G.townOk() && !G.R.town, point: () => P.el('#btnTown'), text: 'tip_town', until: () => !!G.R.town },
     { id: 'torment', when: () => G.tormentMax() >= 1 && !G.R.boss, point: () => P.el('#torment'), text: 'tip_torment' },
     { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('hero'), text: 'tip_orb', until: () => G.UI.tab() === 'hero' },
     { id: 'rift', when: () => G.riftOpenable() && !G.R.boss, point: () => P.el('#btnRift') || P.tab('rift'), text: 'tip_rift', until: () => G.UI.tab() === 'rift' || !!G.R.rift },
@@ -15176,7 +15179,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14]];
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_town', 17], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
     G.UI.modal(t('help_title'), html, [

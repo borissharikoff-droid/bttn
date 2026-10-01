@@ -1,3 +1,73 @@
+# BTTN 2.4 — The Town
+
+The field was too small and too quiet, the bottom of the screen was hard to read, and nobody could tell how gear went on or how to make it better. 2.4 adds a **Town** to walk into between fights, a Forge with an **EQUIP BEST** button that dresses the whole party in one tap, a much wider field with far more of the Horde, and a bottom bar that says what each part is.
+
+## At a glance
+
+- **The Town.** Tap **TOWN** at the top right (or press **T**) whenever you're not in a fight. The field holds still while you're there, and only the Garrison keeps earning. Inside are the Forge, the Enchanter, the Alchemist, the Tavern, the quest board, the Observatory and the Hatchery. The portal takes you back.
+- **EQUIP BEST.** One button, in the Forge and in the Party tab, puts the strongest gear you own on the whole party.
+- **A clear Forge.** Pick a party member, tap an item and see exactly what it would change before you equip, upgrade or break it down.
+- **A wider field.** You see about twice as much ground, packs are bigger, and at least 90 mobs are always on the field.
+- **Easy depths go by fast.** When you far outclass a depth, it clears up to three times faster, so you reach the depths that test you sooner.
+- **A bar you can read.** Every bar at the bottom has an icon, a plain label and a tip on hover.
+
+## The Town
+
+When you walk in, the field is replaced by a cobbled square ringed with trees. Each building has its keeper at the door, and townsfolk stroll between them. Tap a building to open its window. **Esc** closes a window, and **Esc** again, the portal or **FIELD** at the top takes you back.
+
+You can't go to town during a boss fight, a Rift, an invasion or a sudden event, or while the Button is broken. The button says why when you tap it. It glows when your bag holds something better than what someone is wearing, and the first time that happens a tip points at it.
+
+| Building | What it does |
+|---|---|
+| **Forge** | The party's gear: each member's paper doll, the bag sorted by slot with filters, and an item card (see below). Also EQUIP BEST, "Break down all below [rarity]" and the auto-equip setting. |
+| **Enchanter** | The same window with your orbs up front: tap an item, then an orb. |
+| **Alchemist** | Brew the potion you want for gold. Each potion is a lasting bonus until you ascend. The next potion of the same kind costs 45% more, up to each potion's cap. |
+| **Tavern** | Your party at a glance, a Gear button for each member, and the classes you can recruit into a free seat with the role each one plays. |
+| **Quest board, Observatory, Hatchery** | Open the Quests, Constellation and Pets tabs. |
+
+## The Forge
+
+- **Who to dress:** tap a portrait along the top, the Warden or a companion.
+- **Their doll:** four labelled slots, each showing what's worn by name, with the member's Power, damage per second and health under it.
+- **The bag:** an item that would be an upgrade for the member you picked gets a green frame and **▲**. A weapon their class can't use is greyed out.
+- **The item card** shows what the item would change if this member wore it, as damage per second, health, crit and power, each with **▲** or **▼** and the difference. Its buttons:
+  - **Equip on [member]**;
+  - **Upgrade to +N**, with its shard and gold cost (each upgrade adds 12% to the item's main stat, up to +20);
+  - **Scrap**, with the shards it gives.
+
+  Your orbs sit under the card.
+- **EQUIP BEST · whole party:**
+  - the Warden picks first, then each companion takes the best of what's left, keeping to their class's weapons;
+  - it only swaps in what's stronger;
+  - it glows while there's something better in the bag.
+
+## The field
+
+- **A wider shot.** On a computer the field shows about twice the ground it did, so the Horde comes from further off and the arena feels like a place. Phones keep their scale.
+- **More of the Horde:**
+  - packs bring about 40% more small fry;
+  - the field always holds at least 90 mobs, up from 40;
+  - up to 1,100 can be on it at once.
+- **No more waiting on easy ground.** 2.3's set pace on new ground is gone: a Warden who far outclasses a depth clears it up to three times faster, and a depth already beaten up to six times. You reach the depth that tests you sooner, and lands change faster. Bosses, DOOM, enrage, affixes and Torment are unchanged.
+
+## The bottom bar
+
+- **Each bar has an icon and a tip on hover** that says what it does:
+
+  | Bar | Icon | What it shows |
+  |---|---|---|
+  | Clear bar | skull | three waves, then the boss |
+  | Button | heart | the Button's health |
+  | Chest bar | chest | progress to the next chest, and how many chests are on the field |
+  | Combo | coin | your click combo and the gold multiplier it gives |
+
+- **The labels are plainer:** "Clear 6/25 · then the boss", "Next chest 9% · on the field 20/20", "Click combo 50 · gold ×1.25".
+- **The ability button** says what it is (Q).
+
+## Smaller changes
+
+- The keys line, the help screen and the README list **T** for the town.
+
 # BTTN 2.3 — Hard Season
 
 All progress so far was made while the game was far too easy, so 2.3 starts a new season: every save starts over. Bot playtests of 2.2 showed why it was easy:
