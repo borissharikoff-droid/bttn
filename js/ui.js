@@ -197,6 +197,8 @@
   };
 
   function bindHud() {
+    // (phones have less to spare: a smaller Horde at most)
+    if (window.innerWidth < 700) G.TUNE.mobMax = Math.min(G.TUNE.mobMax, 750);
     bindTown();
     $('#btnTown').addEventListener('click', () => { G.Audio.unlock(); if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } });
     G.on('town', on => { if (!on) UI.townClose(); document.getElementById('app').classList.toggle('inTown', on); UI.update(true); });
