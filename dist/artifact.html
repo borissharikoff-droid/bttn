@@ -2018,6 +2018,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
     // a broken Button gives nothing: no gold, no lightning, until it mends
     if (R.btnDown > 0) { emit('clickDead'); return null; }
+    if (G.HOOKS) for (const f of G.HOOKS.click || []) f();
     // (the pace of clicks that land, for the boss's health)
     if (!(R.stun > 0)) R.clickN = (R.clickN || 0) + 1;
     S.clicks++; S.clicksRun++;
@@ -3232,6 +3233,15 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // Level-up perks, Vampire Survivors style: each level the Warden picks one
   // of three. They build this run's Warden and reset on ascension (gear stays).
+  // 3.0: hooks other files (perks, casino, relics) plug into. Each list holds plain functions:
+  //   hit(m, dmg, src, crit) -> new dmg | undefined   every hit on a mob, before it lands
+  //   kill(m, src)                                    after a mob dies
+  //   bite(m, who, dmg) -> new dmg | undefined        a mob's bite on the Button or a party member
+  //   tick(dt)                                        every game tick (not in town)
+  //   stats(d)                                        end of recalc: change d.heroHit, d.heroRate, d.heroDps, d.heroHp...
+  //   click()                                         a manual click that landed
+  G.HOOKS = G.HOOKS || { hit: [], kill: [], bite: [], tick: [], stats: [], click: [] };
+  G.hook = (name, fn) => { (G.HOOKS[name] = G.HOOKS[name] || []).push(fn); };
   G.PERKS = {
     might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses too' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
@@ -3728,6 +3738,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     });
     d.wardenDps = d.heroDps;
     for (const p of d.party) { d.heroDps += p.dps; d.heroDpsBase += p.dpsBase; }
+    for (const f of G.HOOKS.stats) f(d);
     if (h.whp > d.wardenHp) h.whp = d.wardenHp;
     if (h.hp > d.heroHp) h.hp = d.heroHp;
     if (c.power > S.rec.maxPower) S.rec.maxPower = c.power;
@@ -3912,6 +3923,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
   function dealHit(m, dmg, src, crit) {
     if (m.dead) return;
+    for (const f of G.HOOKS.hit) { const v = f(m, dmg, src, crit); if (v != null) dmg = v; if (m.dead) return; }
     if (uq('codex') && (m.kind === 'spitter' || m.kind === 'bomber')) dmg = m.hp + 1;
     else if (uq('tyrant') && (m.kind === 'tank' || m.kind === 'brute' || m.kind === 'magic')) dmg *= 2;
     // Warded: the Hand's lightning (clicks, pets, its chains, Smite) barely scratches it
@@ -3927,6 +3939,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function killMob(m, src) {
     const S = G.S, D = G.D, h = S.hero, L = land();
     m.dead = true;
+    for (const f of G.HOOKS.kill) f(m, src);
     if (!m.add) { const t0 = carnTier(); R.carn++; R.carnT = 0; if (R.carn > (S.st.bestStreak || 0)) S.st.bestStreak = R.carn; if (carnTier() > t0) emit('carnage', carnTier()); }
     const cm = 1 + 0.1 * carnTier();
     const i = R.mobs.indexOf(m);
@@ -4224,6 +4237,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.heroTick = function (dt) {
     const S = G.S, D = G.D, h = S.hero;
     if (!h || !h.cls) return;
+    for (const f of G.HOOKS.tick) f(dt);
     // ability buffs
     let changed = false;
     for (const k in R.hb) { if (R.hb[k] > 0) { R.hb[k] -= dt; if (R.hb[k] <= 0) changed = true; } }
@@ -4314,7 +4328,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         if (m.atkT <= 0) {
           m.atkT = 1;
           if (uq('othercloak') && m.kind !== 'guardian' && m.kind !== 'rare' && chance(1 / 3)) { emit('thorns', m); dealHit(m, 2 * m.hp + 1, 'thorns', false); continue; }
-          const v = victim(); m.bit = v; hitParty(v, atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1), 'bite'); emit('mobBite', m, v);
+          const v = victim(); m.bit = v;
+          let bd = atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1);
+          for (const f of G.HOOKS.bite) { const x = f(m, v, bd); if (x != null) bd = x; }
+          hitParty(v, bd, 'bite'); emit('mobBite', m, v);
           if (uq('voidplate') && !m.dead) { emit('thorns', m); dealHit(m, D.heroHit * 10, 'thorns', false); }
           if (R.stun > 0) break;
         }
@@ -5544,6 +5561,24 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (R.evT <= 0 && !busy()) { R.evT = rand(TUNE.evMin, TUNE.evMax); startEvent(); }
   };
   G.eventsClear = function () { R.ev = null; R.evT = null; };
+})(globalThis.G = globalThis.G || {});
+
+/* js/perks2.js */
+// BTTN 3.0 — perks2 (filled in by its module)
+(function (G) {
+  'use strict';
+})(globalThis.G = globalThis.G || {});
+
+/* js/casino.js */
+// BTTN 3.0 — casino (filled in by its module)
+(function (G) {
+  'use strict';
+})(globalThis.G = globalThis.G || {});
+
+/* js/relic.js */
+// BTTN 3.0 — relic (filled in by its module)
+(function (G) {
+  'use strict';
 })(globalThis.G = globalThis.G || {});
 
 /* js/net.js */
@@ -9605,6 +9640,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     'SssKkkKddD',
     'SssKkkKddD',
   ]);
+})(globalThis.G = globalThis.G || {});
+
+/* js/art5.js */
+// BTTN 3.0 — art5 (filled in by its module)
+(function (G) {
+  'use strict';
 })(globalThis.G = globalThis.G || {});
 
 /* js/doll.js */
@@ -15326,6 +15367,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       { label: t('close'), cls: 'gold' },
     ]);
   };
+})(globalThis.G = globalThis.G || {});
+
+/* js/casino_ui.js */
+// BTTN 3.0 — casino_ui (filled in by its module)
+(function (G) {
+  'use strict';
+})(globalThis.G = globalThis.G || {});
+
+/* js/relic_fx.js */
+// BTTN 3.0 — relic_fx (filled in by its module)
+(function (G) {
+  'use strict';
 })(globalThis.G = globalThis.G || {});
 
 /* js/main.js */

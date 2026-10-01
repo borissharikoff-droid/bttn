@@ -263,6 +263,7 @@
 
     // a broken Button gives nothing: no gold, no lightning, until it mends
     if (R.btnDown > 0) { emit('clickDead'); return null; }
+    if (G.HOOKS) for (const f of G.HOOKS.click || []) f();
     // (the pace of clicks that land, for the boss's health)
     if (!(R.stun > 0)) R.clickN = (R.clickN || 0) + 1;
     S.clicks++; S.clicksRun++;
