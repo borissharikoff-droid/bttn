@@ -1729,7 +1729,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     autoBoss: 'Auto-call bosses', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code, then Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Deletes everything forever',
     saved: 'Game saved', badSave: 'Save code didn\u2019t load. Copied all of it?', imported: 'Save loaded',
-    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · T town',
+    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · R spin · T town',
     welcomeBack: 'Welcome back!', awayFor: 'Away {0}. Your garrison:', earned: 'earned', foundChests: 'found chests',
     divineLoot: 'DIVINE LOOT', legendLoot: 'LEGENDARY LOOT', mythicLoot: 'MYTHIC LOOT', newLands: 'New land: {0}',
     unlocked: 'Unlocked: {0}', achievement: 'Achievement', questDone: 'Quest complete!', potionDrink: 'Potion drunk: {0}',
@@ -1813,6 +1813,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     dirHint: 'Tap a building here or in the square. Build them up for bonuses that last through ascension.',
     dirLvl: 'Town level {0}', dirBack: 'Back to the field (T)', dirSet: 'Settings',
     goTown: 'That is in town: tap TOWN (T).',
+    pkCrushTxt: 'CRUSH!', pkWindTxt: 'SECOND WIND!',
+    relic: 'RELIC', feedRelic: 'found the RELIC {0}!', relicBook: 'Relics',
+    relicHint: 'White-bag drops from bosses only: about 1 in 600 bosses, 1 in 200 lords, more at higher Torment. Never in Rifts.',
   });
   G.STR = STR;
   G.t = function (key) {
@@ -3214,7 +3217,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002, biteFloor: 0.032,
+    killChest: 0.03, plunder: 0.002, biteFloor: 0.037,
+    // 3.0: the bigger mobs (not the small fry) take this many times longer to bring down
+    bigHp: 1.8,
     // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
     // regen out of and in a boss fight (share of health a second)
     hsMin: 1, earlyHp: 3, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
@@ -3603,7 +3608,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.makeUnique = makeUnique;
   const enchantMul = g => 1 + 0.12 * g.e;
   // Uniques hit like a mythic of their kind
-  const rmul = g => G.RMUL[g.q ? 5 : g.r];
+  const rmul = g => (g.q ? (G.UNIQUES[g.q] && G.UNIQUES[g.q].rm) || G.RMUL[5] : G.RMUL[g.r]);
   // The item's main stat: damage per hit, button HP, or % bonus
   function mainStat(g) {
     const type = G.ITEM_TYPE[g.id], slot = SLOT_OF_TYPE[type];
@@ -3937,7 +3942,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // a stronger Warden meets a heavier Horde: half of it in heft, half in numbers (spawnPack)
     const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
-    const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
+    const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : kind === 'guardian' ? 1 : TUNE.bigHp) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
     const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
@@ -4795,6 +4800,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     A('asc_25', 'The Wheel Turns', 'Ascend 25 times', S => S.ascensions >= 25),
     A('prince', 'The Prince and the Button', "Buy the Prince's Crown", S => (S.upg.prince || 0) > 0, true),
     A('daily_7', 'Loyalty', 'Log in 7 days in a row', S => S.daily.streak >= 6),
+    // 3.0
+    A('relic_1', 'The White Bag', 'Find a relic', S => (S.st.relics || 0) >= 1),
+    A('relic_all', 'Hundred Kings', 'Find every relic', S => !!G.RELIC_IDS && G.RELIC_IDS.every(q => ((S.rec && S.rec.relicN) || {})[q])),
+    A('town_10', 'Hamlet', 'Reach town level 10', S => !!G.townLvl && G.townLvl() >= 10),
+    A('town_max', 'Capital', 'Build up every building fully', S => !!G.townLvl && G.townLvl() >= G.BLD.length * G.BLD_MAX),
+    A('spin_100', 'High Roller', 'Spin the Lucky Spin 100 times', S => (S.st.spins || 0) >= 100),
+    A('spin_777', 'Triple Seven', 'Hit 7-7-7', S => (S.st.sevens || 0) >= 1),
   ];
   G.ACH_BY_ID = {}; G.ACH.forEach(a => G.ACH_BY_ID[a.id] = a);
 
@@ -12809,6 +12821,25 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       ring(b.x, b.y - 4, r.rx, r.ry, '#fff3a0', 0.45); ring(b.x, b.y - 4, r.rx * 0.7, r.ry * 0.7, '#ffffff', 0.3);
       St.shake(2); St.flash(0.12, '#fff3a0');
     });
+    // 3.0 perks: fire, frost, executions, bounces and blasts
+    {
+      const zapTo = (a, q, cols) => { const pts = [[a.x, a.y - 6]]; for (let i = 1; i < 3; i++) pts.push([a.x + (q.x - a.x) * i / 3 + rand(-3, 3), a.y - 6 + (q.y - a.y) * i / 3 + rand(-3, 3)]); pts.push([q.x, q.y - 6]); bolts.push({ pts, life: 0.12, cols }); };
+      const lim = { t: 0, n: 0 }, room = () => { if (time - lim.t > 0.1) { lim.t = time; lim.n = 0; } return ++lim.n < 14; };
+      G.on('pkBurn', m => { if (!room()) return; const q = mobPos(m); part(q.x + rand(-2, 2), q.y - 6, pick(['#ff7a2e', '#ffd84a', '#ff3b3b']), { vx: rand(-6, 6), vy: -rand(10, 22), grav: -10, life: 0.4 }); });
+      G.on('pkChill', m => { if (!room()) return; const q = mobPos(m); part(q.x + rand(-3, 3), q.y - 6, pick(['#bfe8ff', '#ffffff', '#7fc8ff']), { vx: rand(-8, 8), vy: -rand(4, 10), grav: 10, life: 0.4 }); });
+      G.on('pkSpread', (a, b) => { if (room()) zapTo(mobPos(a), mobPos(b), ['#ff7a2e', '#ffd84a']); });
+      G.on('pkBounce', (a, b) => { if (room()) zapTo(mobPos(a), mobPos(b), ['#ffffff', '#c8d0ff']); });
+      G.on('pkSpill', (a, b) => { if (room()) zapTo(mobPos(a), mobPos(b), ['#ff5a4a', '#ffffff']); });
+      G.on('pkExecute', m => { const q = mobPos(m); text(q.x, q.y - 16, '✕', '#ff3b3b', 5, { life: 0.6, vy: -14 }); burst(q.x, q.y - 6, ['#ff3b3b', '#ffffff'], 10, 70, { life: 0.3 }); });
+      G.on('pkMark', m => { const q = mobPos(m); ring(q.x, q.y - 4, 8, 4, '#ff5a7a', 0.4); });
+      G.on('pkCorpse', (m, r) => { if (!room()) return; const q = mobPos(m); ring(q.x, q.y - 4, 14 + (r || 0) * 6, 7 + (r || 0) * 3, '#b6ff5a', 0.35); burst(q.x, q.y - 6, ['#b6ff5a', '#5a8a2a', '#ffffff'], 8, 80, { life: 0.35 }); });
+      G.on('pkCrush', (m, boss) => { const q = m ? mobPos(m) : { x: btnPos().x, y: btnPos().y - 30 }; text(q.x, q.y - 18, G.t('pkCrushTxt'), '#ffd84a', boss ? 6 : 5, { life: 0.8, vy: -16 }); burst(q.x, q.y - 6, ['#ffd84a', '#ffffff'], 14, 100, { life: 0.35 }); St.shake(boss ? 3 : 1.5); });
+      G.on('pkThorns', m => { if (!room()) return; const q = mobPos(m); burst(q.x, q.y - 6, ['#9a6a3a', '#ffffff'], 5, 50, { life: 0.25 }); });
+      G.on('pkAegis', up => { const b = btnPos(); ring(b.x, b.y - 4, up ? 34 : 26, up ? 17 : 13, up ? '#7ab8ff' : '#ffffff', up ? 0.6 : 0.3); });
+      G.on('pkSecondWind', () => { const b = btnPos(); text(b.x, b.y - 40, G.t('pkWindTxt'), '#8ae07a', 6, { life: 1.6, vy: -12 }); ring(b.x, b.y - 4, 50, 25, '#8ae07a', 0.8); St.flash(0.2, '#8ae07a'); });
+      G.on('pkSouls', () => { const b = btnPos(); ring(b.x, b.y - 4, 40, 20, '#c88aff', 0.5); });
+      G.on('pkCoins', m => { if (!room()) return; const q = mobPos(m); burst(q.x, q.y - 6, ['#ffd84a', '#ffe27a'], 8, 70, { life: 0.4 }); });
+    }
     G.on('chain', (from, list) => {
       const a = mobPos(from);
       for (const m of list) {
@@ -13377,6 +13408,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     }
     if (m.kind === 'runner' && m.p > 0 && Math.random() < 0.15) part(q.x, q.y - 1, '#d8cfb8', { vx: 0, vy: -4, grav: 0, life: 0.3 });
     if (m.kind === 'rare') glow(q.x, q.y - 9, 10, '#ffd84a', 0.24 + 0.08 * Math.sin(time * 6));
+    if (!fod || m.id % 3 === 0) {
+      if (m.bT > 0) glow(q.x, q.y - 6, 6, '#ff7a2e', 0.22 + 0.08 * Math.sin(time * 12 + m.id));
+      if (m.fz) glow(q.x, q.y - 6, 6, '#7fc8ff', 0.25);
+    }
     let x = q.x, y = q.y;
     // a hit knocks it back from the Button for a moment, a small one further
     if (v.hit > 0) { const b = btnPos(), dx = q.x - b.x, dy = q.y - b.y, l = Math.hypot(dx, dy) || 1, k = v.hit * (fod ? 34 : 18); x += Math.round(dx / l * k + rand(-1, 1)); y += Math.round(dy / l * k * 0.6); }
@@ -16224,6 +16259,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       ${G.RARITIES.map((r, ri) => `
         <div class="rarLabel" style="color:${r.color}"><span>${esc(L(r.name))}</span><span style="color:var(--dim)">${G.ITEMS_BY_RARITY[ri].filter(it => S.coll[it.id]).length}/6</span></div>
         <div class="rarRow">${G.ITEMS_BY_RARITY[ri].map(it => `<button class="slot r${ri}" data-i="${it.id}" aria-label="${esc(L(it.name))}">${img('it_' + it.id, '', 4)}<span class="stars"></span><span class="n"></span></button>`).join('')}</div>`).join('')}
+      ${G.RELIC_IDS ? `<div class="sect" style="color:${G.RELIC_COL}">${esc(t('relicBook'))} <small style="color:var(--dim)">${esc(t('uqFound', G.RELIC_IDS.filter(q => (S.rec.relicN || {})[q]).length, G.RELIC_IDS.length))}</small></div>
+      <p class="note">${esc(t('relicHint'))}</p>
+      <div class="evoBook uqBook relicBook">${G.RELIC_IDS.map(q => {
+        const U = G.UNIQUES[q], n = (S.rec.relicN || {})[q] || 0;
+        return `<div class="evoRow ${n ? 'uq relic' : 'off'}">${img('u_' + q, '', 3, n ? null : { dark: true })}<div><b style="${n ? 'color:' + G.RELIC_COL : ''}">${esc(n ? U.name : '???')}${n > 1 ? ` <small>×${n}</small>` : ''}</b>${n ? `<small class="d">${esc(U.fx)}</small>` : ''}</div></div>`;
+      }).join('')}</div>` : ''}
       <div class="sect">${esc(t('uniques'))} <small style="color:var(--dim)">${esc(t('uqFound', Object.keys(S.uq).length, G.UNIQUE_IDS.length))}</small></div>
       <div class="evoBook uqBook">${G.UNIQUE_IDS.map(q => {
         const U = G.UNIQUES[q], n = S.uq[q] || 0;
@@ -16520,7 +16561,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     return g ? { g, worn: null } : null;
   }
   function gearName(g) { return (g.q ? G.UNIQUES[g.q].name : L(G.ITEM_BY_ID[g.id].name)) + (g.e ? ' +' + g.e : ''); }
-  const gearCol = g => (g.q ? G.UNIQUE_COL : G.RARITIES[g.r].color);
+  const gearCol = g => (g.q ? (G.isRelic && G.isRelic(g) ? G.RELIC_COL : G.UNIQUE_COL) : G.RARITIES[g.r].color);
+  const uqLabel = g => (G.isRelic && G.isRelic(g) ? `<b class="relicTxt" style="color:${G.RELIC_COL}">${esc(t('relic'))}</b>` : `<b style="color:${G.UNIQUE_COL}">${esc(t('unique'))}</b>`);
   function mainLine(g) {
     const slot = G.slotOf(g.id), type = G.ITEM_TYPE[g.id], v = G.mainStat(g);
     if (slot === 'weapon') return t('g_weapon', L(G.WEAPONS[type].name), fmt(v, true), G.WEAPONS[type].targets);
@@ -16539,7 +16581,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     return `<li>${esc(L(d.name))} <b>${d.x ? '+' + a[1].toFixed(2) + '×' : G.fmtPct(a[1])}</b>${tag}</li>`;
   }
   function gearTile(g, extra) {
-    return `<button class="gear r${g.r} ${g.q ? 'uq' : ''} ${g.c ? 'corr' : ''} ${extra || ''}" data-g="${g.u}" style="--rc:${gearCol(g)}" aria-label="${esc(gearName(g))}">${img(G.gearSpr(g), '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u></button>`;
+    return `<button class="gear r${g.r} ${g.q ? 'uq' : ''} ${G.isRelic && G.isRelic(g) ? 'relic' : ''} ${g.c ? 'corr' : ''} ${extra || ''}" data-g="${g.u}" style="--rc:${gearCol(g)}" aria-label="${esc(gearName(g))}">${img(G.gearSpr(g), '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u></button>`;
   }
   // The currency strip: tap an orb to use it on the selected item
   function orbBar(g) {
@@ -16739,7 +16781,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     rf.orbs.innerHTML = orbBar(g);
     rf.gd.innerHTML = `
       <h3 style="color:${gearCol(g)}">${esc(gearName(g))}</h3>
-      <p>${U ? `<b style="color:${G.UNIQUE_COL}">${esc(t('unique'))}</b> · ${esc(L(G.ITEM_BY_ID[g.id].name))}` : esc(L(r.name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${g.c ? ` · <b style="color:#ff5a4a">${esc(t('corrupted'))}</b>` : ''}</p>
+      <p>${U ? `${uqLabel(g)} · ${esc(L(G.ITEM_BY_ID[g.id].name))}` : esc(L(r.name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${g.c ? ` · <b style="color:#ff5a4a">${esc(t('corrupted'))}</b>` : ''}</p>
       <p>${esc(mainLine(g))}</p>
       ${g.a.length ? `<ul class="affs">${g.a.map(a => affLine(a, g)).join('')}</ul>` : ''}
       ${U ? `<p class="uqfx">${esc(U.fx)}</p>` : ''}
@@ -16882,7 +16924,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       const cmp = f.worn ? null : (canWear(g, who) ? twCompare(g, who) : null);
       card = `<div class="twCard">
         <h3 style="color:${gearCol(g)}">${gearTile(g)} ${esc(gearName(g))}</h3>
-        <p class="sub">${U ? `<b style="color:${G.UNIQUE_COL}">${esc(t('unique'))}</b> · ` : ''}${esc(L(G.RARITIES[g.r].name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${f.worn ? ' · <b class="worn">' + esc(t('twWornBy', wearer < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(wearer)].name))) + '</b>' : ''}</p>
+        <p class="sub">${U ? `${uqLabel(g)} · ` : ''}${esc(L(G.RARITIES[g.r].name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${f.worn ? ' · <b class="worn">' + esc(t('twWornBy', wearer < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(wearer)].name))) + '</b>' : ''}</p>
         <p class="main">${esc(mainLine(g))}</p>
         ${g.a.length ? `<ul class="affs">${g.a.map(a => affLine(a, g)).join('')}</ul>` : ''}
         ${U ? `<p class="uqfx">${esc(U.fx)}</p>` : ''}
@@ -17144,7 +17186,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     for (const e of N.entries) { if (!e.ok && !e.me) continue; for (const f of Array.isArray(e.ev) ? e.ev : []) if (Array.isArray(f) && typeof f[1] === 'string' && f[1] && typeof f[0] === 'number') rows.push({ e, ts: f[0], k: f[1], s: String(f[2] || '') }); }
     rows.sort((a, b) => b.ts - a.ts);
     if (!rows.length) return `<p class="note">${esc(t('feedEmpty'))}</p>`;
-    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown', jackpot: 'ic_jackpot' };
+    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown', jackpot: 'ic_jackpot', relic: G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', spin: 'ic_coin' };
     return rows.slice(0, 12).map(r => `<div class="feedRow">${img(icon[r.k] || 'ic_star', '', 2)}<span><b>${esc(N.displayName(r.e) || t('anon'))}</b> ${esc(t('feed' + r.k[0].toUpperCase() + r.k.slice(1), r.s))}</span><small>${esc(G.fmtTime(Math.max(1, (Date.now() - r.ts) / 1000)))}</small></div>`).join('');
   }
   renderers.ladder = function (body) {
@@ -17221,7 +17263,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const rows = G.SLOTS.map(s => {
       const g = e.gear && e.gear[s];
       if (!g || !G.ITEM_BY_ID[g.id]) return `<div class="insRow"><span class="empty">—</span><b>${esc(t('slot_' + s))}</b></div>`;
-      const U = g.q && G.UNIQUES[g.q], col = U ? G.UNIQUE_COL : (G.RARITIES[g.r] || G.RARITIES[0]).color;
+      const U = g.q && G.UNIQUES[g.q], col = U ? gearCol(g) : (G.RARITIES[g.r] || G.RARITIES[0]).color;
       const name = (U ? U.name : L(G.ITEM_BY_ID[g.id].name)) + (g.e ? ' +' + g.e : '');
       return `<div class="insRow">${img(U ? 'u_' + g.q : 'it_' + g.id, '', 3)}<div><b style="color:${col}">${esc(name)}</b><small>${esc(t('ilvl', g.il))}${g.c ? ' · ' + esc(t('corrupted')) : ''}</small>
         <ul class="affs">${(Array.isArray(g.a) ? g.a : []).filter(a => Array.isArray(a) && G.AFFIXES[a[0]] && typeof a[1] === 'number').map(a => affLine(a, g)).join('')}</ul>${U ? `<small class="uqfx">${esc(U.fx)}</small>` : ''}</div></div>`;
@@ -17446,6 +17488,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     help_15: 'Your powers', help_15t: 'Z Smite (18 s): break wind-ups, hit hard. X Ward (26 s): no damage for 3.5 s. C Mend (40 s): heal and raise everyone.',
     help_16: 'Torment', help_16t: 'Conquer a land to open a Torment level (up to ten). Raise it with + under the land name: tougher foes, more rewards.',
     help_17: 'Town', help_17t: 'Everything but Upgrades is in town: tap TOWN (or press T) between fights; the field waits. EQUIP BEST at the Forge dresses the party in one tap. Build up each building for a bonus that lasts through ascension.',
+    help_18: 'Lucky Spin', help_18t: 'Kills fill the spin meter. When the slot machine pops up, tap it (or R): gold, chests, Frenzy, XP, orbs; 7-7-7 is the big one. Tap the ? bubbles mobs drop for a quick boost. Crits in a row chain for extra damage.',
+    help_19: 'Relics', help_19t: 'The rarest drop there is: a white bag from a boss (about 1 in 600; 1 in 200 for a lord; more at higher Torment; never in Rifts). Each relic changes how you play. The Museum keeps the list.',
+    help_20: 'Holding the Button', help_20t: 'Holding Space or the Button repeats clicks only with Steady Hand (Upgrades): 1 a second at first, up to 10.',
     help_10: 'Carnage', help_10t: 'Kill without a 2.5-second pause to raise gold and XP, up to +40%.',
   });
 
@@ -17746,7 +17791,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_town', 17], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14]];
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_town', 17], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14], ['ic_coin', 18], [G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', 19], ['ic_clock', 20]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
     G.UI.modal(t('help_title'), html, [

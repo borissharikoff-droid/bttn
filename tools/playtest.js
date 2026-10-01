@@ -135,6 +135,9 @@ function run(name, seed, minutes) {
       if (P.events && !G.R.focus) { const hd = G.R.mobs.find(m => m.kind === 'hoard'); if (hd && r() < P.events * dt * 3) G.R.focus = hd.id; }
       // loot: the attentive ones grab labels off the ground before the Warden does
       if (P.events && G.R.ground.length && r() < P.events * dt * 3) G.pickup(G.R.ground[0], 'hand');
+      // 3.0: the Lucky Spin when it's up, and the bonus bubbles
+      if (on && P.events && G.spinReady && G.spinReady() && r() < P.events * dt * 3) G.spin('tap');
+      if (on && P.events && G.bubbles && G.bubbles.length && r() < P.events * dt * 2) G.popBubble(G.bubbles[0].id);
       // Rifts: a run now and then once they open, harder when the last one went well
       if (P.rift && G.riftOpenable() && !G.R.rift && !G.R.boss && t - lastRift >= P.rift) { lastRift = t; G.riftStart(riftFailed ? Math.max(1, riftLvl - 3) : G.riftMax()); }
       if (P.craft && Math.round(t / dt) % 50 === 0) craft(G);

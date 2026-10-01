@@ -61,7 +61,7 @@
     autoBoss: 'Auto-call bosses', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code, then Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Deletes everything forever',
     saved: 'Game saved', badSave: 'Save code didn\u2019t load. Copied all of it?', imported: 'Save loaded',
-    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · T town',
+    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · R spin · T town',
     welcomeBack: 'Welcome back!', awayFor: 'Away {0}. Your garrison:', earned: 'earned', foundChests: 'found chests',
     divineLoot: 'DIVINE LOOT', legendLoot: 'LEGENDARY LOOT', mythicLoot: 'MYTHIC LOOT', newLands: 'New land: {0}',
     unlocked: 'Unlocked: {0}', achievement: 'Achievement', questDone: 'Quest complete!', potionDrink: 'Potion drunk: {0}',
@@ -145,6 +145,9 @@
     dirHint: 'Tap a building here or in the square. Build them up for bonuses that last through ascension.',
     dirLvl: 'Town level {0}', dirBack: 'Back to the field (T)', dirSet: 'Settings',
     goTown: 'That is in town: tap TOWN (T).',
+    pkCrushTxt: 'CRUSH!', pkWindTxt: 'SECOND WIND!',
+    relic: 'RELIC', feedRelic: 'found the RELIC {0}!', relicBook: 'Relics',
+    relicHint: 'White-bag drops from bosses only: about 1 in 600 bosses, 1 in 200 lords, more at higher Torment. Never in Rifts.',
   });
   G.STR = STR;
   G.t = function (key) {

@@ -17,7 +17,9 @@
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002, biteFloor: 0.032,
+    killChest: 0.03, plunder: 0.002, biteFloor: 0.037,
+    // 3.0: the bigger mobs (not the small fry) take this many times longer to bring down
+    bigHp: 1.8,
     // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
     // regen out of and in a boss fight (share of health a second)
     hsMin: 1, earlyHp: 3, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
@@ -406,7 +408,7 @@
   G.makeUnique = makeUnique;
   const enchantMul = g => 1 + 0.12 * g.e;
   // Uniques hit like a mythic of their kind
-  const rmul = g => G.RMUL[g.q ? 5 : g.r];
+  const rmul = g => (g.q ? (G.UNIQUES[g.q] && G.UNIQUES[g.q].rm) || G.RMUL[5] : G.RMUL[g.r]);
   // The item's main stat: damage per hit, button HP, or % bonus
   function mainStat(g) {
     const type = G.ITEM_TYPE[g.id], slot = SLOT_OF_TYPE[type];
@@ -740,7 +742,7 @@
     // a stronger Warden meets a heavier Horde: half of it in heft, half in numbers (spawnPack)
     const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
-    const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
+    const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : kind === 'guardian' ? 1 : TUNE.bigHp) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
     const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));

@@ -843,6 +843,12 @@
       ${G.RARITIES.map((r, ri) => `
         <div class="rarLabel" style="color:${r.color}"><span>${esc(L(r.name))}</span><span style="color:var(--dim)">${G.ITEMS_BY_RARITY[ri].filter(it => S.coll[it.id]).length}/6</span></div>
         <div class="rarRow">${G.ITEMS_BY_RARITY[ri].map(it => `<button class="slot r${ri}" data-i="${it.id}" aria-label="${esc(L(it.name))}">${img('it_' + it.id, '', 4)}<span class="stars"></span><span class="n"></span></button>`).join('')}</div>`).join('')}
+      ${G.RELIC_IDS ? `<div class="sect" style="color:${G.RELIC_COL}">${esc(t('relicBook'))} <small style="color:var(--dim)">${esc(t('uqFound', G.RELIC_IDS.filter(q => (S.rec.relicN || {})[q]).length, G.RELIC_IDS.length))}</small></div>
+      <p class="note">${esc(t('relicHint'))}</p>
+      <div class="evoBook uqBook relicBook">${G.RELIC_IDS.map(q => {
+        const U = G.UNIQUES[q], n = (S.rec.relicN || {})[q] || 0;
+        return `<div class="evoRow ${n ? 'uq relic' : 'off'}">${img('u_' + q, '', 3, n ? null : { dark: true })}<div><b style="${n ? 'color:' + G.RELIC_COL : ''}">${esc(n ? U.name : '???')}${n > 1 ? ` <small>×${n}</small>` : ''}</b>${n ? `<small class="d">${esc(U.fx)}</small>` : ''}</div></div>`;
+      }).join('')}</div>` : ''}
       <div class="sect">${esc(t('uniques'))} <small style="color:var(--dim)">${esc(t('uqFound', Object.keys(S.uq).length, G.UNIQUE_IDS.length))}</small></div>
       <div class="evoBook uqBook">${G.UNIQUE_IDS.map(q => {
         const U = G.UNIQUES[q], n = S.uq[q] || 0;
@@ -1139,7 +1145,8 @@
     return g ? { g, worn: null } : null;
   }
   function gearName(g) { return (g.q ? G.UNIQUES[g.q].name : L(G.ITEM_BY_ID[g.id].name)) + (g.e ? ' +' + g.e : ''); }
-  const gearCol = g => (g.q ? G.UNIQUE_COL : G.RARITIES[g.r].color);
+  const gearCol = g => (g.q ? (G.isRelic && G.isRelic(g) ? G.RELIC_COL : G.UNIQUE_COL) : G.RARITIES[g.r].color);
+  const uqLabel = g => (G.isRelic && G.isRelic(g) ? `<b class="relicTxt" style="color:${G.RELIC_COL}">${esc(t('relic'))}</b>` : `<b style="color:${G.UNIQUE_COL}">${esc(t('unique'))}</b>`);
   function mainLine(g) {
     const slot = G.slotOf(g.id), type = G.ITEM_TYPE[g.id], v = G.mainStat(g);
     if (slot === 'weapon') return t('g_weapon', L(G.WEAPONS[type].name), fmt(v, true), G.WEAPONS[type].targets);
@@ -1158,7 +1165,7 @@
     return `<li>${esc(L(d.name))} <b>${d.x ? '+' + a[1].toFixed(2) + '×' : G.fmtPct(a[1])}</b>${tag}</li>`;
   }
   function gearTile(g, extra) {
-    return `<button class="gear r${g.r} ${g.q ? 'uq' : ''} ${g.c ? 'corr' : ''} ${extra || ''}" data-g="${g.u}" style="--rc:${gearCol(g)}" aria-label="${esc(gearName(g))}">${img(G.gearSpr(g), '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u></button>`;
+    return `<button class="gear r${g.r} ${g.q ? 'uq' : ''} ${G.isRelic && G.isRelic(g) ? 'relic' : ''} ${g.c ? 'corr' : ''} ${extra || ''}" data-g="${g.u}" style="--rc:${gearCol(g)}" aria-label="${esc(gearName(g))}">${img(G.gearSpr(g), '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u></button>`;
   }
   // The currency strip: tap an orb to use it on the selected item
   function orbBar(g) {
@@ -1358,7 +1365,7 @@
     rf.orbs.innerHTML = orbBar(g);
     rf.gd.innerHTML = `
       <h3 style="color:${gearCol(g)}">${esc(gearName(g))}</h3>
-      <p>${U ? `<b style="color:${G.UNIQUE_COL}">${esc(t('unique'))}</b> · ${esc(L(G.ITEM_BY_ID[g.id].name))}` : esc(L(r.name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${g.c ? ` · <b style="color:#ff5a4a">${esc(t('corrupted'))}</b>` : ''}</p>
+      <p>${U ? `${uqLabel(g)} · ${esc(L(G.ITEM_BY_ID[g.id].name))}` : esc(L(r.name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${g.c ? ` · <b style="color:#ff5a4a">${esc(t('corrupted'))}</b>` : ''}</p>
       <p>${esc(mainLine(g))}</p>
       ${g.a.length ? `<ul class="affs">${g.a.map(a => affLine(a, g)).join('')}</ul>` : ''}
       ${U ? `<p class="uqfx">${esc(U.fx)}</p>` : ''}
@@ -1501,7 +1508,7 @@
       const cmp = f.worn ? null : (canWear(g, who) ? twCompare(g, who) : null);
       card = `<div class="twCard">
         <h3 style="color:${gearCol(g)}">${gearTile(g)} ${esc(gearName(g))}</h3>
-        <p class="sub">${U ? `<b style="color:${G.UNIQUE_COL}">${esc(t('unique'))}</b> · ` : ''}${esc(L(G.RARITIES[g.r].name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${f.worn ? ' · <b class="worn">' + esc(t('twWornBy', wearer < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(wearer)].name))) + '</b>' : ''}</p>
+        <p class="sub">${U ? `${uqLabel(g)} · ` : ''}${esc(L(G.RARITIES[g.r].name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${f.worn ? ' · <b class="worn">' + esc(t('twWornBy', wearer < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(wearer)].name))) + '</b>' : ''}</p>
         <p class="main">${esc(mainLine(g))}</p>
         ${g.a.length ? `<ul class="affs">${g.a.map(a => affLine(a, g)).join('')}</ul>` : ''}
         ${U ? `<p class="uqfx">${esc(U.fx)}</p>` : ''}
@@ -1763,7 +1770,7 @@
     for (const e of N.entries) { if (!e.ok && !e.me) continue; for (const f of Array.isArray(e.ev) ? e.ev : []) if (Array.isArray(f) && typeof f[1] === 'string' && f[1] && typeof f[0] === 'number') rows.push({ e, ts: f[0], k: f[1], s: String(f[2] || '') }); }
     rows.sort((a, b) => b.ts - a.ts);
     if (!rows.length) return `<p class="note">${esc(t('feedEmpty'))}</p>`;
-    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown', jackpot: 'ic_jackpot' };
+    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown', jackpot: 'ic_jackpot', relic: G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', spin: 'ic_coin' };
     return rows.slice(0, 12).map(r => `<div class="feedRow">${img(icon[r.k] || 'ic_star', '', 2)}<span><b>${esc(N.displayName(r.e) || t('anon'))}</b> ${esc(t('feed' + r.k[0].toUpperCase() + r.k.slice(1), r.s))}</span><small>${esc(G.fmtTime(Math.max(1, (Date.now() - r.ts) / 1000)))}</small></div>`).join('');
   }
   renderers.ladder = function (body) {
@@ -1840,7 +1847,7 @@
     const rows = G.SLOTS.map(s => {
       const g = e.gear && e.gear[s];
       if (!g || !G.ITEM_BY_ID[g.id]) return `<div class="insRow"><span class="empty">—</span><b>${esc(t('slot_' + s))}</b></div>`;
-      const U = g.q && G.UNIQUES[g.q], col = U ? G.UNIQUE_COL : (G.RARITIES[g.r] || G.RARITIES[0]).color;
+      const U = g.q && G.UNIQUES[g.q], col = U ? gearCol(g) : (G.RARITIES[g.r] || G.RARITIES[0]).color;
       const name = (U ? U.name : L(G.ITEM_BY_ID[g.id].name)) + (g.e ? ' +' + g.e : '');
       return `<div class="insRow">${img(U ? 'u_' + g.q : 'it_' + g.id, '', 3)}<div><b style="color:${col}">${esc(name)}</b><small>${esc(t('ilvl', g.il))}${g.c ? ' · ' + esc(t('corrupted')) : ''}</small>
         <ul class="affs">${(Array.isArray(g.a) ? g.a : []).filter(a => Array.isArray(a) && G.AFFIXES[a[0]] && typeof a[1] === 'number').map(a => affLine(a, g)).join('')}</ul>${U ? `<small class="uqfx">${esc(U.fx)}</small>` : ''}</div></div>`;

@@ -81,6 +81,11 @@ function shop(G, cps) {
     const n = G.NODES.filter(x => (G.S.nodes[x.id] || 0) < x.max && G.nodeAvailable(x)).sort((a, b) => G.nodeCost(a) - G.nodeCost(b))[0];
     if (!n || !G.buyNode(n.id)) break;
   }
+  // 3.0: build up the town when a level costs under a fifth of the gold on hand
+  if (G.BLD) for (let i = 0; i < 11; i++) {
+    const b = G.BLD.filter(x => G.bldLvl(x.id) < G.BLD_MAX).sort((x, y) => G.bldCost(x.id) - G.bldCost(y.id))[0];
+    if (!b || G.bldCost(b.id) > G.S.gold * 0.2 || !G.buildUp(b.id)) break;
+  }
   if (G.S.eggs >= 1) G.pull(G.S.eggs >= 9 ? 10 : 1);
   G.S.quests.forEach((q, i) => { if (q.done) G.claimQuest(i); });
   if (G.dailyAvailable()) G.claimDaily();

@@ -86,6 +86,13 @@
     A('asc_25', 'The Wheel Turns', 'Ascend 25 times', S => S.ascensions >= 25),
     A('prince', 'The Prince and the Button', "Buy the Prince's Crown", S => (S.upg.prince || 0) > 0, true),
     A('daily_7', 'Loyalty', 'Log in 7 days in a row', S => S.daily.streak >= 6),
+    // 3.0
+    A('relic_1', 'The White Bag', 'Find a relic', S => (S.st.relics || 0) >= 1),
+    A('relic_all', 'Hundred Kings', 'Find every relic', S => !!G.RELIC_IDS && G.RELIC_IDS.every(q => ((S.rec && S.rec.relicN) || {})[q])),
+    A('town_10', 'Hamlet', 'Reach town level 10', S => !!G.townLvl && G.townLvl() >= 10),
+    A('town_max', 'Capital', 'Build up every building fully', S => !!G.townLvl && G.townLvl() >= G.BLD.length * G.BLD_MAX),
+    A('spin_100', 'High Roller', 'Spin the Lucky Spin 100 times', S => (S.st.spins || 0) >= 100),
+    A('spin_777', 'Triple Seven', 'Hit 7-7-7', S => (S.st.sevens || 0) >= 1),
   ];
   G.ACH_BY_ID = {}; G.ACH.forEach(a => G.ACH_BY_ID[a.id] = a);
 

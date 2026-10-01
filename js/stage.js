@@ -368,6 +368,25 @@
       ring(b.x, b.y - 4, r.rx, r.ry, '#fff3a0', 0.45); ring(b.x, b.y - 4, r.rx * 0.7, r.ry * 0.7, '#ffffff', 0.3);
       St.shake(2); St.flash(0.12, '#fff3a0');
     });
+    // 3.0 perks: fire, frost, executions, bounces and blasts
+    {
+      const zapTo = (a, q, cols) => { const pts = [[a.x, a.y - 6]]; for (let i = 1; i < 3; i++) pts.push([a.x + (q.x - a.x) * i / 3 + rand(-3, 3), a.y - 6 + (q.y - a.y) * i / 3 + rand(-3, 3)]); pts.push([q.x, q.y - 6]); bolts.push({ pts, life: 0.12, cols }); };
+      const lim = { t: 0, n: 0 }, room = () => { if (time - lim.t > 0.1) { lim.t = time; lim.n = 0; } return ++lim.n < 14; };
+      G.on('pkBurn', m => { if (!room()) return; const q = mobPos(m); part(q.x + rand(-2, 2), q.y - 6, pick(['#ff7a2e', '#ffd84a', '#ff3b3b']), { vx: rand(-6, 6), vy: -rand(10, 22), grav: -10, life: 0.4 }); });
+      G.on('pkChill', m => { if (!room()) return; const q = mobPos(m); part(q.x + rand(-3, 3), q.y - 6, pick(['#bfe8ff', '#ffffff', '#7fc8ff']), { vx: rand(-8, 8), vy: -rand(4, 10), grav: 10, life: 0.4 }); });
+      G.on('pkSpread', (a, b) => { if (room()) zapTo(mobPos(a), mobPos(b), ['#ff7a2e', '#ffd84a']); });
+      G.on('pkBounce', (a, b) => { if (room()) zapTo(mobPos(a), mobPos(b), ['#ffffff', '#c8d0ff']); });
+      G.on('pkSpill', (a, b) => { if (room()) zapTo(mobPos(a), mobPos(b), ['#ff5a4a', '#ffffff']); });
+      G.on('pkExecute', m => { const q = mobPos(m); text(q.x, q.y - 16, '✕', '#ff3b3b', 5, { life: 0.6, vy: -14 }); burst(q.x, q.y - 6, ['#ff3b3b', '#ffffff'], 10, 70, { life: 0.3 }); });
+      G.on('pkMark', m => { const q = mobPos(m); ring(q.x, q.y - 4, 8, 4, '#ff5a7a', 0.4); });
+      G.on('pkCorpse', (m, r) => { if (!room()) return; const q = mobPos(m); ring(q.x, q.y - 4, 14 + (r || 0) * 6, 7 + (r || 0) * 3, '#b6ff5a', 0.35); burst(q.x, q.y - 6, ['#b6ff5a', '#5a8a2a', '#ffffff'], 8, 80, { life: 0.35 }); });
+      G.on('pkCrush', (m, boss) => { const q = m ? mobPos(m) : { x: btnPos().x, y: btnPos().y - 30 }; text(q.x, q.y - 18, G.t('pkCrushTxt'), '#ffd84a', boss ? 6 : 5, { life: 0.8, vy: -16 }); burst(q.x, q.y - 6, ['#ffd84a', '#ffffff'], 14, 100, { life: 0.35 }); St.shake(boss ? 3 : 1.5); });
+      G.on('pkThorns', m => { if (!room()) return; const q = mobPos(m); burst(q.x, q.y - 6, ['#9a6a3a', '#ffffff'], 5, 50, { life: 0.25 }); });
+      G.on('pkAegis', up => { const b = btnPos(); ring(b.x, b.y - 4, up ? 34 : 26, up ? 17 : 13, up ? '#7ab8ff' : '#ffffff', up ? 0.6 : 0.3); });
+      G.on('pkSecondWind', () => { const b = btnPos(); text(b.x, b.y - 40, G.t('pkWindTxt'), '#8ae07a', 6, { life: 1.6, vy: -12 }); ring(b.x, b.y - 4, 50, 25, '#8ae07a', 0.8); St.flash(0.2, '#8ae07a'); });
+      G.on('pkSouls', () => { const b = btnPos(); ring(b.x, b.y - 4, 40, 20, '#c88aff', 0.5); });
+      G.on('pkCoins', m => { if (!room()) return; const q = mobPos(m); burst(q.x, q.y - 6, ['#ffd84a', '#ffe27a'], 8, 70, { life: 0.4 }); });
+    }
     G.on('chain', (from, list) => {
       const a = mobPos(from);
       for (const m of list) {
@@ -936,6 +955,10 @@
     }
     if (m.kind === 'runner' && m.p > 0 && Math.random() < 0.15) part(q.x, q.y - 1, '#d8cfb8', { vx: 0, vy: -4, grav: 0, life: 0.3 });
     if (m.kind === 'rare') glow(q.x, q.y - 9, 10, '#ffd84a', 0.24 + 0.08 * Math.sin(time * 6));
+    if (!fod || m.id % 3 === 0) {
+      if (m.bT > 0) glow(q.x, q.y - 6, 6, '#ff7a2e', 0.22 + 0.08 * Math.sin(time * 12 + m.id));
+      if (m.fz) glow(q.x, q.y - 6, 6, '#7fc8ff', 0.25);
+    }
     let x = q.x, y = q.y;
     // a hit knocks it back from the Button for a moment, a small one further
     if (v.hit > 0) { const b = btnPos(), dx = q.x - b.x, dy = q.y - b.y, l = Math.hypot(dx, dy) || 1, k = v.hit * (fod ? 34 : 18); x += Math.round(dx / l * k + rand(-1, 1)); y += Math.round(dy / l * k * 0.6); }
