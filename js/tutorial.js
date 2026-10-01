@@ -113,7 +113,7 @@
     { id: 'click', text: 'tu_click', point: P.button, done: S => S.clicks >= 12 },
     { id: 'chest', text: S => (S.chests.length ? 'tu_chest' : 'tu_chestWait'), point: S => (S.chests.length ? P.chest() : P.button()), done: S => S.st.chests >= 1 },
     { id: 'gear', town: 1, text: 'tu_gear', point: () => P.tab('forge'), done: () => G.UI.townId() === 'forge' },
-    { id: 'doll', town: 1, text: 'tu_doll', point: () => (G.UI.townId() === 'forge' ? P.el('.twDoll') : P.tab('forge')), manual: true },
+    { id: 'doll', town: 1, text: 'tu_doll', point: () => (G.UI.townId() === 'forge' ? P.el('.twDoll') : P.tab('forge')), manual: true, done: () => G.UI.townId() !== 'forge', minT: 2500 },
     { id: 'upg', town: 1, text: S => (S.gold >= 15 || S.upg.finger ? 'tu_upg' : 'tu_upgWait'), point: S => (S.gold >= 15 ? P.inTab('upg', '.row[data-u="finger"]') : P.button()), done: S => (S.upg.finger || 0) >= 1 },
     { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), minT: 7000, done: S => S.hero.kills - (seen().tutK || 0) >= 40 },
     { id: 'garrison', town: 1, text: S => (S.gold >= 50 ? 'tu_garrison' : 'tu_garrisonWait'), point: S => (S.gold >= 50 ? P.inTab('heroes', '.row[data-h="rogue"]') : P.button()), done: S => (S.heroes.rogue || 0) >= 1 },
@@ -154,8 +154,8 @@
   let tip = null, tipT = 0, lastHl = null, shownT = 0, nextTipAt = 0;
   const TIP_GAP = 40000; // after the tutorial, one tip at a time with a breather between them
   const stepAt = { i: -1, t: 0 };
-  // bosses don't come on their own before the tutorial's boss step; the field waits for the first press
-  G.tutHold = () => active() && G.S.tut < 7;
+  // bosses don't come on their own before the tutorial's boss step (for the first few minutes); the field waits for the first press
+  G.tutHold = () => active() && G.S.tut < 7 && G.S.st.playTime < 150;
   G.tutFreeze = () => G.S.tut === 0 && !(G.S.clicks > 0) && !!(G.S.hero && G.S.hero.cls);
   const TOWN_TIPS = { seat: 1, shards: 1, orb: 1, asc: 1, ess: 1, rift: 1, wall: 1 };
   const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1, spitter: 1, bomber: 1, powers: 1 };
@@ -222,7 +222,7 @@
     if (!S || !$('#coach') || busy) {
       hidePointer(); if (busy) $('#coach').hidden = true;
       // a step already done still finishes behind a level-up card; only a real window holds the clock back
-      if (active() && S.hero && S.hero.cls) { const st = STEPS[S.tut]; if (!st.manual && st.done(S) && performance.now() - stepAt.t > (st.minT || 3500)) { complete(); return; } }
+      if (active() && S.hero && S.hero.cls) { const st = STEPS[S.tut]; if (st.done && st.done(S) && performance.now() - stepAt.t > (st.minT || 3500)) { complete(); return; } }
       if (!$('#modal').hidden || !$('#intro').hidden) stepAt.t += 120;
       return;
     }
@@ -243,7 +243,7 @@
       if (ev) { showTip(ev); return; }
       if (st.skip && st.skip(S)) { S.tut++; if (!active()) S.tut = -1; return; }
       // a step that finishes on its own still stays up long enough to be read
-      if (!st.manual && st.done(S) && performance.now() - stepAt.t > (st.minT || 3500)) { complete(); return; }
+      if (st.done && st.done(S) && performance.now() - stepAt.t > (st.minT || 3500)) { complete(); return; }
       render(st.id, t(val(st.text, S)), t('tu_step', S.tut + 1, STEPS.length), st.manual);
       point(val(st.point, S));
       return;

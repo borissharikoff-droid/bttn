@@ -1328,7 +1328,8 @@
         const enr = b.enr > 0 ? 1.5 + 1.5 * (1 - b.enr / (b.enrT || 1)) : 1;
         R.bossAtkT = 2 / (1 + 0.25 * ((b.phase || 1) - 1)) / (b.enr > 0 ? 2 : 1) / (G.bossHas(b, 'hasted') ? 1.4 : 1);
         emit('bossHit', b, v);
-        const fr = G.bossHas(b, 'frenzied') ? 1.5 : 1;
+        // (3.0: the first two lords, the walls most players meet first, hit a third softer)
+        const fr = (G.bossHas(b, 'frenzied') ? 1.5 : 1) * (b.lord && b.d < 10 && !R.rift ? 0.65 : 1);
         G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1) * enr * fr, Math.min(0.35, (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1) * enr * fr), 'boss');
         // Vampiric: every blow that lands feeds it
         if (G.bossHas(b, 'vampiric') && R.boss === b && !(R.ward > 0)) { b.hp = Math.min(b.max, b.hp + b.max * (b.lord ? 0.012 : 0.02)); emit('bossLeech', b); }
