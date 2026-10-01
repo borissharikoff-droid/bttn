@@ -24,6 +24,8 @@
     // 2.5: the new kinds: a pack's chance to be led by one (base + per depth, capped); Warded takes this share
     // of the Hand's damage; menders heal this share of health round them every few seconds; callers call
     // callN small fry every callEvery s; chargers run chargeSpd times faster for the last stretch
+    // 3.0: the tank holds mobs at tankP within tankArc of its angle (tankHold at most), walking tankWalk a second
+    tankP: 0.68, tankArc: 0.09, tankHold: 30, tankWalk: 0.35,
     newKindBase: 0.12, newKindPer: 0.007, newKindMax: 0.38, wardedTake: 0.08, healerEvery: 2.2, healerPct: 0.12, callEvery: 3.2, callN: 7, chargeSpd: 4,
   });
 
@@ -259,12 +261,27 @@
   const unitMax = who => (who < 0 ? G.D.wardenHp : (G.D.party[who] || {}).hp) || TUNE.baseHp;
   const alive = () => G.partyUnits().filter(u => !(u.down > 0));
   G.partyAlive = () => alive().length;
+  // 3.0: the tank holds the line. It walks round to where the Horde presses hardest (R.tankA, the same
+  // 0-1 angle mobs use) and the mobs that meet it there stop and fight it instead of reaching the Button.
+  const tankUp = () => alive().find(u => u.role === 'tank');
+  G.tankInfo = () => { const t = tankUp(); return t ? { who: t.who, a: R.tankA == null ? 0.5 : R.tankA } : null; };
+  function stepTank(dt) {
+    if (R.tankA == null) R.tankA = 0.5;
+    if ((R.tankT = (R.tankT || 0) - dt) <= 0) {
+      R.tankT = 1.2;
+      const B = new Array(12).fill(0);
+      for (const m of R.mobs) if (!m.dead && m.p > 0.4 && !m.add) B[Math.min(11, Math.floor(m.a * 12))] += m.w * m.p;
+      let bi = -1, bv = 0; for (let i = 0; i < 12; i++) if (B[i] > bv) { bv = B[i]; bi = i; }
+      if (bi >= 0) R.tankGo = (bi + 0.5) / 12;
+    }
+    if (R.tankGo != null) { const d = R.tankGo - R.tankA; R.tankA += Math.sign(d) * Math.min(Math.abs(d), TUNE.tankWalk * dt); }
+  }
   // Who a mob or a boss hits: a standing tank draws it, else the Button or anyone standing
   // who a bite lands on: a standing tank draws most of them, the Button takes most of the rest
   function victim() {
     const up = alive(), btn = !(R.btnDown > 0);
     const tank = up.find(u => u.role === 'tank');
-    if (tank && chance(btn ? 0.6 : 0.85)) return tank.who;
+    if (tank && chance(btn ? 0.4 : 0.85)) return tank.who;
     if (!up.length) return btn ? 'button' : null;
     if (btn && chance(0.65)) return 'button';
     return up[Math.floor(G.rng() * up.length)].who;
@@ -1203,6 +1220,9 @@
     const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1) * evMul('speed');
     // 2.2: a bite is never nothing: its depth's damage, or a sliver of the Button's health per unit of weight
     const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite') * (R.rift ? 1 : G.torment().bite);
+    // the tank's line this tick
+    const tk = R.boss ? null : tankUp(); let blocked = 0; const tkA = R.tankA == null ? 0.5 : R.tankA;
+    if (tk) stepTank(dt);
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
@@ -1229,6 +1249,19 @@
         if ((m.atkT -= dt) <= 0) { m.atkT = TUNE.spitEvery * rand(0.85, 1.15); R.shots.push({ m: m.id, a: m.a, p: m.p, t: 0.5, dmg: atk * m.w * (m.mod === 'frenzied' ? 2 : 1) }); emit('spit', m); }
         if (m.p >= TUNE.spitStop) continue;
       }
+      // the tank's line: mobs in its arc stop there and fight it (a few dozen at most; the rest slip by)
+      if (tk && blocked < TUNE.tankHold && m.p >= TUNE.tankP && Math.abs(m.a - tkA) < TUNE.tankArc && m.kind !== 'bomber' && m.kind !== 'spitter' && m.kind !== 'hoard' && m.kind !== 'guardian' && !m.gob) {
+        blocked++; m.p = TUNE.tankP; m.held = 1;
+        if ((m.atkT -= dt) <= 0) {
+          m.atkT = 1;
+          let bd = atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1);
+          for (const f of G.HOOKS.bite) { const x = f(m, tk.who, bd); if (x != null) bd = x; }
+          m.bit = tk.who; hitParty(tk.who, bd, 'bite'); emit('mobBite', m, tk.who);
+          if (R.stun > 0) break;
+        }
+        continue;
+      }
+      m.held = 0;
       if (m.p < 1) m.p = Math.min(1, m.p + m.sp * dt * slow);
       else if (m.kind === 'bomber') {
         // a bomber that reaches the Button goes off on it

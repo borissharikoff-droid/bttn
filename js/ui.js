@@ -228,7 +228,8 @@
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') {
         if (tg && tg.tagName === 'BUTTON' && e.code !== 'Space') return;
         e.preventDefault();
-        if (e.repeat && !G.S.set.hold) return;
+        // a held key repeats at Steady Hand's rate (none without it)
+        if (e.repeat) { const hr = G.D.holdRate || 0; if (!G.S.set.hold || hr <= 0 || performance.now() - (UI._holdT || 0) < 1000 / hr) return; UI._holdT = performance.now(); }
         G.Stage.keyClick();
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }

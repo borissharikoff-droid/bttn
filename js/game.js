@@ -83,7 +83,7 @@
   const D = G.D = {};
   function baseD() {
     return {
-      clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
+      holdRate: 0, clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,

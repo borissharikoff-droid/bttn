@@ -91,6 +91,6 @@ function buyLegacy(G) {
     if (!l || !G.buyLegacy(l.id)) break;
   }
 }
-const PERK_PRIORITY = ['might', 'frenzy', 'nova', 'blades', 'multi', 'aura', 'chain', 'cleave', 'thunder', 'bulwark', 'greed', 'reach', 'leech', 'loot'];
+const PERK_PRIORITY = ['might', 'frenzy', 'momentum', 'nova', 'blades', 'corpse', 'multi', 'overkill', 'aura', 'glass', 'chain', 'burn', 'execute', 'laststand', 'cleave', 'crush', 'thunder', 'mark', 'ricochet', 'bulwark', 'aegis', 'thorns', 'secondwind', 'warband', 'frost', 'souls', 'greed', 'avarice', 'reach', 'fortress', 'leech', 'loot'];
 
 module.exports = { makeWorld, metric, tryBuy, shop, buyLegacy, PERK_PRIORITY };

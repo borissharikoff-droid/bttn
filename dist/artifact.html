@@ -1235,6 +1235,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       name: 'Iron Finger',
       desc: '+1 click power; ×2 at levels 10, 25, 50, 75…',
       fx: (L, D) => { D.clickAdd += L; D.clickMult *= Math.pow(2, G.FINGER_MILESTONES.filter(m => L >= m).length); } },
+    // 3.0: holding the Button clicks on its own only as fast as this allows: 1 click a second per level
+    { id: 'hold', icon: 'ic_clock', base: 30, growth: 2.6, max: 10,
+      name: 'Steady Hand',
+      desc: 'Hold the Button: +1 auto-click/s',
+      fx: (L, D) => { D.holdRate = L; } },
     { id: 'might', icon: 'ic_rune', base: 5000, growth: 30, max: 15,
       name: 'Rune of Might',
       desc: 'Click gold ×1.5',
@@ -1838,7 +1843,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   const D = G.D = {};
   function baseD() {
     return {
-      clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
+      holdRate: 0, clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
@@ -2293,6 +2298,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     emit('town', true);
     return true;
   };
+  // hold the game still for s seconds (see tick); the stage keeps drawing
+  G.cinematic = s => { R.cine = Math.max(R.cine || 0, s); };
   G.leaveTown = function () {
     if (!R.town) return false;
     R.town = false;
@@ -2923,6 +2930,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     S.st.playTime += dt;
     // in town the field holds still: only the Garrison's income and the clock run
     if (R.town) { addGold(D.gps * dt, 'gps'); return; }
+    // 3.0: a cinematic (a relic dropping) holds the whole game still while it plays
+    if (R.cine > 0) { R.cine = Math.max(0, R.cine - dt); return; }
 
     // Buffs
     if (S.buffs.length) {
@@ -3111,6 +3120,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // 2.5: the new kinds: a pack's chance to be led by one (base + per depth, capped); Warded takes this share
     // of the Hand's damage; menders heal this share of health round them every few seconds; callers call
     // callN small fry every callEvery s; chargers run chargeSpd times faster for the last stretch
+    // 3.0: the tank holds mobs at tankP within tankArc of its angle (tankHold at most), walking tankWalk a second
+    tankP: 0.68, tankArc: 0.09, tankHold: 30, tankWalk: 0.35,
     newKindBase: 0.12, newKindPer: 0.007, newKindMax: 0.38, wardedTake: 0.08, healerEvery: 2.2, healerPct: 0.12, callEvery: 3.2, callN: 7, chargeSpd: 4,
   });
 
@@ -3346,12 +3357,27 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   const unitMax = who => (who < 0 ? G.D.wardenHp : (G.D.party[who] || {}).hp) || TUNE.baseHp;
   const alive = () => G.partyUnits().filter(u => !(u.down > 0));
   G.partyAlive = () => alive().length;
+  // 3.0: the tank holds the line. It walks round to where the Horde presses hardest (R.tankA, the same
+  // 0-1 angle mobs use) and the mobs that meet it there stop and fight it instead of reaching the Button.
+  const tankUp = () => alive().find(u => u.role === 'tank');
+  G.tankInfo = () => { const t = tankUp(); return t ? { who: t.who, a: R.tankA == null ? 0.5 : R.tankA } : null; };
+  function stepTank(dt) {
+    if (R.tankA == null) R.tankA = 0.5;
+    if ((R.tankT = (R.tankT || 0) - dt) <= 0) {
+      R.tankT = 1.2;
+      const B = new Array(12).fill(0);
+      for (const m of R.mobs) if (!m.dead && m.p > 0.4 && !m.add) B[Math.min(11, Math.floor(m.a * 12))] += m.w * m.p;
+      let bi = -1, bv = 0; for (let i = 0; i < 12; i++) if (B[i] > bv) { bv = B[i]; bi = i; }
+      if (bi >= 0) R.tankGo = (bi + 0.5) / 12;
+    }
+    if (R.tankGo != null) { const d = R.tankGo - R.tankA; R.tankA += Math.sign(d) * Math.min(Math.abs(d), TUNE.tankWalk * dt); }
+  }
   // Who a mob or a boss hits: a standing tank draws it, else the Button or anyone standing
   // who a bite lands on: a standing tank draws most of them, the Button takes most of the rest
   function victim() {
     const up = alive(), btn = !(R.btnDown > 0);
     const tank = up.find(u => u.role === 'tank');
-    if (tank && chance(btn ? 0.6 : 0.85)) return tank.who;
+    if (tank && chance(btn ? 0.4 : 0.85)) return tank.who;
     if (!up.length) return btn ? 'button' : null;
     if (btn && chance(0.65)) return 'button';
     return up[Math.floor(G.rng() * up.length)].who;
@@ -4290,6 +4316,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1) * evMul('speed');
     // 2.2: a bite is never nothing: its depth's damage, or a sliver of the Button's health per unit of weight
     const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite') * (R.rift ? 1 : G.torment().bite);
+    // the tank's line this tick
+    const tk = R.boss ? null : tankUp(); let blocked = 0; const tkA = R.tankA == null ? 0.5 : R.tankA;
+    if (tk) stepTank(dt);
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
@@ -4316,6 +4345,19 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         if ((m.atkT -= dt) <= 0) { m.atkT = TUNE.spitEvery * rand(0.85, 1.15); R.shots.push({ m: m.id, a: m.a, p: m.p, t: 0.5, dmg: atk * m.w * (m.mod === 'frenzied' ? 2 : 1) }); emit('spit', m); }
         if (m.p >= TUNE.spitStop) continue;
       }
+      // the tank's line: mobs in its arc stop there and fight it (a few dozen at most; the rest slip by)
+      if (tk && blocked < TUNE.tankHold && m.p >= TUNE.tankP && Math.abs(m.a - tkA) < TUNE.tankArc && m.kind !== 'bomber' && m.kind !== 'spitter' && m.kind !== 'hoard' && m.kind !== 'guardian' && !m.gob) {
+        blocked++; m.p = TUNE.tankP; m.held = 1;
+        if ((m.atkT -= dt) <= 0) {
+          m.atkT = 1;
+          let bd = atk * m.w * (m.mod === 'frenzied' ? 2 : 1) * (evo('bastion') ? 0.7 : 1);
+          for (const f of G.HOOKS.bite) { const x = f(m, tk.who, bd); if (x != null) bd = x; }
+          m.bit = tk.who; hitParty(tk.who, bd, 'bite'); emit('mobBite', m, tk.who);
+          if (R.stun > 0) break;
+        }
+        continue;
+      }
+      m.held = 0;
       if (m.p < 1) m.p = Math.min(1, m.p + m.sp * dt * slow);
       else if (m.kind === 'bomber') {
         // a bomber that reaches the Button goes off on it
@@ -10834,7 +10876,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       e.preventDefault();
       const p = toLogical(e);
       const what = doPress(p);
-      if (what === 'button' && G.S.set.hold) { holding = true; holdTimer = 0.12; }
+      // (holding repeats only once Steady Hand is bought, at its rate)
+      if (what === 'button' && G.S.set.hold && G.D.holdRate > 0) { holding = true; holdTimer = Math.max(0.1, 1 / G.D.holdRate); }
     });
     const end = () => { holding = false; };
     cv.addEventListener('pointerup', end);
@@ -10914,7 +10957,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   let btnHurtT = 0;
   // The Warden's animation state: position, facing, walk cycle and the current move
   const hero = { x: null, y: null, face: 1, walk: 0, moving: false, atk: null, cast: 0, tgt: null, tgtT: 9, hand: null, top: null };
-  function heroBase() { const b = btnPos(); return { x: b.x - 30, y: b.y + 16 }; }
+  // (a Warden who is the party's tank or healer takes that place; damage Wardens keep the left)
+  function heroBase() {
+    const b = btnPos(), r = G.S.hero && G.S.hero.cls ? G.ROLES[G.S.hero.cls] : 'dps';
+    if (r === 'tank' || r === 'heal') { const ti = G.tankInfo && G.tankInfo(); if (r === 'heal' || (ti && ti.who === -1)) return roleGoal(-1, r, null); }
+    return { x: b.x - 30, y: b.y + 16 };
+  }
   function heroPos() {
     if (hero.x == null) { const p = heroBase(); hero.x = p.x; hero.y = p.y; }
     return { x: Math.round(hero.x), y: Math.round(hero.y) };
@@ -10951,7 +10999,40 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   const aVis = i => allyVis[i] || (allyVis[i] = { atk: null, face: 1, hurt: 0, heal: 0, ph: Math.random() * 6 });
   // clear of the chest ring by the Button
   const SLOTS_AT = [[34, 14], [0, 36], [-34, -4]];
-  function allySlot(i) { const b = btnPos(), o = SLOTS_AT[i] || [0, 40]; return { x: b.x + o[0], y: b.y + o[1] }; }
+  // 3.0: companions move as their roles want (stepAllies): allySlot is where each one is right now
+  function allySlot(i) { const v = aVis(i); if (v.x == null) { const b = btnPos(), o = SLOTS_AT[i] || [0, 40]; v.x = b.x + o[0]; v.y = b.y + o[1]; } return { x: Math.round(v.x), y: Math.round(v.y) }; }
+  // a point on the line a mob walks: angle a (0-1, as mobs use it), p from the edge (0) to the Button (1)
+  function ringPos(a, p) {
+    const b = btnPos(), th = -Math.PI / 2 + 0.55 + a * (Math.PI * 2 - 1.1);
+    const sx = b.x + Math.cos(th) * W * 0.6, sy = b.y + Math.sin(th) * H * 0.56, ex = b.x + Math.cos(th) * 26, ey = b.y + Math.sin(th) * 14 + 4;
+    return { x: sx + (ex - sx) * p, y: sy + (ey - sy) * p };
+  }
+  // where a member of the party wants to be: the tank on its line, the healer behind the Button or at the
+  // side of whoever it's mending, damage on the flanks either side of the tank, a melee one lunging at its target
+  function roleGoal(who, role, wt) {
+    const ti = G.tankInfo && G.tankInfo(), ta = ti ? ti.a : 0.5, b = btnPos(), v = who < 0 ? hero : aVis(who);
+    if (role === 'tank' && ti && ti.who === who) return ringPos(ta, G.TUNE.tankP - 0.03);
+    if (role === 'heal') {
+      if (v.healT > 0 && v.healTo != null) { v.healT -= fdt; const q = unitPos(v.healTo); return { x: q.x + (q.x < b.x ? 12 : -12), y: q.y + 4 }; }
+      const o = ringPos(ta, 0.5), dx = b.x - o.x, dy = b.y - o.y, d = Math.hypot(dx, dy) || 1;
+      return { x: b.x + dx / d * 30 + Math.sin(time * 0.7 + (who + 2)) * 4, y: b.y + dy / d * 16 + 10 };
+    }
+    if (v.lunge > 0 && v.lungeTo) { v.lunge -= fdt; return v.lungeTo; }
+    if (!v.flk || (v.flkT = (v.flkT || 0) - fdt) <= 0) { v.flkT = rand(3, 6); v.flk = (who % 2 ? 1 : -1) * rand(0.1, 0.2); v.flkP = rand(0.86, 0.94); }
+    return ringPos(clamp(ta + v.flk, 0.03, 0.97), MELEE[wt] ? 0.84 : v.flkP);
+  }
+  function stepAllies(dt) {
+    if (!G.partyUnits) return;
+    for (const u of G.partyUnits()) {
+      if (u.who < 0 || u.down > 0) continue;
+      const v = aVis(u.who), q = allySlot(u.who), wt = u.eq.weapon ? G.ITEM_TYPE[u.eq.weapon.id] : null;
+      const g = roleGoal(u.who, u.role, wt), gx = clamp(g.x, 8, W - 8), gy = clamp(g.y, 30, H - Math.ceil(70 / S));
+      const dx = gx - v.x, dy = gy - v.y, d = Math.hypot(dx, dy);
+      v.moving = d > 1;
+      if (v.moving) { const sp = (u.role === 'tank' ? 50 : v.lunge > 0 ? 140 : 65) * dt, k = Math.min(1, sp / d); v.x += dx * k; v.y += dy * k; if (!v.atk && Math.abs(dx) > 0.5) v.face = dx > 0 ? 1 : -1; }
+    }
+  }
+  St.ringPos = ringPos;
   function unitPos(who) { return who === 'button' ? { x: btnPos().x, y: btnPos().y - 6 } : who < 0 ? heroPos() : allySlot(who); }
   St.unitPoint = who => { const q = unitPos(who); return St.toScreen(q.x, q.y - 12); };
   const ROLE_COL = { tank: '#7fb8ff', heal: '#8ae07a', dps: '#ff9a5a' };
@@ -10978,6 +11059,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const w = u.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
     shadow(q.x, q.y - 1, 12);
     if (v.heal > 0) { glow(q.x, q.y - 8, 9, '#8ae07a', v.heal * 2); v.heal -= fdt; }
+    // the tank wears a shield-glow while it is holding a line of mobs
+    if (u.role === 'tank' && G.R.mobs.some(m => m.held)) glow(q.x, q.y - 8, 13, '#7ab8ff', 0.16 + 0.07 * Math.sin(time * 4));
     let pose = 'rest', ang = G.Doll.restAngle(wt), draw = 0;
     const a = v.atk;
     if (a) {
@@ -11022,6 +11105,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       const tp = t0 ? mobPos(t0) : ev.boss && bossVis ? bossPos() : null;
       if (!tp) return;
       v.face = tp.x >= q.x ? 1 : -1;
+      // a melee companion (not the tank, who holds its line) lunges at its target and comes back
+      if (MELEE[wt] && G.ROLES[m.cls] !== 'tank' && t0) { v.lunge = 0.35; v.lungeTo = { x: tp.x - v.face * 7, y: tp.y + 2 }; }
       if (shots.length < 110 && !MELEE[wt]) shots.push({ x: q.x, y: q.y - 10, sx: q.x, sy: q.y - 10, tx: tp.x, ty: tp.y - 6, t: 0, dur: 0.2, col: G.WEAPONS[wt] ? G.WEAPONS[wt].col : '#ffffff', arrow: wt === 'bow', flat: wt === 'bow', big: wt === 'staff' });
       else if (MELEE[wt]) burst(tp.x, tp.y - 5, ['#ffffff', G.WEAPONS[wt].col], 3, 40, { life: 0.2 });
       for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
@@ -11029,6 +11114,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     });
     G.on('heal', (i, who) => {
       beamsFx.push({ kind: 'heal', from: i, to: who, t: 0, dur: 0.35 });
+      // the healer runs to whoever it mends (not to the Button: it mends that from where it stands)
+      if (i != null && who !== 'button' && who !== i) { const hv = aVisOf(i); hv.healTo = who; hv.healT = 1.2; }
       const q = unitPos(who);
       burst(q.x, q.y - 12, ['#8ae07a', '#ffffff'], 5, 30, { grav: -20, life: 0.5 });
       if (who !== 'button') aVisOf(who).heal = 0.3;
@@ -12437,7 +12524,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     buildHeroes();
 
     // hold-to-click
-    if (holding) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = 0.1; G.manualClick(); } }
+    if (holding) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = 1 / Math.max(0.5, G.D.holdRate || 0); if (G.D.holdRate > 0) G.manualClick(); } }
 
     lctx.imageSmoothingEnabled = false;
     lctx.drawImage(groundCanvas, 0, 0);
@@ -12503,7 +12590,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       } });
     });
     // Mobs and the hero
-    if (G.S.hero && G.S.hero.cls) stepHero(dt);
+    if (G.S.hero && G.S.hero.cls) { stepHero(dt); stepAllies(dt); }
     const mrealm = realm;
     for (const m of R.mobs || []) {
       const v = mobVisOf(m);
@@ -13374,7 +13461,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') {
         if (tg && tg.tagName === 'BUTTON' && e.code !== 'Space') return;
         e.preventDefault();
-        if (e.repeat && !G.S.set.hold) return;
+        // a held key repeats at Steady Hand's rate (none without it)
+        if (e.repeat) { const hr = G.D.holdRate || 0; if (!G.S.set.hold || hr <= 0 || performance.now() - (UI._holdT || 0) < 1000 / hr) return; UI._holdT = performance.now(); }
         G.Stage.keyClick();
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }

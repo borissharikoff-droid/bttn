@@ -137,6 +137,11 @@
       name: 'Iron Finger',
       desc: '+1 click power; ×2 at levels 10, 25, 50, 75…',
       fx: (L, D) => { D.clickAdd += L; D.clickMult *= Math.pow(2, G.FINGER_MILESTONES.filter(m => L >= m).length); } },
+    // 3.0: holding the Button clicks on its own only as fast as this allows: 1 click a second per level
+    { id: 'hold', icon: 'ic_clock', base: 30, growth: 2.6, max: 10,
+      name: 'Steady Hand',
+      desc: 'Hold the Button: +1 auto-click/s',
+      fx: (L, D) => { D.holdRate = L; } },
     { id: 'might', icon: 'ic_rune', base: 5000, growth: 30, max: 15,
       name: 'Rune of Might',
       desc: 'Click gold ×1.5',
