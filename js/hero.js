@@ -62,27 +62,27 @@
   };
   const ARMOR_MUL = { armor: 1, boot: 0.7, shield: 1.2, helm: 0.9, cloak: 0.85 };
   G.ABILITIES = {
-    potion: { cd: 18, name: 'Heal', desc: 'Repairs the Button by 60%' },
-    tome:   { cd: 24, name: 'Blessing', desc: 'Repairs 30%, damage ×1.5 for 6s' },
-    scroll: { cd: 40, name: 'Greed', desc: 'Mobs drop chests 3× as often for 12s' },
-    skull:  { cd: 16, name: 'Skull Blast', desc: 'Hits every enemy for 8 attacks' },
+    potion: { cd: 18, name: 'Heal', desc: 'Repairs 60%' },
+    tome:   { cd: 24, name: 'Blessing', desc: 'Repairs 30%, ×1.5 damage for 6s' },
+    scroll: { cd: 40, name: 'Greed', desc: '×3 chest drops for 12s' },
+    skull:  { cd: 16, name: 'Skull Blast', desc: '8 hits on every enemy' },
     orb:    { cd: 24, name: 'Stasis', desc: 'Slows mobs, +30% damage for 6s' },
     wing:   { cd: 30, name: 'Wings', desc: 'Attack speed ×2 for 8s' },
-    egg:    { cd: 30, name: 'Starfall', desc: '15 hits on the target, 4 on everyone' },
+    egg:    { cd: 30, name: 'Starfall', desc: '15 hits on target, 4 on all' },
   };
   G.CLASSES = [
     { id: 'knight', spr: 'h_knight', weapons: ['sword', 'katana', 'scythe'], starter: 'steel_sword', hp: 1.3, crit: 0, extra: 0,
-      name: 'Knight', desc: 'Swords, katanas and scythes. The Button is 30% tougher. A tank: draws most of the bites.',
-      descAlly: 'Swords, katanas and scythes. A tank: draws most of the bites and shrugs off 30% of them.' },
+      name: 'Knight', desc: 'Swords, katanas, scythes. Tank: draws bites, +30% toughness.',
+      descAlly: 'Swords, katanas, scythes. Tank: draws bites, takes 30% less.' },
     { id: 'archer', spr: 'h_archer', weapons: ['bow'], starter: 'short_bow', hp: 1, crit: 0, extra: 1,
-      name: 'Archer', desc: 'Bows. Arrows pierce one more enemy.' },
+      name: 'Archer', desc: 'Bows. Arrows pierce 1 more.' },
     { id: 'wizard', spr: 'h_wizard', weapons: ['staff', 'wand'], starter: 'twig_staff', hp: 1, crit: 0, extra: 0, spd: 0.15,
-      name: 'Wizard', desc: 'Staves and wands. Attacks 15% faster.' },
+      name: 'Wizard', desc: 'Staves, wands. +15% attack speed.' },
     { id: 'rogue', spr: 'h_rogue', weapons: ['dagger'], starter: 'rusty_dagger', hp: 1, crit: 0.1, extra: 0,
       name: 'Rogue', desc: 'Daggers. +10% crit chance.' },
     { id: 'cleric', spr: 'h_priest', weapons: ['staff', 'wand'], starter: 'oak_wand', hp: 1.1, crit: 0, extra: 0,
-      name: 'Cleric', desc: 'Staves and wands. Heals the party and the Button; while they stand, the fallen get up three times faster.',
-      descAlly: 'Staves and wands. Heals the party and the Button; while they stand, the fallen get up three times faster. Hits softly.' },
+      name: 'Cleric', desc: 'Staves, wands. Heals all; while alive, revives are 3× faster.',
+      descAlly: 'Staves, wands. Heals all; while alive, revives are 3× faster. Weak hits.' },
   ];
   // What each class does in the party: tanks draw the bites, healers mend, the rest deal damage
   G.ROLES = { knight: 'tank', cleric: 'heal', archer: 'dps', wizard: 'dps', rogue: 'dps' };
@@ -106,11 +106,11 @@
   // Currency, Path of Exile style: orbs drop from the Horde and change gear.
   // They stack and, like the gear, stay through ascension.
   G.ORBS = {
-    whet:   { w: 30, col: '#b8c8e0', name: 'Whetstone',     desc: 'Enchants an item +1 for free' },
-    flux:   { w: 32, col: '#ffd84a', name: 'Orb of Flux',   desc: 'Rerolls every affix on an item' },
-    ruin:   { w: 12, col: '#ff5a4a', name: 'Orb of Ruin',   desc: 'Corrupts an item: +3 item level, one more affix, or nothing. Corrupted items can\u2019t be changed again' },
-    ascent: { w: 10, col: '#ffe0a0', name: 'Orb of Ascent', desc: 'Adds an affix, one past the usual count' },
-    grace:  { w: 2,  col: '#ffffff', name: 'Orb of Grace',  desc: 'Rerolls affix values and keeps only the ones that go up' },
+    whet:   { w: 30, col: '#b8c8e0', name: 'Whetstone',     desc: 'Free +1 enchant' },
+    flux:   { w: 32, col: '#ffd84a', name: 'Orb of Flux',   desc: 'Rerolls all affixes' },
+    ruin:   { w: 12, col: '#ff5a4a', name: 'Orb of Ruin',   desc: 'Corrupts: +3 item level, +1 affix or nothing. Then only Whetstones work' },
+    ascent: { w: 10, col: '#ffe0a0', name: 'Orb of Ascent', desc: '+1 affix, up to usual max +1' },
+    grace:  { w: 2,  col: '#ffffff', name: 'Orb of Grace',  desc: 'May raise each affix value' },
   };
   G.ORB_IDS = Object.keys(G.ORBS);
 
@@ -119,26 +119,26 @@
   // from minD on. Their affixes count for ladder power, the rule only in fights.
   G.UNIQUE_COL = '#e8903a';
   G.UNIQUES = {
-    pincer:     { base: 'emerald_ring',   minD: 0,  name: 'The Crab King\u2019s Pincer', a: [['dmg', 0.25], ['crit', 0.05]], fx: 'Critical kills burst, hitting everything around them' },
-    goldgrin:   { base: 'amethyst_tiara', minD: 0,  name: 'Goldgrin',              a: [['gold', 0.6], ['luck', 0.3]], fx: '40% more loot drops' },
-    windripper: { base: 'hunter_bow',     minD: 7,  name: 'Windripper',            a: [['dmg', 0.35], ['crit', 0.05]], fx: 'Arrows fork: two more targets' },
-    cleaver:    { base: 'steel_sword',    minD: 9,  name: 'Warchief\u2019s Cleaver', a: [['dmg', 0.5], ['hp', 0.25]], fx: 'Every 5th attack is a critical hit with double splash' },
-    sporeheart: { base: 'realm_heart',    minD: 12, name: 'Sporeheart',            a: [['hp', 0.45], ['xp', 0.3]], fx: 'Every kill repairs the Button a little' },
-    stormcaller:{ base: 'frost_staff',    minD: 14, name: 'Stormcaller',           a: [['dmg', 0.4], ['spd', 0.15]], fx: 'Every attack calls a bolt on another mob' },
-    nightfang:  { base: 'crystal_dagger', minD: 17, name: 'Nightfang',             a: [['dmg', 0.35], ['spd', 0.25]], fx: 'Critical hits strike twice' },
-    headhunter: { base: 'titan_ring',     minD: 19, name: 'Headhunter',            a: [['dmg', 0.3], ['luck', 0.15]], fx: 'Slaying a rare: +60% damage and attack speed for 20s' },
-    frostwalk:  { base: 'old_boot',       minD: 22, name: 'Frostwalkers',          a: [['hp', 0.6], ['spd', 0.12]], fx: 'The Horde walks 35% slower' },
-    watcher:    { base: 'arcane_orb',     minD: 27, name: 'Eye of the Watcher',    a: [['crit', 0.08], ['critd', 0.8]], fx: 'Abilities recharge twice as fast' },
-    hellstring: { base: 'phoenix_bow',    minD: 31, name: 'Hellstring',            a: [['dmg', 0.6], ['spd', 0.2]], fx: 'Kills explode, hitting the mobs around them' },
-    voidplate:  { base: 'golden_plate',   minD: 34, name: 'Voidplate',             a: [['hp', 1.2], ['dmg', 0.2]], fx: 'Mobs that bite the Button take ten hits back' },
-    reaper:     { base: 'blood_scythe',   minD: 37, name: 'Reaper\u2019s Due',     a: [['dmg', 0.8], ['critd', 0.6]], fx: 'Each kill: +2% attack speed for 6s, up to +80%' },
-    lastbutton: { base: 'golden_button',  minD: 39, boss: true, name: 'The Last Button', a: [['dmg', 0.5], ['gold', 0.5], ['luck', 0.3], ['xp', 0.3]], fx: 'Every click strikes twice. Only the Mad Button and deep Rifts drop it' },
+    pincer:     { base: 'emerald_ring',   minD: 0,  name: 'The Crab King\u2019s Pincer', a: [['dmg', 0.25], ['crit', 0.05]], fx: 'Crit kills explode' },
+    goldgrin:   { base: 'amethyst_tiara', minD: 0,  name: 'Goldgrin',              a: [['gold', 0.6], ['luck', 0.3]], fx: '+40% loot drops' },
+    windripper: { base: 'hunter_bow',     minD: 7,  name: 'Windripper',            a: [['dmg', 0.35], ['crit', 0.05]], fx: 'Arrows fork: +2 targets' },
+    cleaver:    { base: 'steel_sword',    minD: 9,  name: 'Warchief\u2019s Cleaver', a: [['dmg', 0.5], ['hp', 0.25]], fx: 'Every 5th attack crits with 2× splash' },
+    sporeheart: { base: 'realm_heart',    minD: 12, name: 'Sporeheart',            a: [['hp', 0.45], ['xp', 0.3]], fx: 'Kills repair the Button a little' },
+    stormcaller:{ base: 'frost_staff',    minD: 14, name: 'Stormcaller',           a: [['dmg', 0.4], ['spd', 0.15]], fx: 'Attacks call a bolt on another mob' },
+    nightfang:  { base: 'crystal_dagger', minD: 17, name: 'Nightfang',             a: [['dmg', 0.35], ['spd', 0.25]], fx: 'Crits deal 2× damage' },
+    headhunter: { base: 'titan_ring',     minD: 19, name: 'Headhunter',            a: [['dmg', 0.3], ['luck', 0.15]], fx: 'Rare kills: +60% damage and attack speed for 20s' },
+    frostwalk:  { base: 'old_boot',       minD: 22, name: 'Frostwalkers',          a: [['hp', 0.6], ['spd', 0.12]], fx: 'Horde moves 35% slower' },
+    watcher:    { base: 'arcane_orb',     minD: 27, name: 'Eye of the Watcher',    a: [['crit', 0.08], ['critd', 0.8]], fx: 'Abilities recharge 2× faster' },
+    hellstring: { base: 'phoenix_bow',    minD: 31, name: 'Hellstring',            a: [['dmg', 0.6], ['spd', 0.2]], fx: 'Kills explode' },
+    voidplate:  { base: 'golden_plate',   minD: 34, name: 'Voidplate',             a: [['hp', 1.2], ['dmg', 0.2]], fx: 'Biting mobs take 10 hits back' },
+    reaper:     { base: 'blood_scythe',   minD: 37, name: 'Reaper\u2019s Due',     a: [['dmg', 0.8], ['critd', 0.6]], fx: 'Kills: +2% attack speed for 6s, max +80%' },
+    lastbutton: { base: 'golden_button',  minD: 39, boss: true, name: 'The Last Button', a: [['dmg', 0.5], ['gold', 0.5], ['luck', 0.3], ['xp', 0.3]], fx: 'Clicks strike twice. Mad Button and deep Rifts only' },
     // past the Button
     codex:      { base: 'star_codex',     minD: 44, name: 'The Drowned Codex',     a: [['xp', 0.4], ['dmg', 0.45]], fx: 'Spitters and bombers die to any hit' },
-    tyrant:     { base: 'king_crown',     minD: 49, name: 'Crown of the Gear Tyrant', a: [['spd', 0.3], ['dmg', 0.5]], fx: 'Tanks, brutes and champions take double damage' },
-    ashbringer: { base: 'dragon_sword',   minD: 54, name: 'Ashbringer',            a: [['dmg', 1], ['critd', 0.6]], fx: 'The Warden\u2019s kills burst into flame, burning the mobs around them' },
-    othercloak: { base: 'void_cloak',     minD: 59, name: 'The Other Cloak',       a: [['hp', 1.1], ['crit', 0.08]], fx: 'One bite in three is turned back: the mob dies instead' },
-    firsthand:  { base: 'celestial_staff', minD: 64, boss: true, name: 'Palm of the First Hand', a: [['dmg', 1.1], ['spd', 0.3], ['gold', 0.4]], fx: 'Every click calls three more bolts. Only the First Hand and deep Rifts drop it' },
+    tyrant:     { base: 'king_crown',     minD: 49, name: 'Crown of the Gear Tyrant', a: [['spd', 0.3], ['dmg', 0.5]], fx: 'Tanks, brutes, champions take 2× damage' },
+    ashbringer: { base: 'dragon_sword',   minD: 54, name: 'Ashbringer',            a: [['dmg', 1], ['critd', 0.6]], fx: 'Warden kills explode in flame' },
+    othercloak: { base: 'void_cloak',     minD: 59, name: 'The Other Cloak',       a: [['hp', 1.1], ['crit', 0.08]], fx: '1 bite in 3 kills the biter instead' },
+    firsthand:  { base: 'celestial_staff', minD: 64, boss: true, name: 'Palm of the First Hand', a: [['dmg', 1.1], ['spd', 0.3], ['gold', 0.4]], fx: 'Clicks call 3 more bolts. First Hand and deep Rifts only' },
   };
   G.UNIQUE_IDS = Object.keys(G.UNIQUES);
   // Rift level -> the depth its Horde fights at: Rift N fights like depth N
@@ -147,20 +147,20 @@
   // Level-up perks, Vampire Survivors style: each level the Warden picks one
   // of three. They build this run's Warden and reset on ascension (gear stays).
   G.PERKS = {
-    might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses included' },
+    might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses too' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
-    plunder: { max: 3, icon: 'pk_plunder', name: 'Plunder', desc: 'Kills pop chests open on their own: a 0.2% chance each kill, per level' },
-    multi:   { max: 3, icon: 'it_short_bow', name: 'Multistrike', desc: 'Each attack hits one more target' },
+    plunder: { max: 3, icon: 'pk_plunder', name: 'Plunder', desc: 'Kills open a chest: 0.2% per level' },
+    multi:   { max: 3, icon: 'it_short_bow', name: 'Multistrike', desc: '+1 target per attack' },
     cleave:  { max: 4, icon: 'it_blood_scythe', name: 'Cleave', desc: '+30% splash radius' },
     reach:   { max: 3, icon: 'it_hunter_bow', name: 'Long Reach', desc: '+20% attack range' },
-    blades:  { max: 5, icon: 'it_steel_sword', name: 'Orbiting Blades', desc: 'One more blade circles the Button, cutting what it touches' },
-    aura:    { max: 5, icon: 'ic_star', name: 'Holy Ground', desc: 'Burns everything close to the Button, harder each level' },
-    chain:   { max: 4, icon: 'ic_bolt', name: 'Chain Lightning', desc: '+15% chance a hit arcs to 3 more mobs' },
-    nova:    { max: 4, icon: 'it_arcane_orb', name: 'Nova', desc: 'A blast around the Button, sooner each level; hurts bosses' },
-    thunder: { max: 3, icon: 'ic_finger', name: 'Heavy Hand', desc: 'Each click calls one more bolt' },
+    blades:  { max: 5, icon: 'it_steel_sword', name: 'Orbiting Blades', desc: '+1 blade circling the Button' },
+    aura:    { max: 5, icon: 'ic_star', name: 'Holy Ground', desc: 'Burns nearby mobs, more per level' },
+    chain:   { max: 4, icon: 'ic_bolt', name: 'Chain Lightning', desc: '+15% chance attacks arc to 3 mobs' },
+    nova:    { max: 4, icon: 'it_arcane_orb', name: 'Nova', desc: 'Button blast, more often per level; hits bosses' },
+    thunder: { max: 3, icon: 'ic_finger', name: 'Heavy Hand', desc: '+1 bolt per click' },
     bulwark: { max: 5, icon: 'it_knight_shield', name: 'Bulwark', desc: '+20% Button toughness' },
-    leech:   { max: 3, icon: 'ic_heart', name: 'Leech', desc: 'Every kill repairs the Button a little' },
-    greed:   { max: 5, icon: 'ic_coin', name: 'Greed', desc: '+20% gold from the Horde' },
+    leech:   { max: 3, icon: 'ic_heart', name: 'Leech', desc: 'Kills repair the Button a little' },
+    greed:   { max: 5, icon: 'ic_coin', name: 'Greed', desc: '+20% Horde gold' },
     loot:    { max: 3, icon: 'ic_bag', name: 'Scavenger', desc: '+25% loot bag drops' },
   };
   const perk = id => (G.S.hero && G.S.hero.perks && G.S.hero.perks[id]) || 0;
@@ -175,17 +175,17 @@
   // gear worn turns the next level-up into a golden card. Discoveries are kept
   // forever and fill a recipe book in the Collection.
   G.EVOS = {
-    bladestorm: { from: 'blades', slot: 'weapon', types: ['sword', 'katana', 'dagger'], need: 'a blade', icon: 'it_eternity_blade', name: 'Blade Storm', desc: 'Twice the blades, wider and deadlier' },
-    sanctuary:  { from: 'aura', slot: 'ring', types: ['halo', 'crown'], need: 'a halo or crown', icon: 'it_halo', name: 'Sanctuary', desc: 'Holy Ground doubles, reaches further and repairs the Button' },
-    supernova:  { from: 'nova', slot: 'ability', types: ['orb', 'egg'], need: 'an orb or cosmic egg', icon: 'it_moon_orb', name: 'Supernova', desc: 'A bigger, stronger Nova every 3 seconds' },
-    storm:      { from: 'chain', slot: 'weapon', types: ['wand', 'staff'], need: 'a wand or staff', icon: 'it_chaos_wand', name: 'Thunderstorm', desc: 'Every hit chains to 5 mobs' },
-    rain:       { from: 'multi', slot: 'weapon', types: ['bow'], need: 'a bow', icon: 'it_phoenix_bow', name: 'Arrow Rain', desc: '3 more targets and 50% wider splash' },
-    wrath:      { from: 'thunder', slot: 'ability', types: ['tome', 'scroll'], need: 'a tome or scroll', icon: 'it_star_codex', name: 'Wrath of the Hand', desc: 'Each click calls 3 more bolts' },
-    bloodpact:  { from: 'leech', slot: 'ring', types: ['heart', 'amulet'], need: 'a heart or amulet', icon: 'it_realm_heart', name: 'Blood Pact', desc: 'Kills repair 4× as much, +25% damage' },
-    midas:      { from: 'greed', slot: 'ring', types: ['button', 'ring'], need: 'a ring', icon: 'it_golden_button', name: 'Midas Touch', desc: 'Horde gold ×2, loot bags +50%' },
+    bladestorm: { from: 'blades', slot: 'weapon', types: ['sword', 'katana', 'dagger'], need: 'a blade', icon: 'it_eternity_blade', name: 'Blade Storm', desc: '2× blades, wider and deadlier' },
+    sanctuary:  { from: 'aura', slot: 'ring', types: ['halo', 'crown'], need: 'a halo or crown', icon: 'it_halo', name: 'Sanctuary', desc: 'Holy Ground ×2, wider, repairs the Button' },
+    supernova:  { from: 'nova', slot: 'ability', types: ['orb', 'egg'], need: 'an orb or cosmic egg', icon: 'it_moon_orb', name: 'Supernova', desc: 'Bigger, stronger Nova every 3s' },
+    storm:      { from: 'chain', slot: 'weapon', types: ['wand', 'staff'], need: 'a wand or staff', icon: 'it_chaos_wand', name: 'Thunderstorm', desc: 'Attacks always chain to 5' },
+    rain:       { from: 'multi', slot: 'weapon', types: ['bow'], need: 'a bow', icon: 'it_phoenix_bow', name: 'Arrow Rain', desc: '+3 targets, +50% splash' },
+    wrath:      { from: 'thunder', slot: 'ability', types: ['tome', 'scroll'], need: 'a tome or scroll', icon: 'it_star_codex', name: 'Wrath of the Hand', desc: '+3 bolts per click' },
+    bloodpact:  { from: 'leech', slot: 'ring', types: ['heart', 'amulet'], need: 'a heart or amulet', icon: 'it_realm_heart', name: 'Blood Pact', desc: 'Kills repair 4× more, +25% damage' },
+    midas:      { from: 'greed', slot: 'ring', types: ['button', 'ring'], need: 'a ring', icon: 'it_golden_button', name: 'Midas Touch', desc: 'Horde gold ×2, +50% loot bags' },
     berserk:    { from: 'frenzy', slot: 'armor', types: ['helm'], need: 'a helm', icon: 'it_demon_helm', name: 'Berserk', desc: '+50% attack speed' },
     titan:      { from: 'might', slot: 'armor', types: ['armor'], need: 'body armour', icon: 'it_golden_plate', name: 'Titan', desc: '+50% damage' },
-    bastion:    { from: 'bulwark', slot: 'armor', types: ['shield'], need: 'a shield', icon: 'it_knight_shield', name: 'Bastion', desc: 'Button toughness ×2, bites hurt 30% less' },
+    bastion:    { from: 'bulwark', slot: 'armor', types: ['shield'], need: 'a shield', icon: 'it_knight_shield', name: 'Bastion', desc: 'Toughness ×2, bites deal 30% less' },
   };
   const evo = id => perk('evo_' + id);
   G.evo = evo;

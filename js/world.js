@@ -390,8 +390,8 @@
   G.SHRINES = {
     frenzy:    { col: '#ff7a2e', name: 'Shrine of Frenzy', desc: 'Attack speed ×2' },
     greed:     { col: '#ffd84a', name: 'Shrine of Greed', desc: 'Loot ×3, gold ×2' },
-    storm:     { col: '#7fe9ff', name: 'Shrine of Storms', desc: 'Every click calls 3 more bolts, every swing chains' },
-    slaughter: { col: '#ff4f7e', name: 'Shrine of Slaughter', desc: 'The Horde comes 2.5× thicker, XP ×2' },
+    storm:     { col: '#7fe9ff', name: 'Shrine of Storms', desc: '+3 bolts per click, every swing chains' },
+    slaughter: { col: '#ff4f7e', name: 'Shrine of Slaughter', desc: 'Horde 2.5× thicker, XP ×2' },
   };
   function spawnShrine() {
     const ks = Object.keys(G.SHRINES);
