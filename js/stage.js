@@ -562,7 +562,8 @@
   // 2.3: where a wind-up's weak point opens: round the boss, never over its head
   function weakPos() {
     const b = G.R.boss; if (!b || !b.move || !bossVis) return null;
-    const bp = bossPos(), hh = bossHalf(), th = Math.PI / 2 + (b.move.wp * 2 - 1) * Math.PI * 0.8;
+    // (to the sides and below, never up under the land box and the Torment dial)
+    const bp = bossPos(), hh = bossHalf(), th = Math.PI / 2 + (b.move.wp * 2 - 1) * Math.PI * 0.55;
     return { x: clamp(bp.x + Math.cos(th) * (hh.w + 16), 10, W - 10), y: clamp(bp.y - hh.h + Math.sin(th) * (hh.h + 12), 24, H - 30) };
   }
   St.weakPoint = () => { const p = weakPos(); return p && { x: p.x * S, y: p.y * S }; };

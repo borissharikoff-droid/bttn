@@ -46,7 +46,7 @@
   // 2.3: the Torment dial: shows once the first land is conquered
   function updateTorment() {
     const el = $('#torment'); if (!el || !G.S) return;
-    const mx = G.tormentMax(), T = G.torment(), busy = !!(G.R.boss || G.R.rift);
+    const mx = G.tormentMax(), T = G.torment(true), busy = !!(G.R.boss || G.R.rift);
     el.hidden = mx < 1;
     if (mx < 1) return;
     setText($('#tormentN'), t('tormentN', T.n, mx));
@@ -473,13 +473,14 @@
       // an invasion: hold it off until its herald comes, then slay the herald
       const V = G.INV_BY_ID[R.inv.k], hb = R.inv.boss ? R.mobs.find(m => m.id === R.inv.boss) : null;
       $('#bossMeter').style.width = (hb ? Math.max(0, hb.hp / hb.max) : Math.min(1, R.inv.prog / R.inv.need)) * 100 + '%';
-      setClass($('#bossWrap'), 'hp', !!hb); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'waves', false);
+      setClass($('#bossWrap'), 'hp', !!hb); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'enr', false); setClass($('#bossWrap'), 'waves', false);
       setText($('#bossText'), hb ? t('invHerald', V.bossName, Math.ceil(R.inv.t)) : t('invName', V.name, Math.floor(Math.min(R.inv.prog, R.inv.need)), R.inv.need, Math.ceil(R.inv.t)));
       $('#btnFight').hidden = true; $('#btnRetreat').hidden = true;
     } else if (bossShown && R.rift) {
       const r = R.rift, g = r.guard ? R.mobs.find(m => m.id === r.guard) : null;
       $('#bossMeter').style.width = (g ? Math.max(0, g.hp / g.max) : Math.min(1, r.prog / r.need)) * 100 + '%';
-      setClass($('#bossWrap'), 'hp', !!g); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'waves', false);
+      setClass($('#bossWrap'), 'hp', !!g); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'enr', false); setClass($('#bossWrap'), 'waves', false);
+      setClass($('#bossWrap'), 'enr', false);
       setText($('#bossText'), t('riftName', r.lvl) + ' · ' + Math.ceil(r.t) + 's · ' + (g ? t('riftGuardian') : Math.floor(Math.min(1, r.prog / r.need) * 100) + '%'));
       $('#btnFight').hidden = true; $('#btnRetreat').hidden = false;
     } else if (bossShown) {
@@ -492,7 +493,7 @@
         setClass($('#bossWrap'), 'enr', R.boss.enr > 0);
         $('#btnFight').hidden = true; $('#btnRetreat').hidden = false;
       } else {
-        setClass($('#bossWrap'), 'hp', false);
+        setClass($('#bossWrap'), 'hp', false); setClass($('#bossWrap'), 'enr', false);
         const need = D.bossNeed;
         $('#bossMeter').style.width = Math.min(100, S.bossMeter / need * 100) + '%';
         const hs = G.hordeScale(), weak = G.mightRatio() < 1.35;

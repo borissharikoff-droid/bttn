@@ -80,9 +80,10 @@
     if (kind === 'gear') {
       // bad-luck protection: a legendary at the latest every 250 drops
       if (what.r >= 4) S.st.dryL = 0;
-      else if ((S.st.dryL = (S.st.dryL || 0) + 1) >= 250) { what = G.pickItem(4); S.st.dryL = 0; }
-      // now and then a drop upgrades in mid-air
-      if (what.r < 6 && chance(0.04)) { e.from = what.r; what = G.pickItem(what.r + 1); }
+      // (or the best the depth allows yet)
+      else if ((S.st.dryL = (S.st.dryL || 0) + 1) >= 250) { what = G.pickItem(Math.min(4, G.rarityCap())); S.st.dryL = 0; }
+      // now and then a drop upgrades in mid-air (when the depth allows the next rarity)
+      if (what.r < Math.min(6, G.rarityCap()) && chance(0.04)) { e.from = what.r; what = G.pickItem(what.r + 1); }
     }
     // item level is fixed where it falls: Rift loot keeps the Rift's depth
     if (kind === 'gear') { e.it = what; e.r = what.r; e.il = d + (chance(0.35) ? 1 : 0); }
@@ -168,12 +169,12 @@
     if (m.kind === 'guardian') return null; // the Rift or the invasion pays out on its own
     if (m.kind === 'rare') return shower(m, randInt(3, 5), 1, 0.006 * (uq('goldgrin') ? 1.5 : 1), { floorN: 1, spread: 0.05 });
     // the first champion ever always drops an epic
-    if (m.kind === 'magic' && !S.st.firstMagic) { S.st.firstMagic = 1; return drop('gear', G.pickItem(3), m); }
+    if (m.kind === 'magic' && !S.st.firstMagic) { S.st.firstMagic = 1; return drop('gear', G.pickItem(3, true), m); }
     // everything else drops by its weight: a brute's worth of fodder drops about what a brute does
     // fodder: a pack drops what it did before 2.1, however many more bodies it now comes in
     let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder / ((G.TUNE.packMul || 1) * m.w / G.MOB_KINDS.fodder.w) : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
     p *= k * (G.torment ? G.torment().drop : 1);
-    if (h.kills < 60 && !S.st.firstRare && chance(0.08)) { S.st.firstRare = 1; return drop('gear', G.pickItem(2), m); }
+    if (h.kills < 60 && !S.st.firstRare && chance(0.08)) { S.st.firstRare = 1; return drop('gear', G.pickItem(2, true), m); }
     let e = null;
     while (p > 0) {
       if (chance(Math.min(1, p))) e = chance(TUNE.orbShare) ? drop('orb', rollOrb(), m) : drop('gear', rollGear(m.kind === 'magic' ? 1 : 0), m);
@@ -294,7 +295,7 @@
     // your progress, so re-clearing old lands after ascending doesn't turn every crown into 0.1s
     const S = S_();
     if (b.lord && b.scar === 1 && !b.rally && b.d + 1 >= S.bestDepth) {
-      const secs = Math.max(0.1, +(b.T - b.t).toFixed(1));
+      const secs = Math.max(0.1, +(b.T - b.t + (b.enrT ? b.enrT - Math.max(0, b.enr) : 0)).toFixed(1));
       S.rec.crowns = S.rec.crowns || {};
       const was = S.rec.crowns[b.d];
       if (!(was > 0) || secs < was) { S.rec.crowns[b.d] = secs; emit('crownTime', b.d, secs, was); }
@@ -431,6 +432,7 @@
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.breach) closeBreach();
     R.shrine = null;
+    R.dirty = true; // (Torment pays nothing in a Rift)
     R.rift = { lvl, max: G.riftMax(), d: G.riftDepth(lvl), t: TUNE.riftTime, T: TUNE.riftTime, prog: 0, need: TUNE.riftNeed, guard: null, kills: 0 };
     R.hordeAcc = 1; R.surgeT = 8; R.surge = 0;
     rf.runs++; S.st.rifts = (S.st.rifts || 0) + 1;
@@ -457,7 +459,7 @@
   function riftEnd(win, why) {
     const S = S_(), r = R.rift, rf = S.rift;
     if (!r) return;
-    R.rift = null;
+    R.rift = null; R.dirty = true;
     const used = r.T - r.t;
     for (const m of R.mobs) { m.dead = true; if (win) { m.over = 2; emit('mobDie', m, 0, null, 'boss'); } else emit('mobFlee', m); }
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;

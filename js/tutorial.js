@@ -40,7 +40,7 @@
     tip_asc: "You can ascend! The run restarts, but you earn fame: a permanent bonus to gold and damage. Gear and pets stay.",
     tip_shards: 'Shards piled up. In the Party tab, tap a worn item and enchant it.',
     tip_break: 'Mobs broke the Button: for 12 seconds your clicks do nothing. If the whole party falls before it mends, the Horde breaks through and pushes you back a depth. Get tougher armour or enchant it.',
-    tip_wall: 'This boss is a wall for now. Every try rallies the Warden (+15-20% damage on it), or ascend: you earn fame, a permanent bonus, and come back much stronger. Gear and pets stay.',
+    tip_wall: 'This boss is a wall for now. Every try rallies the Warden (+5% damage on it, up to +15%), or ascend: you earn fame, a permanent bonus, and come back much stronger. Gear and pets stay.',
     tip_loot: 'Loot falls where mobs die, and its label says what it is. Tap a label to grab it now, or the Warden gathers it in a moment. A beam means something good.',
     tip_spitter: 'A spitter: it stops at range and lobs globs at the Button. Tap it so the Warden kills it first.',
     tip_bomber: 'A bomber, fuse lit. Kill it in the crowd and it takes the pack with it. Let it reach the Button and it blows up on it.',

@@ -40,8 +40,8 @@ All progress so far was made while the game was far too easy, so 2.3 starts a ne
 ## Bosses
 
 - **Weak points.** When a boss winds up a move, a glowing target opens beside it. Tap it 3–6 times (one more for a lord) to break the move. Clicking the Button or pressing Space no longer counts. Smite (Z) still breaks any move.
-- **DOOM.** From the second land on, bosses wind up DOOM. If it lands, the Button takes 85% of its health and each standing hero 80% (95% and 90% from a lord). Ward blocks it completely, and a broken wind-up or Smite stops it.
-- **ENRAGE.** When the timer runs out, the boss enrages for 10 more seconds (14 for a lord). Its blows come twice as often and grow from twice to four times as hard. Finish it in time, or it leaves with its wounds.
+- **DOOM.** From the second land on, bosses wind up DOOM. If it lands, the Button takes 85% of its health and each standing hero 80% (95% and 90% from a lord, even in its rage), so a Button at full health always survives it. Ward blocks it completely, and a broken wind-up or Smite stops it.
+- **ENRAGE.** When the timer runs out, the boss enrages for 10 more seconds (14 for a lord). Its blows come twice as often and grow from 1.5 to 3 times as hard, though no single blow takes more than 35% of what it hits. Finish it in time, or it leaves with its wounds.
 - **Affixes.** From depth 9, every boss carries an affix. From depth 31 it carries two, and lords get one more from depth 15. The affixes are the same at the same depth every try, so a wall can be studied.
 
   | Affix | Effect |
@@ -58,16 +58,17 @@ All progress so far was made while the game was far too easy, so 2.3 starts a ne
 ## Torment
 
 - One level of Torment opens with every land you conquer, up to 10. Set it with **− / +** under the land name. You can change it any time outside a boss fight or a Rift.
-- Each level gives the Horde 35% more health and 20% stronger bites, and the bosses 35% more health. At Torment 4 and 8, bosses get an extra affix.
+- Each level gives the Horde 35% more health and 20% stronger bites. Bosses get 35% more health and 10% more time to beat them. At Torment 4 and 8, bosses get an extra affix.
 - In return, each level adds:
   - +35% gold;
   - +30% XP;
   - +15% loot;
   - +12% luck;
-  - +12% fame;
+  - +12% fame, counted from the highest Torment you beat a boss at on your deepest ground this run, so raising the dial just before you ascend adds nothing;
 
   and every three levels make gear one rarity step easier to find.
-- The tooltip on the dial shows exact numbers. A card announces each new level when it opens.
+- Torment does nothing in a Rift, which has its own levels: it neither makes the Rift harder nor adds to its rewards.
+- The tooltip on the dial shows exact numbers. A card announces each new level when it opens. When you far outclass new ground, the clear bar suggests raising Torment.
 
 ## Loot
 
@@ -82,7 +83,7 @@ All progress so far was made while the game was far too easy, so 2.3 starts a ne
   | divine | 41 |
 
   A Rift that deep counts too, and Torment brings each one sooner.
-- **The JACKPOT ignores the limit.**
+- **The JACKPOT, the Journey and the daily gift ignore the limit,** and so do your first rare drop and your first champion's epic. The legendary pity gives the best rarity the depth allows, and a drop only upgrades in mid-air when the next rarity is open.
 
 ## Ascension
 

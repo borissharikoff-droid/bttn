@@ -1196,12 +1196,13 @@
       R.bossAtkT -= dt;
       if (R.bossAtkT <= 0) {
         const b = R.boss, v = victim();
-        // enraged: twice as often, and harder with every second of it
-        const enr = b.enr > 0 ? 2 + 2 * (1 - b.enr / (b.enrT || 1)) : 1;
+        // enraged: twice as often, and harder with every second of it (1.5 to 3 times; no blow takes more than
+        // 35% of what it hits, so it hurries the fight rather than ending it at once)
+        const enr = b.enr > 0 ? 1.5 + 1.5 * (1 - b.enr / (b.enrT || 1)) : 1;
         R.bossAtkT = 2 / (1 + 0.25 * ((b.phase || 1) - 1)) / (b.enr > 0 ? 2 : 1) / (G.bossHas(b, 'hasted') ? 1.4 : 1);
         emit('bossHit', b, v);
         const fr = G.bossHas(b, 'frenzied') ? 1.5 : 1;
-        G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1) * enr * fr, (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1) * enr * fr, 'boss');
+        G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1) * enr * fr, Math.min(0.35, (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1) * enr * fr), 'boss');
         // Vampiric: every blow that lands feeds it
         if (G.bossHas(b, 'vampiric') && R.boss === b && !(R.ward > 0)) { b.hp = Math.min(b.max, b.hp + b.max * (b.lord ? 0.012 : 0.02)); emit('bossLeech', b); }
       }

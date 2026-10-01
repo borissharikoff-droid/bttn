@@ -64,7 +64,7 @@
       // the jackpot: how many, and the play time of the last one (its odds climb with every hour since)
       jp: { n: 0, at: 0 },
       // 2.3: the chosen Torment level (see G.torment)
-      torment: 0,
+      torment: 0, tormentRun: 0,
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -112,7 +112,8 @@
     for (const l of G.LEGACY) { const L = S.legacy[l.id] || 0; if (L) l.fx(L, d); }
     if (G.heroEcon) G.heroEcon(d);
     // Torment pays: gold, XP, luck and fame
-    { const T = torment(); d.goldMult *= T.gold; d.xpMult = (d.xpMult || 1) * T.xp; d.luck += T.luck; d.fameMult = (d.fameMult || 1) * T.fame; }
+    // (fame is paid for the highest Torment a boss was beaten at on this run's deepest ground, not for the dial's setting)
+    { const T = torment(); d.goldMult *= T.gold; d.xpMult = (d.xpMult || 1) * T.xp; d.luck += T.luck; d.fameMult = (d.fameMult || 1) * (1 + 0.12 * Math.min(S.tormentRun || 0, TORMENT_MAX)); }
 
     // Collection bonuses
     const sums = {};
@@ -192,8 +193,9 @@
   // One level opens with each land conquered, up to ten. Each level makes the Horde and the bosses
   // tougher and harder-hitting, and pays more of everything; from level 3 the rarer gear comes sooner.
   const TORMENT_MAX = G.TORMENT_MAX = 10;
-  function torment() {
-    const n = G.S ? Math.min(G.S.torment || 0, tormentMax()) : 0;
+  // (a Rift is fought at its own level: Torment neither hardens it nor pays in it. any: the chosen level anyway, for the dial)
+  function torment(any) {
+    const n = G.S && (any || !R.rift) ? Math.min(G.S.torment || 0, tormentMax()) : 0;
     return { n, mobHp: Math.pow(1.35, n), bite: Math.pow(1.2, n), bossHp: Math.pow(1.35, n), bossTime: 1 + 0.1 * n, horde: 1 + 0.08 * n,
       affix: (n >= 4 ? 1 : 0) + (n >= 8 ? 1 : 0), gold: 1 + 0.35 * n, xp: 1 + 0.3 * n, luck: 0.12 * n, drop: 1 + 0.15 * n, fame: 1 + 0.12 * n, rarity: Math.floor(n / 3) };
   }
@@ -431,7 +433,8 @@
     // a little chest from the Horde is mostly coin: an item only now and then
     if (c.small && !chance(TUNE.smallItem)) n = 0;
     for (let i = 0; i < n; i++) {
-      const li = lootItem(pickItem(rollRarity(c.tier, rolls)), source);
+      // (a promised chest, from the Journey or the daily gift, holds what it promises whatever the depth)
+      const li = lootItem(pickItem(rollRarity(c.tier, rolls), source === 'journey' || source === 'daily'), source);
       li.v *= valMult;
       loot.gold += li.v;
       loot.items.push(li);
@@ -608,8 +611,9 @@
     // Doom: most of everyone's health at once. A Button that isn't full breaks, and the party goes down with it
     if (k === 'doom' && G.blowParty) {
       const up = G.partyUnits ? G.partyUnits().filter(u => !(u.down > 0)) : [];
-      G.blowParty('button', 0, (b.lord ? 0.95 : 0.85) * rage, 'doom');
-      for (const u of up) if (R.boss === b) G.blowParty(u.who, 0, (b.lord ? 0.9 : 0.8) * rage, 'doom');
+      // (never the rage on top: a Button at full health always survives it)
+      G.blowParty('button', 0, b.lord ? 0.95 : 0.85, 'doom');
+      for (const u of up) if (R.boss === b) G.blowParty(u.who, 0, b.lord ? 0.9 : 0.8, 'doom');
     }
     emit('bossMoveLand', b, k);
   }
@@ -680,7 +684,8 @@
     const rally = (S.scar && S.scar.d === d ? TUNE.rally * Math.min(TUNE.rallyMax, S.scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
-    R.boss = { d, lord, hp, max, scar, rally, phase: 1, inv: 0, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
+    const time = (D.bossTime + (lord ? 15 : 0)) * torment().bossTime;
+    R.boss = { d, lord, hp, max, scar, rally, phase: 1, inv: 0, t: time, T: time, moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
     // 2.3: from the second land on, bosses carry affixes, the same ones at the same depth every try
     R.boss.affix = bossAffixes(d);
@@ -722,7 +727,7 @@
     const scar = S.scar && S.scar.d === d ? S.scar : null;
     const hp = bossMax(d) * (scar ? scar.k : 1);
     const rally = (scar ? TUNE.rally * Math.min(TUNE.rallyMax, scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
-    return (D.heroDps || 0) * (D.bossMult || 1) * (1 + rally) * (D.bossTime + (lord ? 15 : 0)) / Math.max(1e-9, hp);
+    return (D.heroDps || 0) * (D.bossMult || 1) * (1 + rally) * (D.bossTime + (lord ? 15 : 0)) * torment().bossTime / Math.max(1e-9, hp);
   }
   G.bossOdds = bossOdds;
 
@@ -780,6 +785,7 @@
     if (S.scar && S.scar.d === d) S.scar = null;
     S.rested = 0;
     S.depth++;
+    if (S.depth >= S.maxDepth) S.tormentRun = Math.max(S.tormentRun || 0, torment().n);
     if (S.depth > S.maxDepth) S.maxDepth = S.depth;
     if (S.depth > S.bestDepth) {
       S.bestDepth = S.depth;
@@ -1087,7 +1093,7 @@
     S.lastRunEss = S.essRun;
     const fresh = newState();
     const runKeys = ['gold', 'goldRun', 'clicksRun', 'upg', 'heroes', 'nodes', 'essence', 'essRun', 'depth', 'maxDepth',
-      'pots', 'chests', 'chestMeter', 'bossMeter', 'buffs', 'quests', 'scar'];
+      'pots', 'chests', 'chestMeter', 'bossMeter', 'buffs', 'quests', 'scar', 'tormentRun'];
     runKeys.forEach(k => S[k] = fresh[k]);
     S.pots = Object.assign(potZero(), keep);
     const L = S.legacy;
@@ -1172,7 +1178,7 @@
         if (b.t <= 0 && !b.enr) { b.t = 0; b.enr = b.lord ? TUNE.enrageLord : TUNE.enrage; b.enrT = b.enr; b.moveT = Math.min(b.moveT || 0, 1); emit('bossEnrage', b); }
         if (b.sh > 0) b.sh -= dt;
         if (G.bossHas(b, 'regen') && !(b.inv > 0)) b.hp = Math.min(b.max, b.hp + b.max * TUNE.bossRegen * dt);
-        if (b.enr > 0 && (b.enr -= dt) <= 0) bossFail();
+        if (b.enr > 0 && !(b.inv > 0) && (b.enr -= dt) <= 0) bossFail();
         else bossMoves(b, dt);
       }
     } else if (S.bossMeter >= D.bossNeed) {
