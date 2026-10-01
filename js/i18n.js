@@ -144,7 +144,7 @@
     lock_pets: 'find an egg', lock_temple: 'reach depth 15', lock_rift: 'reach depth 5',
     dirHint: 'Tap a building here or in the square. Build them up for bonuses that last through ascension.',
     dirLvl: 'Town level {0}', dirBack: 'Back to the field (T)', dirSet: 'Settings',
-    goTown: 'That is in town: tap TOWN (T).',
+    goTown: 'That is in town: tap TOWN (T).', chipTown: 'Gear and party live in town: tap TOWN (T), then the Forge.',
     rk_tg: 'attacks hit +{0} mob', rk_spd: 'attacks {0}% faster', rk_hp: 'party health +{0}%', rk_cd: 'crits +{0}× damage', rk_dmg: 'party damage +{0}%',
     chTitle: 'Chapter {0}: {1} is free', chNext: 'Next: {0}, lord of {1} (depth {2})', chEnd: 'Every land is free. Now raise the Torment.', chOpen: 'Opened', chGo: 'Onward',
     ch_0: 'The Crab King\u2019s claws fall silent. Inland, goblin drums answer the Button\u2019s hum.',

@@ -209,7 +209,8 @@
       const who = +c.dataset.who;
       if (G.reviveTap(who)) { G.Audio.click(0, false); return; }
       // a standing unit: open their page in the Party tab
-      selWho = who; selGear = null; tw.who = who; UI.go('forge');
+      selWho = who; selGear = null; tw.who = who;
+      if (G.R.town) UI.townOpen('forge'); else UI.toast(esc(t('chipTown')), '', 'ic_sword');
     });
     $('#btnFold').addEventListener('click', () => { $('#app').classList.toggle('fold'); $('#btnFold').textContent = $('#app').classList.contains('fold') ? '▴' : '▾'; setTimeout(() => G.Stage && G.Stage.resize && G.Stage.resize(), 0); });
   }
