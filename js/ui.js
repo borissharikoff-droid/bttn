@@ -11,22 +11,37 @@
   const sprW = id => { try { const c = G.SPR.get(id); return c ? c.width + 'x' + c.height : ''; } catch (e) { return ''; } };
   const img = (id, cls, sc, o) => `<img src="${ic(id, sc, o)}" alt="" class="${cls || ''}" data-b="${typeof id === 'string' ? sprW(id) : ''}" draggable="false">`;
   // Pixel art only looks right at whole multiples: snap every icon's CSS size to the nearest one that fits
+  // (measured by layout, not by the screen box, so an icon caught mid-animation isn't snapped at its scaled size;
+  // all the reads come before all the writes, so a tab full of icons lays out once, not once per icon)
   function snapPixels(root) {
-    for (const im of (root || document).querySelectorAll('img[data-b]:not([data-snap])')) {
-      const [bw, bh] = (im.dataset.b || '').split('x').map(Number);
-      if (!bw || !bh) continue;
-      im.style.width = ''; im.style.height = '';
-      const w = im.getBoundingClientRect().width;
-      if (!w) continue;
+    const ims = [...(root || document).querySelectorAll('img[data-b]:not([data-snap])')];
+    if (!ims.length) return;
+    for (const im of ims) { im.style.width = ''; im.style.height = ''; }
+    const dpr = window.devicePixelRatio || 1;
+    const ws = ims.map(im => im.offsetParent ? parseFloat(getComputedStyle(im).width) || 0 : 0);
+    ims.forEach((im, i) => {
+      const [bw, bh] = (im.dataset.b || '').split('x').map(Number), w = ws[i];
+      if (!bw || !bh || !w) return;
       // whole screen pixels per art pixel, so no pixel comes out wider than its neighbour
-      const dpr = window.devicePixelRatio || 1, wd = w * dpr;
+      const wd = w * dpr;
       let k = Math.round(wd / bw);
       if (k * bw > wd * 1.2) k = Math.floor(wd / bw);
       k = Math.max(1, k);
       im.style.width = k * bw / dpr + 'px'; im.style.height = k * bh / dpr + 'px';
       im.dataset.snap = '1';
-    }
+    });
   }
+  // a new layout (a turned phone, a resized window, another screen) sizes icons afresh
+  function resnap() {
+    for (const im of document.querySelectorAll('img[data-snap]')) { im.style.width = ''; im.style.height = ''; delete im.dataset.snap; }
+    snapPixels();
+  }
+  let resnapT = 0;
+  window.addEventListener('resize', () => { clearTimeout(resnapT); resnapT = setTimeout(resnap, 150); });
+  // new icons are snapped before they're painted, not a moment later
+  let snapQ = false;
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(() => { if (!snapQ) { snapQ = true; requestAnimationFrame(() => { snapQ = false; snapPixels(); }); } })
+    .observe(document.documentElement, { childList: true, subtree: true });
   UI.snapPixels = snapPixels;
   const fmt = G.fmt, t = G.t, L = G.L;
 
@@ -185,6 +200,8 @@
     window.addEventListener('keydown', e => {
       const tg = e.target;
       if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.isContentEditable)) return;
+      // Ctrl+C copies, it doesn't Mend
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') {
         if (tg && tg.tagName === 'BUTTON' && e.code !== 'Space') return;
         e.preventDefault();
@@ -193,9 +210,9 @@
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
-      else if (e.code === 'KeyZ') { G.usePower('smite'); }
-      else if (e.code === 'KeyX') { G.usePower('ward'); }
-      else if (e.code === 'KeyC') { G.usePower('mend'); }
+      else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
+      else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
+      else if (e.code === 'KeyC') { if (!G.uiBusy()) G.usePower('mend'); }
       else if (/^Digit[0-9]$/.test(e.code)) {
         const d = TABS[(+e.code.slice(5) + 9) % 10];
         if (d && tabOpen(d.id)) UI.go(d.id);
@@ -1184,7 +1201,7 @@
     setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
     // what the Warden is doing for you right now
     const c0 = D.hero, critEV = 1 + c0.crit * (c0.critMult - 1);
-    const bossSec = D.heroDps * D.bossMult, bossHp = G.bossHp(S.depth), limit = D.bossTime + (G.isLord(S.depth) ? 15 : 0);
+    const bossSec = D.heroDps * D.bossMult, bossHp = G.bossMax(S.depth), limit = D.bossTime + (G.isLord(S.depth) ? 15 : 0);
     const alone = bossHp / Math.max(1e-9, bossSec);
     const role = [
       ['roleHorde', '×' + G.hordeScale().toFixed(1)],

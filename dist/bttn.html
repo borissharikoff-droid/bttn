@@ -792,7 +792,6 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 /* 2.2: a quieter field */
 #omenLine { display: none !important; }
 .realm small#realmSub { font-size: 13px; }
-#toasts .toast:nth-last-child(n+3) { display: none; }
 .goalBox { max-width: 240px; font-size: 13px; padding: 3px 7px 4px; }
 
 </style>
@@ -1651,7 +1650,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
-    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25,
+    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25, bossClickK: 0.5,
     smallChestK: 0.1,       // the little chests the Horde drops are worth a tenth of a real one
     smallItem: 0.05,        // and hold an item one time in twenty
     overflowK: 0.5,         // a full field: the lowest chest bursts and half of it is lost
@@ -1846,10 +1845,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     while (mt.length && now - mt[0] > 1000) mt.shift();
     if (mt.length >= TUNE.maxManualCps) return null;
     mt.push(now);
-    R.clickN = (R.clickN || 0) + 1;
 
     // a broken Button gives nothing: no gold, no lightning, until it mends
     if (R.btnDown > 0) { emit('clickDead'); return null; }
+    // (the pace of clicks that land, for the boss's health)
+    if (!(R.stun > 0)) R.clickN = (R.clickN || 0) + 1;
     S.clicks++; S.clicksRun++;
     R.combo = Math.min(D.comboCap, R.combo + 1);
     R.comboT = TUNE.comboTime;
@@ -2197,7 +2197,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     mend: { cd: 40, icon: 'ic_heart', key: 'C' },
   };
   R.pw = { smite: 0, ward: 0, mend: 0 };
-  G.powerReady = id => !(R.pw[id] > 0) && G.S.hero && G.S.hero.cls && !(R.stun > 0);
+  // Smite needs something to hit: not a boss shrugging off a phase change, not an empty field
+  const smiteTarget = () => R.boss ? !R.boss.dead && !(R.boss.inv > 0) : R.mobs.some(m => !m.dead && m.p > 0.45 && m.kind !== 'guardian');
+  G.powerReady = id => !(R.pw[id] > 0) && !!(G.S.hero && G.S.hero.cls) && !(R.stun > 0) && (id !== 'smite' || smiteTarget());
   G.usePower = function (id) {
     const P = G.POWERS[id];
     if (!P || !G.powerReady(id)) return false;
@@ -2262,10 +2264,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function bossMax(d) {
     const curve = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
     // (the party's damage and the Hand's own: clicks at the pace you've been clicking)
-    const clickDps = (R.cps || 0) * (D.heroHit || 0) * TUNE.clickVolley * (1 + D.crit * (D.critMult - 1));
+    // (at the steady strength: a tome, a shrine or an event running when the boss is called doesn't make it tougher;
+    // and the clicks count at half, since nobody keeps up the same pace all fight)
+    const clickDps = (R.cps || 0) * TUNE.bossClickK * (D.heroHitBase || D.heroHit || 0) * TUNE.clickVolley * (1 + D.crit * (D.critMult - 1));
     // a full fight only on new ground: a depth already beaten (climbing back after an ascension) goes quicker
     const fresh = d >= (G.S.bestDepth || 0) ? 1 : TUNE.bossMinOld;
-    const floor = ((D.heroDps || 0) + clickDps) * (D.bossMult || 1) * (isLord(d) ? TUNE.bossMinLord : TUNE.bossMin) * fresh;
+    const floor = ((D.heroDpsBase || D.heroDps || 0) + clickDps) * (D.bossMult || 1) * (isLord(d) ? TUNE.bossMinLord : TUNE.bossMin) * fresh;
     return Math.max(curve, floor);
   }
   G.bossMax = bossMax;
@@ -3425,6 +3429,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     d.heroRate = c.rate * (R.hb.wing > 0 ? 2 : 1) * frenzy * evMul('rate');
     d.heroHp = c.hp * (1 + 0.2 * perk('bulwark')) * (evo('bastion') ? 2 : 1);
     d.heroDps = c.dps * buffDmg * might * frenzy;
+    // the same without anything that runs out in seconds (buffs, shrines, events): what a boss's health is measured by
+    const steady = might * (1 + 0.12 * perk('frenzy')) * (evo('berserk') ? 1.5 : 1);
+    d.heroDpsBase = c.dps * steady; d.heroHitBase = c.hit * might;
     d.power = c.power;
     // the Warden's own health, apart from the Button's
     d.wardenHp = c.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (G.ROLES[h.cls] === 'tank' ? 1.5 : 1);
@@ -3435,11 +3442,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       const soft = TUNE.allyDmg * (role === 'heal' ? 0.5 : 1);
       const o = { c: pc, role, hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy * evMul('rate'), hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) };
       o.dps = pc.dps * buffDmg * might * frenzy * soft;
+      o.dpsBase = pc.dps * steady * soft;
       if (m.hp > o.hp) m.hp = o.hp;
       return o;
     });
     d.wardenDps = d.heroDps;
-    for (const p of d.party) d.heroDps += p.dps;
+    for (const p of d.party) { d.heroDps += p.dps; d.heroDpsBase += p.dpsBase; }
     if (h.whp > d.wardenHp) h.whp = d.wardenHp;
     if (h.hp > d.heroHp) h.hp = d.heroHp;
     if (c.power > S.rec.maxPower) S.rec.maxPower = c.power;
@@ -11183,7 +11191,6 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     else if (bossVis && R.boss) { drawBossBar(); drawMoveName(); }
     else if (R.bossReady && !R.inv) drawReady(b);
     if (hoverChest) drawChestTip(hoverChest);
-    drawHeroPlate();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   };
 
@@ -11590,16 +11597,6 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (cardT > 0) { ctx.restore(); return; } ctx.fillStyle = '#ff7a2e'; ctx.fillText(s, b.x, y - 9);
     ctx.restore();
   }
-  function drawHeroPlate() {
-    const h = G.S.hero;
-    if (!h || !h.cls || !G.S.set.plate) return;
-    const hp = heroPos();
-    ctx.font = crisp(3) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12';
-    const s = (G.S.profile.name || G.L(G.CLASS_BY_ID[h.cls].name)) + ' · ' + G.t('lvl') + ' ' + h.lvl;
-    const y = hp.y + 5;
-    ctx.strokeText(s, hp.x, y); ctx.fillStyle = '#ffe27a'; ctx.fillText(s, hp.x, y);
-  }
   function drawChestTip(c) {
     const v = vis.get(c.id); if (!v) return;
     const label = G.L(G.RARITIES[c.tier].name) + (c.mod ? ' · ' + G.L(G.MOD_BY_ID[c.mod].name) : '');
@@ -11624,22 +11621,37 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   const sprW = id => { try { const c = G.SPR.get(id); return c ? c.width + 'x' + c.height : ''; } catch (e) { return ''; } };
   const img = (id, cls, sc, o) => `<img src="${ic(id, sc, o)}" alt="" class="${cls || ''}" data-b="${typeof id === 'string' ? sprW(id) : ''}" draggable="false">`;
   // Pixel art only looks right at whole multiples: snap every icon's CSS size to the nearest one that fits
+  // (measured by layout, not by the screen box, so an icon caught mid-animation isn't snapped at its scaled size;
+  // all the reads come before all the writes, so a tab full of icons lays out once, not once per icon)
   function snapPixels(root) {
-    for (const im of (root || document).querySelectorAll('img[data-b]:not([data-snap])')) {
-      const [bw, bh] = (im.dataset.b || '').split('x').map(Number);
-      if (!bw || !bh) continue;
-      im.style.width = ''; im.style.height = '';
-      const w = im.getBoundingClientRect().width;
-      if (!w) continue;
+    const ims = [...(root || document).querySelectorAll('img[data-b]:not([data-snap])')];
+    if (!ims.length) return;
+    for (const im of ims) { im.style.width = ''; im.style.height = ''; }
+    const dpr = window.devicePixelRatio || 1;
+    const ws = ims.map(im => im.offsetParent ? parseFloat(getComputedStyle(im).width) || 0 : 0);
+    ims.forEach((im, i) => {
+      const [bw, bh] = (im.dataset.b || '').split('x').map(Number), w = ws[i];
+      if (!bw || !bh || !w) return;
       // whole screen pixels per art pixel, so no pixel comes out wider than its neighbour
-      const dpr = window.devicePixelRatio || 1, wd = w * dpr;
+      const wd = w * dpr;
       let k = Math.round(wd / bw);
       if (k * bw > wd * 1.2) k = Math.floor(wd / bw);
       k = Math.max(1, k);
       im.style.width = k * bw / dpr + 'px'; im.style.height = k * bh / dpr + 'px';
       im.dataset.snap = '1';
-    }
+    });
   }
+  // a new layout (a turned phone, a resized window, another screen) sizes icons afresh
+  function resnap() {
+    for (const im of document.querySelectorAll('img[data-snap]')) { im.style.width = ''; im.style.height = ''; delete im.dataset.snap; }
+    snapPixels();
+  }
+  let resnapT = 0;
+  window.addEventListener('resize', () => { clearTimeout(resnapT); resnapT = setTimeout(resnap, 150); });
+  // new icons are snapped before they're painted, not a moment later
+  let snapQ = false;
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(() => { if (!snapQ) { snapQ = true; requestAnimationFrame(() => { snapQ = false; snapPixels(); }); } })
+    .observe(document.documentElement, { childList: true, subtree: true });
   UI.snapPixels = snapPixels;
   const fmt = G.fmt, t = G.t, L = G.L;
 
@@ -11798,6 +11810,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     window.addEventListener('keydown', e => {
       const tg = e.target;
       if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.isContentEditable)) return;
+      // Ctrl+C copies, it doesn't Mend
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') {
         if (tg && tg.tagName === 'BUTTON' && e.code !== 'Space') return;
         e.preventDefault();
@@ -11806,9 +11820,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
-      else if (e.code === 'KeyZ') { G.usePower('smite'); }
-      else if (e.code === 'KeyX') { G.usePower('ward'); }
-      else if (e.code === 'KeyC') { G.usePower('mend'); }
+      else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
+      else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
+      else if (e.code === 'KeyC') { if (!G.uiBusy()) G.usePower('mend'); }
       else if (/^Digit[0-9]$/.test(e.code)) {
         const d = TABS[(+e.code.slice(5) + 9) % 10];
         if (d && tabOpen(d.id)) UI.go(d.id);
@@ -12797,7 +12811,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
     // what the Warden is doing for you right now
     const c0 = D.hero, critEV = 1 + c0.crit * (c0.critMult - 1);
-    const bossSec = D.heroDps * D.bossMult, bossHp = G.bossHp(S.depth), limit = D.bossTime + (G.isLord(S.depth) ? 15 : 0);
+    const bossSec = D.heroDps * D.bossMult, bossHp = G.bossMax(S.depth), limit = D.bossTime + (G.isLord(S.depth) ? 15 : 0);
     const alone = bossHp / Math.max(1e-9, bossSec);
     const role = [
       ['roleHorde', '×' + G.hordeScale().toFixed(1)],

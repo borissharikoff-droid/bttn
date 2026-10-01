@@ -784,5 +784,4 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 /* 2.2: a quieter field */
 #omenLine { display: none !important; }
 .realm small#realmSub { font-size: 13px; }
-#toasts .toast:nth-last-child(n+3) { display: none; }
 .goalBox { max-width: 240px; font-size: 13px; padding: 3px 7px 4px; }

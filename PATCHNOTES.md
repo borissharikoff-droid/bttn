@@ -16,7 +16,8 @@
 
 ## Bosses
 
-- **A real fight on new ground.** A boss at your deepest depth has at least as much health as 12 seconds of your party's damage, or 30 seconds for a lord. If you click a lot, your clicks count toward that damage too. In testing, a boss at an active player's front line now lasts about 15 seconds, where it used to fall in two or three.
+- **A real fight on new ground.** A boss at your deepest depth has at least as much health as 12 seconds of your party's damage, or 30 seconds for a lord. If you click a lot, part of your clicking counts too. In testing, a boss at an active player's front line now lasts about 15 seconds, where it used to fall in two or three.
+- **Buffs don't count against you.** The floor uses your steady damage: a tome, a shrine or an event running when you call the boss doesn't make it tougher. Your clicks count at half their pace, and only clicks that land do.
 - **Climbing back is quick.** On depths you've already beaten, for example after an ascension, the floor is a quarter of that.
 - **Blows that scale with you.** Each boss blow takes at least a share of its target's maximum health:
 
@@ -34,7 +35,7 @@ Three buttons sit at the right of the Button bar. Each shows its key and counts 
 
 | Power | Key | Recharge | What it does |
 |---|---|---|---|
-| **Smite** | Z | 18 s | Three bolts strike the boss: it loses its wind-up, staggers for 3 seconds and takes 5 seconds of the party's damage. With no boss up, it blasts the crowd near the Button for eight hits each. |
+| **Smite** | Z | 18 s | Ready only when there's something to hit. Three bolts strike the boss: it loses its wind-up, staggers for 3 seconds and takes 5 seconds of the party's damage. With no boss up, it blasts the crowd near the Button for eight hits each. |
 | **Ward** | X | 26 s | A golden dome: for 3.5 seconds nothing reaches the Button or the party ("BLOCKED"). Save it for a slam or a barrage. |
 | **Mend** | C | 40 s | Heals the Button by 35% and every member by 40%. Fallen members get straight back up. |
 
@@ -67,7 +68,6 @@ The five zones of each land now each have a look of their own:
   - item names pop up over an opened chest only for epics and better.
 - **The Warden's name plate** above the field is gone.
 - **The omen line** has left the field. The day's omen is now in the land box's tooltip, and the line under the land name just reads "Depth N".
-- **At most two cards** show at once in the top right corner.
 - **The goal box is smaller.**
 - **Buttonling's tips** wait 40 seconds after one closes before the next appears. Tips about something on screen right now (a Hoarder, a boss's wind-up, your powers) still come at once.
 
@@ -75,7 +75,7 @@ The five zones of each land now each have a look of their own:
 
 - **Icons in the panel** now scale by whole pixels on your actual screen, including 125% and 150% displays, so pixel art no longer smears or comes out lopsided.
 - **The empty Ability, Armour and Ring slots** in the Party tab line up with their labels again.
-- **The keys line and the help screen** list Z, X and C.
+- **The keys line and the help screen** list Z, X and C. The keys ignore Ctrl, Cmd and Alt, so Ctrl+C still copies, and they do nothing while a window is open.
 
 # BTTN 2.1 — Loot Storm
 

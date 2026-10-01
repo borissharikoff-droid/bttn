@@ -662,7 +662,7 @@
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
-    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25,
+    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25, bossClickK: 0.5,
     smallChestK: 0.1,       // the little chests the Horde drops are worth a tenth of a real one
     smallItem: 0.05,        // and hold an item one time in twenty
     overflowK: 0.5,         // a full field: the lowest chest bursts and half of it is lost
@@ -857,10 +857,11 @@
     while (mt.length && now - mt[0] > 1000) mt.shift();
     if (mt.length >= TUNE.maxManualCps) return null;
     mt.push(now);
-    R.clickN = (R.clickN || 0) + 1;
 
     // a broken Button gives nothing: no gold, no lightning, until it mends
     if (R.btnDown > 0) { emit('clickDead'); return null; }
+    // (the pace of clicks that land, for the boss's health)
+    if (!(R.stun > 0)) R.clickN = (R.clickN || 0) + 1;
     S.clicks++; S.clicksRun++;
     R.combo = Math.min(D.comboCap, R.combo + 1);
     R.comboT = TUNE.comboTime;
@@ -1208,7 +1209,9 @@
     mend: { cd: 40, icon: 'ic_heart', key: 'C' },
   };
   R.pw = { smite: 0, ward: 0, mend: 0 };
-  G.powerReady = id => !(R.pw[id] > 0) && G.S.hero && G.S.hero.cls && !(R.stun > 0);
+  // Smite needs something to hit: not a boss shrugging off a phase change, not an empty field
+  const smiteTarget = () => R.boss ? !R.boss.dead && !(R.boss.inv > 0) : R.mobs.some(m => !m.dead && m.p > 0.45 && m.kind !== 'guardian');
+  G.powerReady = id => !(R.pw[id] > 0) && !!(G.S.hero && G.S.hero.cls) && !(R.stun > 0) && (id !== 'smite' || smiteTarget());
   G.usePower = function (id) {
     const P = G.POWERS[id];
     if (!P || !G.powerReady(id)) return false;
@@ -1273,10 +1276,12 @@
   function bossMax(d) {
     const curve = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
     // (the party's damage and the Hand's own: clicks at the pace you've been clicking)
-    const clickDps = (R.cps || 0) * (D.heroHit || 0) * TUNE.clickVolley * (1 + D.crit * (D.critMult - 1));
+    // (at the steady strength: a tome, a shrine or an event running when the boss is called doesn't make it tougher;
+    // and the clicks count at half, since nobody keeps up the same pace all fight)
+    const clickDps = (R.cps || 0) * TUNE.bossClickK * (D.heroHitBase || D.heroHit || 0) * TUNE.clickVolley * (1 + D.crit * (D.critMult - 1));
     // a full fight only on new ground: a depth already beaten (climbing back after an ascension) goes quicker
     const fresh = d >= (G.S.bestDepth || 0) ? 1 : TUNE.bossMinOld;
-    const floor = ((D.heroDps || 0) + clickDps) * (D.bossMult || 1) * (isLord(d) ? TUNE.bossMinLord : TUNE.bossMin) * fresh;
+    const floor = ((D.heroDpsBase || D.heroDps || 0) + clickDps) * (D.bossMult || 1) * (isLord(d) ? TUNE.bossMinLord : TUNE.bossMin) * fresh;
     return Math.max(curve, floor);
   }
   G.bossMax = bossMax;
@@ -2436,6 +2441,9 @@
     d.heroRate = c.rate * (R.hb.wing > 0 ? 2 : 1) * frenzy * evMul('rate');
     d.heroHp = c.hp * (1 + 0.2 * perk('bulwark')) * (evo('bastion') ? 2 : 1);
     d.heroDps = c.dps * buffDmg * might * frenzy;
+    // the same without anything that runs out in seconds (buffs, shrines, events): what a boss's health is measured by
+    const steady = might * (1 + 0.12 * perk('frenzy')) * (evo('berserk') ? 1.5 : 1);
+    d.heroDpsBase = c.dps * steady; d.heroHitBase = c.hit * might;
     d.power = c.power;
     // the Warden's own health, apart from the Button's
     d.wardenHp = c.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (G.ROLES[h.cls] === 'tank' ? 1.5 : 1);
@@ -2446,11 +2454,12 @@
       const soft = TUNE.allyDmg * (role === 'heal' ? 0.5 : 1);
       const o = { c: pc, role, hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy * evMul('rate'), hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) };
       o.dps = pc.dps * buffDmg * might * frenzy * soft;
+      o.dpsBase = pc.dps * steady * soft;
       if (m.hp > o.hp) m.hp = o.hp;
       return o;
     });
     d.wardenDps = d.heroDps;
-    for (const p of d.party) d.heroDps += p.dps;
+    for (const p of d.party) { d.heroDps += p.dps; d.heroDpsBase += p.dpsBase; }
     if (h.whp > d.wardenHp) h.whp = d.wardenHp;
     if (h.hp > d.heroHp) h.hp = d.heroHp;
     if (c.power > S.rec.maxPower) S.rec.maxPower = c.power;

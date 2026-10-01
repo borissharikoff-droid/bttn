@@ -2182,7 +2182,6 @@
     else if (bossVis && R.boss) { drawBossBar(); drawMoveName(); }
     else if (R.bossReady && !R.inv) drawReady(b);
     if (hoverChest) drawChestTip(hoverChest);
-    drawHeroPlate();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   };
 
@@ -2588,16 +2587,6 @@
     if (cardT <= 0) ctx.strokeText(s, b.x, y - 9);
     if (cardT > 0) { ctx.restore(); return; } ctx.fillStyle = '#ff7a2e'; ctx.fillText(s, b.x, y - 9);
     ctx.restore();
-  }
-  function drawHeroPlate() {
-    const h = G.S.hero;
-    if (!h || !h.cls || !G.S.set.plate) return;
-    const hp = heroPos();
-    ctx.font = crisp(3) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12';
-    const s = (G.S.profile.name || G.L(G.CLASS_BY_ID[h.cls].name)) + ' · ' + G.t('lvl') + ' ' + h.lvl;
-    const y = hp.y + 5;
-    ctx.strokeText(s, hp.x, y); ctx.fillStyle = '#ffe27a'; ctx.fillText(s, hp.x, y);
   }
   function drawChestTip(c) {
     const v = vis.get(c.id); if (!v) return;

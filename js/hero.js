@@ -595,6 +595,9 @@
     d.heroRate = c.rate * (R.hb.wing > 0 ? 2 : 1) * frenzy * evMul('rate');
     d.heroHp = c.hp * (1 + 0.2 * perk('bulwark')) * (evo('bastion') ? 2 : 1);
     d.heroDps = c.dps * buffDmg * might * frenzy;
+    // the same without anything that runs out in seconds (buffs, shrines, events): what a boss's health is measured by
+    const steady = might * (1 + 0.12 * perk('frenzy')) * (evo('berserk') ? 1.5 : 1);
+    d.heroDpsBase = c.dps * steady; d.heroHitBase = c.hit * might;
     d.power = c.power;
     // the Warden's own health, apart from the Button's
     d.wardenHp = c.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (G.ROLES[h.cls] === 'tank' ? 1.5 : 1);
@@ -605,11 +608,12 @@
       const soft = TUNE.allyDmg * (role === 'heal' ? 0.5 : 1);
       const o = { c: pc, role, hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy * evMul('rate'), hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) };
       o.dps = pc.dps * buffDmg * might * frenzy * soft;
+      o.dpsBase = pc.dps * steady * soft;
       if (m.hp > o.hp) m.hp = o.hp;
       return o;
     });
     d.wardenDps = d.heroDps;
-    for (const p of d.party) d.heroDps += p.dps;
+    for (const p of d.party) { d.heroDps += p.dps; d.heroDpsBase += p.dpsBase; }
     if (h.whp > d.wardenHp) h.whp = d.wardenHp;
     if (h.hp > d.heroHp) h.hp = d.heroHp;
     if (c.power > S.rec.maxPower) S.rec.maxPower = c.power;
