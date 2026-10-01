@@ -424,6 +424,7 @@
   // The highest Rift you may open: what you've earned there, or close to your campaign depth
   G.riftMax = () => { const S = S_(); return Math.max(S.rift.open, S.bestDepth - 1); };
   G.riftStart = function (lvl) {
+    if (R.town) return false;
     const S = S_(), rf = S.rift;
     lvl = Math.max(1, Math.min(G.riftMax(), lvl | 0));
     if (!G.riftOpenable() || R.boss || R.rift || R.stun > 0) return false;

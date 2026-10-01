@@ -806,7 +806,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .townBtn.dim { opacity: .5; }
 .townBtn.glow { animation: townGlow 1.6s ease-in-out infinite; }
 @keyframes townGlow { 50% { box-shadow: inset 0 0 0 2px #ffd84a, 0 0 10px #ffd84a66; } }
-#app.inTown .hud.bottom, #app.inTown #xpBar, #app.inTown #perks { visibility: hidden; }
+#app.inTown .hud.bottom, #app.inTown #xpBar, #app.inTown #perks, #app.inTown .hud.top .realm { visibility: hidden; }
 #townWin { position: absolute; inset: 56px 14px 14px; z-index: 30; display: flex; align-items: flex-start; justify-content: center; pointer-events: auto; }
 #townWin[hidden] { display: none; }
 .tw { width: min(1040px, 100%); max-height: 100%; display: flex; flex-direction: column; background: rgba(20,18,30,.97); border: 3px solid var(--ink); box-shadow: 0 0 0 2px #ffd84a55, 0 10px 40px #000a; color: var(--text); font: 15px/1.25 var(--font-body); }
@@ -887,6 +887,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .twMem b { font: 9px/1.2 var(--font-display); }
 .twMem small { color: var(--dim); font-size: 13px; }
 .tw.tavern > p { padding: 0 10px; }
+.tw.tavern { overflow: auto; }
 .twRecruit { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; padding: 0 10px 10px; }
 .bestRow { display: flex; justify-content: center; margin: 2px 0 6px; }
 @media (max-width: 860px) {
@@ -1526,7 +1527,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     spitter: { w: 0.6, spd: 0.9, gold: 1.3, from: 2, name: 'Spitters', desc: 'Stop at range and spit at the Button' },
     bomber:  { w: 0.4, spd: 1.5, gold: 1.2, from: 3, name: 'Bombers', desc: 'Blow up when they die, taking the Horde with them' },
     tank:    { w: 3, spd: 0.55, gold: 1.6, from: 4, name: 'Tanks', desc: 'Slow walls of armour. Big loot' },
+    // 2.5: kinds that holding the Button down doesn't answer. land: the first land (0-based) they come in
+    warded:   { w: 1.2, spd: 0.8, gold: 1.5, land: 1, hp: 2.5, name: 'Warded', desc: 'Shielded against the Hand: lightning barely scratches them. Your party has to cut them down' },
+    charger:  { w: 1.5, spd: 0.7, gold: 1.4, land: 1, hp: 1.6, name: 'Chargers', desc: 'Close in slowly, then charge the Button and hit like a cart' },
+    healer:   { w: 1, spd: 0.8, gold: 1.6, land: 2, hp: 1.4, name: 'Menders', desc: 'Hang back and heal the Horde round them. Kill them first' },
+    summoner: { w: 1.4, spd: 0.7, gold: 1.8, land: 3, hp: 1.8, name: 'Callers', desc: 'Stop at range and call more of the Horde every few seconds' },
   };
+  G.NEW_KINDS = ['warded', 'charger', 'healer', 'summoner'];
   G.ZONE_MIX = [
     { runner: 0.08, spitter: 0,    bomber: 0,    tank: 0 },
     { runner: 0.22, spitter: 0,    bomber: 0,    tank: 0 },
@@ -1681,7 +1688,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     perksTitle: 'Perks this run', perksNone: 'Level up to pick your first perk. Slay the Horde for XP.', autoPerk: 'Pick perks for me if I wait',
     roleTitle: 'What your Warden does', roleHint: 'Your Warden leads the party: every kill fills the clear bar and drops loot and gold, and the whole party wears the bosses down. Your clicks during a fight are the Warden\u2019s strikes.',
     roleHorde: 'Horde size', roleBossClick: 'Boss damage per click', roleBossSec: 'Boss damage per second', roleBoss: 'This depth\'s boss', roleBossTime: 'about {0}s alone (limit {1}s)',
-    roleWeak: 'Too weak for this boss yet: level up, equip better gear, enchant, or ascend for fame.', hordeX: 'Horde ×{0}', toBoss: 'then the boss', hordeWeak: 'Warden weak here',
+    roleWeak: 'Too weak for this boss yet: level up, equip better gear, enchant, or ascend for fame.', hordeX: 'Horde ×{0}', toBoss: 'then the boss', warded: 'WARDED', hordeWeak: 'Warden weak here',
     goal: 'Goal', journey: 'Journey', journeyHint: 'An endless road of goals. Each step gives a reward and +2% Warden damage for good.', journeyStep: 'Step {0}',
     journeyDone: 'Journey step done', journeyNext: 'Next', omen: 'Omen of the day', omenLine: 'Omen: {0}',
     bounty: 'Daily bounty', bountyText: 'Slay {0} of today\u2019s Horde for 3 eggs and a chest', bountyDone: 'Bounty complete! Come back tomorrow for a new one.',
@@ -1703,7 +1710,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     orbNo_max: 'Already at +{0}', orbNo_none: 'Pick an item first', corrupted: 'Corrupted', unique: 'Unique', uniques: 'Uniques', uqFound: '{0} of {1} found',
     uqDrops: 'Drops from depth {0}', uqDropsBoss: 'Only {0} and deep Rifts', uqNew: 'NEW UNIQUE', uqBanner: 'UNIQUE!',
     lootFilter: 'Hide labels on common drops', shrineBuff: '{0} {1}s', rule: 'Land rule', feedUq: 'found {0}', feedRift: 'cleared {0}', feedLord: 'slew {0}', feedCrown: 'took the crown of {0}',
-    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', pw_smite: 'Smite', pw_smite_d: 'Hits the boss for 5 seconds of the party\u2019s damage and breaks its wind-up; without a boss, blasts the crowd at the Button', pw_ward: 'Ward', pw_ward_d: 'Nothing gets through to the Button or the party for 3.5 seconds', pw_mend: 'Mend', pw_mend_d: 'Heals the Button by 35% and the party by 40%, and lifts the fallen', blocked: 'BLOCKED', townBtn: 'TOWN', townBack: 'FIELD', townTip: 'Walk into town (T): gear up, brew, recruit. The field waits.', townBackTip: 'Back to the field (T)', townNo: 'Not now: finish the fight first (no town during a boss, a Rift, an invasion, an event or with the Button broken).', townTitle: 'BUTTONHOLD', townSub: 'Tap a building · the field waits while you are here', townLocked: 'Not open yet: play on a little first.',
+    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', pw_smite: 'Smite', pw_smite_d: 'Hits the boss for 5 seconds of the party\u2019s damage and breaks its wind-up; without a boss, blasts the crowd at the Button', pw_ward: 'Ward', pw_ward_d: 'Nothing gets through to the Button or the party for 3.5 seconds', pw_mend: 'Mend', pw_mend_d: 'Heals the Button by 35% and the party by 40%, and lifts the fallen', blocked: 'BLOCKED', townBtn: 'TOWN', townBack: 'FIELD', townTip: 'Walk into town (T): gear up, brew, recruit. The field waits.', townBackTip: 'Back to the field (T)', townNo: 'Not now: finish the fight first (no town during a boss, a Rift, an invasion, an event, the tutorial or with the Button broken).', townTitle: 'BUTTONHOLD', townSub: 'Tap a building · the field waits while you are here', townLocked: 'Not open yet: play on a little first.',
     town_forge: 'Forge', town_enchant: 'Enchanter', town_portal: 'To the field', town_stars: 'Observatory', town_alch: 'Alchemist', town_tavern: 'Tavern', town_quests: 'Quest board', town_pets: 'Hatchery',
     twForgeSub: 'Pick who to dress, tap an item to see what it changes, then equip, upgrade or break it down for shards.', twEnchSub: 'Tap an item, then an orb below it: whetstones upgrade for free, Flux rerolls, Ascent adds, Grace improves, Ruin gambles.',
     twAlchSub: 'Brew the potion you want. Each one is a lasting bonus until you ascend; the next of a kind costs more.', twTavernSub: 'Your party. Recruit a companion when a seat opens; tanks take the blows, clerics heal.',
@@ -1762,7 +1769,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     bossCall: 3,            // seconds of warning before a ready boss arrives on its own
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
-    maxManualCps: 25,
+    // 2.5: the game is balanced for the Button held down (10 clicks a second); faster clicking, or an
+    // autoclicker, counts no more than that
+    maxManualCps: 10,
     wispMin: 50, wispMax: 120, wispLife: 13,
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
@@ -1805,7 +1814,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       daily: { last: '', streak: 0 },
       st: { crits: 0, bossKills: 0, lordKills: 0, wisps: 0, mimics: 0, merges: 0, divine: 0, maxCombo: 0,
         playTime: 0, chests: 0, modded: 0, megas: 0, hoards: 0, shrines: 0, breaches: 0, drops: 0, orbs: 0, rifts: 0 },
-      set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1, filter: 1 },
+      set: { sound: 1, music: 1, vol: 0.6, hold: 1, shake: 1, autoBoss: 1, filter: 1 },
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
       uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
@@ -1833,7 +1842,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 25,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 18,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -2000,6 +2009,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   function manualClick(x, y) {
     const S = G.S;
+    if (R.town) return null; // the field waits while the party is in town
     const now = performance.now();
     const mt = R.manualTimes;
     while (mt.length && now - mt[0] > 1000) mt.shift();
@@ -2215,7 +2225,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // Player tapped a chest on the field.
   function clickChest(c) {
     const S = G.S;
-    if (!S.chests.includes(c)) return;
+    if (R.town || !S.chests.includes(c)) return;
     if (c.mod === 'frozen') {
       c.hp -= critRoll() ? 3 : 1;
       emit('chestHit', c);
@@ -2274,10 +2284,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // ---------- Potions ----------
   // 2.4: the Town. Between fights the party can walk into town: the field holds still (the Garrison keeps
   // earning) while you gear up at the Forge, brew at the Alchemist, recruit at the Tavern.
-  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
+  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !(G.S.tut >= 0) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
   G.enterTown = function () {
     if (R.town || !G.townOk()) return false;
-    R.town = true; R.bossIn = null;
+    R.town = true;
     G.S.st.townVisits = (G.S.st.townVisits || 0) + 1;
     emit('town', true);
     return true;
@@ -2401,7 +2411,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   R.pw = { smite: 0, ward: 0, mend: 0 };
   // Smite needs something to hit: not a boss shrugging off a phase change, not an empty field
   const smiteTarget = () => R.boss ? !R.boss.dead && !(R.boss.inv > 0) : R.mobs.some(m => !m.dead && m.p > 0.45 && m.kind !== 'guardian');
-  G.powerReady = id => !(R.pw[id] > 0) && !!(G.S.hero && G.S.hero.cls) && !(R.stun > 0) && (id !== 'smite' || smiteTarget());
+  G.powerReady = id => !R.town && !(R.pw[id] > 0) && !!(G.S.hero && G.S.hero.cls) && !(R.stun > 0) && (id !== 'smite' || smiteTarget());
   G.usePower = function (id) {
     const P = G.POWERS[id];
     if (!P || !G.powerReady(id)) return false;
@@ -2445,7 +2455,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function startBoss() {
     const S = G.S;
     // an invasion is fought out first
-    if (R.boss || R.rift || !R.bossReady || R.inv) return false;
+    if (R.boss || R.rift || !R.bossReady || R.inv || R.town) return false;
     const d = S.depth;
     const lord = isLord(d);
     const max = bossMax(d);
@@ -2858,6 +2868,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const S = G.S;
     const g = fameGain();
     if (g < 1) return false;
+    if (R.town) { R.town = false; emit('town', false); }
     const keepPct = 0.25 * (S.legacy.lg_keeppot || 0);
     const keep = {};
     G.POTIONS.forEach(p => keep[p.id] = Math.floor(S.pots[p.id] * keepPct));
@@ -3033,6 +3044,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // Merge nested objects so new fields get defaults.
     S.st = Object.assign(newState().st, data.st || {});
     S.set = Object.assign(newState().set, data.set || {});
+    // 2.5: holding the Button down is how the game is played now: switch it on once for older saves
+    if (!(data.seen && data.seen.hold25)) { S.set.hold = 1; S.seen = Object.assign({}, data.seen || {}, { hold25: 1 }); }
     S.pots = Object.assign(potZero(), data.pots || {});
     S.pity = Object.assign({ l: 0, d: 0 }, data.pity || {});
     S.daily = Object.assign({ last: '', streak: 0 }, data.daily || {});
@@ -3056,6 +3069,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (G.ensureHero) G.ensureHero(S);
     if (R.mobs) R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null; R.wave = null; R.btnDown = 0;
+    if (R.town) { R.town = false; emit('town', false); }
     if (G.worldClear) G.worldClear();
     // saves from before 1.0: the Journey gained 11 steps in between the old ones
     if (!('uq' in data) && G.Journey && G.Journey.fromV0) S.journey = G.Journey.fromV0(S.journey || 0);
@@ -3089,10 +3103,14 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002, biteFloor: 0.025,
+    killChest: 0.03, plunder: 0.002, biteFloor: 0.032,
     // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
     // regen out of and in a boss fight (share of health a second)
-    hsMin: 1, earlyHp: 2.5, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
+    hsMin: 1, earlyHp: 3, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
+    // 2.5: the new kinds: a pack's chance to be led by one (base + per depth, capped); Warded takes this share
+    // of the Hand's damage; menders heal this share of health round them every few seconds; callers call
+    // callN small fry every callEvery s; chargers run chargeSpd times faster for the last stretch
+    newKindBase: 0.12, newKindPer: 0.007, newKindMax: 0.38, wardedTake: 0.08, healerEvery: 2.2, healerPct: 0.12, callEvery: 3.2, callN: 7, chargeSpd: 4,
   });
 
   // ---------- Content ----------
@@ -3502,7 +3520,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     for (const who of whos) {
       const m = who >= 0 ? S.party[who] : null, eq = eqOf(who);
       for (const slot of G.SLOTS) {
-        const pool = h.bag.filter(g => G.slotOf(g.id) === slot && (slot !== 'weapon' || !m || G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id])));
+        // (a unique's rule works only on the Warden: it stays on unless another unique beats it, and companions never take one)
+        const keepUq = !m && eq[slot] && eq[slot].q;
+        const pool = h.bag.filter(g => G.slotOf(g.id) === slot && (slot !== 'weapon' || !m || G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id])) && !(m && g.q) && !(keepUq && !g.q));
         let best = eq[slot], bp = best ? powerWith(slot, best, who) : -1;
         for (const g of pool) { const p = powerWith(slot, g, who); if (p > bp) { best = g; bp = p; } }
         if (best && best !== eq[slot]) { equip(best, true, who); n++; }
@@ -3794,6 +3814,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (R.inv && !add && kind !== 'hoard') m.inv = R.inv.k;
     R.mobs.push(m);
     emit('mobSpawn', m);
+    if (G.NEW_KINDS && G.NEW_KINDS.includes(kind) && !add) { const sn = G.S.seen = G.S.seen || {}; sn.kinds = sn.kinds || {}; if (!sn.kinds[kind]) { sn.kinds[kind] = 1; emit('kindFirst', kind); } }
     return m;
   }
   // One pack, all from one direction
@@ -3821,6 +3842,16 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const rc = 0.03 * om().champ * (L.rare || 1), mc = rc + 0.07 * om().champ * (L.champ || 1);
     if (d >= 1 && roll < rc) { makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
     if (roll < mc) { makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); swarm('fodder', 40, 0.07); return; }
+    // 2.5: from the second land, packs led by kinds the Hand alone can't handle, more of them the deeper it gets
+    const ri = G.realmIndex(d), nk = (G.NEW_KINDS || []).filter(k => ri >= G.ARCHETYPES[k].land);
+    if (nk.length && G.rng() < Math.min(TUNE.newKindMax, TUNE.newKindBase + TUNE.newKindPer * d)) {
+      const k = nk[Math.floor(G.rng() * nk.length)];
+      if (k === 'warded') { const n = randInt(3, 6); for (let i = 0; i < n; i++) makeMob('warded', a + rand(-0.05, 0.05), -rand(0, 0.1)); swarm('fodder', randInt(20, 35), 0.07); }
+      else if (k === 'charger') { const n = randInt(2, 4); for (let i = 0; i < n; i++) makeMob('charger', a + rand(-0.06, 0.06), -rand(0, 0.15)); swarm('fodder', randInt(25, 40), 0.08); }
+      else if (k === 'healer') { makeMob('healer', a, -0.05); makeMob('healer', a + 0.04, -0.1); makeMob('brute', a + 0.02, 0); swarm('fodder', randInt(35, 55), 0.08); }
+      else { makeMob('summoner', a, -0.05); swarm('fodder', randInt(25, 40), 0.07); }
+      return;
+    }
     // the zone's own kinds
     const mix = zoneMix(d);
     let r2 = G.rng();
@@ -3883,6 +3914,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (m.dead) return;
     if (uq('codex') && (m.kind === 'spitter' || m.kind === 'bomber')) dmg = m.hp + 1;
     else if (uq('tyrant') && (m.kind === 'tank' || m.kind === 'brute' || m.kind === 'magic')) dmg *= 2;
+    // Warded: the Hand's lightning (clicks, pets, its chains, Smite) barely scratches it
+    if (m.kind === 'warded' && (src === 'click' || src === 'pet' || src === 'chain' || src === 'smite')) { dmg *= TUNE.wardedTake; if (G.rng() < 0.05) emit('wardedHit', m); }
     m.hp -= m.mod === 'stone' || m.stone ? dmg * 0.5 : dmg;
     if (m.hp <= 0) { m.over = -m.hp / m.max; m.crit = crit; killMob(m, src); }
   }
@@ -4162,7 +4195,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function castAbility() {
     const S = G.S, D = G.D, h = S.hero;
     const g = h.eq.ability;
-    if (!g || R.abilCd > 0 || !h.cls) return false;
+    if (!g || R.abilCd > 0 || !h.cls || R.town) return false;
     const type = G.ITEM_TYPE[g.id], ab = G.ABILITIES[type];
     R.abilCd = ab.cd * (1 - Math.min(0.5, 0.03 * g.e)) * (uq('watcher') ? 0.5 : 1);
     const hit = D.heroHit;
@@ -4246,6 +4279,23 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
+      // 2.5: menders and callers hold at range; chargers break into a run once they're close
+      if (m.kind === 'healer' || m.kind === 'summoner') {
+        if ((m.atkT -= dt) <= 0 && m.p >= 0.2) {
+          if (m.kind === 'healer') {
+            m.atkT = TUNE.healerEvery * rand(0.85, 1.15);
+            const [hx, hy] = mobXY(m); let n = 0;
+            for (const o of R.mobs) { if (o === m || o.dead || o.hp >= o.max) continue; const [ox, oy] = mobXY(o); if ((ox - hx) ** 2 + (oy - hy) ** 2 < 0.07) { o.hp = Math.min(o.max, o.hp + o.max * TUNE.healerPct); n++; } }
+            if (n) emit('mend', m, n);
+          } else {
+            m.atkT = TUNE.callEvery * rand(0.85, 1.15);
+            for (let i = 0; i < TUNE.callN && R.mobs.length < TUNE.mobMax; i++) makeMob('fodder', m.a + rand(-0.03, 0.03), m.p - rand(0.05, 0.15), true);
+            emit('call', m);
+          }
+        }
+        if (m.p >= (m.kind === 'healer' ? 0.5 : 0.42)) continue;
+      }
+      if (m.kind === 'charger' && !m.chg && m.p >= 0.38) { m.chg = 1; m.sp *= TUNE.chargeSpd; emit('charge', m); }
       // spitters lob globs at the Button as soon as they're in range, then hold there
       if (m.kind === 'spitter' && m.p >= 0.3) {
         if (!m.spit) { m.spit = 1; m.atkT = rand(0.3, 0.9); }
@@ -5181,6 +5231,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // The highest Rift you may open: what you've earned there, or close to your campaign depth
   G.riftMax = () => { const S = S_(); return Math.max(S.rift.open, S.bestDepth - 1); };
   G.riftStart = function (lvl) {
+    if (R.town) return false;
     const S = S_(), rf = S.rift;
     lvl = Math.max(1, Math.min(G.riftMax(), lvl | 0));
     if (!G.riftOpenable() || R.boss || R.rift || R.stun > 0) return false;
@@ -7170,6 +7221,57 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       '..AkAAAAkA..',
       '.A.A.AA.A.A.',
       'A..A....A..A',
+    ],
+    // 2.5: a shield-bearer the Hand's lightning slides off
+    warded: [
+      '..AAA.....',
+      '.Aaaaa....',
+      '.Aakawwww.',
+      '.aaawccccw',
+      'Aaaawcyycw',
+      'Aaaawcyycw',
+      '.aaawccccw',
+      '.Aaa.wwww.',
+      '.A..A.....',
+      'A...A.....',
+    ],
+    // a horned beast that lowers its head and charges
+    charger: [
+      'w........w..',
+      '.ww.aaaa.ww.',
+      '...waaaaw...',
+      '..aakaakaa..',
+      '.aaaaaaaaaaA',
+      'AaaaccaaaaAA',
+      'AAaaaaaaaAA.',
+      '.A.A....A.A.',
+      'A..A....A..A',
+    ],
+    // a robed mender with a glowing staff
+    healer: [
+      '.y........',
+      'yyy..AA...',
+      '.y..Aaaa..',
+      '.k..akak..',
+      '.k..aaaa..',
+      '.kAAaaaaA.',
+      '.k.AaccaA.',
+      '.k.AaccaA.',
+      '.k.AaaaaA.',
+      '.k..A..A..',
+    ],
+    // a hooded caller ringed with runes
+    summoner: [
+      '...AAAA...',
+      '..AaaaaA..',
+      '..AkaakA..',
+      'c.AaaaaA.c',
+      '.cAaccaAc.',
+      '..AaaaaA..',
+      '.AaaccaaA.',
+      'cAaaaaaaAc',
+      '..A....A..',
+      '.A......A.',
     ],
   };
   const ARCH_PAL = {
@@ -10222,7 +10324,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // a wide view of the field: on sharp screens the scale may be a half step (1.5 = 3 device pixels a pixel)
     const step = DPR >= 2 ? 0.5 : 1;
     // (2.4: a wider shot: the field shows about twice the ground it did, so the Horde has room to come from far off)
-    S = clamp(Math.floor(Math.min(cw / 380, ch / 280) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
+    S = clamp(Math.floor(Math.min(cw / 420, ch / 310) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
     W = Math.ceil(cw / S); H = Math.ceil(ch / S);
     cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
     cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
@@ -10691,7 +10793,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       e.preventDefault();
       const p = toLogical(e);
       const what = doPress(p);
-      if (what === 'button' && G.S.set.hold) { holding = true; holdTimer = 0.14; }
+      if (what === 'button' && G.S.set.hold) { holding = true; holdTimer = 0.12; }
     });
     const end = () => { holding = false; };
     cv.addEventListener('pointerup', end);
@@ -12006,6 +12108,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (G.realmIndex(d) !== G.realmIndex(b.d)) return; // the land card covers it
       setTimeout(() => zoneCard(d), 900);
     });
+    // 2.5: the new kinds show what they're doing
+    G.on('charge', m => { const q = mobPos(m); text(q.x, q.y - 14, '!', '#ff3b3b', 6, { life: 0.7, max: 0.7, vy: -12 }); burst(q.x, q.y, ['#c8b89a', '#8a7a60'], 8, 40, { grav: 60, life: 0.4 }); if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); });
+    G.on('mend', (m, n) => { const q = mobPos(m); ring(q.x, q.y - 4, 26, 14, '#5aff7a', 0.45); for (let i = 0; i < Math.min(6, n); i++) part(q.x + rand(-14, 14), q.y - rand(0, 10), '#7aff8a', { vx: 0, vy: -rand(10, 20), grav: 0, life: 0.6 }); });
+    G.on('call', m => { const q = mobPos(m); ring(q.x, q.y - 4, 30, 16, '#c88aff', 0.5); burst(q.x, q.y - 6, ['#c88aff', '#6a3aa8'], 10, 50, { life: 0.4 }); });
+    G.on('wardedHit', m => { const q = mobPos(m); text(q.x, q.y - 12, G.t('warded'), '#9ad8ff', 3, { life: 0.6, max: 0.6, vy: -14 }); });
+    // one new kind's card at a time: two arriving together queue up
+    let kindAt = 0;
+    G.on('kindFirst', k => {
+      const now = performance.now(), at = Math.max(now, kindAt);
+      kindAt = at + 3600;
+      setTimeout(() => { const A = G.ARCHETYPES[k], R_ = G.REALMS[G.realmIndex(G.S.depth)]; cardText(10, G.t('newKind', (R_.mobs && R_.mobs[k]) || A.name), '#b6ff5a', 4, { life: 3.4, vy: -3 }); cardText(18, A.desc, '#e8f8d0', 3, { life: 3.4, vy: -3 }); }, at - now);
+    });
     G.on('spores', m => { const q = mobPos(m); burst(q.x, q.y - 5, ['#c84ae8', '#ff7ab0', '#f4ecd8'], 10, 40, { grav: -10, life: 0.8 }); });
     G.on('thorns', m => { const q = mobPos(m); burst(q.x, q.y - 6, ['#b36bff', '#ffffff'], 6, 50, { life: 0.3 }); });
     G.on('headhunter', m => { const hp = heroPos(); text(hp.x, hp.y - 34, G.t('headhunter'), '#e8903a', 4, { life: 1.6, max: 1.6, vy: -12 }); ring(hp.x, hp.y - 4, 30, 15, '#e8903a', 0.5); });
@@ -12097,12 +12211,26 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     { id: 'pets', spr: 'tw_nest', x: 0.73, y: 0.8 },
   ];
   St.TOWN = TOWN;
-  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
+  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; townHover = null; townTop = 0; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
   let townGround = null, townKey = '', townHover = null;
   const sprOr = id => (SPR.defs[id] ? SPR.get(id) : null);
+  // the town is laid out below the top HUD: the back row stands its tallest building's height under it
+  let townTop = 0, townTopT = 0;
+  function townRows() {
+    if ((townTopT -= fdt) <= 0 || !townTop) {
+      townTopT = 1;
+      // (in town the land box is hidden: only the buttons at the top right stay)
+      const el = typeof document !== 'undefined' && document.querySelector('.hud.top .hudBtns'), cr = cv.getBoundingClientRect();
+      townTop = el ? Math.max(0, (el.getBoundingClientRect().bottom - cr.top) / S) : 20;
+    }
+    const r1 = Math.round(Math.max(H * 0.42, townTop + 66)), r2 = Math.round(Math.min(H - 6, Math.max(r1 + 74, H * 0.8)));
+    return { r1, r2, mid: Math.round((r1 + r2) / 2) };
+  }
   function townPlace(t) {
-    const c = sprOr(t.spr), w = c ? c.width : 40, h = c ? c.height : 34;
-    const x = Math.round(W * t.x), y = Math.round(H * t.y);
+    const c = sprOr(t.spr), w = c ? c.width : 40, h = c ? c.height : 34, rw = townRows();
+    // back row (y < 0.6): the rows' own heights, nudged by the place's offset from its row
+    const back = t.y < 0.6, y = Math.round(back ? rw.r1 + (t.y - 0.44) * 60 : t.y < 0.79 ? rw.r2 - 4 : rw.r2);
+    const x = Math.round(W * t.x);
     return { x, y, w, h, c, x0: x - w / 2, y0: y - h };
   }
   function buildTownGround() {
@@ -12110,7 +12238,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // grass round the edge, cobbles in the square
     x.fillStyle = '#3e6b34'; x.fillRect(0, 0, W, H);
     for (let i = 0; i < W * H / 14; i++) { x.fillStyle = rnd() < 0.5 ? '#4b7d3e' : '#355d2d'; x.fillRect(Math.floor(rnd() * W), Math.floor(rnd() * H), 1, 1); }
-    const cx = W / 2, cy = H * 0.6, rx = W * 0.37, ry = H * 0.36;
+    const rw = townRows(), cx = W / 2, cy = rw.mid + 6, rx = W * 0.37, ry = Math.max(H * 0.3, (rw.r2 - rw.r1) * 0.75 + 24);
     for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
       const dx = (xx - cx) / rx, dy = (yy - cy) / ry, d = dx * dx + dy * dy;
       if (d > 1 + (rnd() - 0.5) * 0.06) continue;
@@ -12128,10 +12256,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     for (let i = 0; i < 26; i++) { const px = rnd() * W, py = rnd() * H, dx = (px - cx) / rx, dy = (py - cy) / ry; if (dx * dx + dy * dy > 1.05) put('tw_flower', px, py); }
     // a ring of trees round the square, thicker at the back
     for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, px = cx + Math.cos(a) * rx * k, py = cy + Math.sin(a) * ry * k + 10; if (py > 20) put('tw_tree', px, py); }
-    put('tw_lamp', cx - 34, H * 0.62); put('tw_lamp', cx + 34, H * 0.62);
-    put('tw_barrel', W * 0.36, H * 0.84); put('tw_crate', W * 0.3, H * 0.56); put('tw_barrel', W * 0.7, H * 0.56); put('tw_crate', W * 0.64, H * 0.84);
-    put('tw_barrel', W * 0.15, H * 0.62); put('tw_crate', W * 0.86, H * 0.64); put('tw_lamp', W * 0.3, H * 0.4); put('tw_lamp', W * 0.7, H * 0.4);
-    put('tw_banner', W * 0.42, H * 0.42); put('tw_banner', W * 0.58, H * 0.42);
+    put('tw_lamp', cx - 34, cy + 2); put('tw_lamp', cx + 34, cy + 2);
+    put('tw_barrel', W * 0.36, rw.r2 + 2); put('tw_crate', W * 0.3, cy - 4); put('tw_barrel', W * 0.7, cy - 4); put('tw_crate', W * 0.64, rw.r2 + 2);
+    put('tw_barrel', W * 0.15, cy + 2); put('tw_crate', W * 0.86, cy + 4);
+    put('tw_banner', W * 0.42, rw.r1 + 2); put('tw_banner', W * 0.58, rw.r1 + 2);
     return c;
   }
   const villagers = [];
@@ -12153,17 +12281,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     }
   }
   function hitTown(p) {
-    for (const t of TOWN) { const q = townPlace(t); if (p.x >= q.x0 - 2 && p.x <= q.x0 + q.w + 2 && p.y >= q.y0 - 2 && p.y <= q.y + 6) return t; }
+    // front to back, as they're drawn
+    for (const t of TOWN.slice().sort((a, b) => b.y - a.y)) { const q = townPlace(t); if (p.x >= q.x0 - 2 && p.x <= q.x0 + q.w + 2 && p.y >= q.y0 - 2 && p.y <= q.y + 6) return t; }
     return null;
   }
   St.townHit = p => hitTown(p);
   St.townPoint = id => { const t = TOWN.find(x => x.id === id); if (!t) return null; const q = townPlace(t), r = cv.getBoundingClientRect(); return { x: r.left + q.x * S, y: r.top + q.y0 * S }; };
   function drawTown(dt) {
-    const k = W + 'x' + H + (SPR.defs.tw_forge ? 'a' : '');
+    const k = W + 'x' + H + (SPR.defs.tw_forge ? 'a' : '') + townRows().r1;
     if (k !== townKey || !townGround) { townKey = k; townGround = buildTownGround(); }
     lctx.imageSmoothingEnabled = false;
     lctx.drawImage(townGround, 0, 0);
-    const cx = Math.round(W / 2), cy = Math.round(H * 0.6);
+    const cx = Math.round(W / 2), cy = townRows().mid + 6;
     // the well in the middle, the party round it
     const well = sprOr('tw_well'); if (well) lctx.drawImage(well, cx - (well.width >> 1), cy - well.height + 4);
     const S0 = G.S, units = [S0.hero && S0.hero.cls].concat((S0.party || []).map(m => m.cls)).filter(Boolean);
@@ -12267,7 +12396,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     buildHeroes();
 
     // hold-to-click
-    if (holding) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = 0.125; G.manualClick(); } }
+    if (holding) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = 0.1; G.manualClick(); } }
 
     lctx.imageSmoothingEnabled = false;
     lctx.drawImage(groundCanvas, 0, 0);
@@ -13207,8 +13336,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
-      else if (e.code === 'KeyT') { if (G.R.town) G.leaveTown(); else G.enterTown(); }
-      else if (e.code === 'Escape' && G.R.town) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
+      else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else G.enterTown(); }
+      else if (e.code === 'Escape' && G.R.town && !G.uiBusy()) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
       else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
       else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
       else if (e.code === 'KeyC') { if (!G.uiBusy()) G.usePower('mend'); }
@@ -13383,7 +13512,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       // it glows when the bag holds something better than what someone wears (checked once a second)
       if (performance.now() - (UI._upT || 0) > 1000) { UI._upT = performance.now(); UI._up = !!(S.hero && S.hero.cls) && [-1].concat((S.party || []).map((_, i) => i)).some(w => S.hero.bag.some(g => { const sl = G.slotOf(g.id); return canWear(g, w) && G.powerWith(sl, g, w) > G.powerWith(sl, G.eqOf(w)[sl], w); })); }
       tb.classList.toggle('glow', !R.town && UI._up && G.townOk()); tb.title = R.town ? t('townBackTip') : G.townOk() ? t('townTip') : t('townNo'); } }
-    if (R.town && tw.id && (force || performance.now() - (UI._twT || 0) > 1000)) { UI._twT = performance.now(); const ae = document.activeElement; if (!force && !(ae && ae.tagName === 'SELECT' && $('#townWin').contains(ae))) renderTown(); }
+    // (the Alchemist's prices follow the gold; the Forge redraws on what you do in it, never under your finger)
+    if (R.town && tw.id === 'alch' && !tw.down && performance.now() - (UI._twT || 0) > 1500) { UI._twT = performance.now(); renderTown(); }
     // the gold number rolls toward the real value and bumps on a real gain
     const gShow = UI._gold == null ? S.gold : UI._gold + (S.gold - UI._gold) * 0.45;
     const now = performance.now();
@@ -14416,16 +14546,20 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
   function renderTown() {
     const el = twEl(); if (!el || !tw.id) return;
-    const sc = el.querySelector('.twBody, .twPots, .twParty'), y = sc ? sc.scrollTop : 0, gy = el.querySelector('.twGrid') ? el.querySelector('.twGrid').scrollTop : 0;
+    if (!G.S.hero || !G.S.hero.cls) { UI.townClose(); return; }
+    if (tw.who >= (G.S.party || []).length) { tw.who = -1; tw.sel = null; }
+    const sc = el.querySelector('.twBody, .twPots, .tw.tavern'), y = sc ? sc.scrollTop : 0, gy = el.querySelector('.twGrid') ? el.querySelector('.twGrid').scrollTop : 0;
     if (tw.id === 'forge' || tw.id === 'enchant') renderForge(el);
     else if (tw.id === 'alch') renderAlch(el);
     else if (tw.id === 'tavern') renderTavern(el);
-    const sc2 = el.querySelector('.twBody, .twPots, .twParty'); if (sc2) sc2.scrollTop = y;
+    const sc2 = el.querySelector('.twBody, .twPots, .tw.tavern'); if (sc2) sc2.scrollTop = y;
     const g2 = el.querySelector('.twGrid'); if (g2) g2.scrollTop = gy;
   }
   UI.townRender = renderTown;
   function bindTown() {
     const el = twEl(); if (!el) return;
+    el.addEventListener('pointerdown', () => { tw.down = true; });
+    window.addEventListener('pointerup', () => { tw.down = false; });
     el.addEventListener('change', e => {
       if (e.target.matches('[data-twauto]')) { G.S.hero.auto = e.target.checked; }
       if (e.target.matches('[data-twsalv]')) { tw.salv = +e.target.value; renderTown(); }
@@ -14882,7 +15016,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
     help_2: 'Loot', help_2t: 'Mobs drop loot where they fall, and its label and beam tell you what it is: tap it to grab it, or the Warden gathers it. Orbs change your gear in the Party tab, and uniques have rules of their own. The Button spills chests too; special ones (storm, frozen, mimics…) each work their own way.',
     help_3: 'Your Warden', help_3t: 'The Horde drops XP crystals; every level you pick one of three perks (they last until you ascend). 4 gear slots: weapon, ability, armour, ring; your class weapon type deals +50%. A stronger Warden faces a bigger Horde and clears lands faster.',
-    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper. Out of time, it ENRAGES: a few more seconds to finish it while it hits harder every second. Its wind-ups open a glowing weak point beside it: tap it to break the move. From the second land bosses can DOOM (most of everyone\u2019s health: Ward it, break it or Smite it), and from depth 8 they carry affixes such as Shielded or Vampiric.",
+    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. From the second land on come Warded (the Hand\u2019s lightning barely scratches them: your party must cut them down), Chargers, Menders (they heal the Horde) and Callers (they call more): tap a mob to make it the Hand\u2019s target. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper. Out of time, it ENRAGES: a few more seconds to finish it while it hits harder every second. Its wind-ups open a glowing weak point beside it: tap it to break the move. From the second land bosses can DOOM (most of everyone\u2019s health: Ward it, break it or Smite it), and from depth 8 they carry affixes such as Shielded or Vampiric.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and the collection stay.',
@@ -15008,6 +15142,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // Called ~8 times a second from UI.update
   Tut.update = function () {
     const S = G.S;
+    // in town the field's tips have nothing to point at
+    if (G.R && G.R.town) { hidePointer(); if ($('#coach')) $('#coach').hidden = true; return; }
     const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
     if (!S || !$('#coach') || busy) { hidePointer(); if (busy) $('#coach').hidden = true; stepAt.t += 120; return; }
     if (!S.hero || !S.hero.cls) { hide(); return; }
@@ -15210,6 +15346,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     } catch (e) { return false; }
   };
   G.hardReset = function () {
+    if (G.R.town) { G.R.town = false; G.emit('town', false); }
     G.S = G.newState();
     G.R.boss = null; G.R.bossReady = false; G.R.combo = 0; G.R.wisp = null;
     if (G.worldClear) G.worldClear();

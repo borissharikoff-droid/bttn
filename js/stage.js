@@ -41,7 +41,7 @@
     // a wide view of the field: on sharp screens the scale may be a half step (1.5 = 3 device pixels a pixel)
     const step = DPR >= 2 ? 0.5 : 1;
     // (2.4: a wider shot: the field shows about twice the ground it did, so the Horde has room to come from far off)
-    S = clamp(Math.floor(Math.min(cw / 380, ch / 280) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
+    S = clamp(Math.floor(Math.min(cw / 420, ch / 310) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
     W = Math.ceil(cw / S); H = Math.ceil(ch / S);
     cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
     cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
@@ -510,7 +510,7 @@
       e.preventDefault();
       const p = toLogical(e);
       const what = doPress(p);
-      if (what === 'button' && G.S.set.hold) { holding = true; holdTimer = 0.14; }
+      if (what === 'button' && G.S.set.hold) { holding = true; holdTimer = 0.12; }
     });
     const end = () => { holding = false; };
     cv.addEventListener('pointerup', end);
@@ -1825,6 +1825,18 @@
       if (G.realmIndex(d) !== G.realmIndex(b.d)) return; // the land card covers it
       setTimeout(() => zoneCard(d), 900);
     });
+    // 2.5: the new kinds show what they're doing
+    G.on('charge', m => { const q = mobPos(m); text(q.x, q.y - 14, '!', '#ff3b3b', 6, { life: 0.7, max: 0.7, vy: -12 }); burst(q.x, q.y, ['#c8b89a', '#8a7a60'], 8, 40, { grav: 60, life: 0.4 }); if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); });
+    G.on('mend', (m, n) => { const q = mobPos(m); ring(q.x, q.y - 4, 26, 14, '#5aff7a', 0.45); for (let i = 0; i < Math.min(6, n); i++) part(q.x + rand(-14, 14), q.y - rand(0, 10), '#7aff8a', { vx: 0, vy: -rand(10, 20), grav: 0, life: 0.6 }); });
+    G.on('call', m => { const q = mobPos(m); ring(q.x, q.y - 4, 30, 16, '#c88aff', 0.5); burst(q.x, q.y - 6, ['#c88aff', '#6a3aa8'], 10, 50, { life: 0.4 }); });
+    G.on('wardedHit', m => { const q = mobPos(m); text(q.x, q.y - 12, G.t('warded'), '#9ad8ff', 3, { life: 0.6, max: 0.6, vy: -14 }); });
+    // one new kind's card at a time: two arriving together queue up
+    let kindAt = 0;
+    G.on('kindFirst', k => {
+      const now = performance.now(), at = Math.max(now, kindAt);
+      kindAt = at + 3600;
+      setTimeout(() => { const A = G.ARCHETYPES[k], R_ = G.REALMS[G.realmIndex(G.S.depth)]; cardText(10, G.t('newKind', (R_.mobs && R_.mobs[k]) || A.name), '#b6ff5a', 4, { life: 3.4, vy: -3 }); cardText(18, A.desc, '#e8f8d0', 3, { life: 3.4, vy: -3 }); }, at - now);
+    });
     G.on('spores', m => { const q = mobPos(m); burst(q.x, q.y - 5, ['#c84ae8', '#ff7ab0', '#f4ecd8'], 10, 40, { grav: -10, life: 0.8 }); });
     G.on('thorns', m => { const q = mobPos(m); burst(q.x, q.y - 6, ['#b36bff', '#ffffff'], 6, 50, { life: 0.3 }); });
     G.on('headhunter', m => { const hp = heroPos(); text(hp.x, hp.y - 34, G.t('headhunter'), '#e8903a', 4, { life: 1.6, max: 1.6, vy: -12 }); ring(hp.x, hp.y - 4, 30, 15, '#e8903a', 0.5); });
@@ -1916,12 +1928,26 @@
     { id: 'pets', spr: 'tw_nest', x: 0.73, y: 0.8 },
   ];
   St.TOWN = TOWN;
-  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
+  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; townHover = null; townTop = 0; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
   let townGround = null, townKey = '', townHover = null;
   const sprOr = id => (SPR.defs[id] ? SPR.get(id) : null);
+  // the town is laid out below the top HUD: the back row stands its tallest building's height under it
+  let townTop = 0, townTopT = 0;
+  function townRows() {
+    if ((townTopT -= fdt) <= 0 || !townTop) {
+      townTopT = 1;
+      // (in town the land box is hidden: only the buttons at the top right stay)
+      const el = typeof document !== 'undefined' && document.querySelector('.hud.top .hudBtns'), cr = cv.getBoundingClientRect();
+      townTop = el ? Math.max(0, (el.getBoundingClientRect().bottom - cr.top) / S) : 20;
+    }
+    const r1 = Math.round(Math.max(H * 0.42, townTop + 66)), r2 = Math.round(Math.min(H - 6, Math.max(r1 + 74, H * 0.8)));
+    return { r1, r2, mid: Math.round((r1 + r2) / 2) };
+  }
   function townPlace(t) {
-    const c = sprOr(t.spr), w = c ? c.width : 40, h = c ? c.height : 34;
-    const x = Math.round(W * t.x), y = Math.round(H * t.y);
+    const c = sprOr(t.spr), w = c ? c.width : 40, h = c ? c.height : 34, rw = townRows();
+    // back row (y < 0.6): the rows' own heights, nudged by the place's offset from its row
+    const back = t.y < 0.6, y = Math.round(back ? rw.r1 + (t.y - 0.44) * 60 : t.y < 0.79 ? rw.r2 - 4 : rw.r2);
+    const x = Math.round(W * t.x);
     return { x, y, w, h, c, x0: x - w / 2, y0: y - h };
   }
   function buildTownGround() {
@@ -1929,7 +1955,7 @@
     // grass round the edge, cobbles in the square
     x.fillStyle = '#3e6b34'; x.fillRect(0, 0, W, H);
     for (let i = 0; i < W * H / 14; i++) { x.fillStyle = rnd() < 0.5 ? '#4b7d3e' : '#355d2d'; x.fillRect(Math.floor(rnd() * W), Math.floor(rnd() * H), 1, 1); }
-    const cx = W / 2, cy = H * 0.6, rx = W * 0.37, ry = H * 0.36;
+    const rw = townRows(), cx = W / 2, cy = rw.mid + 6, rx = W * 0.37, ry = Math.max(H * 0.3, (rw.r2 - rw.r1) * 0.75 + 24);
     for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
       const dx = (xx - cx) / rx, dy = (yy - cy) / ry, d = dx * dx + dy * dy;
       if (d > 1 + (rnd() - 0.5) * 0.06) continue;
@@ -1947,10 +1973,10 @@
     for (let i = 0; i < 26; i++) { const px = rnd() * W, py = rnd() * H, dx = (px - cx) / rx, dy = (py - cy) / ry; if (dx * dx + dy * dy > 1.05) put('tw_flower', px, py); }
     // a ring of trees round the square, thicker at the back
     for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, px = cx + Math.cos(a) * rx * k, py = cy + Math.sin(a) * ry * k + 10; if (py > 20) put('tw_tree', px, py); }
-    put('tw_lamp', cx - 34, H * 0.62); put('tw_lamp', cx + 34, H * 0.62);
-    put('tw_barrel', W * 0.36, H * 0.84); put('tw_crate', W * 0.3, H * 0.56); put('tw_barrel', W * 0.7, H * 0.56); put('tw_crate', W * 0.64, H * 0.84);
-    put('tw_barrel', W * 0.15, H * 0.62); put('tw_crate', W * 0.86, H * 0.64); put('tw_lamp', W * 0.3, H * 0.4); put('tw_lamp', W * 0.7, H * 0.4);
-    put('tw_banner', W * 0.42, H * 0.42); put('tw_banner', W * 0.58, H * 0.42);
+    put('tw_lamp', cx - 34, cy + 2); put('tw_lamp', cx + 34, cy + 2);
+    put('tw_barrel', W * 0.36, rw.r2 + 2); put('tw_crate', W * 0.3, cy - 4); put('tw_barrel', W * 0.7, cy - 4); put('tw_crate', W * 0.64, rw.r2 + 2);
+    put('tw_barrel', W * 0.15, cy + 2); put('tw_crate', W * 0.86, cy + 4);
+    put('tw_banner', W * 0.42, rw.r1 + 2); put('tw_banner', W * 0.58, rw.r1 + 2);
     return c;
   }
   const villagers = [];
@@ -1972,17 +1998,18 @@
     }
   }
   function hitTown(p) {
-    for (const t of TOWN) { const q = townPlace(t); if (p.x >= q.x0 - 2 && p.x <= q.x0 + q.w + 2 && p.y >= q.y0 - 2 && p.y <= q.y + 6) return t; }
+    // front to back, as they're drawn
+    for (const t of TOWN.slice().sort((a, b) => b.y - a.y)) { const q = townPlace(t); if (p.x >= q.x0 - 2 && p.x <= q.x0 + q.w + 2 && p.y >= q.y0 - 2 && p.y <= q.y + 6) return t; }
     return null;
   }
   St.townHit = p => hitTown(p);
   St.townPoint = id => { const t = TOWN.find(x => x.id === id); if (!t) return null; const q = townPlace(t), r = cv.getBoundingClientRect(); return { x: r.left + q.x * S, y: r.top + q.y0 * S }; };
   function drawTown(dt) {
-    const k = W + 'x' + H + (SPR.defs.tw_forge ? 'a' : '');
+    const k = W + 'x' + H + (SPR.defs.tw_forge ? 'a' : '') + townRows().r1;
     if (k !== townKey || !townGround) { townKey = k; townGround = buildTownGround(); }
     lctx.imageSmoothingEnabled = false;
     lctx.drawImage(townGround, 0, 0);
-    const cx = Math.round(W / 2), cy = Math.round(H * 0.6);
+    const cx = Math.round(W / 2), cy = townRows().mid + 6;
     // the well in the middle, the party round it
     const well = sprOr('tw_well'); if (well) lctx.drawImage(well, cx - (well.width >> 1), cy - well.height + 4);
     const S0 = G.S, units = [S0.hero && S0.hero.cls].concat((S0.party || []).map(m => m.cls)).filter(Boolean);
@@ -2086,7 +2113,7 @@
     buildHeroes();
 
     // hold-to-click
-    if (holding) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = 0.125; G.manualClick(); } }
+    if (holding) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = 0.1; G.manualClick(); } }
 
     lctx.imageSmoothingEnabled = false;
     lctx.drawImage(groundCanvas, 0, 0);

@@ -14,7 +14,9 @@
     bossCall: 3,            // seconds of warning before a ready boss arrives on its own
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
-    maxManualCps: 25,
+    // 2.5: the game is balanced for the Button held down (10 clicks a second); faster clicking, or an
+    // autoclicker, counts no more than that
+    maxManualCps: 10,
     wispMin: 50, wispMax: 120, wispLife: 13,
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
@@ -57,7 +59,7 @@
       daily: { last: '', streak: 0 },
       st: { crits: 0, bossKills: 0, lordKills: 0, wisps: 0, mimics: 0, merges: 0, divine: 0, maxCombo: 0,
         playTime: 0, chests: 0, modded: 0, megas: 0, hoards: 0, shrines: 0, breaches: 0, drops: 0, orbs: 0, rifts: 0 },
-      set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1, filter: 1 },
+      set: { sound: 1, music: 1, vol: 0.6, hold: 1, shake: 1, autoBoss: 1, filter: 1 },
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
       uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
@@ -85,7 +87,7 @@
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 25,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 18,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -252,6 +254,7 @@
 
   function manualClick(x, y) {
     const S = G.S;
+    if (R.town) return null; // the field waits while the party is in town
     const now = performance.now();
     const mt = R.manualTimes;
     while (mt.length && now - mt[0] > 1000) mt.shift();
@@ -467,7 +470,7 @@
   // Player tapped a chest on the field.
   function clickChest(c) {
     const S = G.S;
-    if (!S.chests.includes(c)) return;
+    if (R.town || !S.chests.includes(c)) return;
     if (c.mod === 'frozen') {
       c.hp -= critRoll() ? 3 : 1;
       emit('chestHit', c);
@@ -526,10 +529,10 @@
   // ---------- Potions ----------
   // 2.4: the Town. Between fights the party can walk into town: the field holds still (the Garrison keeps
   // earning) while you gear up at the Forge, brew at the Alchemist, recruit at the Tavern.
-  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
+  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !(G.S.tut >= 0) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
   G.enterTown = function () {
     if (R.town || !G.townOk()) return false;
-    R.town = true; R.bossIn = null;
+    R.town = true;
     G.S.st.townVisits = (G.S.st.townVisits || 0) + 1;
     emit('town', true);
     return true;
@@ -653,7 +656,7 @@
   R.pw = { smite: 0, ward: 0, mend: 0 };
   // Smite needs something to hit: not a boss shrugging off a phase change, not an empty field
   const smiteTarget = () => R.boss ? !R.boss.dead && !(R.boss.inv > 0) : R.mobs.some(m => !m.dead && m.p > 0.45 && m.kind !== 'guardian');
-  G.powerReady = id => !(R.pw[id] > 0) && !!(G.S.hero && G.S.hero.cls) && !(R.stun > 0) && (id !== 'smite' || smiteTarget());
+  G.powerReady = id => !R.town && !(R.pw[id] > 0) && !!(G.S.hero && G.S.hero.cls) && !(R.stun > 0) && (id !== 'smite' || smiteTarget());
   G.usePower = function (id) {
     const P = G.POWERS[id];
     if (!P || !G.powerReady(id)) return false;
@@ -697,7 +700,7 @@
   function startBoss() {
     const S = G.S;
     // an invasion is fought out first
-    if (R.boss || R.rift || !R.bossReady || R.inv) return false;
+    if (R.boss || R.rift || !R.bossReady || R.inv || R.town) return false;
     const d = S.depth;
     const lord = isLord(d);
     const max = bossMax(d);
@@ -1110,6 +1113,7 @@
     const S = G.S;
     const g = fameGain();
     if (g < 1) return false;
+    if (R.town) { R.town = false; emit('town', false); }
     const keepPct = 0.25 * (S.legacy.lg_keeppot || 0);
     const keep = {};
     G.POTIONS.forEach(p => keep[p.id] = Math.floor(S.pots[p.id] * keepPct));
@@ -1285,6 +1289,8 @@
     // Merge nested objects so new fields get defaults.
     S.st = Object.assign(newState().st, data.st || {});
     S.set = Object.assign(newState().set, data.set || {});
+    // 2.5: holding the Button down is how the game is played now: switch it on once for older saves
+    if (!(data.seen && data.seen.hold25)) { S.set.hold = 1; S.seen = Object.assign({}, data.seen || {}, { hold25: 1 }); }
     S.pots = Object.assign(potZero(), data.pots || {});
     S.pity = Object.assign({ l: 0, d: 0 }, data.pity || {});
     S.daily = Object.assign({ last: '', streak: 0 }, data.daily || {});
@@ -1308,6 +1314,7 @@
     if (G.ensureHero) G.ensureHero(S);
     if (R.mobs) R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null; R.wave = null; R.btnDown = 0;
+    if (R.town) { R.town = false; emit('town', false); }
     if (G.worldClear) G.worldClear();
     // saves from before 1.0: the Journey gained 11 steps in between the old ones
     if (!('uq' in data) && G.Journey && G.Journey.fromV0) S.journey = G.Journey.fromV0(S.journey || 0);

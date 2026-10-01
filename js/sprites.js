@@ -1400,6 +1400,57 @@
       '.A.A.AA.A.A.',
       'A..A....A..A',
     ],
+    // 2.5: a shield-bearer the Hand's lightning slides off
+    warded: [
+      '..AAA.....',
+      '.Aaaaa....',
+      '.Aakawwww.',
+      '.aaawccccw',
+      'Aaaawcyycw',
+      'Aaaawcyycw',
+      '.aaawccccw',
+      '.Aaa.wwww.',
+      '.A..A.....',
+      'A...A.....',
+    ],
+    // a horned beast that lowers its head and charges
+    charger: [
+      'w........w..',
+      '.ww.aaaa.ww.',
+      '...waaaaw...',
+      '..aakaakaa..',
+      '.aaaaaaaaaaA',
+      'AaaaccaaaaAA',
+      'AAaaaaaaaAA.',
+      '.A.A....A.A.',
+      'A..A....A..A',
+    ],
+    // a robed mender with a glowing staff
+    healer: [
+      '.y........',
+      'yyy..AA...',
+      '.y..Aaaa..',
+      '.k..akak..',
+      '.k..aaaa..',
+      '.kAAaaaaA.',
+      '.k.AaccaA.',
+      '.k.AaccaA.',
+      '.k.AaaaaA.',
+      '.k..A..A..',
+    ],
+    // a hooded caller ringed with runes
+    summoner: [
+      '...AAAA...',
+      '..AaaaaA..',
+      '..AkaakA..',
+      'c.AaaaaA.c',
+      '.cAaccaAc.',
+      '..AaaaaA..',
+      '.AaaccaaA.',
+      'cAaaaaaaAc',
+      '..A....A..',
+      '.A......A.',
+    ],
   };
   const ARCH_PAL = {
     shore:     { a: '#5ab4c8', A: '#2a6a80', c: '#ffd84a' },

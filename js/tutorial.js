@@ -60,7 +60,7 @@
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
     help_2: 'Loot', help_2t: 'Mobs drop loot where they fall, and its label and beam tell you what it is: tap it to grab it, or the Warden gathers it. Orbs change your gear in the Party tab, and uniques have rules of their own. The Button spills chests too; special ones (storm, frozen, mimics…) each work their own way.',
     help_3: 'Your Warden', help_3t: 'The Horde drops XP crystals; every level you pick one of three perks (they last until you ascend). 4 gear slots: weapon, ability, armour, ring; your class weapon type deals +50%. A stronger Warden faces a bigger Horde and clears lands faster.',
-    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper. Out of time, it ENRAGES: a few more seconds to finish it while it hits harder every second. Its wind-ups open a glowing weak point beside it: tap it to break the move. From the second land bosses can DOOM (most of everyone\u2019s health: Ward it, break it or Smite it), and from depth 8 they carry affixes such as Shielded or Vampiric.",
+    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. From the second land on come Warded (the Hand\u2019s lightning barely scratches them: your party must cut them down), Chargers, Menders (they heal the Horde) and Callers (they call more): tap a mob to make it the Hand\u2019s target. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper. Out of time, it ENRAGES: a few more seconds to finish it while it hits harder every second. Its wind-ups open a glowing weak point beside it: tap it to break the move. From the second land bosses can DOOM (most of everyone\u2019s health: Ward it, break it or Smite it), and from depth 8 they carry affixes such as Shielded or Vampiric.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and the collection stay.',
@@ -186,6 +186,8 @@
   // Called ~8 times a second from UI.update
   Tut.update = function () {
     const S = G.S;
+    // in town the field's tips have nothing to point at
+    if (G.R && G.R.town) { hidePointer(); if ($('#coach')) $('#coach').hidden = true; return; }
     const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
     if (!S || !$('#coach') || busy) { hidePointer(); if (busy) $('#coach').hidden = true; stepAt.t += 120; return; }
     if (!S.hero || !S.hero.cls) { hide(); return; }

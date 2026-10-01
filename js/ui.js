@@ -231,8 +231,8 @@
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
-      else if (e.code === 'KeyT') { if (G.R.town) G.leaveTown(); else G.enterTown(); }
-      else if (e.code === 'Escape' && G.R.town) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
+      else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else G.enterTown(); }
+      else if (e.code === 'Escape' && G.R.town && !G.uiBusy()) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
       else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
       else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
       else if (e.code === 'KeyC') { if (!G.uiBusy()) G.usePower('mend'); }
@@ -407,7 +407,8 @@
       // it glows when the bag holds something better than what someone wears (checked once a second)
       if (performance.now() - (UI._upT || 0) > 1000) { UI._upT = performance.now(); UI._up = !!(S.hero && S.hero.cls) && [-1].concat((S.party || []).map((_, i) => i)).some(w => S.hero.bag.some(g => { const sl = G.slotOf(g.id); return canWear(g, w) && G.powerWith(sl, g, w) > G.powerWith(sl, G.eqOf(w)[sl], w); })); }
       tb.classList.toggle('glow', !R.town && UI._up && G.townOk()); tb.title = R.town ? t('townBackTip') : G.townOk() ? t('townTip') : t('townNo'); } }
-    if (R.town && tw.id && (force || performance.now() - (UI._twT || 0) > 1000)) { UI._twT = performance.now(); const ae = document.activeElement; if (!force && !(ae && ae.tagName === 'SELECT' && $('#townWin').contains(ae))) renderTown(); }
+    // (the Alchemist's prices follow the gold; the Forge redraws on what you do in it, never under your finger)
+    if (R.town && tw.id === 'alch' && !tw.down && performance.now() - (UI._twT || 0) > 1500) { UI._twT = performance.now(); renderTown(); }
     // the gold number rolls toward the real value and bumps on a real gain
     const gShow = UI._gold == null ? S.gold : UI._gold + (S.gold - UI._gold) * 0.45;
     const now = performance.now();
@@ -1440,16 +1441,20 @@
   }
   function renderTown() {
     const el = twEl(); if (!el || !tw.id) return;
-    const sc = el.querySelector('.twBody, .twPots, .twParty'), y = sc ? sc.scrollTop : 0, gy = el.querySelector('.twGrid') ? el.querySelector('.twGrid').scrollTop : 0;
+    if (!G.S.hero || !G.S.hero.cls) { UI.townClose(); return; }
+    if (tw.who >= (G.S.party || []).length) { tw.who = -1; tw.sel = null; }
+    const sc = el.querySelector('.twBody, .twPots, .tw.tavern'), y = sc ? sc.scrollTop : 0, gy = el.querySelector('.twGrid') ? el.querySelector('.twGrid').scrollTop : 0;
     if (tw.id === 'forge' || tw.id === 'enchant') renderForge(el);
     else if (tw.id === 'alch') renderAlch(el);
     else if (tw.id === 'tavern') renderTavern(el);
-    const sc2 = el.querySelector('.twBody, .twPots, .twParty'); if (sc2) sc2.scrollTop = y;
+    const sc2 = el.querySelector('.twBody, .twPots, .tw.tavern'); if (sc2) sc2.scrollTop = y;
     const g2 = el.querySelector('.twGrid'); if (g2) g2.scrollTop = gy;
   }
   UI.townRender = renderTown;
   function bindTown() {
     const el = twEl(); if (!el) return;
+    el.addEventListener('pointerdown', () => { tw.down = true; });
+    window.addEventListener('pointerup', () => { tw.down = false; });
     el.addEventListener('change', e => {
       if (e.target.matches('[data-twauto]')) { G.S.hero.auto = e.target.checked; }
       if (e.target.matches('[data-twsalv]')) { tw.salv = +e.target.value; renderTown(); }

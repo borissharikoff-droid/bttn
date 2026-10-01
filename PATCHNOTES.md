@@ -7,9 +7,32 @@ The field was too small and too quiet, the bottom of the screen was hard to read
 - **The Town.** Tap **TOWN** at the top right (or press **T**) whenever you're not in a fight. The field holds still while you're there, and only the Garrison keeps earning. Inside are the Forge, the Enchanter, the Alchemist, the Tavern, the quest board, the Observatory and the Hatchery. The portal takes you back.
 - **EQUIP BEST.** One button, in the Forge and in the Party tab, puts the strongest gear you own on the whole party.
 - **A clear Forge.** Pick a party member, tap an item and see exactly what it would change before you equip, upgrade or break it down.
-- **A wider field.** You see about twice as much ground, packs are bigger, and at least 90 mobs are always on the field.
+- **Built for holding the Button.** Hold-to-click is on, and nothing counts past 10 clicks a second. Four new kinds of the Horde (Warded, Chargers, Menders, Callers) need more than holding.
+- **A wider field.** You see about 2.4 times as much ground, packs are bigger, and at least 90 mobs are always on the field.
 - **Easy depths go by fast.** When you far outclass a depth, it clears up to three times faster, so you reach the depths that test you sooner.
 - **A bar you can read.** Every bar at the bottom has an icon, a plain label and a tip on hover.
+
+## Built for holding the Button
+
+Everyone plays with the Button held down, or with an autoclicker, so the whole game is now balanced for that.
+
+- **Hold-to-click is on by default,** on phones too, and it clicks 10 times a second (up from 8). Saves from before turn it on once.
+- **No click counts past 10 a second.** Faster clicking or an autoclicker gives nothing more.
+- **Four new kinds of the Horde that holding alone doesn't beat.** From the second land on, some packs are led by one of them:
+
+  | Kind | From | What it does | How to answer it |
+  |---|---|---|---|
+  | **Warded** | land 2 | carries a shield: the Hand's lightning, chains, pets and Smite do only 8% damage to it, and it has 2.5× health | your party has to cut it down: gear them at the Forge |
+  | **Chargers** | land 2 | walk in slowly, then charge the last stretch four times as fast and hit hard | thin them out before they arrive, or Ward |
+  | **Menders** | land 3 | hang back and heal every mob near them by 12% every 2 seconds | tap one to make it the Hand's target |
+  | **Callers** | land 4 | stop at range and call 7 more of the Horde every 3 seconds | tap one to make it the Hand's target |
+
+  A card names each kind the first time it shows up. At depth 1, 12% of packs are led by one; the share grows 0.7% a depth, up to 38%.
+- **The Horde is tougher:**
+  - the first lands have 4 times the health at depth 1, easing to normal by depth 41;
+  - every bite does at least 3.2% of the Button's health per unit of the mob's weight, up from 2.5%.
+- **Lands change faster.** A depth's clear bar needs 18 instead of 25, so each land goes by in about 4 minutes when you're strong enough for it.
+- **The camera pulls back further.** On a computer the field now shows about 2.4 times the ground it did in 2.3.
 
 ## The Town
 
@@ -43,7 +66,7 @@ You can't go to town during a boss fight, a Rift, an invasion or a sudden event,
 
 ## The field
 
-- **A wider shot.** On a computer the field shows about twice the ground it did, so the Horde comes from further off and the arena feels like a place. Phones keep their scale.
+- **A wider shot.** On a computer the field shows about 2.4 times the ground it did, so the Horde comes from further off and the arena feels like a place. Phones keep their scale.
 - **More of the Horde:**
   - packs bring about 40% more small fry;
   - the field always holds at least 90 mobs, up from 40;
@@ -63,6 +86,20 @@ You can't go to town during a boss fight, a Rift, an invasion or a sudden event,
 
 - **The labels are plainer:** "Clear 6/25 · then the boss", "Next chest 9% · on the field 20/20", "Click combo 50 · gold ×1.25".
 - **The ability button** says what it is (Q).
+
+## Fixes from review
+
+- **In town, the field is truly paused.** Space, B, Q, Z/X/C, chests and the Rift tab no longer act on the field behind the town.
+- **EQUIP BEST never takes a unique off the Warden** unless another unique beats it, and it never gives a unique to a companion: a unique's rule only works on the Warden.
+- **The town fits phones:**
+  - the buildings sit below the buttons at the top;
+  - the land box is hidden while you're in town;
+  - the Tavern window scrolls.
+- **Town windows don't eat clicks.** They no longer redraw under your finger, and only the Alchemist keeps its prices current.
+- **Tips stay out of town.** The tutorial's tips no longer point at the field from inside the town, and the town opens after the tutorial.
+- **Leaving town is clean.** A hard reset, an import or an ascension takes you out of town. Entering town no longer resets the boss countdown.
+- **Taps hit the building in front** where two buildings overlap.
+- **T and Esc** do nothing while a window is open.
 
 ## Smaller changes
 

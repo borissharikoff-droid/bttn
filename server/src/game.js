@@ -562,7 +562,13 @@
     spitter: { w: 0.6, spd: 0.9, gold: 1.3, from: 2, name: 'Spitters', desc: 'Stop at range and spit at the Button' },
     bomber:  { w: 0.4, spd: 1.5, gold: 1.2, from: 3, name: 'Bombers', desc: 'Blow up when they die, taking the Horde with them' },
     tank:    { w: 3, spd: 0.55, gold: 1.6, from: 4, name: 'Tanks', desc: 'Slow walls of armour. Big loot' },
+    // 2.5: kinds that holding the Button down doesn't answer. land: the first land (0-based) they come in
+    warded:   { w: 1.2, spd: 0.8, gold: 1.5, land: 1, hp: 2.5, name: 'Warded', desc: 'Shielded against the Hand: lightning barely scratches them. Your party has to cut them down' },
+    charger:  { w: 1.5, spd: 0.7, gold: 1.4, land: 1, hp: 1.6, name: 'Chargers', desc: 'Close in slowly, then charge the Button and hit like a cart' },
+    healer:   { w: 1, spd: 0.8, gold: 1.6, land: 2, hp: 1.4, name: 'Menders', desc: 'Hang back and heal the Horde round them. Kill them first' },
+    summoner: { w: 1.4, spd: 0.7, gold: 1.8, land: 3, hp: 1.8, name: 'Callers', desc: 'Stop at range and call more of the Horde every few seconds' },
   };
+  G.NEW_KINDS = ['warded', 'charger', 'healer', 'summoner'];
   G.ZONE_MIX = [
     { runner: 0.08, spitter: 0,    bomber: 0,    tank: 0 },
     { runner: 0.22, spitter: 0,    bomber: 0,    tank: 0 },
@@ -657,7 +663,9 @@
     bossCall: 3,            // seconds of warning before a ready boss arrives on its own
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
-    maxManualCps: 25,
+    // 2.5: the game is balanced for the Button held down (10 clicks a second); faster clicking, or an
+    // autoclicker, counts no more than that
+    maxManualCps: 10,
     wispMin: 50, wispMax: 120, wispLife: 13,
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
@@ -700,7 +708,7 @@
       daily: { last: '', streak: 0 },
       st: { crits: 0, bossKills: 0, lordKills: 0, wisps: 0, mimics: 0, merges: 0, divine: 0, maxCombo: 0,
         playTime: 0, chests: 0, modded: 0, megas: 0, hoards: 0, shrines: 0, breaches: 0, drops: 0, orbs: 0, rifts: 0 },
-      set: { sound: 1, music: 1, vol: 0.6, hold: 0, shake: 1, autoBoss: 1, filter: 1 },
+      set: { sound: 1, music: 1, vol: 0.6, hold: 1, shake: 1, autoBoss: 1, filter: 1 },
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
       uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
@@ -728,7 +736,7 @@
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 25,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 18,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -895,6 +903,7 @@
 
   function manualClick(x, y) {
     const S = G.S;
+    if (R.town) return null; // the field waits while the party is in town
     const now = performance.now();
     const mt = R.manualTimes;
     while (mt.length && now - mt[0] > 1000) mt.shift();
@@ -1110,7 +1119,7 @@
   // Player tapped a chest on the field.
   function clickChest(c) {
     const S = G.S;
-    if (!S.chests.includes(c)) return;
+    if (R.town || !S.chests.includes(c)) return;
     if (c.mod === 'frozen') {
       c.hp -= critRoll() ? 3 : 1;
       emit('chestHit', c);
@@ -1169,10 +1178,10 @@
   // ---------- Potions ----------
   // 2.4: the Town. Between fights the party can walk into town: the field holds still (the Garrison keeps
   // earning) while you gear up at the Forge, brew at the Alchemist, recruit at the Tavern.
-  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
+  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !(G.S.tut >= 0) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
   G.enterTown = function () {
     if (R.town || !G.townOk()) return false;
-    R.town = true; R.bossIn = null;
+    R.town = true;
     G.S.st.townVisits = (G.S.st.townVisits || 0) + 1;
     emit('town', true);
     return true;
@@ -1296,7 +1305,7 @@
   R.pw = { smite: 0, ward: 0, mend: 0 };
   // Smite needs something to hit: not a boss shrugging off a phase change, not an empty field
   const smiteTarget = () => R.boss ? !R.boss.dead && !(R.boss.inv > 0) : R.mobs.some(m => !m.dead && m.p > 0.45 && m.kind !== 'guardian');
-  G.powerReady = id => !(R.pw[id] > 0) && !!(G.S.hero && G.S.hero.cls) && !(R.stun > 0) && (id !== 'smite' || smiteTarget());
+  G.powerReady = id => !R.town && !(R.pw[id] > 0) && !!(G.S.hero && G.S.hero.cls) && !(R.stun > 0) && (id !== 'smite' || smiteTarget());
   G.usePower = function (id) {
     const P = G.POWERS[id];
     if (!P || !G.powerReady(id)) return false;
@@ -1340,7 +1349,7 @@
   function startBoss() {
     const S = G.S;
     // an invasion is fought out first
-    if (R.boss || R.rift || !R.bossReady || R.inv) return false;
+    if (R.boss || R.rift || !R.bossReady || R.inv || R.town) return false;
     const d = S.depth;
     const lord = isLord(d);
     const max = bossMax(d);
@@ -1753,6 +1762,7 @@
     const S = G.S;
     const g = fameGain();
     if (g < 1) return false;
+    if (R.town) { R.town = false; emit('town', false); }
     const keepPct = 0.25 * (S.legacy.lg_keeppot || 0);
     const keep = {};
     G.POTIONS.forEach(p => keep[p.id] = Math.floor(S.pots[p.id] * keepPct));
@@ -1928,6 +1938,8 @@
     // Merge nested objects so new fields get defaults.
     S.st = Object.assign(newState().st, data.st || {});
     S.set = Object.assign(newState().set, data.set || {});
+    // 2.5: holding the Button down is how the game is played now: switch it on once for older saves
+    if (!(data.seen && data.seen.hold25)) { S.set.hold = 1; S.seen = Object.assign({}, data.seen || {}, { hold25: 1 }); }
     S.pots = Object.assign(potZero(), data.pots || {});
     S.pity = Object.assign({ l: 0, d: 0 }, data.pity || {});
     S.daily = Object.assign({ last: '', streak: 0 }, data.daily || {});
@@ -1951,6 +1963,7 @@
     if (G.ensureHero) G.ensureHero(S);
     if (R.mobs) R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     R.boss = null; R.bossReady = false; R.combo = 0; R.wisp = null; R.wave = null; R.btnDown = 0;
+    if (R.town) { R.town = false; emit('town', false); }
     if (G.worldClear) G.worldClear();
     // saves from before 1.0: the Journey gained 11 steps in between the old ones
     if (!('uq' in data) && G.Journey && G.Journey.fromV0) S.journey = G.Journey.fromV0(S.journey || 0);
@@ -1984,10 +1997,14 @@
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002, biteFloor: 0.025,
+    killChest: 0.03, plunder: 0.002, biteFloor: 0.032,
     // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
     // regen out of and in a boss fight (share of health a second)
-    hsMin: 1, earlyHp: 2.5, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
+    hsMin: 1, earlyHp: 3, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
+    // 2.5: the new kinds: a pack's chance to be led by one (base + per depth, capped); Warded takes this share
+    // of the Hand's damage; menders heal this share of health round them every few seconds; callers call
+    // callN small fry every callEvery s; chargers run chargeSpd times faster for the last stretch
+    newKindBase: 0.12, newKindPer: 0.007, newKindMax: 0.38, wardedTake: 0.08, healerEvery: 2.2, healerPct: 0.12, callEvery: 3.2, callN: 7, chargeSpd: 4,
   });
 
   // ---------- Content ----------
@@ -2397,7 +2414,9 @@
     for (const who of whos) {
       const m = who >= 0 ? S.party[who] : null, eq = eqOf(who);
       for (const slot of G.SLOTS) {
-        const pool = h.bag.filter(g => G.slotOf(g.id) === slot && (slot !== 'weapon' || !m || G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id])));
+        // (a unique's rule works only on the Warden: it stays on unless another unique beats it, and companions never take one)
+        const keepUq = !m && eq[slot] && eq[slot].q;
+        const pool = h.bag.filter(g => G.slotOf(g.id) === slot && (slot !== 'weapon' || !m || G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id])) && !(m && g.q) && !(keepUq && !g.q));
         let best = eq[slot], bp = best ? powerWith(slot, best, who) : -1;
         for (const g of pool) { const p = powerWith(slot, g, who); if (p > bp) { best = g; bp = p; } }
         if (best && best !== eq[slot]) { equip(best, true, who); n++; }
@@ -2689,6 +2708,7 @@
     if (R.inv && !add && kind !== 'hoard') m.inv = R.inv.k;
     R.mobs.push(m);
     emit('mobSpawn', m);
+    if (G.NEW_KINDS && G.NEW_KINDS.includes(kind) && !add) { const sn = G.S.seen = G.S.seen || {}; sn.kinds = sn.kinds || {}; if (!sn.kinds[kind]) { sn.kinds[kind] = 1; emit('kindFirst', kind); } }
     return m;
   }
   // One pack, all from one direction
@@ -2716,6 +2736,16 @@
     const rc = 0.03 * om().champ * (L.rare || 1), mc = rc + 0.07 * om().champ * (L.champ || 1);
     if (d >= 1 && roll < rc) { makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
     if (roll < mc) { makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); swarm('fodder', 40, 0.07); return; }
+    // 2.5: from the second land, packs led by kinds the Hand alone can't handle, more of them the deeper it gets
+    const ri = G.realmIndex(d), nk = (G.NEW_KINDS || []).filter(k => ri >= G.ARCHETYPES[k].land);
+    if (nk.length && G.rng() < Math.min(TUNE.newKindMax, TUNE.newKindBase + TUNE.newKindPer * d)) {
+      const k = nk[Math.floor(G.rng() * nk.length)];
+      if (k === 'warded') { const n = randInt(3, 6); for (let i = 0; i < n; i++) makeMob('warded', a + rand(-0.05, 0.05), -rand(0, 0.1)); swarm('fodder', randInt(20, 35), 0.07); }
+      else if (k === 'charger') { const n = randInt(2, 4); for (let i = 0; i < n; i++) makeMob('charger', a + rand(-0.06, 0.06), -rand(0, 0.15)); swarm('fodder', randInt(25, 40), 0.08); }
+      else if (k === 'healer') { makeMob('healer', a, -0.05); makeMob('healer', a + 0.04, -0.1); makeMob('brute', a + 0.02, 0); swarm('fodder', randInt(35, 55), 0.08); }
+      else { makeMob('summoner', a, -0.05); swarm('fodder', randInt(25, 40), 0.07); }
+      return;
+    }
     // the zone's own kinds
     const mix = zoneMix(d);
     let r2 = G.rng();
@@ -2778,6 +2808,8 @@
     if (m.dead) return;
     if (uq('codex') && (m.kind === 'spitter' || m.kind === 'bomber')) dmg = m.hp + 1;
     else if (uq('tyrant') && (m.kind === 'tank' || m.kind === 'brute' || m.kind === 'magic')) dmg *= 2;
+    // Warded: the Hand's lightning (clicks, pets, its chains, Smite) barely scratches it
+    if (m.kind === 'warded' && (src === 'click' || src === 'pet' || src === 'chain' || src === 'smite')) { dmg *= TUNE.wardedTake; if (G.rng() < 0.05) emit('wardedHit', m); }
     m.hp -= m.mod === 'stone' || m.stone ? dmg * 0.5 : dmg;
     if (m.hp <= 0) { m.over = -m.hp / m.max; m.crit = crit; killMob(m, src); }
   }
@@ -3057,7 +3089,7 @@
   function castAbility() {
     const S = G.S, D = G.D, h = S.hero;
     const g = h.eq.ability;
-    if (!g || R.abilCd > 0 || !h.cls) return false;
+    if (!g || R.abilCd > 0 || !h.cls || R.town) return false;
     const type = G.ITEM_TYPE[g.id], ab = G.ABILITIES[type];
     R.abilCd = ab.cd * (1 - Math.min(0.5, 0.03 * g.e)) * (uq('watcher') ? 0.5 : 1);
     const hit = D.heroHit;
@@ -3141,6 +3173,23 @@
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
+      // 2.5: menders and callers hold at range; chargers break into a run once they're close
+      if (m.kind === 'healer' || m.kind === 'summoner') {
+        if ((m.atkT -= dt) <= 0 && m.p >= 0.2) {
+          if (m.kind === 'healer') {
+            m.atkT = TUNE.healerEvery * rand(0.85, 1.15);
+            const [hx, hy] = mobXY(m); let n = 0;
+            for (const o of R.mobs) { if (o === m || o.dead || o.hp >= o.max) continue; const [ox, oy] = mobXY(o); if ((ox - hx) ** 2 + (oy - hy) ** 2 < 0.07) { o.hp = Math.min(o.max, o.hp + o.max * TUNE.healerPct); n++; } }
+            if (n) emit('mend', m, n);
+          } else {
+            m.atkT = TUNE.callEvery * rand(0.85, 1.15);
+            for (let i = 0; i < TUNE.callN && R.mobs.length < TUNE.mobMax; i++) makeMob('fodder', m.a + rand(-0.03, 0.03), m.p - rand(0.05, 0.15), true);
+            emit('call', m);
+          }
+        }
+        if (m.p >= (m.kind === 'healer' ? 0.5 : 0.42)) continue;
+      }
+      if (m.kind === 'charger' && !m.chg && m.p >= 0.38) { m.chg = 1; m.sp *= TUNE.chargeSpd; emit('charge', m); }
       // spitters lob globs at the Button as soon as they're in range, then hold there
       if (m.kind === 'spitter' && m.p >= 0.3) {
         if (!m.spit) { m.spit = 1; m.atkT = rand(0.3, 0.9); }

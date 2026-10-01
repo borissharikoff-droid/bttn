@@ -429,7 +429,13 @@
     spitter: { w: 0.6, spd: 0.9, gold: 1.3, from: 2, name: 'Spitters', desc: 'Stop at range and spit at the Button' },
     bomber:  { w: 0.4, spd: 1.5, gold: 1.2, from: 3, name: 'Bombers', desc: 'Blow up when they die, taking the Horde with them' },
     tank:    { w: 3, spd: 0.55, gold: 1.6, from: 4, name: 'Tanks', desc: 'Slow walls of armour. Big loot' },
+    // 2.5: kinds that holding the Button down doesn't answer. land: the first land (0-based) they come in
+    warded:   { w: 1.2, spd: 0.8, gold: 1.5, land: 1, hp: 2.5, name: 'Warded', desc: 'Shielded against the Hand: lightning barely scratches them. Your party has to cut them down' },
+    charger:  { w: 1.5, spd: 0.7, gold: 1.4, land: 1, hp: 1.6, name: 'Chargers', desc: 'Close in slowly, then charge the Button and hit like a cart' },
+    healer:   { w: 1, spd: 0.8, gold: 1.6, land: 2, hp: 1.4, name: 'Menders', desc: 'Hang back and heal the Horde round them. Kill them first' },
+    summoner: { w: 1.4, spd: 0.7, gold: 1.8, land: 3, hp: 1.8, name: 'Callers', desc: 'Stop at range and call more of the Horde every few seconds' },
   };
+  G.NEW_KINDS = ['warded', 'charger', 'healer', 'summoner'];
   G.ZONE_MIX = [
     { runner: 0.08, spitter: 0,    bomber: 0,    tank: 0 },
     { runner: 0.22, spitter: 0,    bomber: 0,    tank: 0 },

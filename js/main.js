@@ -17,6 +17,7 @@
     } catch (e) { return false; }
   };
   G.hardReset = function () {
+    if (G.R.town) { G.R.town = false; G.emit('town', false); }
     G.S = G.newState();
     G.R.boss = null; G.R.bossReady = false; G.R.combo = 0; G.R.wisp = null;
     if (G.worldClear) G.worldClear();

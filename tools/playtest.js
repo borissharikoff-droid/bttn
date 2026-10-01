@@ -14,12 +14,12 @@ const { execFile } = require('child_process');
 const { makeWorld, shop, buyLegacy, PERK_PRIORITY } = require('./bot');
 
 const PERSONAS = {
-  active:   { cps: 6, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, perk: 'smart', perkDelay: 1, bossDelay: 0, ascend: 'smart', events: 0.9, craft: 1, rift: 300 },
-  casual:   { cps: 2.5, duty: 0.5, shopEvery: 20, chests: 0.3, wisp: 0.3, perk: 'first', perkDelay: 5, bossDelay: 10, ascend: 'stuck', stuckMin: 10, events: 0.3, craft: 0, rift: 900 },
+  active:   { cps: 10, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, perk: 'smart', perkDelay: 1, bossDelay: 0, ascend: 'smart', events: 0.9, craft: 1, rift: 300 },
+  casual:   { cps: 10, duty: 0.6, shopEvery: 20, chests: 0.3, wisp: 0.3, perk: 'first', perkDelay: 5, bossDelay: 10, ascend: 'stuck', stuckMin: 10, events: 0.3, craft: 0, rift: 900 },
   idle:     { cps: 0, duty: 0, shopEvery: 60, chests: 0, wisp: 0, perk: 'auto', perkDelay: 99, bossDelay: 30, ascend: 'stuck', stuckMin: 20, events: 0, craft: 0, rift: 1800 },
   // an active player who wants a fight: raises Torment while the depth is easy, lowers it after two lost bosses
-  hardcore: { cps: 6, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, perk: 'smart', perkDelay: 1, bossDelay: 0, ascend: 'smart', events: 0.9, craft: 1, rift: 300, torment: 1 },
-  returner: { cps: 2.5, duty: 0.7, shopEvery: 10, chests: 0.3, wisp: 0.5, perk: 'first', perkDelay: 4, bossDelay: 5, ascend: 'stuck', stuckMin: 8, events: 0.5, craft: 1, rift: 600,
+  hardcore: { cps: 10, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, perk: 'smart', perkDelay: 1, bossDelay: 0, ascend: 'smart', events: 0.9, craft: 1, rift: 300, torment: 1 },
+  returner: { cps: 10, duty: 0.7, shopEvery: 10, chests: 0.3, wisp: 0.5, perk: 'first', perkDelay: 4, bossDelay: 5, ascend: 'stuck', stuckMin: 8, events: 0.5, craft: 1, rift: 600,
     days: 7, sessions: [[15, 8 * 3600], [15, 16 * 3600]] },
 };
 // "Big" moments are the ones a player would notice as progress
