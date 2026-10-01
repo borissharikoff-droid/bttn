@@ -2825,12 +2825,13 @@
     const swarm = (kind, n, spread, tail) => { n = Math.round(n * (G.SMALL[kind] ? more : 1)); for (let i = 0; i < n && room(); i++) makeMob(kind, a + rand(-spread, spread), -rand(0, tail || 0.3), add); };
     if (add) { swarm('fodder', randInt(30, 50), 0.08, 0.25); return; }
     const rc = 0.03 * om().champ * (L.rare || 1), mc = rc + 0.07 * om().champ * (L.champ || 1);
-    if (d >= 1 && roll < rc) { makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
-    if (roll < mc) { makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); swarm('fodder', 40, 0.07); return; }
+    if (d >= 1 && roll < rc) { emit('packIn', a, 'rare'); makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
+    if (roll < mc) { emit('packIn', a, 'magic'); makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); swarm('fodder', 40, 0.07); return; }
     // 2.5: from the second land, packs led by kinds the Hand alone can't handle, more of them the deeper it gets
     const ri = G.realmIndex(d), nk = (G.NEW_KINDS || []).filter(k => ri >= G.ARCHETYPES[k].land);
     if (nk.length && G.rng() < Math.min(TUNE.newKindMax, TUNE.newKindBase + TUNE.newKindPer * d)) {
       const k = nk[Math.floor(G.rng() * nk.length)];
+      emit('packIn', a, k);
       if (k === 'warded') { const n = randInt(3, 6); for (let i = 0; i < n; i++) makeMob('warded', a + rand(-0.05, 0.05), -rand(0, 0.1)); swarm('fodder', randInt(20, 35), 0.07); }
       else if (k === 'charger') { const n = randInt(2, 4); for (let i = 0; i < n; i++) makeMob('charger', a + rand(-0.06, 0.06), -rand(0, 0.15)); swarm('fodder', randInt(25, 40), 0.08); }
       else if (k === 'healer') { makeMob('healer', a, -0.05); makeMob('healer', a + 0.04, -0.1); makeMob('brute', a + 0.02, 0); swarm('fodder', randInt(35, 55), 0.08); }

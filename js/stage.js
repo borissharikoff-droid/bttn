@@ -517,6 +517,8 @@
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
     const mt = hitMeteor(p);
     if (mt != null && G.smashMeteor(mt)) return 'meteor';
+    const po = hitPortal(p);
+    if (po != null && G.tapPortal(po)) return 'portal';
     const ge = hitLoot(p);
     if (ge) { G.pickup(ge, 'hand'); return 'loot'; }
     if (hitShrine(p)) { G.useShrine('hand'); return 'shrine'; }
@@ -810,12 +812,12 @@
       if (e.id === 'jackpot') return; // the jackpot has a show of its own
       cardText(0, e.name, e.col, 7, { life: 2.6, vy: -2, big: true, now: true });
       cardText(10, e.sub, '#ffffff', 3, { life: 2.6, vy: -2 });
-      St.flash(0.3, e.col); St.shake(e.id === 'ambush' || e.id === 'stampede' ? 6 : 3);
+      St.flash(0.3, e.col); St.shake(e.id === 'ambush' || e.id === 'stampede' || e.id === 'warlord' ? 6 : 3);
       if (G.Audio && G.Audio.event) G.Audio.event(e.id);
     });
     G.on('evEnd', (ev, e, ok, reward) => {
       if (reward && ev.k === 'stampede') cardText(0, G.t('evHeld', reward), '#ffd84a', 6, { life: 2.2, vy: -3, big: true });
-      else if (reward && ev.k === 'ambush') cardText(0, G.t('evCleared', reward), '#ffd84a', 6, { life: 2.2, vy: -3, big: true });
+      else if (reward && (ev.k === 'ambush' || ev.k === 'portals' || ev.k === 'warlord')) cardText(0, G.t('evCleared', reward), '#ffd84a', 6, { life: 2.2, vy: -3, big: true });
       else if (ok && ev.k === 'goblins' && ev.ids.every(id => !G.R.mobs.some(m => m.id === id)) && ev.t > 0) cardText(0, G.t('evCaught'), '#8ae07a', 6, { life: 2, vy: -3, big: true });
       if (reward && G.Audio && G.Audio.levelUp) G.Audio.levelUp();
     });
@@ -825,6 +827,9 @@
       St.flash(1, '#fff3a0'); St.shake(10);
       if (G.Audio && G.Audio.jackpot) G.Audio.jackpot();
     });
+    G.on('portalTap', po => { const q = porPos(po); burst(q.x, q.y - 16, ['#c88aff', '#ffffff'], 12, 80, { life: 0.35 }); St.shake(1); if (G.Audio && G.Audio.click) G.Audio.click(0, true); });
+    G.on('portalShut', po => { const q = porPos(po); ring(q.x, q.y - 10, 30, 15, '#c88aff', 0.6); text(q.x, q.y - 40, G.t('portalShut'), '#c88aff', 5, { life: 1.2, vy: -12 }); St.flash(0.12, '#c88aff'); });
+    G.on('portalSpill', po => { const q = porPos(po); ring(q.x, q.y - 6, 14, 7, '#7a3aff', 0.3); });
     G.on('meteorFall', () => { if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); });
     G.on('meteorHit', mt => {
       const q = metPos(mt);
@@ -968,8 +973,12 @@
     // a hit knocks it back from the Button for a moment, a small one further
     if (v.hit > 0) { const b = btnPos(), dx = q.x - b.x, dy = q.y - b.y, l = Math.hypot(dx, dy) || 1, k = v.hit * (fod ? 34 : 18); x += Math.round(dx / l * k + rand(-1, 1)); y += Math.round(dy / l * k * 0.6); }
     if (v.lunge > 0) { x += Math.sign(btnPos().x - q.x) * 2; v.lunge -= fdt; }
-    blit(spr, x, y);
-    if (v.hit > 0) { blit(white(spr), x, y, 1, Math.min(0.85, v.hit * 10)); v.hit -= fdt; }
+    // the Warlord stands twice as tall, with a red aura and its name over it
+    const sc = m.wl ? 2.2 : 1;
+    if (m.wl) { glow(x, y - 14, 18, '#ff3b3b', 0.25 + 0.1 * Math.sin(time * 5)); if (Math.random() < 0.2) part(x + rand(-8, 8), y - 1, '#5a3a2a', { vx: rand(-10, 10), vy: -rand(4, 10), grav: 30, life: 0.4 }); }
+    blit(spr, x, y, sc);
+    if (v.hit > 0) { blit(white(spr), x, y, sc, Math.min(0.85, v.hit * 10)); v.hit -= fdt; }
+    if (m.wl) wlMark = { x, y: y - spr.height * sc - 6, k: m.hp / m.max };
     if (!fod && m.hp < m.max) {
       const w = m.kind === 'rare' || m.kind === 'hoard' || m.kind === 'tank' ? 16 : m.kind === 'bomber' || m.kind === 'spitter' ? 8 : 12, k = clamp(m.hp / m.max, 0, 1);
       lctx.fillStyle = '#0c0b12'; lctx.fillRect(q.x - w / 2 - 1, q.y - 21, w + 2, 3);
@@ -1784,6 +1793,47 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1.5; ctx.strokeStyle = '#0c0b12';
     for (const u of units) { const q = unitPos(u.who); ctx.strokeText(G.t('tapRevive'), q.x, q.y - 22); ctx.fillStyle = '#8ae07a'; ctx.fillText(G.t('tapRevive'), q.x, q.y - 22); }
   }
+  // 3.0: where a dangerous pack comes in: a pulsing arrow at the edge of the view, with what it is
+  const incoming = [];
+  G.on('packIn', (a, k) => { if (incoming.length < 6 && !G.R.town) incoming.push({ a, k, t: 2.2 }); });
+  const IN_COL = { rare: '#ffd84a', magic: '#5a8aff', warded: '#7ab8ff', charger: '#ff7a2e', healer: '#8ae07a', summoner: '#c88aff' };
+  function drawIncoming(dt) {
+    for (let i = incoming.length - 1; i >= 0; i--) {
+      const n = incoming[i];
+      if ((n.t -= dt) <= 0) { incoming.splice(i, 1); continue; }
+      const e = ringPos(n.a, 0), b = btnPos(), x = clamp(e.x, 14, W - 14), y = clamp(e.y, 30, H - 40);
+      const dx = b.x - x, dy = b.y - y, l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l, on = Math.floor(n.t * 6) % 2;
+      lctx.fillStyle = on ? (IN_COL[n.k] || '#ff4f4f') : '#ffffff';
+      // a chevron pointing in
+      for (let j = 0; j < 7; j++) { const w = 7 - j; for (let k = -w; k <= w; k++) lctx.fillRect(Math.round(x + ux * j - uy * k * 0.6), Math.round(y + uy * j + ux * k * 0.6), 1, 1); }
+      n.lx = x + ux * 14; n.ly = y + uy * 14;
+    }
+  }
+  function drawIncomingNames() {
+    if (!incoming.length) return;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
+    for (const n of incoming) { if (n.lx == null) continue; const s2 = G.t('in_' + n.k); ctx.strokeText(s2, n.lx, n.ly); ctx.fillStyle = IN_COL[n.k] || '#ff4f4f'; ctx.fillText(s2, n.lx, n.ly); }
+  }
+  // the Portal Storm's portals: drawn over the ground, tapped shut
+  let wlMark = null;
+  const porPos = po => mobPos({ id: -2000 - po.id, a: po.a, p: po.p, kind: 'x' });
+  function drawPortals() {
+    const ev = G.R.ev;
+    if (!ev || ev.k !== 'portals' || !ev.por) return;
+    for (const po of ev.por) {
+      const q = porPos(po), id = Math.floor(time * 4 + po.id) % 2 && SPR.defs.tw_rift2 ? 'tw_rift2' : 'tw_rift';
+      glow(q.x, q.y - 14, 16, '#c88aff', 0.3 + 0.1 * Math.sin(time * 6 + po.id));
+      if (SPR.defs[id]) blit(SPR.get(id), q.x, q.y, 0.8);
+      if (Math.random() < 0.4) part(q.x + rand(-8, 8), q.y - rand(4, 24), pick(['#c88aff', '#7a3aff', '#ffffff']), { vx: rand(-10, 10), vy: -rand(4, 14), grav: 0, life: 0.5 });
+      for (let i = 0; i < 3; i++) { lctx.fillStyle = i < po.hp ? '#c88aff' : '#3a2a4a'; lctx.fillRect(Math.round(q.x - 5 + i * 4), Math.round(q.y - 38), 3, 2); }
+    }
+  }
+  function hitPortal(p) {
+    const ev = G.R.ev;
+    if (!ev || ev.k !== 'portals' || !ev.por) return null;
+    for (const po of ev.por) { const q = porPos(po); if (Math.abs(p.x - q.x) < 16 && p.y < q.y + 4 && p.y > q.y - 36) return po.id; }
+    return null;
+  }
   function hitMeteor(p) {
     const ev = G.R.ev;
     if (!ev || ev.k !== 'meteors') return null;
@@ -2380,7 +2430,9 @@
 
     list.sort((a, c) => a.y - c.y);
     for (const d of list) d.draw();
+    drawPortals();
     drawMeteors();
+    drawIncoming(dt);
     if (G.R.ward > 0) {
       const wb = btnPos(), k = Math.min(1, G.R.ward / 0.5);
       lctx.globalAlpha = (0.16 + 0.06 * Math.sin(time * 10)) * k; lctx.fillStyle = '#ffd84a';
@@ -2517,6 +2569,16 @@
     drawNames();
     drawEventNames();
     drawLabels();
+    drawIncomingNames();
+    // the Warlord's name and health over its head
+    if (wlMark && G.R.ev && G.R.ev.k === 'warlord') {
+      const w = 40, q = wlMark;
+      ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - w / 2 - 1, q.y - 1, w + 2, 4);
+      ctx.fillStyle = '#ff5a2e'; ctx.fillRect(q.x - w / 2, q.y, Math.max(1, w * Math.max(0, q.k)), 2);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = crisp(4) + 'px ' + FONT; ctx.lineWidth = 1.5; ctx.strokeStyle = '#0c0b12';
+      ctx.strokeText(G.t('warlordName'), q.x, q.y - 5); ctx.fillStyle = '#ff7a2e'; ctx.fillText(G.t('warlordName'), q.x, q.y - 5);
+    }
+    wlMark = null;
     drawTexts(dt);
     drawJackpotText();
     drawTapHints();

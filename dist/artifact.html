@@ -1825,6 +1825,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     ch_13: 'The Selenite King bows. Past him lies a sea of stars and one hungry mouth.',
     ch_14: 'The Star Eater is still. The Button is safe, until the Torment rises.',
     rankUp: 'RANK UP!', rankNext: 'Lv {0}: {1}', rankAll: 'All ranks earned',
+    in_rare: 'RARE!', in_magic: 'CHAMPIONS', in_warded: 'WARDED', in_charger: 'CHARGERS', in_healer: 'MENDERS', in_summoner: 'CALLER',
+    portalShut: 'SHUT!', evPortals: '{0} open: tap them', warlordName: 'WARLORD',
     pkCrushTxt: 'CRUSH!', pkWindTxt: 'SECOND WIND!',
     relic: 'RELIC', feedRelic: 'found the RELIC {0}!', relicBook: 'Relics',
     relicHint: 'White-bag drops from bosses only: about 1 in 600 bosses, 1 in 200 lords, more at higher Torment. Never in Rifts.',
@@ -4013,12 +4015,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const swarm = (kind, n, spread, tail) => { n = Math.round(n * (G.SMALL[kind] ? more : 1)); for (let i = 0; i < n && room(); i++) makeMob(kind, a + rand(-spread, spread), -rand(0, tail || 0.3), add); };
     if (add) { swarm('fodder', randInt(30, 50), 0.08, 0.25); return; }
     const rc = 0.03 * om().champ * (L.rare || 1), mc = rc + 0.07 * om().champ * (L.champ || 1);
-    if (d >= 1 && roll < rc) { makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
-    if (roll < mc) { makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); swarm('fodder', 40, 0.07); return; }
+    if (d >= 1 && roll < rc) { emit('packIn', a, 'rare'); makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
+    if (roll < mc) { emit('packIn', a, 'magic'); makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); swarm('fodder', 40, 0.07); return; }
     // 2.5: from the second land, packs led by kinds the Hand alone can't handle, more of them the deeper it gets
     const ri = G.realmIndex(d), nk = (G.NEW_KINDS || []).filter(k => ri >= G.ARCHETYPES[k].land);
     if (nk.length && G.rng() < Math.min(TUNE.newKindMax, TUNE.newKindBase + TUNE.newKindPer * d)) {
       const k = nk[Math.floor(G.rng() * nk.length)];
+      emit('packIn', a, k);
       if (k === 'warded') { const n = randInt(3, 6); for (let i = 0; i < n; i++) makeMob('warded', a + rand(-0.05, 0.05), -rand(0, 0.1)); swarm('fodder', randInt(20, 35), 0.07); }
       else if (k === 'charger') { const n = randInt(2, 4); for (let i = 0; i < n; i++) makeMob('charger', a + rand(-0.06, 0.06), -rand(0, 0.15)); swarm('fodder', randInt(25, 40), 0.08); }
       else if (k === 'healer') { makeMob('healer', a, -0.05); makeMob('healer', a + 0.04, -0.1); makeMob('brute', a + 0.02, 0); swarm('fodder', randInt(35, 55), 0.08); }
@@ -5601,6 +5604,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     { id: 'swarm', at: 2, w: 2, t: 9, col: '#b6ff5a', icon: 'ev_swarm', name: 'THE FLOOD', sub: 'Hundreds of small mobs pour in' },
     { id: 'frenzy', at: 1, w: 2, t: 10, col: '#ffe27a', icon: 'ev_frenzy', name: 'ADRENALINE', sub: 'Party attack speed ×2',
       mul: { rate: 2 } },
+    // 3.0
+    { id: 'portals', at: 3, w: 2, t: 14, col: '#c88aff', icon: 'ic_riftgate', name: 'PORTAL STORM', sub: 'Portals open by the Button; tap them shut' },
+    { id: 'warlord', at: 6, w: 2, t: 30, col: '#ff7a2e', icon: 'ic_skull', name: 'WARLORD!', sub: 'A giant marches in; slay it before it reaches the Button' },
+    { id: 'stakes', at: 2, w: 2, t: 15, col: '#ffd84a', icon: 'ic_coin', name: 'HIGH STAKES', sub: 'Gold ×3 and chests ×2, but bites ×1.6',
+      mul: { gold: 3, click: 3, chest: 2, bite: 1.6 } },
     // never by chance: only the JACKPOT (js/world.js) sets it off
     { id: 'jackpot', at: 0, w: 0, t: 30, col: '#ffd84a', icon: 'ic_jackpot', name: 'JACKPOT FRENZY', sub: 'Gold ×10, chests rain',
       mul: { gold: 10, click: 10, chest: 4 } },
@@ -5632,6 +5640,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (e.mul && (e.mul.rate || e.mul.mobHp)) R.dirty = true;
     if (e.id === 'ambush') ambush(ev);
     if (e.id === 'goblins') goblins(ev);
+    if (e.id === 'portals') { ev.por = []; const n = 3 + ((S.bestDepth || 0) >= 15 ? 1 : 0); for (let i = 0; i < n; i++) ev.por.push({ id: i + 1, a: (ev.a + i / n + rand(-0.05, 0.05)) % 1, p: rand(0.5, 0.62), hp: 3, acc: rand(0, 1) }); }
+    if (e.id === 'warlord') warlord(ev);
     emit('evStart', ev, e);
     return ev;
   }
@@ -5647,6 +5657,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     let reward = 0;
     if (ok && ev.k === 'stampede' && !(R.btnDown > 0)) reward = randInt(6, 10);
     if (ok && ev.k === 'ambush' && ev.won) reward = randInt(4, 6);
+    if (ok && ev.k === 'portals' && ev.won) reward = randInt(5, 8);
+    if (ok && ev.k === 'warlord' && ev.won) { reward = randInt(5, 7); if (G.dropItem) { G.dropItem('orb', 'ascent', null, { src: 'event' }); G.dropItem('orb', chance(0.3) ? 'grace' : 'ascent', null, { src: 'event' }); } }
     // a real chest or better, never the lowest
     for (let i = 0; i < reward; i++) G.spawnChest(Math.max(1, G.rollTier()));
     // what's left of the thieves runs off
@@ -5672,6 +5684,25 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       ev.ids.push(m.id);
     }
   }
+  // the Warlord: one giant with an escort, slow; it hits like a truck if it gets there
+  function warlord(ev) {
+    const d = G.depthNow(), m = G.makeMob('tank', ev.a, 0);
+    m.wl = 1; m.amb = 1; m.w = 6; m.hp = m.max = G.mobHp(d) * 90 * (G.torment ? G.torment().mobHp : 1); m.sp *= 0.45;
+    ev.ids.push(m.id);
+    for (let i = 0; i < 6; i++) { const b = G.makeMob(i < 2 ? 'magic' : 'brute', ev.a + rand(-0.04, 0.04), -rand(0, 0.08)); b.amb = 1; }
+  }
+  // a portal shut by the Hand: three taps, gold for each
+  G.tapPortal = function (id) {
+    const ev = R.ev;
+    if (!ev || ev.k !== 'portals') return false;
+    const po = ev.por.find(x => x.id === id);
+    if (!po) return false;
+    po.hp--;
+    G.addGold((G.D.incomeRef || 1) * 1.5, 'event');
+    emit('portalTap', po);
+    if (po.hp <= 0) { ev.por.splice(ev.por.indexOf(po), 1); emit('portalShut', po); if (!ev.por.length) { ev.won = true; endEvent(true); } }
+    return true;
+  };
   // where a meteor lands, in the Horde's own terms: its angle round the Button and how close in
   function meteorHit(mt) {
     const hit = [];
@@ -5730,12 +5761,20 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         const m = G.makeMob('fodder', G.rng(), -rand(0, 0.15));
         m.hp = m.max = m.hp * 0.35; m.swarm = 1;
       }
+    } else if (ev.k === 'portals') {
+      // each open portal spills a small pack close in, every 1.4 s
+      for (const po of ev.por) {
+        po.acc += dt;
+        while (po.acc >= 1.4 && R.mobs.length < TUNE.mobMax) { po.acc -= 1.4; for (let i = 0; i < 6; i++) { const m = G.makeMob(i === 0 && chance(0.3) ? 'brute' : 'fodder', po.a + rand(-0.02, 0.02), po.p + rand(-0.03, 0.03)); m.por = 1; } emit('portalSpill', po); }
+      }
+    } else if (ev.k === 'warlord') {
+      if (ev.ids.every(id => !R.mobs.some(m => m.id === id))) { ev.won = true; endEvent(true); return; }
     } else if (ev.k === 'ambush') {
       if (!ev.won && ev.ids.every(id => !R.mobs.some(m => m.id === id))) { ev.won = true; endEvent(true); return; }
     } else if (ev.k === 'goblins') {
       if (ev.ids.every(id => !R.mobs.some(m => m.id === id))) { endEvent(true); return; }
     }
-    if (ev.t <= 0) endEvent(ev.k !== 'ambush');
+    if (ev.t <= 0) endEvent(ev.k !== 'ambush' && ev.k !== 'portals' && ev.k !== 'warlord');
   }
 
   G.eventsTick = function (dt) {
@@ -12998,6 +13037,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
     const mt = hitMeteor(p);
     if (mt != null && G.smashMeteor(mt)) return 'meteor';
+    const po = hitPortal(p);
+    if (po != null && G.tapPortal(po)) return 'portal';
     const ge = hitLoot(p);
     if (ge) { G.pickup(ge, 'hand'); return 'loot'; }
     if (hitShrine(p)) { G.useShrine('hand'); return 'shrine'; }
@@ -13291,12 +13332,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (e.id === 'jackpot') return; // the jackpot has a show of its own
       cardText(0, e.name, e.col, 7, { life: 2.6, vy: -2, big: true, now: true });
       cardText(10, e.sub, '#ffffff', 3, { life: 2.6, vy: -2 });
-      St.flash(0.3, e.col); St.shake(e.id === 'ambush' || e.id === 'stampede' ? 6 : 3);
+      St.flash(0.3, e.col); St.shake(e.id === 'ambush' || e.id === 'stampede' || e.id === 'warlord' ? 6 : 3);
       if (G.Audio && G.Audio.event) G.Audio.event(e.id);
     });
     G.on('evEnd', (ev, e, ok, reward) => {
       if (reward && ev.k === 'stampede') cardText(0, G.t('evHeld', reward), '#ffd84a', 6, { life: 2.2, vy: -3, big: true });
-      else if (reward && ev.k === 'ambush') cardText(0, G.t('evCleared', reward), '#ffd84a', 6, { life: 2.2, vy: -3, big: true });
+      else if (reward && (ev.k === 'ambush' || ev.k === 'portals' || ev.k === 'warlord')) cardText(0, G.t('evCleared', reward), '#ffd84a', 6, { life: 2.2, vy: -3, big: true });
       else if (ok && ev.k === 'goblins' && ev.ids.every(id => !G.R.mobs.some(m => m.id === id)) && ev.t > 0) cardText(0, G.t('evCaught'), '#8ae07a', 6, { life: 2, vy: -3, big: true });
       if (reward && G.Audio && G.Audio.levelUp) G.Audio.levelUp();
     });
@@ -13306,6 +13347,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       St.flash(1, '#fff3a0'); St.shake(10);
       if (G.Audio && G.Audio.jackpot) G.Audio.jackpot();
     });
+    G.on('portalTap', po => { const q = porPos(po); burst(q.x, q.y - 16, ['#c88aff', '#ffffff'], 12, 80, { life: 0.35 }); St.shake(1); if (G.Audio && G.Audio.click) G.Audio.click(0, true); });
+    G.on('portalShut', po => { const q = porPos(po); ring(q.x, q.y - 10, 30, 15, '#c88aff', 0.6); text(q.x, q.y - 40, G.t('portalShut'), '#c88aff', 5, { life: 1.2, vy: -12 }); St.flash(0.12, '#c88aff'); });
+    G.on('portalSpill', po => { const q = porPos(po); ring(q.x, q.y - 6, 14, 7, '#7a3aff', 0.3); });
     G.on('meteorFall', () => { if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); });
     G.on('meteorHit', mt => {
       const q = metPos(mt);
@@ -13449,8 +13493,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // a hit knocks it back from the Button for a moment, a small one further
     if (v.hit > 0) { const b = btnPos(), dx = q.x - b.x, dy = q.y - b.y, l = Math.hypot(dx, dy) || 1, k = v.hit * (fod ? 34 : 18); x += Math.round(dx / l * k + rand(-1, 1)); y += Math.round(dy / l * k * 0.6); }
     if (v.lunge > 0) { x += Math.sign(btnPos().x - q.x) * 2; v.lunge -= fdt; }
-    blit(spr, x, y);
-    if (v.hit > 0) { blit(white(spr), x, y, 1, Math.min(0.85, v.hit * 10)); v.hit -= fdt; }
+    // the Warlord stands twice as tall, with a red aura and its name over it
+    const sc = m.wl ? 2.2 : 1;
+    if (m.wl) { glow(x, y - 14, 18, '#ff3b3b', 0.25 + 0.1 * Math.sin(time * 5)); if (Math.random() < 0.2) part(x + rand(-8, 8), y - 1, '#5a3a2a', { vx: rand(-10, 10), vy: -rand(4, 10), grav: 30, life: 0.4 }); }
+    blit(spr, x, y, sc);
+    if (v.hit > 0) { blit(white(spr), x, y, sc, Math.min(0.85, v.hit * 10)); v.hit -= fdt; }
+    if (m.wl) wlMark = { x, y: y - spr.height * sc - 6, k: m.hp / m.max };
     if (!fod && m.hp < m.max) {
       const w = m.kind === 'rare' || m.kind === 'hoard' || m.kind === 'tank' ? 16 : m.kind === 'bomber' || m.kind === 'spitter' ? 8 : 12, k = clamp(m.hp / m.max, 0, 1);
       lctx.fillStyle = '#0c0b12'; lctx.fillRect(q.x - w / 2 - 1, q.y - 21, w + 2, 3);
@@ -14265,6 +14313,47 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1.5; ctx.strokeStyle = '#0c0b12';
     for (const u of units) { const q = unitPos(u.who); ctx.strokeText(G.t('tapRevive'), q.x, q.y - 22); ctx.fillStyle = '#8ae07a'; ctx.fillText(G.t('tapRevive'), q.x, q.y - 22); }
   }
+  // 3.0: where a dangerous pack comes in: a pulsing arrow at the edge of the view, with what it is
+  const incoming = [];
+  G.on('packIn', (a, k) => { if (incoming.length < 6 && !G.R.town) incoming.push({ a, k, t: 2.2 }); });
+  const IN_COL = { rare: '#ffd84a', magic: '#5a8aff', warded: '#7ab8ff', charger: '#ff7a2e', healer: '#8ae07a', summoner: '#c88aff' };
+  function drawIncoming(dt) {
+    for (let i = incoming.length - 1; i >= 0; i--) {
+      const n = incoming[i];
+      if ((n.t -= dt) <= 0) { incoming.splice(i, 1); continue; }
+      const e = ringPos(n.a, 0), b = btnPos(), x = clamp(e.x, 14, W - 14), y = clamp(e.y, 30, H - 40);
+      const dx = b.x - x, dy = b.y - y, l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l, on = Math.floor(n.t * 6) % 2;
+      lctx.fillStyle = on ? (IN_COL[n.k] || '#ff4f4f') : '#ffffff';
+      // a chevron pointing in
+      for (let j = 0; j < 7; j++) { const w = 7 - j; for (let k = -w; k <= w; k++) lctx.fillRect(Math.round(x + ux * j - uy * k * 0.6), Math.round(y + uy * j + ux * k * 0.6), 1, 1); }
+      n.lx = x + ux * 14; n.ly = y + uy * 14;
+    }
+  }
+  function drawIncomingNames() {
+    if (!incoming.length) return;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
+    for (const n of incoming) { if (n.lx == null) continue; const s2 = G.t('in_' + n.k); ctx.strokeText(s2, n.lx, n.ly); ctx.fillStyle = IN_COL[n.k] || '#ff4f4f'; ctx.fillText(s2, n.lx, n.ly); }
+  }
+  // the Portal Storm's portals: drawn over the ground, tapped shut
+  let wlMark = null;
+  const porPos = po => mobPos({ id: -2000 - po.id, a: po.a, p: po.p, kind: 'x' });
+  function drawPortals() {
+    const ev = G.R.ev;
+    if (!ev || ev.k !== 'portals' || !ev.por) return;
+    for (const po of ev.por) {
+      const q = porPos(po), id = Math.floor(time * 4 + po.id) % 2 && SPR.defs.tw_rift2 ? 'tw_rift2' : 'tw_rift';
+      glow(q.x, q.y - 14, 16, '#c88aff', 0.3 + 0.1 * Math.sin(time * 6 + po.id));
+      if (SPR.defs[id]) blit(SPR.get(id), q.x, q.y, 0.8);
+      if (Math.random() < 0.4) part(q.x + rand(-8, 8), q.y - rand(4, 24), pick(['#c88aff', '#7a3aff', '#ffffff']), { vx: rand(-10, 10), vy: -rand(4, 14), grav: 0, life: 0.5 });
+      for (let i = 0; i < 3; i++) { lctx.fillStyle = i < po.hp ? '#c88aff' : '#3a2a4a'; lctx.fillRect(Math.round(q.x - 5 + i * 4), Math.round(q.y - 38), 3, 2); }
+    }
+  }
+  function hitPortal(p) {
+    const ev = G.R.ev;
+    if (!ev || ev.k !== 'portals' || !ev.por) return null;
+    for (const po of ev.por) { const q = porPos(po); if (Math.abs(p.x - q.x) < 16 && p.y < q.y + 4 && p.y > q.y - 36) return po.id; }
+    return null;
+  }
   function hitMeteor(p) {
     const ev = G.R.ev;
     if (!ev || ev.k !== 'meteors') return null;
@@ -14861,7 +14950,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
     list.sort((a, c) => a.y - c.y);
     for (const d of list) d.draw();
+    drawPortals();
     drawMeteors();
+    drawIncoming(dt);
     if (G.R.ward > 0) {
       const wb = btnPos(), k = Math.min(1, G.R.ward / 0.5);
       lctx.globalAlpha = (0.16 + 0.06 * Math.sin(time * 10)) * k; lctx.fillStyle = '#ffd84a';
@@ -14998,6 +15089,16 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     drawNames();
     drawEventNames();
     drawLabels();
+    drawIncomingNames();
+    // the Warlord's name and health over its head
+    if (wlMark && G.R.ev && G.R.ev.k === 'warlord') {
+      const w = 40, q = wlMark;
+      ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - w / 2 - 1, q.y - 1, w + 2, 4);
+      ctx.fillStyle = '#ff5a2e'; ctx.fillRect(q.x - w / 2, q.y, Math.max(1, w * Math.max(0, q.k)), 2);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = crisp(4) + 'px ' + FONT; ctx.lineWidth = 1.5; ctx.strokeStyle = '#0c0b12';
+      ctx.strokeText(G.t('warlordName'), q.x, q.y - 5); ctx.fillStyle = '#ff7a2e'; ctx.fillText(G.t('warlordName'), q.x, q.y - 5);
+    }
+    wlMark = null;
     drawTexts(dt);
     drawJackpotText();
     drawTapHints();
@@ -15622,6 +15723,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     else if (ev.k === 'chestrain') more = t('evRain', ev.n);
     else if (ev.k === 'stampede') more = t('evHold');
     else if (ev.k === 'meteors') more = t('evTap');
+    else if (ev.k === 'portals') more = t('evPortals', (ev.por || []).length);
+    else if (ev.k === 'warlord') { const w = G.R.mobs.find(m => m.wl); more = w ? Math.ceil(w.hp / w.max * 100) + '%' : ''; }
     setText($('#evText'), e.name + ' · ' + Math.ceil(Math.max(0, ev.t)) + 's' + (more ? ' · ' + more : ''));
   }
   // ---------- The party on the field: a chip per unit, tap a fallen one to raise them ----------

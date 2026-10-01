@@ -24,6 +24,11 @@
     { id: 'swarm', at: 2, w: 2, t: 9, col: '#b6ff5a', icon: 'ev_swarm', name: 'THE FLOOD', sub: 'Hundreds of small mobs pour in' },
     { id: 'frenzy', at: 1, w: 2, t: 10, col: '#ffe27a', icon: 'ev_frenzy', name: 'ADRENALINE', sub: 'Party attack speed ×2',
       mul: { rate: 2 } },
+    // 3.0
+    { id: 'portals', at: 3, w: 2, t: 14, col: '#c88aff', icon: 'ic_riftgate', name: 'PORTAL STORM', sub: 'Portals open by the Button; tap them shut' },
+    { id: 'warlord', at: 6, w: 2, t: 30, col: '#ff7a2e', icon: 'ic_skull', name: 'WARLORD!', sub: 'A giant marches in; slay it before it reaches the Button' },
+    { id: 'stakes', at: 2, w: 2, t: 15, col: '#ffd84a', icon: 'ic_coin', name: 'HIGH STAKES', sub: 'Gold ×3 and chests ×2, but bites ×1.6',
+      mul: { gold: 3, click: 3, chest: 2, bite: 1.6 } },
     // never by chance: only the JACKPOT (js/world.js) sets it off
     { id: 'jackpot', at: 0, w: 0, t: 30, col: '#ffd84a', icon: 'ic_jackpot', name: 'JACKPOT FRENZY', sub: 'Gold ×10, chests rain',
       mul: { gold: 10, click: 10, chest: 4 } },
@@ -55,6 +60,8 @@
     if (e.mul && (e.mul.rate || e.mul.mobHp)) R.dirty = true;
     if (e.id === 'ambush') ambush(ev);
     if (e.id === 'goblins') goblins(ev);
+    if (e.id === 'portals') { ev.por = []; const n = 3 + ((S.bestDepth || 0) >= 15 ? 1 : 0); for (let i = 0; i < n; i++) ev.por.push({ id: i + 1, a: (ev.a + i / n + rand(-0.05, 0.05)) % 1, p: rand(0.5, 0.62), hp: 3, acc: rand(0, 1) }); }
+    if (e.id === 'warlord') warlord(ev);
     emit('evStart', ev, e);
     return ev;
   }
@@ -70,6 +77,8 @@
     let reward = 0;
     if (ok && ev.k === 'stampede' && !(R.btnDown > 0)) reward = randInt(6, 10);
     if (ok && ev.k === 'ambush' && ev.won) reward = randInt(4, 6);
+    if (ok && ev.k === 'portals' && ev.won) reward = randInt(5, 8);
+    if (ok && ev.k === 'warlord' && ev.won) { reward = randInt(5, 7); if (G.dropItem) { G.dropItem('orb', 'ascent', null, { src: 'event' }); G.dropItem('orb', chance(0.3) ? 'grace' : 'ascent', null, { src: 'event' }); } }
     // a real chest or better, never the lowest
     for (let i = 0; i < reward; i++) G.spawnChest(Math.max(1, G.rollTier()));
     // what's left of the thieves runs off
@@ -95,6 +104,25 @@
       ev.ids.push(m.id);
     }
   }
+  // the Warlord: one giant with an escort, slow; it hits like a truck if it gets there
+  function warlord(ev) {
+    const d = G.depthNow(), m = G.makeMob('tank', ev.a, 0);
+    m.wl = 1; m.amb = 1; m.w = 6; m.hp = m.max = G.mobHp(d) * 90 * (G.torment ? G.torment().mobHp : 1); m.sp *= 0.45;
+    ev.ids.push(m.id);
+    for (let i = 0; i < 6; i++) { const b = G.makeMob(i < 2 ? 'magic' : 'brute', ev.a + rand(-0.04, 0.04), -rand(0, 0.08)); b.amb = 1; }
+  }
+  // a portal shut by the Hand: three taps, gold for each
+  G.tapPortal = function (id) {
+    const ev = R.ev;
+    if (!ev || ev.k !== 'portals') return false;
+    const po = ev.por.find(x => x.id === id);
+    if (!po) return false;
+    po.hp--;
+    G.addGold((G.D.incomeRef || 1) * 1.5, 'event');
+    emit('portalTap', po);
+    if (po.hp <= 0) { ev.por.splice(ev.por.indexOf(po), 1); emit('portalShut', po); if (!ev.por.length) { ev.won = true; endEvent(true); } }
+    return true;
+  };
   // where a meteor lands, in the Horde's own terms: its angle round the Button and how close in
   function meteorHit(mt) {
     const hit = [];
@@ -153,12 +181,20 @@
         const m = G.makeMob('fodder', G.rng(), -rand(0, 0.15));
         m.hp = m.max = m.hp * 0.35; m.swarm = 1;
       }
+    } else if (ev.k === 'portals') {
+      // each open portal spills a small pack close in, every 1.4 s
+      for (const po of ev.por) {
+        po.acc += dt;
+        while (po.acc >= 1.4 && R.mobs.length < TUNE.mobMax) { po.acc -= 1.4; for (let i = 0; i < 6; i++) { const m = G.makeMob(i === 0 && chance(0.3) ? 'brute' : 'fodder', po.a + rand(-0.02, 0.02), po.p + rand(-0.03, 0.03)); m.por = 1; } emit('portalSpill', po); }
+      }
+    } else if (ev.k === 'warlord') {
+      if (ev.ids.every(id => !R.mobs.some(m => m.id === id))) { ev.won = true; endEvent(true); return; }
     } else if (ev.k === 'ambush') {
       if (!ev.won && ev.ids.every(id => !R.mobs.some(m => m.id === id))) { ev.won = true; endEvent(true); return; }
     } else if (ev.k === 'goblins') {
       if (ev.ids.every(id => !R.mobs.some(m => m.id === id))) { endEvent(true); return; }
     }
-    if (ev.t <= 0) endEvent(ev.k !== 'ambush');
+    if (ev.t <= 0) endEvent(ev.k !== 'ambush' && ev.k !== 'portals' && ev.k !== 'warlord');
   }
 
   G.eventsTick = function (dt) {

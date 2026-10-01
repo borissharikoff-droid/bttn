@@ -163,6 +163,8 @@
     ch_13: 'The Selenite King bows. Past him lies a sea of stars and one hungry mouth.',
     ch_14: 'The Star Eater is still. The Button is safe, until the Torment rises.',
     rankUp: 'RANK UP!', rankNext: 'Lv {0}: {1}', rankAll: 'All ranks earned',
+    in_rare: 'RARE!', in_magic: 'CHAMPIONS', in_warded: 'WARDED', in_charger: 'CHARGERS', in_healer: 'MENDERS', in_summoner: 'CALLER',
+    portalShut: 'SHUT!', evPortals: '{0} open: tap them', warlordName: 'WARLORD',
     pkCrushTxt: 'CRUSH!', pkWindTxt: 'SECOND WIND!',
     relic: 'RELIC', feedRelic: 'found the RELIC {0}!', relicBook: 'Relics',
     relicHint: 'White-bag drops from bosses only: about 1 in 600 bosses, 1 in 200 lords, more at higher Torment. Never in Rifts.',

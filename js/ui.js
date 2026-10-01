@@ -173,6 +173,8 @@
     else if (ev.k === 'chestrain') more = t('evRain', ev.n);
     else if (ev.k === 'stampede') more = t('evHold');
     else if (ev.k === 'meteors') more = t('evTap');
+    else if (ev.k === 'portals') more = t('evPortals', (ev.por || []).length);
+    else if (ev.k === 'warlord') { const w = G.R.mobs.find(m => m.wl); more = w ? Math.ceil(w.hp / w.max * 100) + '%' : ''; }
     setText($('#evText'), e.name + ' · ' + Math.ceil(Math.max(0, ev.t)) + 's' + (more ? ' · ' + more : ''));
   }
   // ---------- The party on the field: a chip per unit, tap a fallen one to raise them ----------
