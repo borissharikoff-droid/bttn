@@ -476,6 +476,7 @@
   function doPress(p) {
     G.Audio && G.Audio.unlock();
     if (hitWisp(p)) { G.catchWisp(); return 'wisp'; }
+    if (hitWeak(p)) { G.tapBoss(); return 'weak'; }
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
     const mt = hitMeteor(p);
     if (mt != null && G.smashMeteor(mt)) return 'meteor';
@@ -558,6 +559,14 @@
     const want = bossVis.lord ? 3 : 2;
     return Math.max(1, Math.min(want, Math.floor((H * 0.46) / c.height)));
   }
+  // 2.3: where a wind-up's weak point opens: round the boss, never over its head
+  function weakPos() {
+    const b = G.R.boss; if (!b || !b.move || !bossVis) return null;
+    const bp = bossPos(), hh = bossHalf(), th = Math.PI / 2 + (b.move.wp * 2 - 1) * Math.PI * 0.8;
+    return { x: clamp(bp.x + Math.cos(th) * (hh.w + 16), 10, W - 10), y: clamp(bp.y - hh.h + Math.sin(th) * (hh.h + 12), 24, H - 30) };
+  }
+  St.weakPoint = () => { const p = weakPos(); return p && { x: p.x * S, y: p.y * S }; };
+  function hitWeak(p) { const w = weakPos(); return !!w && Math.abs(p.x - w.x) < 11 && Math.abs(p.y - w.y) < 11; }
   function bossHalf() { const c = bossVis.sprite.canvas, s = bossScale(); return { w: c.width * s / 2, h: c.height * s / 2 }; }
   function bossPos() { const b = btnPos(); return { x: b.x, y: b.y - 2 }; }
 
@@ -1810,6 +1819,21 @@
       St.flash(0.12, M.col);
       if (G.Audio && G.Audio.windup) G.Audio.windup(b.move.k);
     });
+    G.on('bossTap', b => {
+      const w = weakPos(); if (!w) return;
+      burst(w.x, w.y, ['#ffffff', G.BOSS_MOVES[b.move.k].col], 8, 60, { life: 0.3 }); ring(w.x, w.y, 14, 8, '#ffffff', 0.25);
+      if (G.Audio && G.Audio.bossHit) G.Audio.bossHit();
+    });
+    G.on('torment', n => { cardText(0, n ? G.t('tormentCard', n) : G.t('tormentN', 0, G.tormentMax()), n ? '#ff3b5c' : '#ffffff', 6, { life: 1.6, max: 1.6, vy: -3, big: true }); if (n) St.flash(0.15 + 0.03 * n, '#ff2a4a'); });
+    G.on('shieldBreak', () => { const p = bossPos(); text(p.x, p.y - 52, G.t('shieldBroken'), '#7ad0ff', 5, { life: 1.4, max: 1.4, vy: -10 }); burst(p.x, p.y - 14, ['#7ad0ff', '#ffffff'], 30, 110); ring(p.x, p.y - 10, 60, 34, '#7ad0ff', 0.4); });
+    G.on('bossLeech', () => { const p = bossPos(); if (Math.random() < 0.6) text(p.x + rand(-10, 10), p.y - 30, '+', '#ff3b5c', 4, { life: 0.6, max: 0.6, vy: -20 }); });
+    G.on('bossEnrage', b => {
+      const p = bossPos();
+      cardText(0, G.t('enrageCard'), '#ff3b3b', 6, { life: 2.2, max: 2.2, vy: -3, big: true });
+      cardText(12, G.t('enrageSub'), '#ffd0c0', 3, { life: 2.2, max: 2.2, vy: -3 });
+      ring(p.x, p.y - 10, 110, 60, '#ff2a2a', 0.6); St.flash(0.4, '#ff2a2a'); St.shake(7);
+      if (G.Audio && G.Audio.boom) G.Audio.boom();
+    });
     G.on('bossStagger', (b, k) => {
       const p = bossPos();
       text(p.x, p.y - 44, G.t('staggered'), '#ffffff', 7, { life: 1.4, max: 1.4, vy: -10, big: true });
@@ -1822,6 +1846,7 @@
       const p = bossPos(), bp = btnPos();
       if (k === 'slam') { St.shake(8); St.flash(0.35, '#ff3b3b'); ring(bp.x, bp.y - 2, 70, 38, '#ff3b3b', 0.5); burst(bp.x, bp.y - 4, ['#ff3b3b', '#3a3a44', '#ffffff'], 40, 110); }
       if (k === 'summon') { ring(p.x, p.y - 10, 90, 50, '#b36bff', 0.6); St.flash(0.2, '#6b2fb8'); }
+      if (k === 'doom') { St.shake(12); St.flash(0.6, '#ff2ad4'); ring(bp.x, bp.y - 2, 140, 80, '#ff2ad4', 0.7); burst(bp.x, bp.y - 4, ['#ff2ad4', '#0c0b12', '#ffffff'], 80, 160); hitstop = Math.max(hitstop, 0.12); }
       text(p.x, p.y - 44, G.BOSS_MOVES[k].name + '!', G.BOSS_MOVES[k].col, 6, { life: 1.2, max: 1.2, vy: -10 });
       if (G.Audio && G.Audio.boom) G.Audio.boom();
     });
@@ -2427,6 +2452,13 @@
 
   function drawBossMove(bp) {
     const b = G.R.boss, sp = bossVis.sprite, sc = bossScale(), h = sp.canvas.height * sc;
+    // the Shielded affix: a standing barrier until Smite or a broken wind-up cracks it
+    if (G.bossHas(b, 'shielded') && !(b.sh > 0)) {
+      const rx = Math.round(sp.canvas.width * sc * 0.62), ry = Math.round(h * 0.58), cy = Math.round(bp.y - h / 2);
+      lctx.globalAlpha = 0.5 + 0.15 * Math.sin(time * 4); lctx.strokeStyle = '#7ad0ff'; lctx.lineWidth = 1;
+      lctx.beginPath(); lctx.ellipse(bp.x, cy, rx, ry, 0, 0, 6.3); lctx.stroke();
+      lctx.globalAlpha = 0.1; lctx.fillStyle = '#7ad0ff'; lctx.beginPath(); lctx.ellipse(bp.x, cy, rx, ry, 0, 0, 6.3); lctx.fill(); lctx.globalAlpha = 1;
+    }
     if (b.move) {
       const M = G.BOSS_MOVES[b.move.k], k = clamp(b.move.t / b.move.T, 0, 1);
       if (b.move.k === 'shield') {
@@ -2440,7 +2472,17 @@
       lctx.fillStyle = '#0c0b12'; lctx.fillRect(bp.x - w / 2 - 1, y - 1, w + 2, 4);
       lctx.fillStyle = M.col; lctx.fillRect(bp.x - w / 2, y, Math.round(w * k), 2);
       for (let i = 0; i < b.move.need; i++) { lctx.fillStyle = i < b.move.n ? '#ffffff' : '#3a3a44'; lctx.fillRect(Math.round(bp.x - b.move.need * 2 + i * 4), y + 4, 3, 2); }
+      // the weak point: a pulsing target beside the boss, the only thing that breaks the move
+      const wp = weakPos();
+      if (wp) {
+        const pr = 6 + Math.sin(time * 14) * 1.5;
+        lctx.lineWidth = 2; lctx.strokeStyle = '#0c0b12'; lctx.beginPath(); lctx.arc(wp.x, wp.y, pr + 1, 0, 6.3); lctx.stroke();
+        lctx.lineWidth = 1; lctx.strokeStyle = Math.floor(time * 10) % 2 ? '#ffffff' : M.col; lctx.beginPath(); lctx.arc(wp.x, wp.y, pr, 0, 6.3); lctx.stroke();
+        lctx.fillStyle = M.col; lctx.fillRect(Math.round(wp.x) - 1, Math.round(wp.y) - 1, 3, 3);
+        lctx.fillStyle = '#ffffff'; for (const [dx, dy] of [[-pr - 3, 0], [pr + 1, 0], [0, -pr - 3], [0, pr + 1]]) lctx.fillRect(Math.round(wp.x + dx), Math.round(wp.y + dy), dx ? 2 : 1, dy ? 2 : 1);
+      }
     }
+    if (b.enr > 0) { if (Math.random() < 0.6) part(bp.x + rand(-14, 14), bp.y - rand(0, h), pick(['#ff3b3b', '#ff7a2e', '#ffd84a']), { vx: rand(-10, 10), vy: -rand(20, 50), grav: 0, life: 0.6 }); glow(bp.x, bp.y - h / 2, Math.round(sp.canvas.width * sc / 2) + 4, '#ff2a2a', 0.18 + 0.1 * Math.sin(time * 12)); }
     if (b.stagger > 0 && Math.random() < 0.5) part(bp.x + rand(-12, 12), bp.y - h - rand(0, 6), pick(['#ffe27a', '#ffffff']), { vx: rand(-20, 20), vy: -10, grav: 0, life: 0.4 });
   }
   function drawBoss(bp) {
@@ -2499,6 +2541,13 @@
         else { const k = clamp(m.hp / m.max, 0, 1); ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - 21, y + 3, 42, 3); ctx.fillStyle = '#ff3b5c'; ctx.fillRect(q.x - 20, y + 4, 40 * k, 1.5); }
         continue;
       }
+      if (m.kind === 'magic' && m.mod) {
+        const q = mobPos(m);
+        ctx.font = crisp(3) + 'px ' + FONT;
+        const mod = G.RARE_MODS[m.mod].name;
+        ctx.strokeText(mod, q.x, q.y - 22); ctx.fillStyle = '#8ac8ff'; ctx.fillText(mod, q.x, q.y - 22);
+        continue;
+      }
       if (m.kind !== 'rare') continue;
       const q = mobPos(m);
       ctx.font = crisp(3) + 'px ' + FONT;
@@ -2550,10 +2599,10 @@
     ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x, y, Math.round(w * k), 1);
     ctx.font = crisp(4) + 'px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
-    const name = G.L(G.bossName(b.d)) + '  ·  ' + G.t('depthShort') + ' ' + (b.d + 1);
+    const name = (b.affix && b.affix.length ? b.affix.map(a => G.t('aff_' + a)).join(' ') + ' ' : '') + G.L(G.bossName(b.d)) + '  ·  ' + G.t('depthShort') + ' ' + (b.d + 1);
     ctx.strokeText(name, x, y + 8); ctx.fillStyle = b.lord ? '#ff9ab4' : '#ffffff'; ctx.fillText(name, x, y + 8);
     ctx.textAlign = 'right';
-    const tt = Math.ceil(b.t) + 's';
+    const tt = b.enr > 0 ? G.t('enrageT', Math.ceil(b.enr)) : Math.ceil(b.t) + 's';
     if (b.scar < 1) {
       const ws = G.t('wounded', Math.round((1 - b.scar) * 100)) + (b.rally ? ' · ' + G.t('rally', Math.round(b.rally * 100)) : '');
       // on its own line under the name, so the two never overlap

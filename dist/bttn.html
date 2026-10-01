@@ -794,6 +794,16 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .realm small#realmSub { font-size: 13px; }
 .goalBox { max-width: 240px; font-size: 13px; padding: 3px 7px 4px; }
 
+/* 2.3: the Torment dial under the land name */
+.torment { pointer-events: auto; display: inline-flex; align-items: center; gap: 4px; margin: 2px 0 0; padding: 2px 3px; background: rgba(12,11,18,.72); border: 2px solid var(--ink); font: 8px/1 var(--font-display); color: #ff8a8a; }
+.torment button { width: 18px; height: 18px; padding: 0; border: 2px solid var(--ink); background: #3a1a22; color: #fff; font: 10px/1 var(--font-display); cursor: pointer; }
+.torment button:disabled { opacity: .35; cursor: default; }
+.torment span { min-width: 92px; text-align: center; }
+.torment.on { box-shadow: inset 0 0 0 1px #ff3b5c88; color: #ff5a6a; }
+.torment.on span { text-shadow: 0 0 4px #ff2a4a; }
+#bossWrap.enr { box-shadow: 0 0 0 2px #ff2a2a, 0 0 12px #ff2a2a; animation: enrPulse .5s steps(2) infinite; }
+@keyframes enrPulse { 50% { box-shadow: 0 0 0 2px #ffd84a, 0 0 16px #ff2a2a; } }
+
 </style>
 </head>
 <body>
@@ -803,7 +813,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     <div id="xpBar" hidden><i id="xpFill"></i><span id="xpText"></span></div>
     <div id="perks" hidden></div>
     <div class="hud top">
-      <div class="realm"><div id="realmBox" role="button" tabindex="0" aria-label="World map"><b id="realmName"></b> <span class="lstars" id="landStars"></span><div class="zoneRow"><span class="pips" id="zonePips"></span><span id="zoneName"></span></div></div><small id="realmSub"><span data-depth-label>Depth</span> <span id="depthNum">1</span></small><small id="omenLine"></small><small id="rivalLine" hidden></small><div class="goalBox" id="goal" hidden></div></div>
+      <div class="realm"><div id="realmBox" role="button" tabindex="0" aria-label="World map"><b id="realmName"></b> <span class="lstars" id="landStars"></span><div class="zoneRow"><span class="pips" id="zonePips"></span><span id="zoneName"></span></div></div><small id="realmSub"><span data-depth-label>Depth</span> <span id="depthNum">1</span></small><div class="torment" id="torment" hidden><button type="button" data-tm="-1" aria-label="Less torment">−</button><span id="tormentN"></span><button type="button" data-tm="1" aria-label="More torment">+</button></div><small id="omenLine"></small><small id="rivalLine" hidden></small><div class="goalBox" id="goal" hidden></div></div>
       <div class="hudBtns">
         <button class="iconBtn help" id="btnHelp" aria-label="Help">?</button>
         <button class="iconBtn" id="btnSound" aria-label="Sound"><img alt=""></button>
@@ -1434,16 +1444,16 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------
   G.LEGACY = [
-    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: 'Ancestral Might', desc: 'Clicks and Warden damage +40%',
-      fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; D.heroMult *= 1 + 0.4 * L; } },
+    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: 'Ancestral Might', desc: 'Click gold +40%, Warden damage +20%',
+      fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; D.heroMult *= 1 + 0.2 * L; } },
     { id: 'lg_guild', base: 1, growth: 1.6, max: 25, name: 'Ancestral Guild', desc: 'Garrison income +40%',
       fx: (L, D) => { D.gpsMult *= 1 + 0.4 * L; } },
     { id: 'lg_start', base: 2, growth: 2, max: 8, name: 'Head Start', desc: 'Start each run with 1K gold, ×10 per level',
       fx: () => {} },
     { id: 'lg_luck', base: 3, growth: 1.8, max: 10, name: 'Lucky Star', desc: 'Luck +3%',
       fx: (L, D) => { D.luck += 0.03 * L; } },
-    { id: 'lg_boss', base: 3, growth: 1.7, max: 15, name: 'Boss Slayer', desc: 'Boss damage +35%',
-      fx: (L, D) => { D.bossMult *= 1 + 0.35 * L; } },
+    { id: 'lg_boss', base: 3, growth: 1.7, max: 15, name: 'Boss Slayer', desc: 'Boss damage +20%',
+      fx: (L, D) => { D.bossMult *= 1 + 0.2 * L; } },
     { id: 'lg_pot', base: 4, growth: 2, max: 10, name: 'Potion Cellar', desc: 'Each potion cap +3',
       fx: (L, D) => { D.potCap += 3 * L; } },
     { id: 'lg_keeppot', base: 12, growth: 2.5, max: 4, name: 'Family Vault', desc: 'Keep 25% of potions on ascension',
@@ -1552,7 +1562,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     st_crits: 'Crits', st_combo: 'Best combo', st_wisps: 'Wisps caught', st_merges: 'Fusions', st_divine: 'Divine items',
     st_time: 'Time played', st_asc: 'Ascensions', st_goldTotal: 'All-time gold',
     ascTitle: 'Ascension', ascText: 'The run starts over: gold, upgrades, the garrison, the constellation, depth, potions, and your Warden\u2019s level and perks reset, and you choose a class again. You keep your gear, orbs, uniques, land stars, collection, pets, Rift levels, achievements and fame.',
-    ascGain: 'Fame from ascending', ascNeed: 'Slay the Crab King (depth 5) to earn fame', ascEach: 'Each point of fame gives +1% gold and +0.5% Warden damage, forever.',
+    ascGain: 'Fame from ascending', ascNeed: 'Beat the lord at depth 15 to earn fame', ascEach: 'Each point of fame gives +1% gold and +0.5% Warden damage, forever.',
     ascBtn: 'Ascend', ascConfirm: 'Sure? Tap again', hallOfFame: 'Hall of Fame', hallHint: 'Permanent upgrades bought with fame. They never reset.',
     ascDone: 'You ascended! +{0} fame', famePassive: 'Fame: {0} (+{1}% gold, +{2}% Warden damage)',
     sound: 'Sound effects', music: 'Music', volume: 'Volume', hold: 'Hold the button to click', shake: 'Screen shake',
@@ -1594,13 +1604,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     orbNo_max: 'Already at +{0}', orbNo_none: 'Pick an item first', corrupted: 'Corrupted', unique: 'Unique', uniques: 'Uniques', uqFound: '{0} of {1} found',
     uqDrops: 'Drops from depth {0}', uqDropsBoss: 'Only {0} and deep Rifts', uqNew: 'NEW UNIQUE', uqBanner: 'UNIQUE!',
     lootFilter: 'Hide labels on common drops', shrineBuff: '{0} {1}s', rule: 'Land rule', feedUq: 'found {0}', feedRift: 'cleared {0}', feedLord: 'slew {0}', feedCrown: 'took the crown of {0}',
-    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', pw_smite: 'Smite', pw_smite_d: 'Hits the boss for 5 seconds of the party\u2019s damage and breaks its wind-up; without a boss, blasts the crowd at the Button', pw_ward: 'Ward', pw_ward_d: 'Nothing gets through to the Button or the party for 3.5 seconds', pw_mend: 'Mend', pw_mend_d: 'Heals the Button by 35% and the party by 40%, and lifts the fallen', blocked: 'BLOCKED', hoardBurst: 'SACK BURST!', goblin: 'Treasure Goblin', rec_jp: 'JACKPOT', jpOdds: 'odds ×{0}', jpTitle: 'JACKPOT!!!', jpSub: 'AGAINST ALL ODDS', jpToast: 'JACKPOT! +{0} gold, and it rains chests', recent: 'Recent', feedEmpty: 'Nothing yet. Big drops and records from everyone show up here.',
+    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', pw_smite: 'Smite', pw_smite_d: 'Hits the boss for 5 seconds of the party\u2019s damage and breaks its wind-up; without a boss, blasts the crowd at the Button', pw_ward: 'Ward', pw_ward_d: 'Nothing gets through to the Button or the party for 3.5 seconds', pw_mend: 'Mend', pw_mend_d: 'Heals the Button by 35% and the party by 40%, and lifts the fallen', blocked: 'BLOCKED', enrageT: 'ENRAGED {0}s', shieldBroken: 'SHIELD BROKEN', tormentN: 'TORMENT {0}/{1}', tooEasy: 'too easy? raise Torment', tormentTip: 'Torment {0}: the Horde has {1} health and bites {2}, bosses have {3} health (more affixes from Torment 4). You get {4} gold, {5} XP and {6} loot.', tormentRar: 'Gear comes {0} rarity step(s) sooner.', tormentZero: 'Torment 0: the game as it comes. Raise it with + for a harder fight and more of everything.', tormentMore: 'One more level opens with every land you conquer, up to 10.', tormentBusy: '(Not during a boss or a Rift.)', tormentOpen: 'Torment {0} unlocked: raise it under the land name for more of everything', tormentCard: 'TORMENT {0}', enrageCard: 'ENRAGED!', enrageSub: 'Out of time: finish it now, it hits harder every second', aff_shielded: 'Shielded', aff_vampiric: 'Vampiric', aff_hasted: 'Hasted', aff_regen: 'Regenerating', aff_frenzied: 'Frenzied', hoardBurst: 'SACK BURST!', goblin: 'Treasure Goblin', rec_jp: 'JACKPOT', jpOdds: 'odds ×{0}', jpTitle: 'JACKPOT!!!', jpSub: 'AGAINST ALL ODDS', jpToast: 'JACKPOT! +{0} gold, and it rains chests', recent: 'Recent', feedEmpty: 'Nothing yet. Big drops and records from everyone show up here.',
     byRift: 'Rift', byToday: 'Today', byUq: 'Uniques', byStars: 'Land stars', rivalUp: 'You passed {0} · {1} #{2}', rivalDown: '{0} passed you · {1}', brag: 'Copy brag', bragged: 'Copied. Paste it to your friends',
     bragText: 'BTTN · {0} lv {1} · gear score {2}\n{3}\nUniques {4}/{5}: {6}\nCan you beat me?',
     byCrowns: 'Crowns', byFirsts: 'Firsts', crownsHint: 'Each lord\u2019s crown goes to the fastest kill of a fresh (unwounded) lord.', firstsHint: 'Who got there first among everyone on this ladder.',
     crownTaken: 'CROWN TAKEN: {0} in {1}s', crownYours: 'Your best: {0}s', noCrown: 'Nobody yet', firstGot: 'FIRST: {0}!',
     readOnlyHow: 'To join, ask whoever shared the game to invite you by email as an Editor, and to keep link sharing off: while the public link is on, everyone invited can only watch. Open it signed in to claude.ai.', inviteTitle: 'Invite your friends', inviteHow: '1. Share (top right) \u2192 invite each friend by email as Editor. 2. Keep \u201cAnyone with the link\u201d off: while it\u2019s on, friends can only watch. 3. They open the link signed in to claude.ai and appear here within a minute.', removeRow: 'Remove from ladder', removed: 'Removed from the ladder', seenAgo: 'seen {0} ago', beFirst: 'Nobody on this board yet. Be the first!', onLadderAs: 'You\u2019re on the ladder as {0}. Rename in the Party tab.', cloudThis: 'This browser', cloudThere: 'Cloud', cloudSum: '{0} lv {1} · depth {2} · {3} gold', cloudNew: 'a new game', cloudSure: 'This replaces your cloud hero ({0}) with the one in this browser. The cloud one is kept as a backup in Settings. Sure?', cloudSureYes: 'Yes, keep this one', restoreBackup: 'Restore the previous cloud save', noBackup: 'No backup in the cloud', bragJoin: 'Ask me for an invite: {0}', bragTitle: 'Brag to your friends', bragCopy: 'Copy',
-    overcharged: 'OVERCHARGED! +1 BOLT', comboUp: 'COMBO ×{0}', staggered: 'STAGGERED!', tapIt: 'tap it ×{0}',
+    overcharged: 'OVERCHARGED! +1 BOLT', comboUp: 'COMBO ×{0}', staggered: 'STAGGERED!', tapIt: 'hit the weak point ×{0}',
     netBehind: 'Your ladder row stays as it is: it shows a save that got further (another device, or before a reset). It updates again once this save passes it.',
     rally: 'Rally +{0}%', rec_rift: 'Best Rift', byMad: 'Mad Button race', madHint: 'Play time from a fresh start to the first Mad Button kill at depth 40. Fastest first.', gearScore: 'Gear score', gsLadder: 'Gear score (ladder)',
     rivalAhead: '#{0} of {1} · {2} is {3} ahead', rivalTop: '#1 of {0} · defend it', rivalDepths: '{0} depths', rivalDepth1: '1 depth',
@@ -1650,7 +1660,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
-    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25, bossClickK: 0.5,
+    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25, bossClickK: 0.9,
+    // 2.3: a boss out of time enrages for this long (s); DOOM from this depth on; Rally per failed try and its cap
+    enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.05, rallyMax: 3,
+    // boss affixes from this depth; a Shield cracked stays down this long; Regenerating heals this share a second
+    affixFrom: 8, shieldDown: 10, bossRegen: 0.008,
+    rarityAt: [0, 0, 2, 5, 12, 24, 40], ascFrom: 15,
     smallChestK: 0.1,       // the little chests the Horde drops are worth a tenth of a real one
     smallItem: 0.05,        // and hold an item one time in twenty
     overflowK: 0.5,         // a full field: the lowest chest bursts and half of it is lost
@@ -1660,9 +1675,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function potZero() { const o = {}; G.POTIONS.forEach(p => o[p.id] = 0); return o; }
   // Rift records: best level ever (and its time), the highest level open, today's best
   function newRift() { return { best: 0, bestT: 0, open: 1, runs: 0, day: { k: '', l: 0 } }; }
+  // The season: a save from an earlier one starts the game over (only its settings and name carry on).
+  // 2.3 wiped everything once, since all progress so far was made while the game was far too easy.
+  const WIPE = G.WIPE = 1;
+  G.oldSeason = data => !!data && typeof data === 'object' && (data.wipe || 0) < WIPE;
   function newState() {
     return {
-      v: 1, created: Date.now(), lastSave: Date.now(),
+      v: 1, wipe: WIPE, created: Date.now(), lastSave: Date.now(),
       gold: 0, goldRun: 0, goldTotal: 0,
       clicks: 0, clicksRun: 0,
       upg: {}, heroes: {}, nodes: {}, legacy: {},
@@ -1685,6 +1704,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
       // the jackpot: how many, and the play time of the last one (its odds climb with every hour since)
       jp: { n: 0, at: 0 },
+      // 2.3: the chosen Torment level (see G.torment)
+      torment: 0,
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -1731,6 +1752,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     for (const n of G.NODES) { const L = S.nodes[n.id] || 0; if (L) n.fx(L, d); }
     for (const l of G.LEGACY) { const L = S.legacy[l.id] || 0; if (L) l.fx(L, d); }
     if (G.heroEcon) G.heroEcon(d);
+    // Torment pays: gold, XP, luck and fame
+    { const T = torment(); d.goldMult *= T.gold; d.xpMult = (d.xpMult || 1) * T.xp; d.luck += T.luck; d.fameMult = (d.fameMult || 1) * T.fame; }
 
     // Collection bonuses
     const sums = {};
@@ -1805,6 +1828,34 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     R.dirty = false;
   }
   G.recalc = recalc;
+
+  // ---------- Torment (2.3): pick your own difficulty, and be paid for it ----------
+  // One level opens with each land conquered, up to ten. Each level makes the Horde and the bosses
+  // tougher and harder-hitting, and pays more of everything; from level 3 the rarer gear comes sooner.
+  const TORMENT_MAX = G.TORMENT_MAX = 10;
+  function torment() {
+    const n = G.S ? Math.min(G.S.torment || 0, tormentMax()) : 0;
+    return { n, mobHp: Math.pow(1.35, n), bite: Math.pow(1.2, n), bossHp: Math.pow(1.35, n), bossTime: 1 + 0.1 * n, horde: 1 + 0.08 * n,
+      affix: (n >= 4 ? 1 : 0) + (n >= 8 ? 1 : 0), gold: 1 + 0.35 * n, xp: 1 + 0.3 * n, luck: 0.12 * n, drop: 1 + 0.15 * n, fame: 1 + 0.12 * n, rarity: Math.floor(n / 3) };
+  }
+  function tormentMax() { return Math.min(TORMENT_MAX, Math.floor((G.S.bestDepth || 0) / G.REALM_SIZE)); }
+  G.torment = torment; G.tormentMax = tormentMax;
+  G.setTorment = function (n) {
+    const S = G.S;
+    n = Math.max(0, Math.min(tormentMax(), n | 0));
+    if (n === (S.torment || 0) || R.boss || R.rift) return false;
+    S.torment = n; R.dirty = true; recalc();
+    emit('torment', n);
+    return true;
+  };
+  // Gear rarity opens with depth: rare from depth 2, epic 5, legendary 12, mythic 24, divine 40 (or a Rift that deep)
+  function rarityCap() {
+    const S = G.S, reach = Math.max(S.bestDepth || 0, G.riftDepth && S.rift ? G.riftDepth(S.rift.best || 0) : 0);
+    let c = 0;
+    TUNE.rarityAt.forEach((at, r) => { if (reach >= at) c = r; });
+    return Math.min(6, c + torment().rarity);
+  }
+  G.rarityCap = rarityCap;
   G.dirty = () => { R.dirty = true; };
 
   // ---------- Money ----------
@@ -1862,7 +1913,6 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (G.evMul) gain *= G.evMul('click');
     addGold(gain, 'click');
     const dmg = R.boss ? D.heroHit * TUNE.clickVolley : 0;
-    if (R.boss) tapBoss();
     if (G.heroVolley && !(R.stun > 0)) G.heroVolley(TUNE.clickVolley, 'click');
     S.chestMeter += D.chestProg;
     spawnFromMeter();
@@ -1908,7 +1958,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     }
     return best;
   }
-  function pickItem(r) {
+  function pickItem(r, free) {
+    if (!free) r = Math.min(r, rarityCap());
     const list = G.ITEMS_BY_RARITY[r];
     return list[weighted(list.map(i => i.w))];
   }
@@ -1966,6 +2017,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function spawnChest(tier, mod, fromBoss, small) {
     const S = G.S;
     if (tier === undefined || tier === null) tier = rollTier();
+    tier = Math.min(tier, rarityCap());
     if (mod === undefined) mod = rollMod();
     if (mod === 'chromatic') tier = Math.min(6, tier + 1);
     if (S.chests.length >= D.slots) {
@@ -2146,30 +2198,39 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // Boss moves: a telegraphed wind-up the Hand can break by tapping. Broken,
   // the boss staggers and takes more damage; left alone, the move lands.
   G.BOSS_MOVES = {
-    slam:   { col: '#ff3b3b', name: 'SLAM', wind: 1.4, need: 5 },
-    summon: { col: '#b36bff', name: 'SUMMON', wind: 1.6, need: 6 },
-    shield: { col: '#4fa8ff', name: 'SHIELD', wind: 3, need: 8 },
-    barrage: { col: '#ffb347', name: 'BARRAGE', wind: 1.2, need: 4 },
+    // (2.3: broken only by tapping the weak point that opens beside the boss, or by Smite; clicking the Button doesn't)
+    slam:   { col: '#ff3b3b', name: 'SLAM', wind: 2.2, need: 3 },
+    summon: { col: '#b36bff', name: 'SUMMON', wind: 2.4, need: 3 },
+    shield: { col: '#4fa8ff', name: 'SHIELD', wind: 3, need: 4 },
+    barrage: { col: '#ffb347', name: 'BARRAGE', wind: 2, need: 3 },
+    // DOOM: lands on everyone for most of their health. Ward it, break it, or Smite it
+    doom:   { col: '#ff2ad4', name: 'DOOM', wind: 3.2, need: 6 },
   };
   // later phases bring the barrage, a volley at the heroes themselves
   const MOVE_ORDER = {
-    lord: [['slam', 'summon', 'shield'], ['slam', 'barrage', 'summon', 'shield', 'barrage'], ['barrage', 'slam', 'barrage', 'summon', 'shield']],
-    boss: [['slam', 'slam', 'summon'], ['slam', 'barrage', 'summon', 'barrage']],
+    lord: [['slam', 'summon', 'shield', 'doom'], ['slam', 'barrage', 'doom', 'summon', 'shield', 'barrage'], ['barrage', 'doom', 'slam', 'barrage', 'summon', 'doom']],
+    boss: [['slam', 'slam', 'summon'], ['slam', 'barrage', 'doom', 'summon', 'barrage']],
   };
+  // the first land's bosses never Doom; from the second land on every boss can
+  const moveOk = (b, k) => k !== 'doom' || b.d >= TUNE.doomFrom;
   function bossMoves(b, dt) {
     if (b.stagger > 0) b.stagger -= dt;
     if (!b.move) {
       if ((b.moveT -= dt) > 0) return;
       const set = MOVE_ORDER[b.lord ? 'lord' : 'boss'], order = set[Math.min(set.length, b.phase || 1) - 1];
-      const k = order[(b.moveN = (b.moveN || 0) + 1) % order.length];
-      b.move = { k, t: G.BOSS_MOVES[k].wind, T: G.BOSS_MOVES[k].wind, n: 0, need: G.BOSS_MOVES[k].need };
+      let k = order[(b.moveN = (b.moveN || 0) + 1) % order.length];
+      if (!moveOk(b, k)) k = 'slam';
+      const M = G.BOSS_MOVES[k], need = M.need + (b.lord ? 1 : 0);
+      // wp: where round the boss its weak point opens (0-1 of a turn, kept off the top)
+      const wind = M.wind * (G.bossHas(b, 'hasted') ? 0.8 : 1);
+      b.move = { k, t: wind, T: wind, n: 0, need, wp: 0.1 + G.rng() * 0.8 };
       emit('bossMove', b);
       return;
     }
     if ((b.move.t -= dt) > 0) return;
     // the move lands
     const k = b.move.k;
-    b.move = null; b.moveT = (b.lord ? 5 : 7) / (1 + 0.3 * ((b.phase || 1) - 1));
+    b.move = null; b.moveT = (b.lord ? 5 : 7) / (1 + 0.3 * ((b.phase || 1) - 1)) * (b.enr > 0 ? 0.5 : 1);
     // 2.2: a boss's blows take a share of what they hit, so a fight is never safe; its depth's curve is the floor
     const rage = b.rage ? 1.5 : 1;
     if (k === 'barrage' && G.partyUnits) {
@@ -2185,6 +2246,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       for (const u of up) if (R.boss === b) G.blowParty(u.who, a * (b.lord ? 3 : 2), (b.lord ? 0.18 : 0.13) * rage, 'slam');
     }
     if (k === 'summon' && G.spawnPack) { G.spawnPack(true); G.spawnPack(true); }
+    // Doom: most of everyone's health at once. A Button that isn't full breaks, and the party goes down with it
+    if (k === 'doom' && G.blowParty) {
+      const up = G.partyUnits ? G.partyUnits().filter(u => !(u.down > 0)) : [];
+      G.blowParty('button', 0, (b.lord ? 0.95 : 0.85) * rage, 'doom');
+      for (const u of up) if (R.boss === b) G.blowParty(u.who, 0, (b.lord ? 0.9 : 0.8) * rage, 'doom');
+    }
     emit('bossMoveLand', b, k);
   }
   // ---------- The Hand's powers (2.2): three choices with cooldowns ----------
@@ -2209,6 +2276,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       const b = R.boss;
       if (b && !b.dead) {
         if (b.move) { const mk = b.move.k; b.move = null; b.moveT = b.lord ? 5 : 7; b.stagger = 3; emit('bossStagger', b, mk); }
+        if (G.bossHas(b, 'shielded') && !(b.sh > 0)) { b.sh = TUNE.shieldDown; emit('shieldBreak', b); }
         hitBoss((D.heroDps || 1) * (D.bossMult || 1) * 5);
       } else if (G.dealHit) for (const m of R.mobs.slice()) if (!m.dead && m.p > 0.45 && m.kind !== 'guardian') G.dealHit(m, (D.heroHit || 1) * 8, 'smite', false);
     } else if (id === 'ward') {
@@ -2228,13 +2296,17 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
   function tapBoss() {
     const b = R.boss;
-    if (!b || !b.move) return;
+    if (!b || !b.move) return false;
+    emit('bossTap', b);
     if (++b.move.n >= b.move.need) {
       const k = b.move.k;
       b.move = null; b.moveT = b.lord ? 5 : 7; b.stagger = 3;
+      if (G.bossHas(b, 'shielded')) { b.sh = TUNE.shieldDown; emit('shieldBreak', b); }
       emit('bossStagger', b, k);
     }
+    return true;
   }
+  G.tapBoss = tapBoss;
   function startBoss() {
     const S = G.S;
     // an invasion is fought out first
@@ -2246,11 +2318,14 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const scar = S.scar && S.scar.d === d ? S.scar.k : 1;
     // every failed try rallies the Warden: +20% damage on a lord (+15% on a boss), up to five tries,
     // and after a long rest the first fight is fought rested (+40%)
-    const rally = (S.scar && S.scar.d === d ? (lord ? 0.2 : 0.15) * Math.min(5, S.scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
+    const rally = (S.scar && S.scar.d === d ? TUNE.rally * Math.min(TUNE.rallyMax, S.scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
     R.boss = { d, lord, hp, max, scar, rally, phase: 1, inv: 0, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
+    // 2.3: from the second land on, bosses carry affixes, the same ones at the same depth every try
+    R.boss.affix = bossAffixes(d);
+    if (R.boss.affix.includes('shielded')) R.boss.sh = 0;
     // a boss that comes back wounded starts in the phase its health calls for
     R.boss.phase = phaseAt(R.boss);
     if (lord && R.boss.phase === 3) R.boss.rage = 1;
@@ -2259,6 +2334,15 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     return true;
   }
   G.startBoss = startBoss;
+  const AFFIXES = ['shielded', 'vampiric', 'hasted', 'regen', 'frenzied'];
+  function bossAffixes(d) {
+    const n = (d >= TUNE.affixFrom ? 1 : 0) + (d >= 30 ? 1 : 0) + (isLord(d) && d >= 14 ? 1 : 0) + (G.torment ? G.torment().affix : 0);
+    const rnd = G.seeded(d * 7919 + 13), pool = AFFIXES.slice(), out = [];
+    for (let i = 0; i < Math.min(n, pool.length); i++) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+    return out;
+  }
+  G.bossAffixes = bossAffixes;
+  G.bossHas = (b, a) => !!(b && b.affix && b.affix.includes(a));
   // How much of this depth's boss the Warden would take down in the time limit, without clicking (1 = all of it)
   // a boss's health: its depth's, but never less than a real fight's worth of the party's damage
   function bossMax(d) {
@@ -2269,15 +2353,16 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const clickDps = (R.cps || 0) * TUNE.bossClickK * (D.heroHitBase || D.heroHit || 0) * TUNE.clickVolley * (1 + D.crit * (D.critMult - 1));
     // a full fight only on new ground: a depth already beaten (climbing back after an ascension) goes quicker
     const fresh = d >= (G.S.bestDepth || 0) ? 1 : TUNE.bossMinOld;
-    const floor = ((D.heroDpsBase || D.heroDps || 0) + clickDps) * (D.bossMult || 1) * (isLord(d) ? TUNE.bossMinLord : TUNE.bossMin) * fresh;
-    return Math.max(curve, floor);
+    const T = torment();
+    const floor = ((D.heroDpsBase || D.heroDps || 0) + clickDps) * (D.bossMult || 1) * (isLord(d) ? TUNE.bossMinLord : TUNE.bossMin) * fresh * T.bossTime;
+    return Math.max(curve * T.bossHp, floor);
   }
   G.bossMax = bossMax;
   function bossOdds() {
     const S = G.S, d = S.depth, lord = isLord(d);
     const scar = S.scar && S.scar.d === d ? S.scar : null;
     const hp = bossMax(d) * (scar ? scar.k : 1);
-    const rally = (scar ? (lord ? 0.2 : 0.15) * Math.min(5, scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
+    const rally = (scar ? TUNE.rally * Math.min(TUNE.rallyMax, scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     return (D.heroDps || 0) * (D.bossMult || 1) * (1 + rally) * (D.bossTime + (lord ? 15 : 0)) / Math.max(1e-9, hp);
   }
   G.bossOdds = bossOdds;
@@ -2291,6 +2376,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (b.inv > 0) return;
     // a shield soaks most of it; a staggered boss takes half again
     if (b.move && b.move.k === 'shield') dmg *= 0.3;
+    // Shielded: a barrier soaks most of it until Smite or a broken wind-up cracks it (it comes back after 10 s)
+    else if (G.bossHas(b, 'shielded') && !(b.sh > 0)) dmg *= 0.35;
     else if (b.stagger > 0) dmg *= 1.5;
     if (b.rally) dmg *= 1 + b.rally;
     b.hp -= dmg;
@@ -2624,7 +2711,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // small bonus for gold, so each ascension is worth a similar, growing amount.
   function fameGain() {
     const S = G.S, d = S.maxDepth;
-    if (d < 5) return 0;
+    // (2.3: nothing to ascend for before depth 15, so the first run is played out, not skipped)
+    if (d < TUNE.ascFrom) return 0;
     const goldBonus = 1 + 0.1 * Math.max(0, Math.log10(Math.max(1, S.goldRun / 1e9)));
     return Math.floor(0.3 * d * Math.pow(1.07, d) * goldBonus * D.fameMult);
   }
@@ -2720,7 +2808,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (R.boss) {
         b.t -= dt;
         if (b.inv > 0) { b.inv -= dt; b.t += dt; } // the clock holds while it changes
-        if (b.t <= 0) bossFail();
+        // 2.3: out of time, the boss doesn't leave: it ENRAGES. A last stretch to finish it, while it hits
+        // twice as often and harder by the second; then it leaves with whatever wounds it has
+        if (b.t <= 0 && !b.enr) { b.t = 0; b.enr = b.lord ? TUNE.enrageLord : TUNE.enrage; b.enrT = b.enr; b.moveT = Math.min(b.moveT || 0, 1); emit('bossEnrage', b); }
+        if (b.sh > 0) b.sh -= dt;
+        if (G.bossHas(b, 'regen') && !(b.inv > 0)) b.hp = Math.min(b.max, b.hp + b.max * TUNE.bossRegen * dt);
+        if (b.enr > 0 && (b.enr -= dt) <= 0) bossFail();
         else bossMoves(b, dt);
       }
     } else if (S.bossMeter >= D.bossNeed) {
@@ -2790,6 +2883,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function deserialize(str) {
     const data = typeof str === 'string' ? JSON.parse(str) : str;
     if (!data || typeof data !== 'object' || !('gold' in data)) throw new Error('bad save');
+    if (G.oldSeason(data)) {
+      const s = newState();
+      if (data.set) s.set = Object.assign(s.set, data.set);
+      if (data.profile && data.profile.id) s.profile = { id: data.profile.id, name: data.profile.name || '' };
+      return deserialize(s);
+    }
     const fresh = newState();
     const S = Object.assign(fresh, data);
     // Merge nested objects so new fields get defaults.
@@ -2841,7 +2940,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   const { chance, pick, rand, randInt, emit } = G;
   const TUNE = G.TUNE;
   Object.assign(TUNE, {
-    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.2,
+    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.22,
     mobWalk: 7, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
@@ -2849,9 +2948,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     mobMax: 900, packMul: 1.4, minCrowd: 40, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
-    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.07, pulseEvery: 6, smallHp: 2.2,
+    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002, biteFloor: 0.006,
+    killChest: 0.03, plunder: 0.002, biteFloor: 0.025,
+    // 2.3: the Horde never shrinks below a full one; regen out of and in a boss fight (share of health a second);
+    // new ground clears at most clearRate of weight a second
+    hsMin: 1, earlyHp: 2.5, earlyTo: 40, regen: 0.006, regenBoss: 0.002, clearRate: 0.75,
   });
 
   // ---------- Content ----------
@@ -3458,7 +3560,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // kind has a weight: its share of a standard mob's HP, bite, rewards and
   // clearing progress. A swarm of fodder is worth the same as a few brutes,
   // it just dies in a much bigger heap.
-  function mobHp(d) { return TUNE.mobBase * Math.pow(TUNE.mobGrowth, d); }
+  // (2.3: the first lands are thicker, 3.5 times at depth 0, easing to nothing by depth 40, so the
+  // early game is a fight too and not a stroll a fresh Warden outgrows in minutes)
+  function mobHp(d) { return TUNE.mobBase * Math.pow(TUNE.mobGrowth, d) * (1 + TUNE.earlyHp * Math.max(0, 1 - d / TUNE.earlyTo)); }
   function mobAtk(d) { return TUNE.mobAtkBase * Math.pow(TUNE.mobAtkGrowth, d); }
   G.mobHp = mobHp; G.mobAtk = mobAtk;
   // Bosses are worth a few dozen mobs at first and grow into real walls by
@@ -3506,18 +3610,24 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.mightRatio = mightRatio;
   // The Horde answers strength: a Warden who kills faster faces a bigger, heavier
   // flow, so a stronger Warden clears lands (and earns gold and XP) faster
-  const hordeScale = () => G.clamp(mightRatio() / TUNE.hordeRef, 0.4, TUNE.hordeMax);
+  // (2.3: and never less than a full Horde: a Warden too weak for the depth is overrun, not spared)
+  const hordeScale = () => G.clamp(mightRatio() / TUNE.hordeRef, TUNE.hsMin, TUNE.hordeMax);
   G.hordeScale = hordeScale;
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
     // a stronger Warden meets a heavier Horde: half of it in heft, half in numbers (spawnPack)
     const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
-    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
+    const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
     const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
       m.name = pick(RARE_A) + ' ' + pick(RARE_B);
+      if (m.mod === 'hasted') m.sp *= 1.7;
+    }
+    // 2.3: champions carry a rare's affix too, more often the deeper (and the more Tormented) it gets
+    if (kind === 'magic' && !add && dnow() >= 6 && chance(Math.min(0.85, 0.2 + 0.015 * dnow() + 0.05 * G.torment().n))) {
+      m.mod = pick(Object.keys(G.RARE_MODS));
       if (m.mod === 'hasted') m.sp *= 1.7;
     }
     if (kind === 'brute' && land().stone) m.stone = 1;
@@ -3641,8 +3751,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       S.st.rares = (S.st.rares || 0) + 1;
       if (uq('headhunter')) { R.hb.hh = Math.min(60, Math.max(0, R.hb.hh || 0) + 20); G.dirty(); emit('headhunter', m); }
     }
-    // a Warden far too strong for this depth clears it up to twice as fast, so the game moves on
-    if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 2);
+    // 2.3: new ground is cleared at a set pace however fast the Horde dies (the clear bank fills at
+    // clearRate a second); a depth already beaten clears up to six times faster for a Warden far too strong for it
+    if (!m.add && !R.rift) {
+      if (S.depth >= (S.bestDepth || 0)) { const g = Math.min(m.w, R.clearBank || 0); R.clearBank = (R.clearBank || 0) - g; S.bossMeter += g; }
+      else S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 6);
+    }
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
     else if (!m.add) {
@@ -3931,7 +4045,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (R.reapT > 0 && (R.reapT -= dt) <= 0) { R.reap = 0; G.dirty(); }
     if (R.carn && (R.carnT += dt) > 2.5) { R.carn = 0; emit('carnage', 0); }
     // regen: slow, slower still with a boss on the field, so a fight can be lost
-    const regen = R.boss ? 0.004 : 0.012;
+    const regen = R.boss ? TUNE.regenBoss : TUNE.regen;
+    // the clear bank for new ground (see mobDie): a few seconds' worth can wait
+    if (!R.boss && !R.rift) R.clearBank = Math.min(TUNE.clearRate * 6, (R.clearBank || 0) + TUNE.clearRate * (G.evMul ? Math.max(1, G.evMul('clear')) : 1) * dt);
     if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * regen * dt);
     partyTick(dt, regen);
     // the horde: a steady flow of packs, with a surge every half a minute
@@ -3944,7 +4060,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen * (land().surge || 1); emit('surge'); }
         const surging = R.surge > 0;
         R.hs = hordeScale();
-        const thick = om().horde * (R.rift ? 1.5 : 1) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
+        const thick = om().horde * (R.rift ? 1.5 : G.torment().horde) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
         R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * thick);
         const cap = hordeCap(dnow()) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1) * (R.rift || shrine('slaughter') ? 1.5 : 1);
         // each zone is fought in three waves; the second and third open with champions and a rush
@@ -3973,7 +4089,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // walk & bite
     const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1) * evMul('speed');
     // 2.2: a bite is never nothing: its depth's damage, or a sliver of the Button's health per unit of weight
-    const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite');
+    const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite') * (R.rift ? 1 : G.torment().bite);
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
@@ -4011,7 +4127,17 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // the boss hits the button too
     if (R.boss) {
       R.bossAtkT -= dt;
-      if (R.bossAtkT <= 0) { R.bossAtkT = 2 / (1 + 0.25 * ((R.boss.phase || 1) - 1)); const b = R.boss, v = victim(); emit('bossHit', b, v); G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1), (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1), 'boss'); }
+      if (R.bossAtkT <= 0) {
+        const b = R.boss, v = victim();
+        // enraged: twice as often, and harder with every second of it
+        const enr = b.enr > 0 ? 2 + 2 * (1 - b.enr / (b.enrT || 1)) : 1;
+        R.bossAtkT = 2 / (1 + 0.25 * ((b.phase || 1) - 1)) / (b.enr > 0 ? 2 : 1) / (G.bossHas(b, 'hasted') ? 1.4 : 1);
+        emit('bossHit', b, v);
+        const fr = G.bossHas(b, 'frenzied') ? 1.5 : 1;
+        G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1) * enr * fr, (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1) * enr * fr, 'boss');
+        // Vampiric: every blow that lands feeds it
+        if (G.bossHas(b, 'vampiric') && R.boss === b && !(R.ward > 0)) { b.hp = Math.min(b.max, b.hp + b.max * (b.lord ? 0.012 : 0.02)); emit('bossLeech', b); }
+      }
     }
     // perks that work on their own
     const hit = D.heroHit;
@@ -4045,7 +4171,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     }
     // a pending level-up choice is made for the player if they leave it
     // (the clock stops while a window covers the cards, so they can't be picked for you unseen)
-    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[0]);
+    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[Math.floor(G.rng() * h.offer.length)]); // (2.3: left to itself, a card at random, not the best one)
     // hero attacks
     R.heroAcc += h.wdown > 0 ? 0 : dt * D.heroRate;
     let guard = 0;
@@ -4540,10 +4666,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     return st.dryQ >= UQ_PITY || chance(p);
   }
   // floor: the lowest rarity it can be; rolls: best of n rarity rolls
-  function rollGear(floor, rolls) {
+  // free: past the depth's rarity cap (the JACKPOT only)
+  function rollGear(floor, rolls, free) {
     let r = 0;
     for (let i = 0; i < (rolls || 1); i++) r = Math.max(r, G.rollRarity(G.rollTier(G.DROP_WEIGHTS), 1));
-    return G.pickItem(Math.max(floor || 0, r));
+    return G.pickItem(Math.max(floor || 0, r), free);
   }
   function place(e, m, spread) {
     e.a = m ? G.clamp(m.a + rand(-spread, spread), 0, 1) : rand(0, 1);
@@ -4584,7 +4711,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const items = [];
     // only the first floorN items are promised the floor; the rest roll on their own
     const fn = o.floorN != null ? o.floorN : n;
-    for (let i = 0; i < n; i++) items.push(i >= fn && chance(TUNE.orbShare) ? ['orb', rollOrb()] : ['gear', rollGear(i < fn ? floor : Math.max(0, floor - 2), i < fn ? o.rolls : 1)]);
+    for (let i = 0; i < n; i++) items.push(i >= fn && chance(TUNE.orbShare) ? ['orb', rollOrb()] : ['gear', rollGear(i < fn ? floor : Math.max(0, floor - 2), i < fn ? o.rolls : 1, o.free)]);
     if (uqChance && uqChance_(uqChance, o.src)) { const q = uniqueFor(d, o.boss); if (q) items.push(['uq', q]); }
     const val = ([k, w]) => k === 'uq' ? 9 : k === 'orb' ? (w === 'grace' ? 8 : 1) : w.r;
     items.sort((a, b) => val(a) - val(b));
@@ -4619,7 +4746,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const gold = (G.D.incomeRef || 1) * TUNE.jpGold;
     G.addGold(gold, 'jackpot');
     // the haul: a heap of gear with a legendary floor, a unique for sure, a fistful of orbs
-    shower(m || null, 24, 4, 1, { floorN: 8, spread: 0.22, at, rolls: 2, wait: 1.4 });
+    shower(m || null, 24, 4, 1, { floorN: 8, spread: 0.22, at, rolls: 2, wait: 1.4, free: 1 });
     for (let i = 0; i < 8; i++) drop('orb', rollOrb(), m || null, { at, wait: 1.6 + i * 0.08, spread: 0.22 });
     G.first('jp'); G.feed('jackpot', 'the JACKPOT');
     emit('jackpot', m, gold, S.jp.n);
@@ -4648,7 +4775,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // everything else drops by its weight: a brute's worth of fodder drops about what a brute does
     // fodder: a pack drops what it did before 2.1, however many more bodies it now comes in
     let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder / ((G.TUNE.packMul || 1) * m.w / G.MOB_KINDS.fodder.w) : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
-    p *= k;
+    p *= k * (G.torment ? G.torment().drop : 1);
     if (h.kills < 60 && !S.st.firstRare && chance(0.08)) { S.st.firstRare = 1; return drop('gear', G.pickItem(2), m); }
     let e = null;
     while (p > 0) {
@@ -5331,6 +5458,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         // Hold all uploads until the player decides, so a fresh device never overwrites a real save
         let cs = null;
         try { cs = JSON.parse(cloud.data); } catch (e) { cs = null; }
+        // a cloud save from an earlier season is nothing to go back to
+        if (cs && G.oldSeason(cs)) cs = null;
         const more = cs && (cs.goldTotal || 0) > (G.S.goldTotal || 0) * 1.01 + 100;
         const newer = (cloud.ts || 0) > (G.S.lastSave || 0) + 60e3;
         if (cs && (more || newer) && cloud.data !== G.serialize()) { Net.hold = true; G.emit('cloudNewer', cloud); }
@@ -5426,6 +5555,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
           const cloud = await backend.loadSave().catch(() => null);
           let cs = null;
           if (cloud && cloud.dev && cloud.dev !== DEV && (cloud.ts || 0) > lastPushTs) { try { cs = JSON.parse(cloud.data); } catch (e) { cs = null; } }
+          if (cs && G.oldSeason(cs)) cs = null;
           if (cs && (cs.goldTotal || 0) > (G.S.goldTotal || 0) * 1.01 + 100) {
             Net.cloud = cloud; Net.hold = true; busy = false; G.emit('cloudNewer', cloud); G.emit('net'); return;
           }
@@ -9485,6 +9615,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function doPress(p) {
     G.Audio && G.Audio.unlock();
     if (hitWisp(p)) { G.catchWisp(); return 'wisp'; }
+    if (hitWeak(p)) { G.tapBoss(); return 'weak'; }
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
     const mt = hitMeteor(p);
     if (mt != null && G.smashMeteor(mt)) return 'meteor';
@@ -9567,6 +9698,14 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const want = bossVis.lord ? 3 : 2;
     return Math.max(1, Math.min(want, Math.floor((H * 0.46) / c.height)));
   }
+  // 2.3: where a wind-up's weak point opens: round the boss, never over its head
+  function weakPos() {
+    const b = G.R.boss; if (!b || !b.move || !bossVis) return null;
+    const bp = bossPos(), hh = bossHalf(), th = Math.PI / 2 + (b.move.wp * 2 - 1) * Math.PI * 0.8;
+    return { x: clamp(bp.x + Math.cos(th) * (hh.w + 16), 10, W - 10), y: clamp(bp.y - hh.h + Math.sin(th) * (hh.h + 12), 24, H - 30) };
+  }
+  St.weakPoint = () => { const p = weakPos(); return p && { x: p.x * S, y: p.y * S }; };
+  function hitWeak(p) { const w = weakPos(); return !!w && Math.abs(p.x - w.x) < 11 && Math.abs(p.y - w.y) < 11; }
   function bossHalf() { const c = bossVis.sprite.canvas, s = bossScale(); return { w: c.width * s / 2, h: c.height * s / 2 }; }
   function bossPos() { const b = btnPos(); return { x: b.x, y: b.y - 2 }; }
 
@@ -10819,6 +10958,21 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       St.flash(0.12, M.col);
       if (G.Audio && G.Audio.windup) G.Audio.windup(b.move.k);
     });
+    G.on('bossTap', b => {
+      const w = weakPos(); if (!w) return;
+      burst(w.x, w.y, ['#ffffff', G.BOSS_MOVES[b.move.k].col], 8, 60, { life: 0.3 }); ring(w.x, w.y, 14, 8, '#ffffff', 0.25);
+      if (G.Audio && G.Audio.bossHit) G.Audio.bossHit();
+    });
+    G.on('torment', n => { cardText(0, n ? G.t('tormentCard', n) : G.t('tormentN', 0, G.tormentMax()), n ? '#ff3b5c' : '#ffffff', 6, { life: 1.6, max: 1.6, vy: -3, big: true }); if (n) St.flash(0.15 + 0.03 * n, '#ff2a4a'); });
+    G.on('shieldBreak', () => { const p = bossPos(); text(p.x, p.y - 52, G.t('shieldBroken'), '#7ad0ff', 5, { life: 1.4, max: 1.4, vy: -10 }); burst(p.x, p.y - 14, ['#7ad0ff', '#ffffff'], 30, 110); ring(p.x, p.y - 10, 60, 34, '#7ad0ff', 0.4); });
+    G.on('bossLeech', () => { const p = bossPos(); if (Math.random() < 0.6) text(p.x + rand(-10, 10), p.y - 30, '+', '#ff3b5c', 4, { life: 0.6, max: 0.6, vy: -20 }); });
+    G.on('bossEnrage', b => {
+      const p = bossPos();
+      cardText(0, G.t('enrageCard'), '#ff3b3b', 6, { life: 2.2, max: 2.2, vy: -3, big: true });
+      cardText(12, G.t('enrageSub'), '#ffd0c0', 3, { life: 2.2, max: 2.2, vy: -3 });
+      ring(p.x, p.y - 10, 110, 60, '#ff2a2a', 0.6); St.flash(0.4, '#ff2a2a'); St.shake(7);
+      if (G.Audio && G.Audio.boom) G.Audio.boom();
+    });
     G.on('bossStagger', (b, k) => {
       const p = bossPos();
       text(p.x, p.y - 44, G.t('staggered'), '#ffffff', 7, { life: 1.4, max: 1.4, vy: -10, big: true });
@@ -10831,6 +10985,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       const p = bossPos(), bp = btnPos();
       if (k === 'slam') { St.shake(8); St.flash(0.35, '#ff3b3b'); ring(bp.x, bp.y - 2, 70, 38, '#ff3b3b', 0.5); burst(bp.x, bp.y - 4, ['#ff3b3b', '#3a3a44', '#ffffff'], 40, 110); }
       if (k === 'summon') { ring(p.x, p.y - 10, 90, 50, '#b36bff', 0.6); St.flash(0.2, '#6b2fb8'); }
+      if (k === 'doom') { St.shake(12); St.flash(0.6, '#ff2ad4'); ring(bp.x, bp.y - 2, 140, 80, '#ff2ad4', 0.7); burst(bp.x, bp.y - 4, ['#ff2ad4', '#0c0b12', '#ffffff'], 80, 160); hitstop = Math.max(hitstop, 0.12); }
       text(p.x, p.y - 44, G.BOSS_MOVES[k].name + '!', G.BOSS_MOVES[k].col, 6, { life: 1.2, max: 1.2, vy: -10 });
       if (G.Audio && G.Audio.boom) G.Audio.boom();
     });
@@ -11436,6 +11591,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   function drawBossMove(bp) {
     const b = G.R.boss, sp = bossVis.sprite, sc = bossScale(), h = sp.canvas.height * sc;
+    // the Shielded affix: a standing barrier until Smite or a broken wind-up cracks it
+    if (G.bossHas(b, 'shielded') && !(b.sh > 0)) {
+      const rx = Math.round(sp.canvas.width * sc * 0.62), ry = Math.round(h * 0.58), cy = Math.round(bp.y - h / 2);
+      lctx.globalAlpha = 0.5 + 0.15 * Math.sin(time * 4); lctx.strokeStyle = '#7ad0ff'; lctx.lineWidth = 1;
+      lctx.beginPath(); lctx.ellipse(bp.x, cy, rx, ry, 0, 0, 6.3); lctx.stroke();
+      lctx.globalAlpha = 0.1; lctx.fillStyle = '#7ad0ff'; lctx.beginPath(); lctx.ellipse(bp.x, cy, rx, ry, 0, 0, 6.3); lctx.fill(); lctx.globalAlpha = 1;
+    }
     if (b.move) {
       const M = G.BOSS_MOVES[b.move.k], k = clamp(b.move.t / b.move.T, 0, 1);
       if (b.move.k === 'shield') {
@@ -11449,7 +11611,17 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       lctx.fillStyle = '#0c0b12'; lctx.fillRect(bp.x - w / 2 - 1, y - 1, w + 2, 4);
       lctx.fillStyle = M.col; lctx.fillRect(bp.x - w / 2, y, Math.round(w * k), 2);
       for (let i = 0; i < b.move.need; i++) { lctx.fillStyle = i < b.move.n ? '#ffffff' : '#3a3a44'; lctx.fillRect(Math.round(bp.x - b.move.need * 2 + i * 4), y + 4, 3, 2); }
+      // the weak point: a pulsing target beside the boss, the only thing that breaks the move
+      const wp = weakPos();
+      if (wp) {
+        const pr = 6 + Math.sin(time * 14) * 1.5;
+        lctx.lineWidth = 2; lctx.strokeStyle = '#0c0b12'; lctx.beginPath(); lctx.arc(wp.x, wp.y, pr + 1, 0, 6.3); lctx.stroke();
+        lctx.lineWidth = 1; lctx.strokeStyle = Math.floor(time * 10) % 2 ? '#ffffff' : M.col; lctx.beginPath(); lctx.arc(wp.x, wp.y, pr, 0, 6.3); lctx.stroke();
+        lctx.fillStyle = M.col; lctx.fillRect(Math.round(wp.x) - 1, Math.round(wp.y) - 1, 3, 3);
+        lctx.fillStyle = '#ffffff'; for (const [dx, dy] of [[-pr - 3, 0], [pr + 1, 0], [0, -pr - 3], [0, pr + 1]]) lctx.fillRect(Math.round(wp.x + dx), Math.round(wp.y + dy), dx ? 2 : 1, dy ? 2 : 1);
+      }
     }
+    if (b.enr > 0) { if (Math.random() < 0.6) part(bp.x + rand(-14, 14), bp.y - rand(0, h), pick(['#ff3b3b', '#ff7a2e', '#ffd84a']), { vx: rand(-10, 10), vy: -rand(20, 50), grav: 0, life: 0.6 }); glow(bp.x, bp.y - h / 2, Math.round(sp.canvas.width * sc / 2) + 4, '#ff2a2a', 0.18 + 0.1 * Math.sin(time * 12)); }
     if (b.stagger > 0 && Math.random() < 0.5) part(bp.x + rand(-12, 12), bp.y - h - rand(0, 6), pick(['#ffe27a', '#ffffff']), { vx: rand(-20, 20), vy: -10, grav: 0, life: 0.4 });
   }
   function drawBoss(bp) {
@@ -11508,6 +11680,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         else { const k = clamp(m.hp / m.max, 0, 1); ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - 21, y + 3, 42, 3); ctx.fillStyle = '#ff3b5c'; ctx.fillRect(q.x - 20, y + 4, 40 * k, 1.5); }
         continue;
       }
+      if (m.kind === 'magic' && m.mod) {
+        const q = mobPos(m);
+        ctx.font = crisp(3) + 'px ' + FONT;
+        const mod = G.RARE_MODS[m.mod].name;
+        ctx.strokeText(mod, q.x, q.y - 22); ctx.fillStyle = '#8ac8ff'; ctx.fillText(mod, q.x, q.y - 22);
+        continue;
+      }
       if (m.kind !== 'rare') continue;
       const q = mobPos(m);
       ctx.font = crisp(3) + 'px ' + FONT;
@@ -11559,10 +11738,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x, y, Math.round(w * k), 1);
     ctx.font = crisp(4) + 'px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
-    const name = G.L(G.bossName(b.d)) + '  ·  ' + G.t('depthShort') + ' ' + (b.d + 1);
+    const name = (b.affix && b.affix.length ? b.affix.map(a => G.t('aff_' + a)).join(' ') + ' ' : '') + G.L(G.bossName(b.d)) + '  ·  ' + G.t('depthShort') + ' ' + (b.d + 1);
     ctx.strokeText(name, x, y + 8); ctx.fillStyle = b.lord ? '#ff9ab4' : '#ffffff'; ctx.fillText(name, x, y + 8);
     ctx.textAlign = 'right';
-    const tt = Math.ceil(b.t) + 's';
+    const tt = b.enr > 0 ? G.t('enrageT', Math.ceil(b.enr)) : Math.ceil(b.t) + 's';
     if (b.scar < 1) {
       const ws = G.t('wounded', Math.round((1 - b.scar) * 100)) + (b.rally ? ' · ' + G.t('rally', Math.round(b.rally * 100)) : '');
       // on its own line under the name, so the two never overlap
@@ -11653,6 +11832,19 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   if (typeof MutationObserver !== 'undefined') new MutationObserver(() => { if (!snapQ) { snapQ = true; requestAnimationFrame(() => { snapQ = false; snapPixels(); }); } })
     .observe(document.documentElement, { childList: true, subtree: true });
   UI.snapPixels = snapPixels;
+  // 2.3: the Torment dial: shows once the first land is conquered
+  function updateTorment() {
+    const el = $('#torment'); if (!el || !G.S) return;
+    const mx = G.tormentMax(), T = G.torment(), busy = !!(G.R.boss || G.R.rift);
+    el.hidden = mx < 1;
+    if (mx < 1) return;
+    setText($('#tormentN'), t('tormentN', T.n, mx));
+    el.classList.toggle('on', T.n > 0);
+    const [lo, hi] = el.querySelectorAll('button');
+    lo.disabled = busy || T.n <= 0; hi.disabled = busy || T.n >= mx;
+    const tip = (T.n ? t('tormentTip', T.n, '×' + T.mobHp.toFixed(2), '×' + T.bite.toFixed(2), '×' + T.bossHp.toFixed(2), '×' + T.gold.toFixed(2), '×' + T.xp.toFixed(2), '+' + Math.round((T.drop - 1) * 100) + '%') + (T.rarity ? ' ' + t('tormentRar', T.rarity) : '') : t('tormentZero')) + ' ' + t('tormentMore') + (busy ? ' ' + t('tormentBusy') : '');
+    if (el.title !== tip) el.title = tip;
+  }
   const fmt = G.fmt, t = G.t, L = G.L;
 
   let tab = 'upg', buyAmt = 1, selNode = 'spark', selItem = null, ascArm = 0, resetArm = 0, selWho = -1;
@@ -11669,7 +11861,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     { id: 'stars', icon: 'ic_star', unlock: S => S.essRun >= 1 || Object.keys(S.nodes).length > 0 || S.ascensions > 0 },
     { id: 'pets', icon: 'egg_2', unlock: S => S.eggs > 0 || Object.keys(S.pets).length > 0 },
     { id: 'ach', icon: 'ic_trophy', unlock: S => Object.keys(S.ach).length > 0 },
-    { id: 'asc', icon: 'ic_tomb', unlock: S => S.maxDepth >= 5 || S.ascensions > 0 },
+    { id: 'asc', icon: 'ic_tomb', unlock: S => S.maxDepth >= 15 || S.ascensions > 0 },
     { id: 'rift', icon: 'ic_rift', unlock: S => S.bestDepth >= 5 || S.rift.runs > 0 },
     { id: 'ladder', icon: 'ic_crown', unlock: () => true },
     { id: 'set', icon: 'ic_gear', unlock: () => true },
@@ -11794,6 +11986,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   };
 
   function bindHud() {
+    $('#torment').addEventListener('click', e => { const b = e.target.closest('[data-tm]'); if (!b) return; G.Audio.unlock(); if (G.setTorment((G.S.torment || 0) + +b.dataset.tm)) { G.Audio.buy(); updateTorment(); } else G.Audio.error(); });
     $('#realmBox').addEventListener('click', () => { if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#realmBox').addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); e.stopPropagation(); if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#btnSound').addEventListener('click', () => { G.S.set.sound = G.S.set.sound ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.update(true); });
@@ -11846,7 +12039,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       else if (top.isNew) UI.toast(`<span style="color:${G.RARITIES[top.it.r].color}">${esc(L(top.it.name))}</span>&nbsp;<b>${esc(t('newPet'))}</b>`, '', 'it_' + top.it.id);
       dirtyTab('coll'); dirtyTab('quests');
     });
-    G.on('bossWin', (rew) => { dirtyTab('quests'); dirtyTab('asc'); });
+    G.on('bossWin', (rew) => {
+      dirtyTab('quests'); dirtyTab('asc');
+      // a land conquered opens the next Torment level
+      const mx = G.tormentMax(), sn = G.S.seen = G.S.seen || {};
+      if (mx > (sn.tmax || 0)) { sn.tmax = mx; UI.toast(esc(t('tormentOpen', mx)), 'ach', 'ic_skull'); updateTorment(); }
+    });
+    G.on('torment', () => updateTorment());
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && tab === 'heroes') || (kind === 'upg' && tab === 'upg') || (kind === 'node' && tab === 'stars') || (kind === 'legacy' && tab === 'asc')) UI.update(true); if (kind === 'node' && tab === 'stars') UI.render(); });
     G.on('ascend', g => { if (g) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
@@ -11934,6 +12133,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // the day's twist, and what it does
     setText($('#omenLine'), on ? t('omenLine', G.omen().name) + ' · ' + G.omen().desc : '');
     // (2.2: the omen lives in the land box's tooltip, off the field)
+    updateTorment();
     const rb = $('#realmBox'), tip = on ? t('omenLine', G.omen().name) + ' · ' + G.omen().desc : '';
     if (rb && rb.title !== tip) rb.title = tip;
     // where you stand among friends, right on the play screen
@@ -12077,20 +12277,23 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         const k = Math.max(0, R.boss.hp / R.boss.max);
         $('#bossMeter').style.width = k * 100 + '%';
         setClass($('#bossWrap'), 'hp', true); setClass($('#bossWrap'), 'waves', false);
-        setText($('#bossText'), L(G.bossName(R.boss.d)) + ' · ' + Math.ceil(R.boss.t) + 's');
+        setText($('#bossText'), (R.boss.affix ? R.boss.affix.map(a => t('aff_' + a)).join(' ') + ' ' : '') + L(G.bossName(R.boss.d)) + ' · ' + (R.boss.enr > 0 ? t('enrageT', Math.ceil(R.boss.enr)) : Math.ceil(R.boss.t) + 's'));
+        setClass($('#bossWrap'), 'enr', R.boss.enr > 0);
         $('#btnFight').hidden = true; $('#btnRetreat').hidden = false;
       } else {
         setClass($('#bossWrap'), 'hp', false);
         const need = D.bossNeed;
         $('#bossMeter').style.width = Math.min(100, S.bossMeter / need * 100) + '%';
-        const hs = G.hordeScale(), weak = hs <= 0.45;
+        const hs = G.hordeScale(), weak = G.mightRatio() < 1.35;
+        // far too strong for new ground, with Torment to spare: say so
+        const easy = G.mightRatio() > 6 && S.depth >= S.bestDepth && (S.torment || 0) < G.tormentMax();
         const wave = Math.min(3, 1 + Math.floor(3 * S.bossMeter / need));
         const odds = R.bossReady && G.bossOdds ? G.bossOdds() : 1;
         const narrow = innerWidth < 600;
         // the countdown to a boss that comes on its own
         const callIn = R.bossReady && S.set.autoBoss && R.bossIn != null ? Math.max(0, Math.ceil(R.bossIn + (odds >= 0.6 ? 0 : D.autoBoss ? 20 : 60))) : -1;
         if (callIn >= 0) setText($('#bossText'), narrow ? t('bossInShort', L(G.bossName(S.depth)), callIn) : t('bossIn', L(G.bossName(S.depth)), callIn) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : ''));
-        else         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
+        else         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : easy ? t('tooEasy') : t('hordeX', hs.toFixed(1))));
         setClass($('#bossWrap'), 'waves', true);
         setClass($('#btnFight'), 'long', R.bossReady && odds < 0.6);
         setClass($('#bossWrap'), 'weak', weak && !R.bossReady);
@@ -13289,7 +13492,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     tip_hoard: 'A Hoarder! It never bites, and it runs off with its sack in 16 seconds. Tap it so the Warden chases it: it bursts into loot.',
     tip_shrine: 'A shrine rose from the ground. Tap it for a 15-second blessing, or the Warden claims it.',
     tip_powers: 'Your powers! Z, Smite: break a wind-up and hit hard. X, Ward: 3.5 s of no damage at all, for the big blows. C, Mend: heal the Button and the whole party.',
-    tip_move: 'The boss is winding up a move! Tap it fast to break it: the boss staggers and takes +50% damage.',
+    tip_move: 'The boss is winding up a move! Tap the glowing weak point beside it to break it (clicking the Button won\u2019t), or Smite it with Z. Broken, it staggers and takes +50% damage.',
+    tip_torment: 'Torment is open! Raise it here for a tougher Horde and bosses, and more gold, XP and loot. You can lower it again any time outside a fight.',
     tip_orb: 'You found currency. In the Party tab, pick an item, then an orb: reroll its affixes, add one, or gamble with an Orb of Ruin.',
     tip_rift: 'Rifts are open: timed runs at the level you choose, with better loot. Friends see your best Rift on the ladder.',
     tip_evo: 'Evolution ready! A maxed perk plus the right gear turns into something much stronger. Look for the golden card.',
@@ -13298,7 +13502,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
     help_2: 'Loot', help_2t: 'Mobs drop loot where they fall, and its label and beam tell you what it is: tap it to grab it, or the Warden gathers it. Orbs change your gear in the Party tab, and uniques have rules of their own. The Button spills chests too; special ones (storm, frozen, mimics…) each work their own way.',
     help_3: 'Your Warden', help_3t: 'The Horde drops XP crystals; every level you pick one of three perks (they last until you ascend). 4 gear slots: weapon, ability, armour, ring; your class weapon type deals +50%. A stronger Warden faces a bigger Horde and clears lands faster.',
-    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper. A boss on new ground always takes a real fight, however strong you are, and its blows take a share of whoever they hit.",
+    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper. Out of time, it ENRAGES: a few more seconds to finish it while it hits harder every second. Its wind-ups open a glowing weak point beside it: tap it to break the move. From the second land bosses can DOOM (most of everyone\u2019s health: Ward it, break it or Smite it), and from depth 8 they carry affixes such as Shielded or Vampiric.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and the collection stay.',
@@ -13309,6 +13513,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     help_13: 'Chests and Looters', help_13t: 'The Horde drops little chests of coin; the chest bar brings real ones. The Treasure Hall makes room for 10, 20, 30, 50, 100, then 200 chests. Looters run and open them for you, faster with each level, and Loot Crew hires more. When the field is full, the lowest chest bursts open for half its gold.',
     help_14: 'The JACKPOT', help_14t: 'About one kill in two million. The longer since the last one, the better the odds (your odds now are in the Party tab\u2019s records). You will know it when you see it.',
     help_15: 'Your powers', help_15t: 'Three powers of the Hand, on the buttons by the Button bar or the keys Z, X and C. Smite (18 s) breaks a boss\u2019s wind-up and hits it hard. Ward (26 s) stops all damage for 3.5 s: save it for a slam or a barrage. Mend (40 s) heals the Button and the whole party and raises the fallen.',
+    help_16: 'Torment', help_16t: 'Conquer a land and a level of Torment opens, up to ten. Raise it with + under the land name: the Horde and the bosses get tougher and hit harder, and you get more gold, XP, loot and fame, and rarer gear sooner. New ground clears at a set pace, so strength alone no longer rushes you through: go as hard as you can hold.',
     help_10: 'Carnage', help_10t: 'Kill without pause: the streak climbs and so do gold and XP, up to +40%. Let it lapse for 2.5 seconds and it starts over.',
   });
 
@@ -13354,7 +13559,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     { id: 'hoard', when: () => (G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob), point: () => { const m = G.R.mobs.find(x => x.kind === 'hoard' && !x.gob); return m && G.Stage.mobPoint(m); }, text: 'tip_hoard', until: () => !(G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob) },
     { id: 'shrine', when: () => G.R.shrine, point: () => G.Stage.shrinePoint(), text: 'tip_shrine', until: () => !G.R.shrine },
     { id: 'powers', when: () => G.R.boss && G.R.boss.t < G.R.boss.T - 2, point: () => P.el('#powers'), text: 'tip_powers', until: () => !G.R.boss },
-    { id: 'move', when: () => G.R.boss && G.R.boss.move, point: P.button, text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
+    { id: 'move', when: () => G.R.boss && G.R.boss.move, point: () => G.Stage.weakPoint && G.Stage.weakPoint() && (() => { const w = G.Stage.weakPoint(), r = document.querySelector('#stage').getBoundingClientRect(); return { x: r.left + w.x, y: r.top + w.y - 10 }; })(), text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
+    { id: 'torment', when: () => G.tormentMax() >= 1 && !G.R.boss, point: () => P.el('#torment'), text: 'tip_torment' },
     { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('hero'), text: 'tip_orb', until: () => G.UI.tab() === 'hero' },
     { id: 'rift', when: () => G.riftOpenable() && !G.R.boss, point: () => P.el('#btnRift') || P.tab('rift'), text: 'tip_rift', until: () => G.UI.tab() === 'rift' || !!G.R.rift },
     { id: 'spitter', when: () => (G.R.mobs || []).some(m => m.kind === 'spitter' && m.spit), point: () => { const m = G.R.mobs.find(x => x.kind === 'spitter' && x.p >= G.TUNE.spitStop); return m && G.Stage.mobPoint(m); }, text: 'tip_spitter', until: () => !(G.R.mobs || []).some(m => m.kind === 'spitter') },
@@ -13591,7 +13797,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_bolt', 15], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14]];
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
     G.UI.modal(t('help_title'), html, [

@@ -42,7 +42,8 @@ Existing saves skip the intro and tutorial automatically. On a new device, the "
 | Focus a mob | tap the mob (the Hand strikes it wherever it is) | — |
 | Pick up loot | tap its label; the Warden gathers the rest | — |
 | Shrine | tap it | — |
-| Break a boss move | tap the boss while it winds up | Space |
+| Break a boss move | tap the glowing weak point beside the boss while it winds up | Z (Smite) |
+| Torment | − / + under the land name | — |
 | Smite / Ward / Mend | the three buttons right of the Button bar | Z / X / C |
 | Open a Rift | the ◈ button by the clear bar, or the Rifts tab | — |
 | Raise a fallen ally | tap them on the field or on the party bar | — |

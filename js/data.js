@@ -446,16 +446,16 @@
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------
   G.LEGACY = [
-    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: 'Ancestral Might', desc: 'Clicks and Warden damage +40%',
-      fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; D.heroMult *= 1 + 0.4 * L; } },
+    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: 'Ancestral Might', desc: 'Click gold +40%, Warden damage +20%',
+      fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; D.heroMult *= 1 + 0.2 * L; } },
     { id: 'lg_guild', base: 1, growth: 1.6, max: 25, name: 'Ancestral Guild', desc: 'Garrison income +40%',
       fx: (L, D) => { D.gpsMult *= 1 + 0.4 * L; } },
     { id: 'lg_start', base: 2, growth: 2, max: 8, name: 'Head Start', desc: 'Start each run with 1K gold, ×10 per level',
       fx: () => {} },
     { id: 'lg_luck', base: 3, growth: 1.8, max: 10, name: 'Lucky Star', desc: 'Luck +3%',
       fx: (L, D) => { D.luck += 0.03 * L; } },
-    { id: 'lg_boss', base: 3, growth: 1.7, max: 15, name: 'Boss Slayer', desc: 'Boss damage +35%',
-      fx: (L, D) => { D.bossMult *= 1 + 0.35 * L; } },
+    { id: 'lg_boss', base: 3, growth: 1.7, max: 15, name: 'Boss Slayer', desc: 'Boss damage +20%',
+      fx: (L, D) => { D.bossMult *= 1 + 0.2 * L; } },
     { id: 'lg_pot', base: 4, growth: 2, max: 10, name: 'Potion Cellar', desc: 'Each potion cap +3',
       fx: (L, D) => { D.potCap += 3 * L; } },
     { id: 'lg_keeppot', base: 12, growth: 2.5, max: 4, name: 'Family Vault', desc: 'Keep 25% of potions on ascension',

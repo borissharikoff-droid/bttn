@@ -1,3 +1,101 @@
+# BTTN 2.3 — Hard Season
+
+All progress so far was made while the game was far too easy, so 2.3 starts a new season: every save starts over. Bot playtests of 2.2 showed why it was easy:
+- an active player was 16 to 25 times stronger than the Horde for the first 20 minutes;
+- the Button sat under half health 0.1% of the time;
+- the best gear dropped within five minutes.
+
+2.3 takes away the two things that kept the game easy. The Horde no longer shrinks to match a weak Warden, and new ground can't be rushed. Bosses now fight back in ways you have to answer. **Torment** lets you choose how hard it gets.
+
+## At a glance
+
+- **A new season.** Every save, in the browser and in the cloud, starts over once. Settings and your name carry over.
+- **New ground takes a real fight.** A depth you haven't beaten clears at a set pace however strong you are, about 40 seconds at best. The Horde never shrinks below full strength, the first lands are tougher, and bites hurt.
+- **Bosses fight back:**
+  - **weak points**: clicking the Button no longer breaks a wind-up. Tap the glowing target beside the boss, or Smite it;
+  - **DOOM**: a blow that takes most of everyone's health, so Ward it, break it or Smite it;
+  - **ENRAGE**: when time runs out, the boss stays and hits harder every second;
+  - **affixes**: Shielded, Vampiric, Hasted, Regenerating and Frenzied.
+- **Torment 0–10.** Choose your own difficulty under the land name. The higher it is, the more gold, XP and loot you get, and rarer gear comes sooner.
+- **Loot is worth chasing again.** The rarer tiers open with depth, from rare at depth 3 up to divine at depth 41.
+- **Champions carry affixes** too.
+
+## A new season
+
+- Saves from before 2.3, local and cloud, start over the first time the game loads. Your settings, name and ladder identity carry over.
+- An old cloud save is never offered back to you.
+
+## The Horde
+
+- **Never smaller than a full Horde.** In 2.2 the Horde shrank to as little as 40% for a Warden too weak for the depth. Now a weak Warden is overrun, not spared.
+- **New ground clears at a set pace.** The clear bar on a depth you haven't beaten fills at most 0.75 of a mob's worth a second, so a depth takes about 35–40 seconds at best before its boss. A depth you've already beaten (after an ascension or a wipe) still clears up to six times faster.
+- **The first lands are tougher.** The Horde has 3.5 times the health at depth 1. The extra eases off evenly and is gone by depth 41.
+- **Bites hurt:**
+  - every bite does at least 2.5% of the Button's health per unit of the mob's weight, up from 0.6%;
+  - mob damage grows 22% a depth, up from 20%;
+  - the Button regenerates 0.6% a second, down from 1.2%, and 0.2% in a boss fight, down from 0.4%;
+  - a cleric heals 5% a time, down from 7%.
+- **Champions carry affixes** from depth 7: Hasted, Stoneskin, Splitting or Frenzied, named over their heads. They're more common the deeper you go and the higher your Torment.
+
+## Bosses
+
+- **Weak points.** When a boss winds up a move, a glowing target opens beside it. Tap it 3–6 times (one more for a lord) to break the move. Clicking the Button or pressing Space no longer counts. Smite (Z) still breaks any move.
+- **DOOM.** From the second land on, bosses wind up DOOM. If it lands, the Button takes 85% of its health and each standing hero 80% (95% and 90% from a lord). Ward blocks it completely, and a broken wind-up or Smite stops it.
+- **ENRAGE.** When the timer runs out, the boss enrages for 10 more seconds (14 for a lord). Its blows come twice as often and grow from twice to four times as hard. Finish it in time, or it leaves with its wounds.
+- **Affixes.** From depth 9, every boss carries an affix. From depth 31 it carries two, and lords get one more from depth 15. The affixes are the same at the same depth every try, so a wall can be studied.
+
+  | Affix | Effect |
+  |---|---|
+  | **Shielded** | takes 65% less damage until Smite or a broken wind-up cracks the shield; it comes back after 10 s |
+  | **Vampiric** | heals 2% (1.2% for a lord) with every blow that lands |
+  | **Hasted** | blows 40% more often, wind-ups 20% shorter |
+  | **Regenerating** | heals 0.8% a second |
+  | **Frenzied** | blows 50% harder |
+
+- **Rally is smaller.** Each failed try now adds 5% damage, up to 15%, down from 15–20% a try up to 75–100%.
+- **Your clicking now counts at 90% (was half) toward a boss's minimum health,** so clicking hard no longer makes boss fights shorter.
+
+## Torment
+
+- One level of Torment opens with every land you conquer, up to 10. Set it with **− / +** under the land name. You can change it any time outside a boss fight or a Rift.
+- Each level gives the Horde 35% more health and 20% stronger bites, and the bosses 35% more health. At Torment 4 and 8, bosses get an extra affix.
+- In return, each level adds:
+  - +35% gold;
+  - +30% XP;
+  - +15% loot;
+  - +12% luck;
+  - +12% fame;
+
+  and every three levels make gear one rarity step easier to find.
+- The tooltip on the dial shows exact numbers. A card announces each new level when it opens.
+
+## Loot
+
+- **Rarer gear opens with depth:**
+
+  | Rarity | Opens at depth |
+  |---|---|
+  | rare | 3 |
+  | epic | 6 |
+  | legendary | 13 |
+  | mythic | 25 |
+  | divine | 41 |
+
+  A Rift that deep counts too, and Torment brings each one sooner.
+- **The JACKPOT ignores the limit.**
+
+## Ascension
+
+- **Fame starts at depth 15.** You earn fame only from beating the lord at depth 15, and the Ascension tab opens then. The first run is played out, not skipped.
+- **Ancestral Might** gives +20% Warden damage a level (was +40%), and still +40% click gold.
+- **Boss Slayer** gives +20% boss damage a level (was +35%).
+
+## Smaller changes
+
+- A level-up left to choose itself after 12 seconds now takes a random card, not the best one.
+- The boss bar shows the boss's affixes and the enrage countdown, and pulses red while the boss is enraged.
+- The help screen explains weak points, Doom, Enrage and Torment. The tips point at the weak point and at the Torment dial.
+
 # BTTN 2.2 — Hold the Line
 
 2.1 made the arena busy, but a strong Warden still won without trying: bosses died in a couple of seconds, the Horde barely scratched the Button, and every depth of a land looked the same. 2.2 makes the fights real, gives you something to decide, and makes each zone look like a place of its own. It also clears the screen and sharpens the icons.

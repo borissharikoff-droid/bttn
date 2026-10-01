@@ -43,6 +43,19 @@
   if (typeof MutationObserver !== 'undefined') new MutationObserver(() => { if (!snapQ) { snapQ = true; requestAnimationFrame(() => { snapQ = false; snapPixels(); }); } })
     .observe(document.documentElement, { childList: true, subtree: true });
   UI.snapPixels = snapPixels;
+  // 2.3: the Torment dial: shows once the first land is conquered
+  function updateTorment() {
+    const el = $('#torment'); if (!el || !G.S) return;
+    const mx = G.tormentMax(), T = G.torment(), busy = !!(G.R.boss || G.R.rift);
+    el.hidden = mx < 1;
+    if (mx < 1) return;
+    setText($('#tormentN'), t('tormentN', T.n, mx));
+    el.classList.toggle('on', T.n > 0);
+    const [lo, hi] = el.querySelectorAll('button');
+    lo.disabled = busy || T.n <= 0; hi.disabled = busy || T.n >= mx;
+    const tip = (T.n ? t('tormentTip', T.n, '×' + T.mobHp.toFixed(2), '×' + T.bite.toFixed(2), '×' + T.bossHp.toFixed(2), '×' + T.gold.toFixed(2), '×' + T.xp.toFixed(2), '+' + Math.round((T.drop - 1) * 100) + '%') + (T.rarity ? ' ' + t('tormentRar', T.rarity) : '') : t('tormentZero')) + ' ' + t('tormentMore') + (busy ? ' ' + t('tormentBusy') : '');
+    if (el.title !== tip) el.title = tip;
+  }
   const fmt = G.fmt, t = G.t, L = G.L;
 
   let tab = 'upg', buyAmt = 1, selNode = 'spark', selItem = null, ascArm = 0, resetArm = 0, selWho = -1;
@@ -59,7 +72,7 @@
     { id: 'stars', icon: 'ic_star', unlock: S => S.essRun >= 1 || Object.keys(S.nodes).length > 0 || S.ascensions > 0 },
     { id: 'pets', icon: 'egg_2', unlock: S => S.eggs > 0 || Object.keys(S.pets).length > 0 },
     { id: 'ach', icon: 'ic_trophy', unlock: S => Object.keys(S.ach).length > 0 },
-    { id: 'asc', icon: 'ic_tomb', unlock: S => S.maxDepth >= 5 || S.ascensions > 0 },
+    { id: 'asc', icon: 'ic_tomb', unlock: S => S.maxDepth >= 15 || S.ascensions > 0 },
     { id: 'rift', icon: 'ic_rift', unlock: S => S.bestDepth >= 5 || S.rift.runs > 0 },
     { id: 'ladder', icon: 'ic_crown', unlock: () => true },
     { id: 'set', icon: 'ic_gear', unlock: () => true },
@@ -184,6 +197,7 @@
   };
 
   function bindHud() {
+    $('#torment').addEventListener('click', e => { const b = e.target.closest('[data-tm]'); if (!b) return; G.Audio.unlock(); if (G.setTorment((G.S.torment || 0) + +b.dataset.tm)) { G.Audio.buy(); updateTorment(); } else G.Audio.error(); });
     $('#realmBox').addEventListener('click', () => { if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#realmBox').addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); e.stopPropagation(); if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#btnSound').addEventListener('click', () => { G.S.set.sound = G.S.set.sound ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.update(true); });
@@ -236,7 +250,13 @@
       else if (top.isNew) UI.toast(`<span style="color:${G.RARITIES[top.it.r].color}">${esc(L(top.it.name))}</span>&nbsp;<b>${esc(t('newPet'))}</b>`, '', 'it_' + top.it.id);
       dirtyTab('coll'); dirtyTab('quests');
     });
-    G.on('bossWin', (rew) => { dirtyTab('quests'); dirtyTab('asc'); });
+    G.on('bossWin', (rew) => {
+      dirtyTab('quests'); dirtyTab('asc');
+      // a land conquered opens the next Torment level
+      const mx = G.tormentMax(), sn = G.S.seen = G.S.seen || {};
+      if (mx > (sn.tmax || 0)) { sn.tmax = mx; UI.toast(esc(t('tormentOpen', mx)), 'ach', 'ic_skull'); updateTorment(); }
+    });
+    G.on('torment', () => updateTorment());
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && tab === 'heroes') || (kind === 'upg' && tab === 'upg') || (kind === 'node' && tab === 'stars') || (kind === 'legacy' && tab === 'asc')) UI.update(true); if (kind === 'node' && tab === 'stars') UI.render(); });
     G.on('ascend', g => { if (g) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
@@ -324,6 +344,7 @@
     // the day's twist, and what it does
     setText($('#omenLine'), on ? t('omenLine', G.omen().name) + ' · ' + G.omen().desc : '');
     // (2.2: the omen lives in the land box's tooltip, off the field)
+    updateTorment();
     const rb = $('#realmBox'), tip = on ? t('omenLine', G.omen().name) + ' · ' + G.omen().desc : '';
     if (rb && rb.title !== tip) rb.title = tip;
     // where you stand among friends, right on the play screen
@@ -467,20 +488,23 @@
         const k = Math.max(0, R.boss.hp / R.boss.max);
         $('#bossMeter').style.width = k * 100 + '%';
         setClass($('#bossWrap'), 'hp', true); setClass($('#bossWrap'), 'waves', false);
-        setText($('#bossText'), L(G.bossName(R.boss.d)) + ' · ' + Math.ceil(R.boss.t) + 's');
+        setText($('#bossText'), (R.boss.affix ? R.boss.affix.map(a => t('aff_' + a)).join(' ') + ' ' : '') + L(G.bossName(R.boss.d)) + ' · ' + (R.boss.enr > 0 ? t('enrageT', Math.ceil(R.boss.enr)) : Math.ceil(R.boss.t) + 's'));
+        setClass($('#bossWrap'), 'enr', R.boss.enr > 0);
         $('#btnFight').hidden = true; $('#btnRetreat').hidden = false;
       } else {
         setClass($('#bossWrap'), 'hp', false);
         const need = D.bossNeed;
         $('#bossMeter').style.width = Math.min(100, S.bossMeter / need * 100) + '%';
-        const hs = G.hordeScale(), weak = hs <= 0.45;
+        const hs = G.hordeScale(), weak = G.mightRatio() < 1.35;
+        // far too strong for new ground, with Torment to spare: say so
+        const easy = G.mightRatio() > 6 && S.depth >= S.bestDepth && (S.torment || 0) < G.tormentMax();
         const wave = Math.min(3, 1 + Math.floor(3 * S.bossMeter / need));
         const odds = R.bossReady && G.bossOdds ? G.bossOdds() : 1;
         const narrow = innerWidth < 600;
         // the countdown to a boss that comes on its own
         const callIn = R.bossReady && S.set.autoBoss && R.bossIn != null ? Math.max(0, Math.ceil(R.bossIn + (odds >= 0.6 ? 0 : D.autoBoss ? 20 : 60))) : -1;
         if (callIn >= 0) setText($('#bossText'), narrow ? t('bossInShort', L(G.bossName(S.depth)), callIn) : t('bossIn', L(G.bossName(S.depth)), callIn) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : ''));
-        else         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : t('hordeX', hs.toFixed(1))));
+        else         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : easy ? t('tooEasy') : t('hordeX', hs.toFixed(1))));
         setClass($('#bossWrap'), 'waves', true);
         setClass($('#btnFight'), 'long', R.bossReady && odds < 0.6);
         setClass($('#bossWrap'), 'weak', weak && !R.bossReady);

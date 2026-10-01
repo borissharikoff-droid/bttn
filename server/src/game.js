@@ -579,16 +579,16 @@
 
   // ---------- Legacy: permanent upgrades bought with Fame ----------
   G.LEGACY = [
-    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: 'Ancestral Might', desc: 'Clicks and Warden damage +40%',
-      fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; D.heroMult *= 1 + 0.4 * L; } },
+    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: 'Ancestral Might', desc: 'Click gold +40%, Warden damage +20%',
+      fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; D.heroMult *= 1 + 0.2 * L; } },
     { id: 'lg_guild', base: 1, growth: 1.6, max: 25, name: 'Ancestral Guild', desc: 'Garrison income +40%',
       fx: (L, D) => { D.gpsMult *= 1 + 0.4 * L; } },
     { id: 'lg_start', base: 2, growth: 2, max: 8, name: 'Head Start', desc: 'Start each run with 1K gold, ×10 per level',
       fx: () => {} },
     { id: 'lg_luck', base: 3, growth: 1.8, max: 10, name: 'Lucky Star', desc: 'Luck +3%',
       fx: (L, D) => { D.luck += 0.03 * L; } },
-    { id: 'lg_boss', base: 3, growth: 1.7, max: 15, name: 'Boss Slayer', desc: 'Boss damage +35%',
-      fx: (L, D) => { D.bossMult *= 1 + 0.35 * L; } },
+    { id: 'lg_boss', base: 3, growth: 1.7, max: 15, name: 'Boss Slayer', desc: 'Boss damage +20%',
+      fx: (L, D) => { D.bossMult *= 1 + 0.2 * L; } },
     { id: 'lg_pot', base: 4, growth: 2, max: 10, name: 'Potion Cellar', desc: 'Each potion cap +3',
       fx: (L, D) => { D.potCap += 3 * L; } },
     { id: 'lg_keeppot', base: 12, growth: 2.5, max: 4, name: 'Family Vault', desc: 'Keep 25% of potions on ascension',
@@ -662,7 +662,12 @@
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
-    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25, bossClickK: 0.5,
+    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25, bossClickK: 0.9,
+    // 2.3: a boss out of time enrages for this long (s); DOOM from this depth on; Rally per failed try and its cap
+    enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.05, rallyMax: 3,
+    // boss affixes from this depth; a Shield cracked stays down this long; Regenerating heals this share a second
+    affixFrom: 8, shieldDown: 10, bossRegen: 0.008,
+    rarityAt: [0, 0, 2, 5, 12, 24, 40], ascFrom: 15,
     smallChestK: 0.1,       // the little chests the Horde drops are worth a tenth of a real one
     smallItem: 0.05,        // and hold an item one time in twenty
     overflowK: 0.5,         // a full field: the lowest chest bursts and half of it is lost
@@ -672,9 +677,13 @@
   function potZero() { const o = {}; G.POTIONS.forEach(p => o[p.id] = 0); return o; }
   // Rift records: best level ever (and its time), the highest level open, today's best
   function newRift() { return { best: 0, bestT: 0, open: 1, runs: 0, day: { k: '', l: 0 } }; }
+  // The season: a save from an earlier one starts the game over (only its settings and name carry on).
+  // 2.3 wiped everything once, since all progress so far was made while the game was far too easy.
+  const WIPE = G.WIPE = 1;
+  G.oldSeason = data => !!data && typeof data === 'object' && (data.wipe || 0) < WIPE;
   function newState() {
     return {
-      v: 1, created: Date.now(), lastSave: Date.now(),
+      v: 1, wipe: WIPE, created: Date.now(), lastSave: Date.now(),
       gold: 0, goldRun: 0, goldTotal: 0,
       clicks: 0, clicksRun: 0,
       upg: {}, heroes: {}, nodes: {}, legacy: {},
@@ -697,6 +706,8 @@
       uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
       // the jackpot: how many, and the play time of the last one (its odds climb with every hour since)
       jp: { n: 0, at: 0 },
+      // 2.3: the chosen Torment level (see G.torment)
+      torment: 0,
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -743,6 +754,8 @@
     for (const n of G.NODES) { const L = S.nodes[n.id] || 0; if (L) n.fx(L, d); }
     for (const l of G.LEGACY) { const L = S.legacy[l.id] || 0; if (L) l.fx(L, d); }
     if (G.heroEcon) G.heroEcon(d);
+    // Torment pays: gold, XP, luck and fame
+    { const T = torment(); d.goldMult *= T.gold; d.xpMult = (d.xpMult || 1) * T.xp; d.luck += T.luck; d.fameMult = (d.fameMult || 1) * T.fame; }
 
     // Collection bonuses
     const sums = {};
@@ -817,6 +830,34 @@
     R.dirty = false;
   }
   G.recalc = recalc;
+
+  // ---------- Torment (2.3): pick your own difficulty, and be paid for it ----------
+  // One level opens with each land conquered, up to ten. Each level makes the Horde and the bosses
+  // tougher and harder-hitting, and pays more of everything; from level 3 the rarer gear comes sooner.
+  const TORMENT_MAX = G.TORMENT_MAX = 10;
+  function torment() {
+    const n = G.S ? Math.min(G.S.torment || 0, tormentMax()) : 0;
+    return { n, mobHp: Math.pow(1.35, n), bite: Math.pow(1.2, n), bossHp: Math.pow(1.35, n), bossTime: 1 + 0.1 * n, horde: 1 + 0.08 * n,
+      affix: (n >= 4 ? 1 : 0) + (n >= 8 ? 1 : 0), gold: 1 + 0.35 * n, xp: 1 + 0.3 * n, luck: 0.12 * n, drop: 1 + 0.15 * n, fame: 1 + 0.12 * n, rarity: Math.floor(n / 3) };
+  }
+  function tormentMax() { return Math.min(TORMENT_MAX, Math.floor((G.S.bestDepth || 0) / G.REALM_SIZE)); }
+  G.torment = torment; G.tormentMax = tormentMax;
+  G.setTorment = function (n) {
+    const S = G.S;
+    n = Math.max(0, Math.min(tormentMax(), n | 0));
+    if (n === (S.torment || 0) || R.boss || R.rift) return false;
+    S.torment = n; R.dirty = true; recalc();
+    emit('torment', n);
+    return true;
+  };
+  // Gear rarity opens with depth: rare from depth 2, epic 5, legendary 12, mythic 24, divine 40 (or a Rift that deep)
+  function rarityCap() {
+    const S = G.S, reach = Math.max(S.bestDepth || 0, G.riftDepth && S.rift ? G.riftDepth(S.rift.best || 0) : 0);
+    let c = 0;
+    TUNE.rarityAt.forEach((at, r) => { if (reach >= at) c = r; });
+    return Math.min(6, c + torment().rarity);
+  }
+  G.rarityCap = rarityCap;
   G.dirty = () => { R.dirty = true; };
 
   // ---------- Money ----------
@@ -874,7 +915,6 @@
     if (G.evMul) gain *= G.evMul('click');
     addGold(gain, 'click');
     const dmg = R.boss ? D.heroHit * TUNE.clickVolley : 0;
-    if (R.boss) tapBoss();
     if (G.heroVolley && !(R.stun > 0)) G.heroVolley(TUNE.clickVolley, 'click');
     S.chestMeter += D.chestProg;
     spawnFromMeter();
@@ -920,7 +960,8 @@
     }
     return best;
   }
-  function pickItem(r) {
+  function pickItem(r, free) {
+    if (!free) r = Math.min(r, rarityCap());
     const list = G.ITEMS_BY_RARITY[r];
     return list[weighted(list.map(i => i.w))];
   }
@@ -978,6 +1019,7 @@
   function spawnChest(tier, mod, fromBoss, small) {
     const S = G.S;
     if (tier === undefined || tier === null) tier = rollTier();
+    tier = Math.min(tier, rarityCap());
     if (mod === undefined) mod = rollMod();
     if (mod === 'chromatic') tier = Math.min(6, tier + 1);
     if (S.chests.length >= D.slots) {
@@ -1158,30 +1200,39 @@
   // Boss moves: a telegraphed wind-up the Hand can break by tapping. Broken,
   // the boss staggers and takes more damage; left alone, the move lands.
   G.BOSS_MOVES = {
-    slam:   { col: '#ff3b3b', name: 'SLAM', wind: 1.4, need: 5 },
-    summon: { col: '#b36bff', name: 'SUMMON', wind: 1.6, need: 6 },
-    shield: { col: '#4fa8ff', name: 'SHIELD', wind: 3, need: 8 },
-    barrage: { col: '#ffb347', name: 'BARRAGE', wind: 1.2, need: 4 },
+    // (2.3: broken only by tapping the weak point that opens beside the boss, or by Smite; clicking the Button doesn't)
+    slam:   { col: '#ff3b3b', name: 'SLAM', wind: 2.2, need: 3 },
+    summon: { col: '#b36bff', name: 'SUMMON', wind: 2.4, need: 3 },
+    shield: { col: '#4fa8ff', name: 'SHIELD', wind: 3, need: 4 },
+    barrage: { col: '#ffb347', name: 'BARRAGE', wind: 2, need: 3 },
+    // DOOM: lands on everyone for most of their health. Ward it, break it, or Smite it
+    doom:   { col: '#ff2ad4', name: 'DOOM', wind: 3.2, need: 6 },
   };
   // later phases bring the barrage, a volley at the heroes themselves
   const MOVE_ORDER = {
-    lord: [['slam', 'summon', 'shield'], ['slam', 'barrage', 'summon', 'shield', 'barrage'], ['barrage', 'slam', 'barrage', 'summon', 'shield']],
-    boss: [['slam', 'slam', 'summon'], ['slam', 'barrage', 'summon', 'barrage']],
+    lord: [['slam', 'summon', 'shield', 'doom'], ['slam', 'barrage', 'doom', 'summon', 'shield', 'barrage'], ['barrage', 'doom', 'slam', 'barrage', 'summon', 'doom']],
+    boss: [['slam', 'slam', 'summon'], ['slam', 'barrage', 'doom', 'summon', 'barrage']],
   };
+  // the first land's bosses never Doom; from the second land on every boss can
+  const moveOk = (b, k) => k !== 'doom' || b.d >= TUNE.doomFrom;
   function bossMoves(b, dt) {
     if (b.stagger > 0) b.stagger -= dt;
     if (!b.move) {
       if ((b.moveT -= dt) > 0) return;
       const set = MOVE_ORDER[b.lord ? 'lord' : 'boss'], order = set[Math.min(set.length, b.phase || 1) - 1];
-      const k = order[(b.moveN = (b.moveN || 0) + 1) % order.length];
-      b.move = { k, t: G.BOSS_MOVES[k].wind, T: G.BOSS_MOVES[k].wind, n: 0, need: G.BOSS_MOVES[k].need };
+      let k = order[(b.moveN = (b.moveN || 0) + 1) % order.length];
+      if (!moveOk(b, k)) k = 'slam';
+      const M = G.BOSS_MOVES[k], need = M.need + (b.lord ? 1 : 0);
+      // wp: where round the boss its weak point opens (0-1 of a turn, kept off the top)
+      const wind = M.wind * (G.bossHas(b, 'hasted') ? 0.8 : 1);
+      b.move = { k, t: wind, T: wind, n: 0, need, wp: 0.1 + G.rng() * 0.8 };
       emit('bossMove', b);
       return;
     }
     if ((b.move.t -= dt) > 0) return;
     // the move lands
     const k = b.move.k;
-    b.move = null; b.moveT = (b.lord ? 5 : 7) / (1 + 0.3 * ((b.phase || 1) - 1));
+    b.move = null; b.moveT = (b.lord ? 5 : 7) / (1 + 0.3 * ((b.phase || 1) - 1)) * (b.enr > 0 ? 0.5 : 1);
     // 2.2: a boss's blows take a share of what they hit, so a fight is never safe; its depth's curve is the floor
     const rage = b.rage ? 1.5 : 1;
     if (k === 'barrage' && G.partyUnits) {
@@ -1197,6 +1248,12 @@
       for (const u of up) if (R.boss === b) G.blowParty(u.who, a * (b.lord ? 3 : 2), (b.lord ? 0.18 : 0.13) * rage, 'slam');
     }
     if (k === 'summon' && G.spawnPack) { G.spawnPack(true); G.spawnPack(true); }
+    // Doom: most of everyone's health at once. A Button that isn't full breaks, and the party goes down with it
+    if (k === 'doom' && G.blowParty) {
+      const up = G.partyUnits ? G.partyUnits().filter(u => !(u.down > 0)) : [];
+      G.blowParty('button', 0, (b.lord ? 0.95 : 0.85) * rage, 'doom');
+      for (const u of up) if (R.boss === b) G.blowParty(u.who, 0, (b.lord ? 0.9 : 0.8) * rage, 'doom');
+    }
     emit('bossMoveLand', b, k);
   }
   // ---------- The Hand's powers (2.2): three choices with cooldowns ----------
@@ -1221,6 +1278,7 @@
       const b = R.boss;
       if (b && !b.dead) {
         if (b.move) { const mk = b.move.k; b.move = null; b.moveT = b.lord ? 5 : 7; b.stagger = 3; emit('bossStagger', b, mk); }
+        if (G.bossHas(b, 'shielded') && !(b.sh > 0)) { b.sh = TUNE.shieldDown; emit('shieldBreak', b); }
         hitBoss((D.heroDps || 1) * (D.bossMult || 1) * 5);
       } else if (G.dealHit) for (const m of R.mobs.slice()) if (!m.dead && m.p > 0.45 && m.kind !== 'guardian') G.dealHit(m, (D.heroHit || 1) * 8, 'smite', false);
     } else if (id === 'ward') {
@@ -1240,13 +1298,17 @@
   }
   function tapBoss() {
     const b = R.boss;
-    if (!b || !b.move) return;
+    if (!b || !b.move) return false;
+    emit('bossTap', b);
     if (++b.move.n >= b.move.need) {
       const k = b.move.k;
       b.move = null; b.moveT = b.lord ? 5 : 7; b.stagger = 3;
+      if (G.bossHas(b, 'shielded')) { b.sh = TUNE.shieldDown; emit('shieldBreak', b); }
       emit('bossStagger', b, k);
     }
+    return true;
   }
+  G.tapBoss = tapBoss;
   function startBoss() {
     const S = G.S;
     // an invasion is fought out first
@@ -1258,11 +1320,14 @@
     const scar = S.scar && S.scar.d === d ? S.scar.k : 1;
     // every failed try rallies the Warden: +20% damage on a lord (+15% on a boss), up to five tries,
     // and after a long rest the first fight is fought rested (+40%)
-    const rally = (S.scar && S.scar.d === d ? (lord ? 0.2 : 0.15) * Math.min(5, S.scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
+    const rally = (S.scar && S.scar.d === d ? TUNE.rally * Math.min(TUNE.rallyMax, S.scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
     R.boss = { d, lord, hp, max, scar, rally, phase: 1, inv: 0, t: D.bossTime + (lord ? 15 : 0), T: D.bossTime + (lord ? 15 : 0), moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
+    // 2.3: from the second land on, bosses carry affixes, the same ones at the same depth every try
+    R.boss.affix = bossAffixes(d);
+    if (R.boss.affix.includes('shielded')) R.boss.sh = 0;
     // a boss that comes back wounded starts in the phase its health calls for
     R.boss.phase = phaseAt(R.boss);
     if (lord && R.boss.phase === 3) R.boss.rage = 1;
@@ -1271,6 +1336,15 @@
     return true;
   }
   G.startBoss = startBoss;
+  const AFFIXES = ['shielded', 'vampiric', 'hasted', 'regen', 'frenzied'];
+  function bossAffixes(d) {
+    const n = (d >= TUNE.affixFrom ? 1 : 0) + (d >= 30 ? 1 : 0) + (isLord(d) && d >= 14 ? 1 : 0) + (G.torment ? G.torment().affix : 0);
+    const rnd = G.seeded(d * 7919 + 13), pool = AFFIXES.slice(), out = [];
+    for (let i = 0; i < Math.min(n, pool.length); i++) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+    return out;
+  }
+  G.bossAffixes = bossAffixes;
+  G.bossHas = (b, a) => !!(b && b.affix && b.affix.includes(a));
   // How much of this depth's boss the Warden would take down in the time limit, without clicking (1 = all of it)
   // a boss's health: its depth's, but never less than a real fight's worth of the party's damage
   function bossMax(d) {
@@ -1281,15 +1355,16 @@
     const clickDps = (R.cps || 0) * TUNE.bossClickK * (D.heroHitBase || D.heroHit || 0) * TUNE.clickVolley * (1 + D.crit * (D.critMult - 1));
     // a full fight only on new ground: a depth already beaten (climbing back after an ascension) goes quicker
     const fresh = d >= (G.S.bestDepth || 0) ? 1 : TUNE.bossMinOld;
-    const floor = ((D.heroDpsBase || D.heroDps || 0) + clickDps) * (D.bossMult || 1) * (isLord(d) ? TUNE.bossMinLord : TUNE.bossMin) * fresh;
-    return Math.max(curve, floor);
+    const T = torment();
+    const floor = ((D.heroDpsBase || D.heroDps || 0) + clickDps) * (D.bossMult || 1) * (isLord(d) ? TUNE.bossMinLord : TUNE.bossMin) * fresh * T.bossTime;
+    return Math.max(curve * T.bossHp, floor);
   }
   G.bossMax = bossMax;
   function bossOdds() {
     const S = G.S, d = S.depth, lord = isLord(d);
     const scar = S.scar && S.scar.d === d ? S.scar : null;
     const hp = bossMax(d) * (scar ? scar.k : 1);
-    const rally = (scar ? (lord ? 0.2 : 0.15) * Math.min(5, scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
+    const rally = (scar ? TUNE.rally * Math.min(TUNE.rallyMax, scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     return (D.heroDps || 0) * (D.bossMult || 1) * (1 + rally) * (D.bossTime + (lord ? 15 : 0)) / Math.max(1e-9, hp);
   }
   G.bossOdds = bossOdds;
@@ -1303,6 +1378,8 @@
     if (b.inv > 0) return;
     // a shield soaks most of it; a staggered boss takes half again
     if (b.move && b.move.k === 'shield') dmg *= 0.3;
+    // Shielded: a barrier soaks most of it until Smite or a broken wind-up cracks it (it comes back after 10 s)
+    else if (G.bossHas(b, 'shielded') && !(b.sh > 0)) dmg *= 0.35;
     else if (b.stagger > 0) dmg *= 1.5;
     if (b.rally) dmg *= 1 + b.rally;
     b.hp -= dmg;
@@ -1636,7 +1713,8 @@
   // small bonus for gold, so each ascension is worth a similar, growing amount.
   function fameGain() {
     const S = G.S, d = S.maxDepth;
-    if (d < 5) return 0;
+    // (2.3: nothing to ascend for before depth 15, so the first run is played out, not skipped)
+    if (d < TUNE.ascFrom) return 0;
     const goldBonus = 1 + 0.1 * Math.max(0, Math.log10(Math.max(1, S.goldRun / 1e9)));
     return Math.floor(0.3 * d * Math.pow(1.07, d) * goldBonus * D.fameMult);
   }
@@ -1732,7 +1810,12 @@
       if (R.boss) {
         b.t -= dt;
         if (b.inv > 0) { b.inv -= dt; b.t += dt; } // the clock holds while it changes
-        if (b.t <= 0) bossFail();
+        // 2.3: out of time, the boss doesn't leave: it ENRAGES. A last stretch to finish it, while it hits
+        // twice as often and harder by the second; then it leaves with whatever wounds it has
+        if (b.t <= 0 && !b.enr) { b.t = 0; b.enr = b.lord ? TUNE.enrageLord : TUNE.enrage; b.enrT = b.enr; b.moveT = Math.min(b.moveT || 0, 1); emit('bossEnrage', b); }
+        if (b.sh > 0) b.sh -= dt;
+        if (G.bossHas(b, 'regen') && !(b.inv > 0)) b.hp = Math.min(b.max, b.hp + b.max * TUNE.bossRegen * dt);
+        if (b.enr > 0 && (b.enr -= dt) <= 0) bossFail();
         else bossMoves(b, dt);
       }
     } else if (S.bossMeter >= D.bossNeed) {
@@ -1802,6 +1885,12 @@
   function deserialize(str) {
     const data = typeof str === 'string' ? JSON.parse(str) : str;
     if (!data || typeof data !== 'object' || !('gold' in data)) throw new Error('bad save');
+    if (G.oldSeason(data)) {
+      const s = newState();
+      if (data.set) s.set = Object.assign(s.set, data.set);
+      if (data.profile && data.profile.id) s.profile = { id: data.profile.id, name: data.profile.name || '' };
+      return deserialize(s);
+    }
     const fresh = newState();
     const S = Object.assign(fresh, data);
     // Merge nested objects so new fields get defaults.
@@ -1853,7 +1942,7 @@
   const { chance, pick, rand, randInt, emit } = G;
   const TUNE = G.TUNE;
   Object.assign(TUNE, {
-    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.2,
+    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.22,
     mobWalk: 7, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
@@ -1861,9 +1950,12 @@
     mobMax: 900, packMul: 1.4, minCrowd: 40, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
-    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.07, pulseEvery: 6, smallHp: 2.2,
+    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002, biteFloor: 0.006,
+    killChest: 0.03, plunder: 0.002, biteFloor: 0.025,
+    // 2.3: the Horde never shrinks below a full one; regen out of and in a boss fight (share of health a second);
+    // new ground clears at most clearRate of weight a second
+    hsMin: 1, earlyHp: 2.5, earlyTo: 40, regen: 0.006, regenBoss: 0.002, clearRate: 0.75,
   });
 
   // ---------- Content ----------
@@ -2470,7 +2562,9 @@
   // kind has a weight: its share of a standard mob's HP, bite, rewards and
   // clearing progress. A swarm of fodder is worth the same as a few brutes,
   // it just dies in a much bigger heap.
-  function mobHp(d) { return TUNE.mobBase * Math.pow(TUNE.mobGrowth, d); }
+  // (2.3: the first lands are thicker, 3.5 times at depth 0, easing to nothing by depth 40, so the
+  // early game is a fight too and not a stroll a fresh Warden outgrows in minutes)
+  function mobHp(d) { return TUNE.mobBase * Math.pow(TUNE.mobGrowth, d) * (1 + TUNE.earlyHp * Math.max(0, 1 - d / TUNE.earlyTo)); }
   function mobAtk(d) { return TUNE.mobAtkBase * Math.pow(TUNE.mobAtkGrowth, d); }
   G.mobHp = mobHp; G.mobAtk = mobAtk;
   // Bosses are worth a few dozen mobs at first and grow into real walls by
@@ -2518,18 +2612,24 @@
   G.mightRatio = mightRatio;
   // The Horde answers strength: a Warden who kills faster faces a bigger, heavier
   // flow, so a stronger Warden clears lands (and earns gold and XP) faster
-  const hordeScale = () => G.clamp(mightRatio() / TUNE.hordeRef, 0.4, TUNE.hordeMax);
+  // (2.3: and never less than a full Horde: a Warden too weak for the depth is overrun, not spared)
+  const hordeScale = () => G.clamp(mightRatio() / TUNE.hordeRef, TUNE.hsMin, TUNE.hordeMax);
   G.hordeScale = hordeScale;
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
     // a stronger Warden meets a heavier Horde: half of it in heft, half in numbers (spawnPack)
     const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
-    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
+    const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
     const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
       m.name = pick(RARE_A) + ' ' + pick(RARE_B);
+      if (m.mod === 'hasted') m.sp *= 1.7;
+    }
+    // 2.3: champions carry a rare's affix too, more often the deeper (and the more Tormented) it gets
+    if (kind === 'magic' && !add && dnow() >= 6 && chance(Math.min(0.85, 0.2 + 0.015 * dnow() + 0.05 * G.torment().n))) {
+      m.mod = pick(Object.keys(G.RARE_MODS));
       if (m.mod === 'hasted') m.sp *= 1.7;
     }
     if (kind === 'brute' && land().stone) m.stone = 1;
@@ -2653,8 +2753,12 @@
       S.st.rares = (S.st.rares || 0) + 1;
       if (uq('headhunter')) { R.hb.hh = Math.min(60, Math.max(0, R.hb.hh || 0) + 20); G.dirty(); emit('headhunter', m); }
     }
-    // a Warden far too strong for this depth clears it up to twice as fast, so the game moves on
-    if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 2);
+    // 2.3: new ground is cleared at a set pace however fast the Horde dies (the clear bank fills at
+    // clearRate a second); a depth already beaten clears up to six times faster for a Warden far too strong for it
+    if (!m.add && !R.rift) {
+      if (S.depth >= (S.bestDepth || 0)) { const g = Math.min(m.w, R.clearBank || 0); R.clearBank = (R.clearBank || 0) - g; S.bossMeter += g; }
+      else S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 6);
+    }
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
     else if (!m.add) {
@@ -2943,7 +3047,9 @@
     if (R.reapT > 0 && (R.reapT -= dt) <= 0) { R.reap = 0; G.dirty(); }
     if (R.carn && (R.carnT += dt) > 2.5) { R.carn = 0; emit('carnage', 0); }
     // regen: slow, slower still with a boss on the field, so a fight can be lost
-    const regen = R.boss ? 0.004 : 0.012;
+    const regen = R.boss ? TUNE.regenBoss : TUNE.regen;
+    // the clear bank for new ground (see mobDie): a few seconds' worth can wait
+    if (!R.boss && !R.rift) R.clearBank = Math.min(TUNE.clearRate * 6, (R.clearBank || 0) + TUNE.clearRate * (G.evMul ? Math.max(1, G.evMul('clear')) : 1) * dt);
     if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * regen * dt);
     partyTick(dt, regen);
     // the horde: a steady flow of packs, with a surge every half a minute
@@ -2956,7 +3062,7 @@
         else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen * (land().surge || 1); emit('surge'); }
         const surging = R.surge > 0;
         R.hs = hordeScale();
-        const thick = om().horde * (R.rift ? 1.5 : 1) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
+        const thick = om().horde * (R.rift ? 1.5 : G.torment().horde) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
         R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * thick);
         const cap = hordeCap(dnow()) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1) * (R.rift || shrine('slaughter') ? 1.5 : 1);
         // each zone is fought in three waves; the second and third open with champions and a rush
@@ -2985,7 +3091,7 @@
     // walk & bite
     const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1) * evMul('speed');
     // 2.2: a bite is never nothing: its depth's damage, or a sliver of the Button's health per unit of weight
-    const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite');
+    const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite') * (R.rift ? 1 : G.torment().bite);
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
@@ -3023,7 +3129,17 @@
     // the boss hits the button too
     if (R.boss) {
       R.bossAtkT -= dt;
-      if (R.bossAtkT <= 0) { R.bossAtkT = 2 / (1 + 0.25 * ((R.boss.phase || 1) - 1)); const b = R.boss, v = victim(); emit('bossHit', b, v); G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1), (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1), 'boss'); }
+      if (R.bossAtkT <= 0) {
+        const b = R.boss, v = victim();
+        // enraged: twice as often, and harder with every second of it
+        const enr = b.enr > 0 ? 2 + 2 * (1 - b.enr / (b.enrT || 1)) : 1;
+        R.bossAtkT = 2 / (1 + 0.25 * ((b.phase || 1) - 1)) / (b.enr > 0 ? 2 : 1) / (G.bossHas(b, 'hasted') ? 1.4 : 1);
+        emit('bossHit', b, v);
+        const fr = G.bossHas(b, 'frenzied') ? 1.5 : 1;
+        G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1) * enr * fr, (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1) * enr * fr, 'boss');
+        // Vampiric: every blow that lands feeds it
+        if (G.bossHas(b, 'vampiric') && R.boss === b && !(R.ward > 0)) { b.hp = Math.min(b.max, b.hp + b.max * (b.lord ? 0.012 : 0.02)); emit('bossLeech', b); }
+      }
     }
     // perks that work on their own
     const hit = D.heroHit;
@@ -3057,7 +3173,7 @@
     }
     // a pending level-up choice is made for the player if they leave it
     // (the clock stops while a window covers the cards, so they can't be picked for you unseen)
-    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[0]);
+    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[Math.floor(G.rng() * h.offer.length)]); // (2.3: left to itself, a card at random, not the best one)
     // hero attacks
     R.heroAcc += h.wdown > 0 ? 0 : dt * D.heroRate;
     let guard = 0;

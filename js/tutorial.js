@@ -49,7 +49,8 @@
     tip_hoard: 'A Hoarder! It never bites, and it runs off with its sack in 16 seconds. Tap it so the Warden chases it: it bursts into loot.',
     tip_shrine: 'A shrine rose from the ground. Tap it for a 15-second blessing, or the Warden claims it.',
     tip_powers: 'Your powers! Z, Smite: break a wind-up and hit hard. X, Ward: 3.5 s of no damage at all, for the big blows. C, Mend: heal the Button and the whole party.',
-    tip_move: 'The boss is winding up a move! Tap it fast to break it: the boss staggers and takes +50% damage.',
+    tip_move: 'The boss is winding up a move! Tap the glowing weak point beside it to break it (clicking the Button won\u2019t), or Smite it with Z. Broken, it staggers and takes +50% damage.',
+    tip_torment: 'Torment is open! Raise it here for a tougher Horde and bosses, and more gold, XP and loot. You can lower it again any time outside a fight.',
     tip_orb: 'You found currency. In the Party tab, pick an item, then an orb: reroll its affixes, add one, or gamble with an Orb of Ruin.',
     tip_rift: 'Rifts are open: timed runs at the level you choose, with better loot. Friends see your best Rift on the ladder.',
     tip_evo: 'Evolution ready! A maxed perk plus the right gear turns into something much stronger. Look for the golden card.',
@@ -58,7 +59,7 @@
     help_1: 'You are the Hand', help_1t: 'A click spills gold, fills the chest bar and calls lightning on the mobs closest to the Button. Fast clicks build a combo multiplier.',
     help_2: 'Loot', help_2t: 'Mobs drop loot where they fall, and its label and beam tell you what it is: tap it to grab it, or the Warden gathers it. Orbs change your gear in the Party tab, and uniques have rules of their own. The Button spills chests too; special ones (storm, frozen, mimics…) each work their own way.',
     help_3: 'Your Warden', help_3t: 'The Horde drops XP crystals; every level you pick one of three perks (they last until you ascend). 4 gear slots: weapon, ability, armour, ring; your class weapon type deals +50%. A stronger Warden faces a bigger Horde and clears lands faster.',
-    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper. A boss on new ground always takes a real fight, however strong you are, and its blows take a share of whoever they hit.",
+    help_4: 'The Horde and bosses', help_4t: "It comes in packs: fodder, then one new kind per zone: runners, spitters (they stop and spit at the Button, tap them), bombers (kill them inside the crowd) and tanks. Blue champions and named yellow rares join them, and it surges every half minute. Fill the clear bar and the boss comes (30 seconds, 45 for a lord); beat it to go deeper. Out of time, it ENRAGES: a few more seconds to finish it while it hits harder every second. Its wind-ups open a glowing weak point beside it: tap it to break the move. From the second land bosses can DOOM (most of everyone\u2019s health: Ward it, break it or Smite it), and from depth 8 they carry affixes such as Shielded or Vampiric.",
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests; the Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence goes into the skill constellation, boss eggs into the pet hatchery.',
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and the collection stay.',
@@ -69,6 +70,7 @@
     help_13: 'Chests and Looters', help_13t: 'The Horde drops little chests of coin; the chest bar brings real ones. The Treasure Hall makes room for 10, 20, 30, 50, 100, then 200 chests. Looters run and open them for you, faster with each level, and Loot Crew hires more. When the field is full, the lowest chest bursts open for half its gold.',
     help_14: 'The JACKPOT', help_14t: 'About one kill in two million. The longer since the last one, the better the odds (your odds now are in the Party tab\u2019s records). You will know it when you see it.',
     help_15: 'Your powers', help_15t: 'Three powers of the Hand, on the buttons by the Button bar or the keys Z, X and C. Smite (18 s) breaks a boss\u2019s wind-up and hits it hard. Ward (26 s) stops all damage for 3.5 s: save it for a slam or a barrage. Mend (40 s) heals the Button and the whole party and raises the fallen.',
+    help_16: 'Torment', help_16t: 'Conquer a land and a level of Torment opens, up to ten. Raise it with + under the land name: the Horde and the bosses get tougher and hit harder, and you get more gold, XP, loot and fame, and rarer gear sooner. New ground clears at a set pace, so strength alone no longer rushes you through: go as hard as you can hold.',
     help_10: 'Carnage', help_10t: 'Kill without pause: the streak climbs and so do gold and XP, up to +40%. Let it lapse for 2.5 seconds and it starts over.',
   });
 
@@ -114,7 +116,8 @@
     { id: 'hoard', when: () => (G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob), point: () => { const m = G.R.mobs.find(x => x.kind === 'hoard' && !x.gob); return m && G.Stage.mobPoint(m); }, text: 'tip_hoard', until: () => !(G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob) },
     { id: 'shrine', when: () => G.R.shrine, point: () => G.Stage.shrinePoint(), text: 'tip_shrine', until: () => !G.R.shrine },
     { id: 'powers', when: () => G.R.boss && G.R.boss.t < G.R.boss.T - 2, point: () => P.el('#powers'), text: 'tip_powers', until: () => !G.R.boss },
-    { id: 'move', when: () => G.R.boss && G.R.boss.move, point: P.button, text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
+    { id: 'move', when: () => G.R.boss && G.R.boss.move, point: () => G.Stage.weakPoint && G.Stage.weakPoint() && (() => { const w = G.Stage.weakPoint(), r = document.querySelector('#stage').getBoundingClientRect(); return { x: r.left + w.x, y: r.top + w.y - 10 }; })(), text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
+    { id: 'torment', when: () => G.tormentMax() >= 1 && !G.R.boss, point: () => P.el('#torment'), text: 'tip_torment' },
     { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('hero'), text: 'tip_orb', until: () => G.UI.tab() === 'hero' },
     { id: 'rift', when: () => G.riftOpenable() && !G.R.boss, point: () => P.el('#btnRift') || P.tab('rift'), text: 'tip_rift', until: () => G.UI.tab() === 'rift' || !!G.R.rift },
     { id: 'spitter', when: () => (G.R.mobs || []).some(m => m.kind === 'spitter' && m.spit), point: () => { const m = G.R.mobs.find(x => x.kind === 'spitter' && x.p >= G.TUNE.spitStop); return m && G.Stage.mobPoint(m); }, text: 'tip_spitter', until: () => !(G.R.mobs || []).some(m => m.kind === 'spitter') },
@@ -351,7 +354,7 @@
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_bolt', 15], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14]];
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
     G.UI.modal(t('help_title'), html, [

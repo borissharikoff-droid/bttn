@@ -17,6 +17,8 @@ const PERSONAS = {
   active:   { cps: 6, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, perk: 'smart', perkDelay: 1, bossDelay: 0, ascend: 'smart', events: 0.9, craft: 1, rift: 300 },
   casual:   { cps: 2.5, duty: 0.5, shopEvery: 20, chests: 0.3, wisp: 0.3, perk: 'first', perkDelay: 5, bossDelay: 10, ascend: 'stuck', stuckMin: 10, events: 0.3, craft: 0, rift: 900 },
   idle:     { cps: 0, duty: 0, shopEvery: 60, chests: 0, wisp: 0, perk: 'auto', perkDelay: 99, bossDelay: 30, ascend: 'stuck', stuckMin: 20, events: 0, craft: 0, rift: 1800 },
+  // an active player who wants a fight: raises Torment while the depth is easy, lowers it after two lost bosses
+  hardcore: { cps: 6, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, perk: 'smart', perkDelay: 1, bossDelay: 0, ascend: 'smart', events: 0.9, craft: 1, rift: 300, torment: 1 },
   returner: { cps: 2.5, duty: 0.7, shopEvery: 10, chests: 0.3, wisp: 0.5, perk: 'first', perkDelay: 4, bossDelay: 5, ascend: 'stuck', stuckMin: 8, events: 0.5, craft: 1, rift: 600,
     days: 7, sessions: [[15, 8 * 3600], [15, 16 * 3600]] },
 };
@@ -86,7 +88,7 @@ function run(name, seed, minutes) {
   let riftFailed = false, riftLvl = 1;
   G.on('riftEnd', r => { riftRuns++; riftLvl = r.lvl; riftFailed = !r.win; if (r.win) { mark('riftWin'); riftBest = Math.max(riftBest, r.lvl); } else mark('riftFail'); });
   // the tabs the UI unlocks, as a player would see them appear
-  const TABS = { heroes: s => s.goldTotal >= 40, coll: s => s.st.chests >= 1, quests: s => s.st.chests >= 5, stars: s => s.essRun >= 1, pets: s => s.eggs > 0 || Object.keys(s.pets).length > 0, ach: s => Object.keys(s.ach).length > 0, asc: s => s.maxDepth >= 5 };
+  const TABS = { heroes: s => s.goldTotal >= 40, coll: s => s.st.chests >= 1, quests: s => s.st.chests >= 5, stars: s => s.essRun >= 1, pets: s => s.eggs > 0 || Object.keys(s.pets).length > 0, ach: s => Object.keys(s.ach).length > 0, asc: s => s.maxDepth >= 15 };
   const seenTab = {};
 
   const dt = 0.2;
@@ -113,10 +115,13 @@ function run(name, seed, minutes) {
         }
         if (G.R.wisp && r() < P.wisp * dt) G.catchWisp();
       }
+      // a wind-up's weak point: attentive players hit it a few times a second, others now and then
+      if (on && P.events && G.R.boss && G.R.boss.move && G.tapBoss && r() < P.events * dt * 5) G.tapBoss();
       // the Hand's powers, as a person would use them (active players well, casual ones now and then)
       if (on && P.events && G.usePower && r() < P.events * dt * 4) {
         const R_ = G.R, b = R_.boss, h = s.hero, low = h.hp < G.D.heroHp * 0.45 || (G.partyUnits && G.partyUnits().some(u => u.down > 0 || u.hp < u.max * 0.35));
-        if (b && b.move && (b.move.k === 'slam' || b.move.k === 'barrage') && b.move.t < 1) G.usePower('ward');
+        if (b && b.move && (b.move.k === 'slam' || b.move.k === 'barrage' || b.move.k === 'doom') && b.move.t < 1) G.usePower('ward');
+        else if (b && b.move && b.move.k === 'doom' && b.move.t < 1.5) G.usePower('smite');
         else if (low) G.usePower('mend');
         else if (b && !(b.inv > 0)) G.usePower('smite');
       }
@@ -141,6 +146,11 @@ function run(name, seed, minutes) {
         }
       } else offerSeen = -1;
       if (t - lastShop >= P.shopEvery) { lastShop = t; shop(G, P.cps * P.duty); }
+      if (P.torment && G.setTorment && Math.round(t / dt) % 50 === 0 && !G.R.boss) {
+        const T = G.S.torment || 0;
+        if (failStreak >= 2 && T > 0) { G.setTorment(T - 1); failStreak = 0; }
+        else if (s.depth >= s.bestDepth && G.mightRatio() > 4 && T < G.tormentMax()) G.setTorment(T + 1);
+      }
       // progress bookkeeping
       if (s.bestDepth > lastBestDepth) {
         if (t - lastDepthT > 60) stalls.push([lastDepthT, t - lastDepthT, lastBestDepth]);
@@ -195,6 +205,7 @@ function run(name, seed, minutes) {
     windows: win, longestStall: stalls.reduce((m, x) => Math.max(m, x[1]), 0) / 60,
     bossFails: fails, maxFailStreak, ascensions: s.ascensions, journey: s.journey || 0, evos: Object.keys((s.rec && s.rec.evos) || {}).length, bounties: moments.filter(m => m[1] === 'bounty').length, bestDepth: s.bestDepth, level: s.hero.lvl,
     ach: Object.keys(s.ach).length + '/' + G.ACH.length, pets: Object.keys(s.pets).length, collection: Object.keys(s.coll).length + '/' + G.ITEMS.length,
+    torment: s.torment || 0,
     pressure: { low: +(press.low / Math.max(1, press.n)).toFixed(3), crit: +(press.crit / Math.max(1, press.n)).toFixed(3), boss: +(press.boss / Math.max(1, press.n)).toFixed(3) },
     sessions, attempts: process.env.BOSSLOG ? attempts : undefined,
   };

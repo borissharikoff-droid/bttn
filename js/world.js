@@ -63,10 +63,11 @@
     return st.dryQ >= UQ_PITY || chance(p);
   }
   // floor: the lowest rarity it can be; rolls: best of n rarity rolls
-  function rollGear(floor, rolls) {
+  // free: past the depth's rarity cap (the JACKPOT only)
+  function rollGear(floor, rolls, free) {
     let r = 0;
     for (let i = 0; i < (rolls || 1); i++) r = Math.max(r, G.rollRarity(G.rollTier(G.DROP_WEIGHTS), 1));
-    return G.pickItem(Math.max(floor || 0, r));
+    return G.pickItem(Math.max(floor || 0, r), free);
   }
   function place(e, m, spread) {
     e.a = m ? G.clamp(m.a + rand(-spread, spread), 0, 1) : rand(0, 1);
@@ -107,7 +108,7 @@
     const items = [];
     // only the first floorN items are promised the floor; the rest roll on their own
     const fn = o.floorN != null ? o.floorN : n;
-    for (let i = 0; i < n; i++) items.push(i >= fn && chance(TUNE.orbShare) ? ['orb', rollOrb()] : ['gear', rollGear(i < fn ? floor : Math.max(0, floor - 2), i < fn ? o.rolls : 1)]);
+    for (let i = 0; i < n; i++) items.push(i >= fn && chance(TUNE.orbShare) ? ['orb', rollOrb()] : ['gear', rollGear(i < fn ? floor : Math.max(0, floor - 2), i < fn ? o.rolls : 1, o.free)]);
     if (uqChance && uqChance_(uqChance, o.src)) { const q = uniqueFor(d, o.boss); if (q) items.push(['uq', q]); }
     const val = ([k, w]) => k === 'uq' ? 9 : k === 'orb' ? (w === 'grace' ? 8 : 1) : w.r;
     items.sort((a, b) => val(a) - val(b));
@@ -142,7 +143,7 @@
     const gold = (G.D.incomeRef || 1) * TUNE.jpGold;
     G.addGold(gold, 'jackpot');
     // the haul: a heap of gear with a legendary floor, a unique for sure, a fistful of orbs
-    shower(m || null, 24, 4, 1, { floorN: 8, spread: 0.22, at, rolls: 2, wait: 1.4 });
+    shower(m || null, 24, 4, 1, { floorN: 8, spread: 0.22, at, rolls: 2, wait: 1.4, free: 1 });
     for (let i = 0; i < 8; i++) drop('orb', rollOrb(), m || null, { at, wait: 1.6 + i * 0.08, spread: 0.22 });
     G.first('jp'); G.feed('jackpot', 'the JACKPOT');
     emit('jackpot', m, gold, S.jp.n);
@@ -171,7 +172,7 @@
     // everything else drops by its weight: a brute's worth of fodder drops about what a brute does
     // fodder: a pack drops what it did before 2.1, however many more bodies it now comes in
     let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder / ((G.TUNE.packMul || 1) * m.w / G.MOB_KINDS.fodder.w) : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
-    p *= k;
+    p *= k * (G.torment ? G.torment().drop : 1);
     if (h.kills < 60 && !S.st.firstRare && chance(0.08)) { S.st.firstRare = 1; return drop('gear', G.pickItem(2), m); }
     let e = null;
     while (p > 0) {

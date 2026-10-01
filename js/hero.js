@@ -7,7 +7,7 @@
   const { chance, pick, rand, randInt, emit } = G;
   const TUNE = G.TUNE;
   Object.assign(TUNE, {
-    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.2,
+    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.22,
     mobWalk: 7, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
@@ -15,9 +15,12 @@
     mobMax: 900, packMul: 1.4, minCrowd: 40, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
-    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.07, pulseEvery: 6, smallHp: 2.2,
+    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002, biteFloor: 0.006,
+    killChest: 0.03, plunder: 0.002, biteFloor: 0.025,
+    // 2.3: the Horde never shrinks below a full one; regen out of and in a boss fight (share of health a second);
+    // new ground clears at most clearRate of weight a second
+    hsMin: 1, earlyHp: 2.5, earlyTo: 40, regen: 0.006, regenBoss: 0.002, clearRate: 0.75,
   });
 
   // ---------- Content ----------
@@ -624,7 +627,9 @@
   // kind has a weight: its share of a standard mob's HP, bite, rewards and
   // clearing progress. A swarm of fodder is worth the same as a few brutes,
   // it just dies in a much bigger heap.
-  function mobHp(d) { return TUNE.mobBase * Math.pow(TUNE.mobGrowth, d); }
+  // (2.3: the first lands are thicker, 3.5 times at depth 0, easing to nothing by depth 40, so the
+  // early game is a fight too and not a stroll a fresh Warden outgrows in minutes)
+  function mobHp(d) { return TUNE.mobBase * Math.pow(TUNE.mobGrowth, d) * (1 + TUNE.earlyHp * Math.max(0, 1 - d / TUNE.earlyTo)); }
   function mobAtk(d) { return TUNE.mobAtkBase * Math.pow(TUNE.mobAtkGrowth, d); }
   G.mobHp = mobHp; G.mobAtk = mobAtk;
   // Bosses are worth a few dozen mobs at first and grow into real walls by
@@ -672,18 +677,24 @@
   G.mightRatio = mightRatio;
   // The Horde answers strength: a Warden who kills faster faces a bigger, heavier
   // flow, so a stronger Warden clears lands (and earns gold and XP) faster
-  const hordeScale = () => G.clamp(mightRatio() / TUNE.hordeRef, 0.4, TUNE.hordeMax);
+  // (2.3: and never less than a full Horde: a Warden too weak for the depth is overrun, not spared)
+  const hordeScale = () => G.clamp(mightRatio() / TUNE.hordeRef, TUNE.hsMin, TUNE.hordeMax);
   G.hordeScale = hordeScale;
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
     // a stronger Warden meets a heavier Horde: half of it in heft, half in numbers (spawnPack)
     const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
-    const hp = mobHp(dnow()) * w * om().mobHp * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
+    const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : 1) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
     const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
       m.name = pick(RARE_A) + ' ' + pick(RARE_B);
+      if (m.mod === 'hasted') m.sp *= 1.7;
+    }
+    // 2.3: champions carry a rare's affix too, more often the deeper (and the more Tormented) it gets
+    if (kind === 'magic' && !add && dnow() >= 6 && chance(Math.min(0.85, 0.2 + 0.015 * dnow() + 0.05 * G.torment().n))) {
+      m.mod = pick(Object.keys(G.RARE_MODS));
       if (m.mod === 'hasted') m.sp *= 1.7;
     }
     if (kind === 'brute' && land().stone) m.stone = 1;
@@ -807,8 +818,12 @@
       S.st.rares = (S.st.rares || 0) + 1;
       if (uq('headhunter')) { R.hb.hh = Math.min(60, Math.max(0, R.hb.hh || 0) + 20); G.dirty(); emit('headhunter', m); }
     }
-    // a Warden far too strong for this depth clears it up to twice as fast, so the game moves on
-    if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 2);
+    // 2.3: new ground is cleared at a set pace however fast the Horde dies (the clear bank fills at
+    // clearRate a second); a depth already beaten clears up to six times faster for a Warden far too strong for it
+    if (!m.add && !R.rift) {
+      if (S.depth >= (S.bestDepth || 0)) { const g = Math.min(m.w, R.clearBank || 0); R.clearBank = (R.clearBank || 0) - g; S.bossMeter += g; }
+      else S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 6);
+    }
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
     else if (!m.add) {
@@ -1097,7 +1112,9 @@
     if (R.reapT > 0 && (R.reapT -= dt) <= 0) { R.reap = 0; G.dirty(); }
     if (R.carn && (R.carnT += dt) > 2.5) { R.carn = 0; emit('carnage', 0); }
     // regen: slow, slower still with a boss on the field, so a fight can be lost
-    const regen = R.boss ? 0.004 : 0.012;
+    const regen = R.boss ? TUNE.regenBoss : TUNE.regen;
+    // the clear bank for new ground (see mobDie): a few seconds' worth can wait
+    if (!R.boss && !R.rift) R.clearBank = Math.min(TUNE.clearRate * 6, (R.clearBank || 0) + TUNE.clearRate * (G.evMul ? Math.max(1, G.evMul('clear')) : 1) * dt);
     if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * regen * dt);
     partyTick(dt, regen);
     // the horde: a steady flow of packs, with a surge every half a minute
@@ -1110,7 +1127,7 @@
         else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen * (land().surge || 1); emit('surge'); }
         const surging = R.surge > 0;
         R.hs = hordeScale();
-        const thick = om().horde * (R.rift ? 1.5 : 1) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
+        const thick = om().horde * (R.rift ? 1.5 : G.torment().horde) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
         R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * thick);
         const cap = hordeCap(dnow()) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1) * (R.rift || shrine('slaughter') ? 1.5 : 1);
         // each zone is fought in three waves; the second and third open with champions and a rush
@@ -1139,7 +1156,7 @@
     // walk & bite
     const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1) * evMul('speed');
     // 2.2: a bite is never nothing: its depth's damage, or a sliver of the Button's health per unit of weight
-    const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite');
+    const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite') * (R.rift ? 1 : G.torment().bite);
     for (const m of R.mobs.slice()) {
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
@@ -1177,7 +1194,17 @@
     // the boss hits the button too
     if (R.boss) {
       R.bossAtkT -= dt;
-      if (R.bossAtkT <= 0) { R.bossAtkT = 2 / (1 + 0.25 * ((R.boss.phase || 1) - 1)); const b = R.boss, v = victim(); emit('bossHit', b, v); G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1), (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1), 'boss'); }
+      if (R.bossAtkT <= 0) {
+        const b = R.boss, v = victim();
+        // enraged: twice as often, and harder with every second of it
+        const enr = b.enr > 0 ? 2 + 2 * (1 - b.enr / (b.enrT || 1)) : 1;
+        R.bossAtkT = 2 / (1 + 0.25 * ((b.phase || 1) - 1)) / (b.enr > 0 ? 2 : 1) / (G.bossHas(b, 'hasted') ? 1.4 : 1);
+        emit('bossHit', b, v);
+        const fr = G.bossHas(b, 'frenzied') ? 1.5 : 1;
+        G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1) * enr * fr, (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1) * enr * fr, 'boss');
+        // Vampiric: every blow that lands feeds it
+        if (G.bossHas(b, 'vampiric') && R.boss === b && !(R.ward > 0)) { b.hp = Math.min(b.max, b.hp + b.max * (b.lord ? 0.012 : 0.02)); emit('bossLeech', b); }
+      }
     }
     // perks that work on their own
     const hit = D.heroHit;
@@ -1211,7 +1238,7 @@
     }
     // a pending level-up choice is made for the player if they leave it
     // (the clock stops while a window covers the cards, so they can't be picked for you unseen)
-    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[0]);
+    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(h.offer[Math.floor(G.rng() * h.offer.length)]); // (2.3: left to itself, a card at random, not the best one)
     // hero attacks
     R.heroAcc += h.wdown > 0 ? 0 : dt * D.heroRate;
     let guard = 0;
