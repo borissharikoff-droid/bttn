@@ -538,6 +538,8 @@
     emit('town', true);
     return true;
   };
+  // hold the game still for s seconds (see tick); the stage keeps drawing
+  G.cinematic = s => { R.cine = Math.max(R.cine || 0, s); };
   G.leaveTown = function () {
     if (!R.town) return false;
     R.town = false;
@@ -1168,6 +1170,8 @@
     S.st.playTime += dt;
     // in town the field holds still: only the Garrison's income and the clock run
     if (R.town) { addGold(D.gps * dt, 'gps'); return; }
+    // 3.0: a cinematic (a relic dropping) holds the whole game still while it plays
+    if (R.cine > 0) { R.cine = Math.max(0, R.cine - dt); return; }
 
     // Buffs
     if (S.buffs.length) {
