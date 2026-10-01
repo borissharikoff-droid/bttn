@@ -40,7 +40,8 @@
     const cw = Math.max(200, r.width), ch = Math.max(160, r.height);
     // a wide view of the field: on sharp screens the scale may be a half step (1.5 = 3 device pixels a pixel)
     const step = DPR >= 2 ? 0.5 : 1;
-    S = clamp(Math.floor(Math.min(cw / 270, ch / 200) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
+    // (2.4: a wider shot: the field shows about twice the ground it did, so the Horde has room to come from far off)
+    S = clamp(Math.floor(Math.min(cw / 380, ch / 280) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
     W = Math.ceil(cw / S); H = Math.ceil(ch / S);
     cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
     cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
@@ -118,6 +119,17 @@
   St.buttonPoint = function () { const b = btnPos(); return St.toScreen(b.x, b.y - 24); };
 
   // ---------- Particles & text ----------
+  function stepDrawParts(vdt) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i]; p.life -= vdt;
+      if (p.life <= 0) { parts.splice(i, 1); continue; }
+      p.vy += p.grav * vdt; p.x += p.vx * vdt; p.y += p.vy * vdt;
+      lctx.globalAlpha = Math.min(1, p.life / p.max * 1.6);
+      lctx.fillStyle = p.col;
+      lctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+    }
+    lctx.globalAlpha = 1;
+  }
   function part(x, y, col, o) {
     if (parts.length > MAXP) parts.shift();
     parts.push(Object.assign({ x, y, vx: rand(-40, 40), vy: rand(-70, -20), life: rand(0.4, 0.9), max: 0, col, size: 1, grav: 120 }, o || {}));
@@ -475,6 +487,7 @@
   }
   function doPress(p) {
     G.Audio && G.Audio.unlock();
+    if (G.R.town) { const t = hitTown(p); if (t) { if (G.Audio && G.Audio.buy) G.Audio.buy(); if (t.id === 'portal') G.leaveTown(); else G.UI.townOpen(t.id); return 'town'; } return null; }
     if (hitWisp(p)) { G.catchWisp(); return 'wisp'; }
     if (hitWeak(p)) { G.tapBoss(); return 'weak'; }
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
@@ -508,6 +521,7 @@
       pointer.x = p.x; pointer.y = p.y; pointer.over = true;
       hoverChest = hitChest(p);
       hoverLoot = hitLoot(p);
+      if (G.R.town) { townHover = hitTown(p); cv.style.cursor = townHover ? 'pointer' : 'default'; return; }
       cv.style.cursor = (hoverLoot || hitShrine(p) || hoverChest || hitMob(p) || hitButton(p) || hitWisp(p) || hitReady(p)) ? 'pointer' : 'default';
     });
     cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -1888,8 +1902,146 @@
   let breachKills = 0;
 
   // ---------- Frame ----------
+  // ---------- The Town (2.4) ----------
+  // A square of cobbles round a well; each building opens its own window (see UI.townOpen). The field
+  // holds still meanwhile. Places are fractions of the view: bottom-centre of each building's sprite.
+  const TOWN = [
+    { id: 'forge', spr: 'tw_forge', npc: 'npc_smith', x: 0.22, y: 0.5 },
+    { id: 'enchant', spr: 'tw_tower', npc: 'npc_witch', x: 0.37, y: 0.44 },
+    { id: 'portal', spr: 'tw_portal', x: 0.5, y: 0.38 },
+    { id: 'stars', spr: 'tw_obs', npc: 'npc_sage', x: 0.63, y: 0.44 },
+    { id: 'alch', spr: 'tw_alch', npc: 'npc_alch', x: 0.78, y: 0.5 },
+    { id: 'tavern', spr: 'tw_tavern', npc: 'npc_keeper', x: 0.27, y: 0.8 },
+    { id: 'quests', spr: 'tw_board', x: 0.5, y: 0.78 },
+    { id: 'pets', spr: 'tw_nest', x: 0.73, y: 0.8 },
+  ];
+  St.TOWN = TOWN;
+  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
+  let townGround = null, townKey = '', townHover = null;
+  const sprOr = id => (SPR.defs[id] ? SPR.get(id) : null);
+  function townPlace(t) {
+    const c = sprOr(t.spr), w = c ? c.width : 40, h = c ? c.height : 34;
+    const x = Math.round(W * t.x), y = Math.round(H * t.y);
+    return { x, y, w, h, c, x0: x - w / 2, y0: y - h };
+  }
+  function buildTownGround() {
+    const c = SPR.makeCanvas(W, H), x = c.getContext('2d'), rnd = G.seeded(4242);
+    // grass round the edge, cobbles in the square
+    x.fillStyle = '#3e6b34'; x.fillRect(0, 0, W, H);
+    for (let i = 0; i < W * H / 14; i++) { x.fillStyle = rnd() < 0.5 ? '#4b7d3e' : '#355d2d'; x.fillRect(Math.floor(rnd() * W), Math.floor(rnd() * H), 1, 1); }
+    const cx = W / 2, cy = H * 0.6, rx = W * 0.37, ry = H * 0.36;
+    for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
+      const dx = (xx - cx) / rx, dy = (yy - cy) / ry, d = dx * dx + dy * dy;
+      if (d > 1 + (rnd() - 0.5) * 0.06) continue;
+      // stones: a 6x4 brick grid, each stone its own shade, dark seams between
+      const row = Math.floor(yy / 4), off = row % 2 ? 3 : 0, col = Math.floor((xx + off) / 6);
+      const seam = yy % 4 === 3 || (xx + off) % 6 === 5;
+      const v = ((col * 73856093) ^ (row * 19349663)) & 7;
+      x.fillStyle = seam ? '#4a4540' : ['#8a837a', '#7f786f', '#958d83', '#867f75', '#7a736a', '#8f877d', '#827b72', '#9a9288'][v];
+      x.fillRect(xx, yy, 1, 1);
+    }
+    // the road to the portal
+    x.fillStyle = 'rgba(60,50,40,0.18)'; x.fillRect(Math.round(cx - 10), Math.round(H * 0.4), 20, Math.round(H * 0.2));
+    // scatter: flowers on the grass, lamps, barrels and crates by the walls
+    const put = (id, px, py) => { const s = sprOr(id); if (s) x.drawImage(s, Math.round(px - s.width / 2), Math.round(py - s.height)); };
+    for (let i = 0; i < 26; i++) { const px = rnd() * W, py = rnd() * H, dx = (px - cx) / rx, dy = (py - cy) / ry; if (dx * dx + dy * dy > 1.05) put('tw_flower', px, py); }
+    // a ring of trees round the square, thicker at the back
+    for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, px = cx + Math.cos(a) * rx * k, py = cy + Math.sin(a) * ry * k + 10; if (py > 20) put('tw_tree', px, py); }
+    put('tw_lamp', cx - 34, H * 0.62); put('tw_lamp', cx + 34, H * 0.62);
+    put('tw_barrel', W * 0.36, H * 0.84); put('tw_crate', W * 0.3, H * 0.56); put('tw_barrel', W * 0.7, H * 0.56); put('tw_crate', W * 0.64, H * 0.84);
+    put('tw_barrel', W * 0.15, H * 0.62); put('tw_crate', W * 0.86, H * 0.64); put('tw_lamp', W * 0.3, H * 0.4); put('tw_lamp', W * 0.7, H * 0.4);
+    put('tw_banner', W * 0.42, H * 0.42); put('tw_banner', W * 0.58, H * 0.42);
+    return c;
+  }
+  const villagers = [];
+  function stepVillagers(dt, cx, cy) {
+    const ids = ['npc_sage', 'npc_keeper', 'npc_alch', 'npc_smith'];
+    while (villagers.length < 5) villagers.push({ x: cx + rand(-60, 60), y: cy + rand(-20, 30), tx: cx, ty: cy, id: pick(ids), w: rand(0, 3) });
+    for (const v of villagers) {
+      if (v.w > 0) v.w -= dt;
+      else {
+        const dx = v.tx - v.x, dy = v.ty - v.y, d = Math.hypot(dx, dy);
+        if (d < 1) { v.w = rand(1, 4); const t = pick(TOWN), q = townPlace(t); v.tx = q.x + rand(-14, 14); v.ty = q.y + rand(2, 10); }
+        else { const sp = 12 * dt / d; v.x += dx * Math.min(1, sp); v.y += dy * Math.min(1, sp); v.face = dx >= 0 ? 1 : -1; }
+      }
+      const f = v.w > 0 || Math.floor(time * 5) % 2 ? v.id : v.id + '2', c = sprOr(f) || sprOr(v.id);
+      if (!c) continue;
+      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(Math.round(v.x) - 3, Math.round(v.y), 6, 1);
+      if (v.face < 0) { lctx.save(); lctx.translate(Math.round(v.x), 0); lctx.scale(-1, 1); lctx.drawImage(c, -(c.width >> 1), Math.round(v.y) - c.height); lctx.restore(); }
+      else lctx.drawImage(c, Math.round(v.x) - (c.width >> 1), Math.round(v.y) - c.height);
+    }
+  }
+  function hitTown(p) {
+    for (const t of TOWN) { const q = townPlace(t); if (p.x >= q.x0 - 2 && p.x <= q.x0 + q.w + 2 && p.y >= q.y0 - 2 && p.y <= q.y + 6) return t; }
+    return null;
+  }
+  St.townHit = p => hitTown(p);
+  St.townPoint = id => { const t = TOWN.find(x => x.id === id); if (!t) return null; const q = townPlace(t), r = cv.getBoundingClientRect(); return { x: r.left + q.x * S, y: r.top + q.y0 * S }; };
+  function drawTown(dt) {
+    const k = W + 'x' + H + (SPR.defs.tw_forge ? 'a' : '');
+    if (k !== townKey || !townGround) { townKey = k; townGround = buildTownGround(); }
+    lctx.imageSmoothingEnabled = false;
+    lctx.drawImage(townGround, 0, 0);
+    const cx = Math.round(W / 2), cy = Math.round(H * 0.6);
+    // the well in the middle, the party round it
+    const well = sprOr('tw_well'); if (well) lctx.drawImage(well, cx - (well.width >> 1), cy - well.height + 4);
+    const S0 = G.S, units = [S0.hero && S0.hero.cls].concat((S0.party || []).map(m => m.cls)).filter(Boolean);
+    units.forEach((cls, i) => {
+      const C = G.CLASS_BY_ID[cls], sp = C && sprOr(C.spr); if (!sp) return;
+      const a = Math.PI * 0.75 + i * Math.PI * 0.5, px = Math.round(cx + Math.cos(a) * 22), py = Math.round(cy + 10 + Math.sin(a) * 9 + (Math.floor(time * 2 + i) % 2));
+      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(px - 4, py, 8, 1);
+      lctx.drawImage(sp, px - (sp.width >> 1), py - sp.height);
+    });
+    // buildings, back to front
+    for (const t of TOWN.slice().sort((a, b) => a.y - b.y)) {
+      const q = townPlace(t);
+      let c = q.c;
+      if (t.id === 'portal' && Math.floor(time * 4) % 2 && SPR.defs.tw_portal2) c = SPR.get('tw_portal2');
+      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(Math.round(q.x0 + 2), q.y - 1, q.w - 4, 2);
+      if (c) lctx.drawImage(c, Math.round(q.x0), q.y0);
+      else { lctx.fillStyle = '#6a4a30'; lctx.fillRect(Math.round(q.x0), q.y0, q.w, q.h); }
+      if (townHover === t) { lctx.globalAlpha = 0.18 + 0.08 * Math.sin(time * 8); lctx.fillStyle = '#ffe27a'; lctx.fillRect(Math.round(q.x0) - 1, q.y0 - 1, q.w + 2, q.h + 2); lctx.globalAlpha = 1; }
+      // its keeper at the door, idling on two frames
+      if (t.npc) { const f = Math.floor(time * 1.6 + t.x * 7) % 2 && SPR.defs[t.npc + '2'] ? t.npc + '2' : t.npc, n = sprOr(f); if (n) lctx.drawImage(n, Math.round(q.x + q.w / 2 - n.width + 2), q.y - n.height + 2); }
+      if (t.id === 'forge' && Math.random() < 0.3) part(q.x0 + q.w * 0.75, q.y0 + 2, pick(['#6a6a72', '#8a8a92', '#4a4a52']), { vx: rand(-3, 3), vy: -rand(8, 16), grav: 0, life: rand(1, 2) });
+      if (t.id === 'portal' && Math.random() < 0.5) part(q.x + rand(-8, 8), q.y0 + q.h * 0.5 + rand(-8, 8), pick(['#7fe9ff', '#4fa8ff', '#ffffff']), { vx: rand(-6, 6), vy: -rand(4, 12), grav: 0, life: 0.6 });
+      if (t.id === 'enchant' && Math.random() < 0.15) part(q.x + rand(-6, 6), q.y0 + 4, pick(['#c88aff', '#ffffff']), { vx: rand(-4, 4), vy: -rand(4, 10), grav: 0, life: 1 });
+    }
+    // townsfolk strolling between the doors
+    stepVillagers(dt, cx, cy);
+    stepDrawParts(dt);
+    // warm evening light, darker at the edges
+    const vgl = lctx.createRadialGradient(cx, cy, 30, cx, cy, Math.max(W, H) * 0.7);
+    vgl.addColorStop(0, 'rgba(255,210,140,0.06)'); vgl.addColorStop(1, 'rgba(10,8,20,0.45)');
+    lctx.fillStyle = vgl; lctx.fillRect(0, 0, W, H);
+    // blit, then the names on the hi-res layer
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#0c0b12'; ctx.fillRect(0, 0, cv.width, cv.height);
+    const kk = S * DPR;
+    ctx.drawImage(low, 0, 0, W * kk, H * kk);
+    if (flash > 0) { ctx.globalAlpha = Math.min(0.85, flash); ctx.fillStyle = flashCol; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; flash = Math.max(0, flash - dt * 1.8); }
+    ctx.setTransform(kk, 0, 0, kk, 0, 0);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
+    for (const t of TOWN) {
+      const q = townPlace(t), on = townHover === t, nm = G.t('town_' + t.id);
+      ctx.font = crisp(on ? 4 : 3) + 'px ' + FONT;
+      const y = q.y0 - 5 + (on ? Math.sin(time * 6) : 0);
+      ctx.strokeText(nm, q.x, y); ctx.fillStyle = on ? '#ffe27a' : t.id === 'portal' ? '#7fe9ff' : '#ffffff'; ctx.fillText(nm, q.x, y);
+    }
+    // (the town's name only where the HUD leaves room for it)
+    if (W >= 320) {
+    ctx.font = crisp(6) + 'px ' + FONT; const ty = H * 0.13;
+    ctx.lineWidth = 2; ctx.strokeText(G.t('townTitle'), W / 2, ty); ctx.fillStyle = '#ffe27a'; ctx.fillText(G.t('townTitle'), W / 2, ty);
+    ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1;
+    ctx.strokeText(G.t('townSub'), W / 2, ty + 9); ctx.fillStyle = '#e8e0d0'; ctx.fillText(G.t('townSub'), W / 2, ty + 9);
+    }
+    drawTexts(dt);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
   St.frame = function (dt) {
     time += dt; fdt = dt || 1 / 60;
+    if (G.R.town) { drawTown(dt); return; }
     // several kills in one frame weigh more
     // the Horde dies in heaps all the time now: only a real heap stops the frame
     if (multiCd > 0) multiCd -= dt;
@@ -2152,15 +2304,7 @@
       }
     }
     // Particles
-    for (let i = parts.length - 1; i >= 0; i--) {
-      const p = parts[i]; p.life -= vdt;
-      if (p.life <= 0) { parts.splice(i, 1); continue; }
-      p.vy += p.grav * vdt; p.x += p.vx * vdt; p.y += p.vy * vdt;
-      lctx.globalAlpha = Math.min(1, p.life / p.max * 1.6);
-      lctx.fillStyle = p.col;
-      lctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
-    }
-    lctx.globalAlpha = 1;
+    stepDrawParts(vdt);
     drawGibs(false);
 
     // Buff tint

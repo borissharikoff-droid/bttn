@@ -12,15 +12,15 @@
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
     // the arena is never empty: lots of small bodies, capped for the frame rate
-    mobMax: 900, packMul: 1.4, minCrowd: 40, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
+    mobMax: 1100, packMul: 2, minCrowd: 90, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
     killChest: 0.03, plunder: 0.002, biteFloor: 0.025,
-    // 2.3: the Horde never shrinks below a full one; regen out of and in a boss fight (share of health a second);
-    // new ground clears at most clearRate of weight a second
-    hsMin: 1, earlyHp: 2.5, earlyTo: 40, regen: 0.006, regenBoss: 0.002, clearRate: 0.75,
+    // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
+    // regen out of and in a boss fight (share of health a second)
+    hsMin: 1, earlyHp: 2.5, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
   });
 
   // ---------- Content ----------
@@ -420,6 +420,25 @@
     return combat(eq, G.D, m ? { cls: m.cls, lvl: G.S.hero.lvl } : undefined).power;
   }
   G.powerWith = powerWith;
+  // 2.4: "Equip best": every member of the party in turn (the Warden first) takes the strongest piece
+  // for each slot out of the bag and what they already wear. Companions keep to their own class's weapons.
+  G.equipBest = function () {
+    const S = G.S, h = S.hero;
+    if (!h || !h.cls) return 0;
+    let n = 0;
+    const whos = [-1].concat((S.party || []).map((_, i) => i));
+    for (const who of whos) {
+      const m = who >= 0 ? S.party[who] : null, eq = eqOf(who);
+      for (const slot of G.SLOTS) {
+        const pool = h.bag.filter(g => G.slotOf(g.id) === slot && (slot !== 'weapon' || !m || G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id])));
+        let best = eq[slot], bp = best ? powerWith(slot, best, who) : -1;
+        for (const g of pool) { const p = powerWith(slot, g, who); if (p > bp) { best = g; bp = p; } }
+        if (best && best !== eq[slot]) { equip(best, true, who); n++; }
+      }
+    }
+    if (n) { G.dirty(); G.recalc(); emit('equipBest', n); }
+    return n;
+  };
   // Whose gear set this is: the Warden's (who < 0) or a companion's
   const eqOf = who => (who != null && who >= 0 && G.S.party[who] ? G.S.party[who].eq : G.S.hero.eq);
   G.eqOf = eqOf;
@@ -818,12 +837,9 @@
       S.st.rares = (S.st.rares || 0) + 1;
       if (uq('headhunter')) { R.hb.hh = Math.min(60, Math.max(0, R.hb.hh || 0) + 20); G.dirty(); emit('headhunter', m); }
     }
-    // 2.3: new ground is cleared at a set pace however fast the Horde dies (the clear bank fills at
-    // clearRate a second); a depth already beaten clears up to six times faster for a Warden far too strong for it
-    if (!m.add && !R.rift) {
-      if (S.depth >= (S.bestDepth || 0)) { const g = Math.min(m.w, R.clearBank || 0); R.clearBank = (R.clearBank || 0) - g; S.bossMeter += g; }
-      else S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 6);
-    }
+    // 2.4: a Warden far too strong for the depth clears it faster (up to 3 times on new ground, 6 on a depth
+    // already beaten), so the easy depths go by quickly and the fight is where you are really tested
+    if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * 2), 1, S.depth >= (S.bestDepth || 0) ? 3 : 6);
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
     else if (!m.add) {
@@ -1113,8 +1129,6 @@
     if (R.carn && (R.carnT += dt) > 2.5) { R.carn = 0; emit('carnage', 0); }
     // regen: slow, slower still with a boss on the field, so a fight can be lost
     const regen = R.boss ? TUNE.regenBoss : TUNE.regen;
-    // the clear bank for new ground (see mobDie): a few seconds' worth can wait
-    if (!R.boss && !R.rift) R.clearBank = Math.min(TUNE.clearRate * 6, (R.clearBank || 0) + TUNE.clearRate * (G.evMul ? Math.max(1, G.evMul('clear')) : 1) * dt);
     if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * regen * dt);
     partyTick(dt, regen);
     // the horde: a steady flow of packs, with a surge every half a minute

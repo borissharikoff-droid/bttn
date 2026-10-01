@@ -197,12 +197,19 @@
   };
 
   function bindHud() {
+    bindTown();
+    $('#btnTown').addEventListener('click', () => { G.Audio.unlock(); if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } });
+    G.on('town', on => { if (!on) UI.townClose(); document.getElementById('app').classList.toggle('inTown', on); UI.update(true); });
     $('#torment').addEventListener('click', e => { const b = e.target.closest('[data-tm]'); if (!b) return; G.Audio.unlock(); if (G.setTorment((G.S.torment || 0) + +b.dataset.tm)) { G.Audio.buy(); updateTorment(); } else G.Audio.error(); });
     $('#realmBox').addEventListener('click', () => { if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#realmBox').addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); e.stopPropagation(); if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#btnSound').addEventListener('click', () => { G.S.set.sound = G.S.set.sound ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.update(true); });
     $('#btnMusic').addEventListener('click', () => { G.S.set.music = G.S.set.music ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.update(true); });
     $('#btnSound img').src = ic('ic_note', 3);
+    $('#btnTown img').src = ic(G.SPR.defs.ic_town ? 'ic_town' : 'ic_tomb', 3);
+    // 2.4: every bar at the bottom says what it is: an icon, and a tip on hover
+    $$('[data-mico]').forEach(im => { im.src = ic(im.dataset.mico, 2); });
+    [['#bossWrap', 'tipClear'], ['#hpWrap', 'tipHp'], ['#chestWrap', 'tipChest'], ['#comboWrap', 'tipCombo'], ['#btnAbil', 'tipAbil']].forEach(([sel, k]) => { const el = $(sel); if (el) el.title = t(k); });
     $('#btnMusic img').src = ic('ic_echo', 3);
     $('#btnFight').addEventListener('click', () => { G.Audio.unlock(); G.startBoss(); });
     $('#btnRetreat').addEventListener('click', () => { if (G.R.rift) G.riftEnd(false, 'left'); else G.fleeBoss(); });
@@ -224,6 +231,8 @@
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
+      else if (e.code === 'KeyT') { if (G.R.town) G.leaveTown(); else G.enterTown(); }
+      else if (e.code === 'Escape' && G.R.town) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
       else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
       else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
       else if (e.code === 'KeyC') { if (!G.uiBusy()) G.usePower('mend'); }
@@ -393,6 +402,12 @@
   UI.update = function (force) {
     const S = G.S, D = G.D, R = G.R;
     if (performance.now() - snapT > 250) { snapT = performance.now(); snapPixels(); }
+    // the Town button: into town between fights, back to the field from it
+    { const tb = $('#btnTown'); if (tb) { setText(tb.querySelector('b'), R.town ? t('townBack') : t('townBtn')); tb.classList.toggle('dim', !R.town && !G.townOk()); tb.classList.toggle('on', !!R.town);
+      // it glows when the bag holds something better than what someone wears (checked once a second)
+      if (performance.now() - (UI._upT || 0) > 1000) { UI._upT = performance.now(); UI._up = !!(S.hero && S.hero.cls) && [-1].concat((S.party || []).map((_, i) => i)).some(w => S.hero.bag.some(g => { const sl = G.slotOf(g.id); return canWear(g, w) && G.powerWith(sl, g, w) > G.powerWith(sl, G.eqOf(w)[sl], w); })); }
+      tb.classList.toggle('glow', !R.town && UI._up && G.townOk()); tb.title = R.town ? t('townBackTip') : G.townOk() ? t('townTip') : t('townNo'); } }
+    if (R.town && tw.id && (force || performance.now() - (UI._twT || 0) > 1000)) { UI._twT = performance.now(); const ae = document.activeElement; if (!force && !(ae && ae.tagName === 'SELECT' && $('#townWin').contains(ae))) renderTown(); }
     // the gold number rolls toward the real value and bumps on a real gain
     const gShow = UI._gold == null ? S.gold : UI._gold + (S.gold - UI._gold) * 0.45;
     const now = performance.now();
@@ -463,8 +478,8 @@
     const comboK = R.combo / (D.comboCap || 1);
     $('#comboMeter').style.width = Math.min(100, comboK * 100) + '%';
     setClass($('#comboWrap'), 'hot', comboK >= 1);
-    setText($('#comboText'), t('combo') + ' ' + Math.floor(R.combo) + ' · ×' + (1 + R.combo * D.comboPer).toFixed(2));
-    setText($('#chestText'), t('nextChest') + ' ' + Math.floor(S.chestMeter / D.chestNeed * 100) + '% · ' + S.chests.length + '/' + D.slots);
+    setText($('#comboText'), t('comboLine', Math.floor(R.combo), (1 + R.combo * D.comboPer).toFixed(2)));
+    setText($('#chestText'), t('chestLine', Math.floor(S.chestMeter / D.chestNeed * 100), S.chests.length, D.slots));
     const bossShown = !!(S.hero && S.hero.cls);
     setClass($('#stageWrap'), 'fighting', !!R.boss);
     $('#bossRow').hidden = !bossShown;
@@ -505,7 +520,7 @@
         // the countdown to a boss that comes on its own
         const callIn = R.bossReady && S.set.autoBoss && R.bossIn != null ? Math.max(0, Math.ceil(R.bossIn + (odds >= 0.6 ? 0 : D.autoBoss ? 20 : 60))) : -1;
         if (callIn >= 0) setText($('#bossText'), narrow ? t('bossInShort', L(G.bossName(S.depth)), callIn) : t('bossIn', L(G.bossName(S.depth)), callIn) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : ''));
-        else         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : easy ? t('tooEasy') : t('hordeX', hs.toFixed(1))));
+        else         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : easy ? t('tooEasy') : t('toBoss')));
         setClass($('#bossWrap'), 'waves', true);
         setClass($('#btnFight'), 'long', R.bossReady && odds < 0.6);
         setClass($('#bossWrap'), 'weak', weak && !R.bossReady);
@@ -1114,6 +1129,7 @@
         </div>
       </div>
       <div class="doll">${G.SLOTS.map(s => `<div class="dslot" data-slot="${s}"><span class="lbl">${esc(t('slot_' + s))}</span><div data-in></div></div>`).join('')}</div>
+      <div class="bestRow"><button class="btn gold" data-bestall>${esc(t('twBest'))}</button></div>
       <div class="detail" data-gd></div>
       <div class="sect">${esc(t('orbs'))} <small style="color:var(--dim)">${esc(t('orbHint'))}</small></div>
       <div data-orbs></div>
@@ -1159,6 +1175,7 @@
         const r = G.salvageBelow(Math.max(1, h.salv || 2));
         UI.toast(esc(t('salvaged', r.n, fmt(r.v))), '', 'ic_shard'); refs.hero.key = ''; return;
       }
+      if (e.target.closest('[data-bestall]')) { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); refs.hero.key = ''; refs.hero.dollKey = ''; updaters.hero(true); return; }
       const gt = e.target.closest('[data-g]');
       // the item's details sit above the bag: bring them into view, or on a phone nothing seems to happen
       if (gt) { selGear = +gt.dataset.g; refs.hero.key = ''; updaters.hero(true); if (refs.hero.gd) refs.hero.gd.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
@@ -1293,6 +1310,180 @@
         ${f.worn ? '' : `<button class="btn red" data-act="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))}</button>`}
       </div>`;
   };
+  // ---------- The Town (2.4): one window per building, over the field ----------
+  // Forge: the party's gear, big and plain: who wears what, the bag, what an item would change, and the
+  // buttons that matter (equip, equip best for everyone, upgrade, break down). The Enchanter is the same
+  // window with the orbs first. Alchemist: brew the potion you want. Tavern: the party and new recruits.
+  const tw = { id: null, who: -1, sel: null, filter: 'all', salv: 2 };
+  const twEl = () => $('#townWin');
+  UI.townOpen = function (id) {
+    if (!G.R.town) return;
+    if (id === 'quests' || id === 'stars' || id === 'pets') {
+      // the board, the observatory and the hatchery open their tab in the panel
+      if (!tabOpen(id)) { UI.toast(esc(t('townLocked')), '', 'ic_scroll'); return; }
+      UI.unfold && UI.unfold(); UI.go(id); return;
+    }
+    tw.id = id; tw.sel = null;
+    if (tw.who >= (G.S.party || []).length) tw.who = -1;
+    twEl().hidden = false; renderTown();
+  };
+  UI.townClose = function () { tw.id = null; const el = twEl(); if (el) { el.hidden = true; el.innerHTML = ''; } };
+  const memOf = who => (who >= 0 ? G.S.party[who] : null);
+  const clsOf = who => (who >= 0 ? G.S.party[who].cls : G.S.hero.cls);
+  const canWear = (g, who) => G.slotOf(g.id) !== 'weapon' || who < 0 || G.CLASS_BY_ID[clsOf(who)].weapons.includes(G.ITEM_TYPE[g.id]);
+  function twFind(u) {
+    const h = G.S.hero;
+    for (const g of h.bag) if (g.u === u) return { g, worn: null, who: null };
+    for (const s of G.SLOTS) if (h.eq[s] && h.eq[s].u === u) return { g: h.eq[s], worn: s, who: -1 };
+    for (let i = 0; i < (G.S.party || []).length; i++) for (const s of G.SLOTS) { const g = G.S.party[i].eq[s]; if (g && g.u === u) return { g, worn: s, who: i }; }
+    return null;
+  }
+  // what wearing g would change for this member: damage, health, crit, power
+  function twCompare(g, who) {
+    const m = memOf(who), base = m ? m.eq : G.S.hero.eq, slot = G.slotOf(g.id), o = m ? { cls: m.cls, lvl: G.S.hero.lvl } : undefined;
+    const a = G.heroCombat(base, G.D, o), eq2 = Object.assign({}, base); eq2[slot] = g;
+    const b = G.heroCombat(eq2, G.D, o);
+    return [['twDps', a.dps, b.dps, v => fmt(v, true)], ['twHp', a.hp, b.hp, v => fmt(v)], ['twCrit', a.crit, b.crit, v => Math.round(v * 100) + '%'], ['twPower', a.power, b.power, v => fmt(v)]];
+  }
+  function twDelta(a, b, f) {
+    const d = b - a, up = d > 1e-9, dn = d < -1e-9;
+    return `<span><b>${esc(f(b))}</b> <em class="${up ? 'up' : dn ? 'dn' : ''}">${up ? '▲' : dn ? '▼' : '='}${up || dn ? ' ' + esc(f(Math.abs(d))) : ''}</em></span>`;
+  }
+  function twHeader(npc, title, sub) {
+    return `<header class="twHead">${img(npc, '', 4)}<div><b>${esc(title)}</b><small>${esc(sub)}</small></div><button class="twX" data-tw="close" aria-label="${esc(t('close'))}">✕</button></header>`;
+  }
+  function twWhoRow() {
+    const S = G.S, units = [{ who: -1, cls: S.hero.cls, eq: S.hero.eq }].concat((S.party || []).map((m, i) => ({ who: i, cls: m.cls, eq: m.eq })));
+    return `<div class="twWho">${units.map(u => `<button class="${u.who === tw.who ? 'on' : ''}" data-twwho="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small>${esc(u.who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[u.cls].name))}</small></button>`).join('')}</div>`;
+  }
+  function renderForge(el) {
+    const S = G.S, h = S.hero, who = tw.who, m = memOf(who), eq = m ? m.eq : h.eq, enchant = tw.id === 'enchant';
+    const c = G.heroCombat(eq, G.D, m ? { cls: m.cls, lvl: h.lvl } : undefined);
+    const f = tw.sel != null ? twFind(tw.sel) : null;
+    if (tw.sel != null && !f) tw.sel = null;
+    const slots = G.SLOTS.map(s => {
+      const g = eq[s];
+      return `<div class="twSlot ${g && tw.sel === g.u ? 'sel' : ''}" role="button" tabindex="0" ${g ? `data-twg="${g.u}"` : `data-twf="${s}"`}>
+        <span class="lbl">${esc(t('slot_' + s))}</span>
+        <span class="row">${g ? gearTile(g) : `<span class="empty">${img(SLOT_ICON[s], '', 3, { dark: true })}</span>`}
+        <span class="nm" style="color:${g ? gearCol(g) : 'var(--dim)'}">${g ? esc(gearName(g)) : esc(t('twEmpty'))}</span></span></div>`;
+    }).join('');
+    const bag = h.bag.filter(g => tw.filter === 'all' || G.slotOf(g.id) === tw.filter)
+      .sort((a, b) => G.SLOTS.indexOf(G.slotOf(a.id)) - G.SLOTS.indexOf(G.slotOf(b.id)) || b.r - a.r || b.il - a.il);
+    const tiles = bag.map(g => {
+      const sl = G.slotOf(g.id), ok = canWear(g, who), d = ok ? G.powerWith(sl, g, who) - G.powerWith(sl, eq[sl], who) : 0;
+      return `<span class="twTile ${ok ? '' : 'no'} ${d > 0 ? 'better' : ''} ${tw.sel === g.u ? 'sel' : ''}" data-twg="${g.u}">${gearTile(g)}${d > 0 ? '<i class="up">▲</i>' : ''}</span>`;
+    }).join('');
+    // the item card
+    let card = `<div class="twCard empty"><p>${esc(t(enchant ? 'twPickEnchant' : 'twPick'))}</p></div>`;
+    if (f) {
+      const g = f.g, slot = G.slotOf(g.id), U = g.q ? G.UNIQUES[g.q] : null, ec = G.enchantCost(g);
+      const canE = g.e < G.ENCHANT_MAX && h.shards >= ec.shards && S.gold >= ec.gold;
+      const wearer = f.who != null ? f.who : who;
+      const cmp = f.worn ? null : (canWear(g, who) ? twCompare(g, who) : null);
+      card = `<div class="twCard">
+        <h3 style="color:${gearCol(g)}">${gearTile(g)} ${esc(gearName(g))}</h3>
+        <p class="sub">${U ? `<b style="color:${G.UNIQUE_COL}">${esc(t('unique'))}</b> · ` : ''}${esc(L(G.RARITIES[g.r].name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${f.worn ? ' · <b class="worn">' + esc(t('twWornBy', wearer < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(wearer)].name))) + '</b>' : ''}</p>
+        <p class="main">${esc(mainLine(g))}</p>
+        ${g.a.length ? `<ul class="affs">${g.a.map(a => affLine(a, g)).join('')}</ul>` : ''}
+        ${U ? `<p class="uqfx">${esc(U.fx)}</p>` : ''}
+        ${cmp ? `<div class="twCmp"><small>${esc(t('twIfWorn', who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(who)].name)))}</small>${cmp.map(([k, a, b, fm]) => `<span>${esc(t(k))}</span>${twDelta(a, b, fm)}`).join('')}</div>` : (!f.worn && !canWear(g, who) ? `<p class="warn">${esc(t('twWrongClass'))}</p>` : '')}
+        <div class="twActs">
+          ${f.worn ? `<button class="btn" data-twa="unequip">${esc(t('unequip'))}</button>` : `<button class="btn gold" data-twa="equip" ${canWear(g, who) ? '' : 'disabled'}>${esc(t('twEquipOn', who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(who)].name)))}</button>`}
+          <button class="btn ${canE ? 'gold' : ''}" data-twa="enchant" ${g.e >= G.ENCHANT_MAX ? 'disabled' : ''}>${esc(t('twUpgrade', g.e + 1))} ${g.e >= G.ENCHANT_MAX ? t('max') : `${img('ic_shard', '', 2)}${fmt(ec.shards)} ${img('ic_coin', '', 2)}${fmt(ec.gold)}`}</button>
+          ${f.worn ? '' : `<button class="btn red" data-twa="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))} ${img('ic_shard', '', 2)}</button>`}
+        </div>
+        <p class="hint">${esc(t('twUpgradeHint', g.e, G.ENCHANT_MAX))}</p>
+        <div class="twOrbs"><small>${esc(t('twOrbs'))}</small>${orbBar(g)}</div>
+      </div>`;
+    }
+    const filters = ['all'].concat(G.SLOTS).map(k => `<button class="${tw.filter === k ? 'on' : ''}" data-twflt="${k}">${esc(k === 'all' ? t('twAll') : t('slot_' + k))}</button>`).join('');
+    const better = h.bag.some(g => { const sl = G.slotOf(g.id); return canWear(g, who) && G.powerWith(sl, g, who) > G.powerWith(sl, eq[sl], who); });
+    el.innerHTML = `<div class="tw forge ${enchant ? 'ench' : ''}">
+      ${twHeader(enchant ? 'npc_witch' : 'npc_smith', t(enchant ? 'town_enchant' : 'town_forge'), t(enchant ? 'twEnchSub' : 'twForgeSub'))}
+      ${twWhoRow()}
+      <div class="twBody">
+        <div class="twDoll">
+          <div class="twPortrait"><img src="${G.Doll.portrait(m ? { cls: m.cls, eq: m.eq } : h, 5)}" alt=""></div>
+          <div class="twSlots">${slots}</div>
+          <div class="twStat"><span>${esc(t('twPower'))}</span><b>${fmt(c.power)}</b><span>${esc(t('twDps'))}</span><b>${fmt(c.dps, true)}</b><span>${esc(t('twHp'))}</span><b>${fmt(c.hp)}</b></div>
+          <button class="btn gold big ${better ? 'pulse' : ''}" data-twa="best">${esc(t('twBest'))}</button>
+          <label class="twAuto"><input type="checkbox" data-twauto ${h.auto ? 'checked' : ''}> ${esc(t('twAutoEq'))}</label>
+        </div>
+        <div class="twBag">
+          <div class="twBagHead"><b>${esc(t('twBag', h.bag.length, G.TUNE.bagMax))}</b><span class="flt">${filters}</span></div>
+          <div class="twGrid">${tiles || `<p class="note">${esc(t('bagEmpty'))}</p>`}</div>
+          <div class="twSalv">${img('ic_shard', '', 2)} <b>${fmt(h.shards)}</b> ${esc(t('twShards'))}
+            <button class="btn red" data-twa="salvall">${esc(t('twSalvAll', L(G.RARITIES[tw.salv].name)))}</button>
+            <select data-twsalv>${G.RARITIES.slice(1, 6).map((r, i) => `<option value="${i + 1}" ${tw.salv === i + 1 ? 'selected' : ''}>${esc(L(r.name))}</option>`).join('')}</select></div>
+        </div>
+        ${card}
+      </div></div>`;
+  }
+  function renderAlch(el) {
+    const S = G.S, D = G.D;
+    const rows = G.POTIONS.map(p => {
+      const n = S.pots[p.id] || 0, full = n >= D.potCap, c = G.brewCost(p.id), can = !full && S.gold >= c;
+      return `<div class="twPot">${img('pot_' + p.id, '', 4)}<div><b>${esc(L(p.name))}</b><small>${esc(L(p.desc))}</small><i class="bar"><u style="width:${Math.min(100, n / D.potCap * 100)}%;background:${p.color}"></u></i><small>${n} / ${D.potCap}</small></div>
+        <button class="btn ${can ? 'gold' : ''}" data-twbrew="${p.id}" ${full ? 'disabled' : ''}>${full ? esc(t('max')) : `${esc(t('twBrew'))} ${img('ic_coin', '', 2)}${fmt(c)}`}</button></div>`;
+    }).join('');
+    el.innerHTML = `<div class="tw alch">${twHeader('npc_alch', t('town_alch'), t('twAlchSub'))}<div class="twPots">${rows}</div></div>`;
+  }
+  function renderTavern(el) {
+    const S = G.S, slots = G.partySlots(), party = S.party || [];
+    const mem = party.map((m, i) => `<div class="twMem"><img src="${G.Doll.portrait({ cls: m.cls, eq: m.eq }, 3, true)}" alt=""><b>${esc(L(G.CLASS_BY_ID[m.cls].name))}</b><small class="r_${G.ROLES[m.cls]}">${esc(G.ROLE_NAMES[G.ROLES[m.cls]])}</small><button class="btn" data-twgear="${i}">${esc(t('twGearUp'))}</button></div>`).join('');
+    const open = slots - party.length;
+    const recruits = open > 0 ? `<p>${esc(t('twRecruitN', open))}</p><div class="twRecruit">${G.CLASSES.map(c => `<button class="clsCard" data-twrec="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><small class="r_${G.ROLES[c.id]}">${esc(G.ROLE_NAMES[G.ROLES[c.id]])}</small></button>`).join('')}</div>` : `<p class="note">${esc(t(slots >= 3 ? 'twPartyFull' : 'twNextSlot', (G.PARTY_AT || [])[slots] || ''))}</p>`;
+    el.innerHTML = `<div class="tw tavern">${twHeader('npc_keeper', t('town_tavern'), t('twTavernSub'))}
+      <div class="twParty"><div class="twMem lead"><img src="${G.Doll.portrait(S.hero, 3)}" alt=""><b>${esc(S.profile.name || t('wardenName'))}</b><small>${esc(L(G.CLASS_BY_ID[S.hero.cls].name))} · ${esc(t('lvl'))} ${S.hero.lvl}</small><button class="btn" data-twgear="-1">${esc(t('twGearUp'))}</button></div>${mem}</div>
+      ${recruits}</div>`;
+  }
+  function renderTown() {
+    const el = twEl(); if (!el || !tw.id) return;
+    const sc = el.querySelector('.twBody, .twPots, .twParty'), y = sc ? sc.scrollTop : 0, gy = el.querySelector('.twGrid') ? el.querySelector('.twGrid').scrollTop : 0;
+    if (tw.id === 'forge' || tw.id === 'enchant') renderForge(el);
+    else if (tw.id === 'alch') renderAlch(el);
+    else if (tw.id === 'tavern') renderTavern(el);
+    const sc2 = el.querySelector('.twBody, .twPots, .twParty'); if (sc2) sc2.scrollTop = y;
+    const g2 = el.querySelector('.twGrid'); if (g2) g2.scrollTop = gy;
+  }
+  UI.townRender = renderTown;
+  function bindTown() {
+    const el = twEl(); if (!el) return;
+    el.addEventListener('change', e => {
+      if (e.target.matches('[data-twauto]')) { G.S.hero.auto = e.target.checked; }
+      if (e.target.matches('[data-twsalv]')) { tw.salv = +e.target.value; renderTown(); }
+    });
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb]');
+      if (!b) { if (e.target === el) UI.townClose(); return; }
+      G.Audio.unlock();
+      const h = G.S.hero;
+      if (b.dataset.tw === 'close') { UI.townClose(); return; }
+      if (b.dataset.twwho != null) { tw.who = +b.dataset.twwho; tw.sel = null; }
+      else if (b.dataset.twg != null) { tw.sel = +b.dataset.twg; }
+      else if (b.dataset.twf != null) { tw.filter = b.dataset.twf; tw.sel = null; }
+      else if (b.dataset.twflt != null) { tw.filter = b.dataset.twflt; }
+      else if (b.dataset.twgear != null) { tw.id = 'forge'; tw.who = +b.dataset.twgear; tw.sel = null; }
+      else if (b.dataset.twrec) { if (G.recruit(b.dataset.twrec)) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twRecruited', L(G.CLASS_BY_ID[b.dataset.twrec].name))), 'ach', G.CLASS_BY_ID[b.dataset.twrec].spr); } else G.Audio.error(); }
+      else if (b.dataset.twbrew) { const p = G.brewPotion(b.dataset.twbrew); if (p) G.Audio.buy(); else G.Audio.error(); }
+      else if (b.dataset.orb) {
+        const f = tw.sel != null ? twFind(tw.sel) : null;
+        if (!f) { G.Audio.error(); return; }
+        const res = G.useOrb(b.dataset.orb, f.g); if (!res) G.Audio.error();
+      } else if (b.dataset.twa) {
+        const a = b.dataset.twa, f = tw.sel != null ? twFind(tw.sel) : null;
+        if (a === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); }
+        else if (a === 'salvall') { const r = G.salvageBelow(tw.salv); if (r.n) G.Audio.buy(); }
+        else if (f && a === 'equip') { if (canWear(f.g, tw.who)) { G.equip(f.g, false, tw.who); G.Audio.buy(); } }
+        else if (f && a === 'unequip') { G.unequip(f.worn, f.who); }
+        else if (f && a === 'enchant') { if (G.enchant(f.g)) G.Audio.buy(); else G.Audio.error(); }
+        else if (f && a === 'salvage') { G.salvage(f.g); tw.sel = null; G.Audio.buy(); }
+      }
+      G.dirty(); G.recalc(); renderTown(); UI.update(true);
+    });
+  }
+
   let pickWait = 0;
   UI.pickClass = function () {
     if (G.S.hero.cls) return;

@@ -524,6 +524,30 @@
   }
 
   // ---------- Potions ----------
+  // 2.4: the Town. Between fights the party can walk into town: the field holds still (the Garrison keeps
+  // earning) while you gear up at the Forge, brew at the Alchemist, recruit at the Tavern.
+  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
+  G.enterTown = function () {
+    if (R.town || !G.townOk()) return false;
+    R.town = true; R.bossIn = null;
+    G.S.st.townVisits = (G.S.st.townVisits || 0) + 1;
+    emit('town', true);
+    return true;
+  };
+  G.leaveTown = function () {
+    if (!R.town) return false;
+    R.town = false;
+    emit('town', false);
+    return true;
+  };
+  // the Alchemist brews the potion you ask for: dearer with every one you already drink
+  G.brewCost = id => Math.round(Math.max(200, D.incomeRef * 90) * Math.pow(1.45, G.S.pots[id] || 0));
+  G.brewPotion = function (id) {
+    const S = G.S, c = G.brewCost(id);
+    if (!(S.pots[id] < D.potCap) || S.gold < c) return null;
+    S.gold -= c;
+    return givePotion(id);
+  };
   function givePotion(id) {
     const S = G.S;
     const avail = G.POTIONS.filter(p => S.pots[p.id] < D.potCap);
@@ -1137,6 +1161,8 @@
     const S = G.S;
     if (R.dirty) recalc();
     S.st.playTime += dt;
+    // in town the field holds still: only the Garrison's income and the clock run
+    if (R.town) { addGold(D.gps * dt, 'gps'); return; }
 
     // Buffs
     if (S.buffs.length) {

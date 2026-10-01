@@ -798,6 +798,111 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 #bossWrap.enr { box-shadow: 0 0 0 2px #ff2a2a, 0 0 12px #ff2a2a; animation: enrPulse .5s steps(2) infinite; }
 @keyframes enrPulse { 50% { box-shadow: 0 0 0 2px #ffd84a, 0 0 16px #ff2a2a; } }
 
+/* ---------- 2.4: the Town ---------- */
+.townBtn { width: auto !important; padding: 0 8px 0 4px !important; display: inline-flex !important; align-items: center; gap: 4px; background: #3a2a14 !important; box-shadow: inset 0 0 0 2px #ffd84a66; }
+.townBtn b { font: 8px/1 var(--font-display); color: #ffe27a; letter-spacing: .04em; }
+.townBtn.on { background: #1c3a2a !important; box-shadow: inset 0 0 0 2px #7fe9ff88; }
+.townBtn.on b { color: #b8f4ff; }
+.townBtn.dim { opacity: .5; }
+.townBtn.glow { animation: townGlow 1.6s ease-in-out infinite; }
+@keyframes townGlow { 50% { box-shadow: inset 0 0 0 2px #ffd84a, 0 0 10px #ffd84a66; } }
+#app.inTown .hud.bottom, #app.inTown #xpBar, #app.inTown #perks { visibility: hidden; }
+#townWin { position: absolute; inset: 56px 14px 14px; z-index: 30; display: flex; align-items: flex-start; justify-content: center; pointer-events: auto; }
+#townWin[hidden] { display: none; }
+.tw { width: min(1040px, 100%); max-height: 100%; display: flex; flex-direction: column; background: rgba(20,18,30,.97); border: 3px solid var(--ink); box-shadow: 0 0 0 2px #ffd84a55, 0 10px 40px #000a; color: var(--text); font: 15px/1.25 var(--font-body); }
+.twHead { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #2a2214; border-bottom: 2px solid var(--ink); }
+.twHead > img { width: 44px; height: auto; image-rendering: pixelated; }
+.twHead b { display: block; font: 12px/1.2 var(--font-display); color: #ffe27a; }
+.twHead small { display: block; color: var(--dim); font-size: 14px; }
+.twHead > div { flex: 1; }
+.twX { width: 32px; height: 32px; border: 2px solid var(--ink); background: #3a1a22; color: #fff; font: 14px/1 var(--font-display); cursor: pointer; }
+.twWho { display: flex; gap: 6px; padding: 6px 10px; border-bottom: 2px solid var(--ink); background: #1a1826; }
+.twWho button { display: flex; align-items: center; gap: 6px; padding: 3px 8px 3px 3px; border: 2px solid var(--ink); background: var(--panel2); color: var(--text); cursor: pointer; font: 13px/1 var(--font-body); }
+.twWho button.on { box-shadow: inset 0 0 0 2px #ffd84a; background: #3a3014; }
+.twWho img { width: 32px; height: 32px; image-rendering: pixelated; }
+.twBody { display: grid; grid-template-columns: 250px minmax(0, 1fr) 300px; gap: 10px; padding: 10px; overflow: auto; min-height: 0; }
+.twDoll { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.twPortrait { display: grid; place-items: center; background: radial-gradient(#3a3550, #1a1826); border: 2px solid var(--ink); padding: 6px; }
+.twPortrait img { width: 120px; height: auto; image-rendering: pixelated; }
+.twSlots { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.twSlot { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 4px; background: var(--panel2); border: 2px solid var(--ink); cursor: pointer; color: var(--text); min-width: 0; }
+.twSlot.sel { box-shadow: inset 0 0 0 2px #fff; }
+.twSlot .lbl { font: 8px/1 var(--font-display); color: var(--dim); }
+.twSlot .row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.twSlot .gear, .twSlot .empty { width: 44px !important; height: 44px; flex: none; aspect-ratio: auto; }
+.twSlot .empty { display: grid; place-items: center; background: var(--slot); border: 2px solid var(--ink); }
+.twSlot .empty img { width: 50%; opacity: .5; }
+.twSlot .nm { font-size: 13px; line-height: 1.1; overflow: hidden; }
+.twStat { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 6px 8px; background: #1a1826; border: 2px solid var(--ink); font-size: 14px; }
+.twStat b { color: #ffe27a; }
+.btn.big { padding: 10px; font-size: 10px; }
+.btn.pulse { animation: townGlow 1.2s ease-in-out infinite; }
+.twAuto { font-size: 13px; color: var(--dim); display: flex; gap: 6px; align-items: center; }
+.twBag { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.twBagHead { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.twBagHead b { font: 9px/1 var(--font-display); color: #ffe27a; }
+.flt { display: flex; gap: 3px; flex-wrap: wrap; }
+.flt button { padding: 3px 6px; border: 2px solid var(--ink); background: var(--panel2); color: var(--dim); font: 8px/1 var(--font-display); cursor: pointer; }
+.flt button.on { color: #fff; box-shadow: inset 0 0 0 1px #ffd84a; }
+.twGrid { flex: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 5px; align-content: start; max-height: 52vh; overflow: auto; padding: 2px; }
+.twTile { position: relative; display: block; cursor: pointer; }
+.twTile .gear { width: 100%; aspect-ratio: 1; }
+.twTile.sel .gear { box-shadow: inset 0 0 0 2px #fff; }
+.twTile.no { opacity: .45; }
+.twTile.better .gear { box-shadow: 0 0 0 2px var(--good); }
+.twTile i.up { position: absolute; right: 1px; top: 0; color: var(--good); font: 10px/1 var(--font-display); font-style: normal; text-shadow: 1px 1px 0 var(--ink); pointer-events: none; }
+.twSalv { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; padding-top: 6px; border-top: 2px solid var(--ink); font-size: 14px; }
+.twSalv select { background: var(--panel2); color: var(--text); border: 2px solid var(--ink); font: 13px var(--font-body); padding: 2px; }
+.twCard { background: #1a1826; border: 2px solid var(--ink); padding: 8px 10px; align-self: start; }
+.twCard.empty { color: var(--dim); }
+.twCard h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font: 11px/1.2 var(--font-display); }
+.twCard h3 .gear { width: 40px; height: 40px; flex: none; }
+.twCard .sub { margin: 0 0 4px; color: var(--dim); font-size: 13px; }
+.twCard .worn { color: #8ae07a; font-weight: normal; }
+.twCard .main { margin: 4px 0; }
+.twCard .hint { color: var(--dim); font-size: 13px; margin: 6px 0; }
+.twCard .warn { color: var(--bad); }
+.twCmp { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; margin: 8px 0; padding: 6px 8px; background: #12101c; border: 2px solid var(--ink); }
+.twCmp small { grid-column: 1 / 3; color: var(--dim); font-size: 13px; }
+.twCmp b { color: var(--text); }
+.twCmp em { font-style: normal; font-size: 13px; margin-left: 4px; }
+.twCmp em.up { color: var(--good); }
+.twCmp em.dn { color: var(--bad); }
+.twActs { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.twActs .btn { text-align: left; }
+.twOrbs small { display: block; color: var(--dim); font-size: 13px; margin: 6px 0 4px; }
+.tw.ench .twOrbs { order: -1; }
+.tw.ench .twOrbs .orbBar { box-shadow: 0 0 0 2px #c88aff88; }
+.twPots { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; padding: 10px; overflow: auto; }
+.twPot { display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; background: var(--panel2); border: 2px solid var(--ink); }
+.twPot > img { width: 40px; image-rendering: pixelated; }
+.twPot b { display: block; font: 9px/1.2 var(--font-display); }
+.twPot small { display: block; color: var(--dim); font-size: 13px; }
+.twPot .bar { display: block; height: 4px; background: #2a2838; margin: 4px 0 2px; }
+.twPot .bar u { display: block; height: 100%; }
+.twParty { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; }
+.twMem { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px; min-width: 120px; background: var(--panel2); border: 2px solid var(--ink); }
+.twMem.lead { box-shadow: inset 0 0 0 2px #ffd84a55; }
+.twMem img { width: 64px; image-rendering: pixelated; }
+.twMem b { font: 9px/1.2 var(--font-display); }
+.twMem small { color: var(--dim); font-size: 13px; }
+.tw.tavern > p { padding: 0 10px; }
+.twRecruit { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; padding: 0 10px 10px; }
+.bestRow { display: flex; justify-content: center; margin: 2px 0 6px; }
+@media (max-width: 860px) {
+  #townWin { inset: 44px 4px 4px; }
+  .twBody { grid-template-columns: 1fr; }
+  .twPortrait img { width: 84px; }
+  .twGrid { max-height: none; }
+  .twBag { min-height: auto; }
+  .twBody { display: flex; flex-direction: column; }
+  .twBody > * { flex: none; }
+  .twHead > img { width: 32px; }
+}
+.meter .mIco { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; z-index: 3; image-rendering: pixelated; pointer-events: none; filter: drop-shadow(1px 1px 0 #0c0b12); }
+.meter { cursor: help; }
+#btnFight, #btnRift, #btnRetreat { cursor: pointer; }
+
 </style>
 <div id="app">
   <section id="stageWrap">
@@ -807,11 +912,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     <div class="hud top">
       <div class="realm"><div id="realmBox" role="button" tabindex="0" aria-label="World map"><b id="realmName"></b> <span class="lstars" id="landStars"></span><div class="zoneRow"><span class="pips" id="zonePips"></span><span id="zoneName"></span></div></div><small id="realmSub"><span data-depth-label>Depth</span> <span id="depthNum">1</span></small><div class="torment" id="torment" hidden><button type="button" data-tm="-1" aria-label="Less torment">−</button><span id="tormentN"></span><button type="button" data-tm="1" aria-label="More torment">+</button></div><small id="omenLine"></small><small id="rivalLine" hidden></small><div class="goalBox" id="goal" hidden></div></div>
       <div class="hudBtns">
+        <button class="iconBtn townBtn" id="btnTown" aria-label="Town"><img alt=""><b>TOWN</b></button>
         <button class="iconBtn help" id="btnHelp" aria-label="Help">?</button>
         <button class="iconBtn" id="btnSound" aria-label="Sound"><img alt=""></button>
         <button class="iconBtn" id="btnMusic" aria-label="Music"><img alt=""></button>
       </div>
     </div>
+    <div id="townWin" hidden></div>
     <div id="toasts" aria-live="polite"></div>
     <div id="banner" hidden></div>
     <div class="hud bottom">
@@ -819,19 +926,19 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       <div class="partyHud" id="partyHud" hidden></div>
       <div class="evRow" id="evRow" hidden><img id="evIco" alt=""><div class="meter ev" id="evWrap"><i id="evMeter"></i><span id="evText"></span></div></div>
       <div class="bossRow" id="bossRow" hidden>
-        <div class="meter boss" id="bossWrap"><i id="bossMeter"></i><span id="bossText"></span></div>
+        <div class="meter boss" id="bossWrap"><img class="mIco" data-mico="ic_skull" alt=""><i id="bossMeter"></i><span id="bossText"></span></div>
         <button class="btn fight" id="btnFight" hidden>⚔</button>
         <button class="btn fight riftBtn" id="btnRift" hidden aria-label="Rift">◈</button>
         <button class="btn fight" id="btnRetreat" hidden style="animation:none">✕</button>
       </div>
       <div class="hpRow" id="hpRow" hidden>
-        <div class="meter hpm" id="hpWrap"><i class="trail" id="hpTrail"></i><i id="hpMeter"></i><span id="hpText"></span></div>
+        <div class="meter hpm" id="hpWrap"><img class="mIco" data-mico="ic_heart" alt=""><i class="trail" id="hpTrail"></i><i id="hpMeter"></i><span id="hpText"></span></div>
         <button class="abil" id="btnAbil" hidden><img alt=""><i id="abilCd"></i></button>
         <div class="powers" id="powers"></div>
       </div>
       <div class="meters">
-        <div class="meter"><i id="chestMeter"></i><span id="chestText"></span></div>
-        <div class="meter combo" id="comboWrap"><i id="comboMeter"></i><span id="comboText"></span></div>
+        <div class="meter" id="chestWrap"><img class="mIco" data-mico="ic_chest" alt=""><i id="chestMeter"></i><span id="chestText"></span></div>
+        <div class="meter combo" id="comboWrap"><img class="mIco" data-mico="ic_coin" alt=""><i id="comboMeter"></i><span id="comboText"></span></div>
       </div>
     </div>
   </section>
@@ -1574,7 +1681,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     perksTitle: 'Perks this run', perksNone: 'Level up to pick your first perk. Slay the Horde for XP.', autoPerk: 'Pick perks for me if I wait',
     roleTitle: 'What your Warden does', roleHint: 'Your Warden leads the party: every kill fills the clear bar and drops loot and gold, and the whole party wears the bosses down. Your clicks during a fight are the Warden\u2019s strikes.',
     roleHorde: 'Horde size', roleBossClick: 'Boss damage per click', roleBossSec: 'Boss damage per second', roleBoss: 'This depth\'s boss', roleBossTime: 'about {0}s alone (limit {1}s)',
-    roleWeak: 'Too weak for this boss yet: level up, equip better gear, enchant, or ascend for fame.', hordeX: 'Horde ×{0}', hordeWeak: 'Warden weak here',
+    roleWeak: 'Too weak for this boss yet: level up, equip better gear, enchant, or ascend for fame.', hordeX: 'Horde ×{0}', toBoss: 'then the boss', hordeWeak: 'Warden weak here',
     goal: 'Goal', journey: 'Journey', journeyHint: 'An endless road of goals. Each step gives a reward and +2% Warden damage for good.', journeyStep: 'Step {0}',
     journeyDone: 'Journey step done', journeyNext: 'Next', omen: 'Omen of the day', omenLine: 'Omen: {0}',
     bounty: 'Daily bounty', bountyText: 'Slay {0} of today\u2019s Horde for 3 eggs and a chest', bountyDone: 'Bounty complete! Come back tomorrow for a new one.',
@@ -1596,7 +1703,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     orbNo_max: 'Already at +{0}', orbNo_none: 'Pick an item first', corrupted: 'Corrupted', unique: 'Unique', uniques: 'Uniques', uqFound: '{0} of {1} found',
     uqDrops: 'Drops from depth {0}', uqDropsBoss: 'Only {0} and deep Rifts', uqNew: 'NEW UNIQUE', uqBanner: 'UNIQUE!',
     lootFilter: 'Hide labels on common drops', shrineBuff: '{0} {1}s', rule: 'Land rule', feedUq: 'found {0}', feedRift: 'cleared {0}', feedLord: 'slew {0}', feedCrown: 'took the crown of {0}',
-    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', pw_smite: 'Smite', pw_smite_d: 'Hits the boss for 5 seconds of the party\u2019s damage and breaks its wind-up; without a boss, blasts the crowd at the Button', pw_ward: 'Ward', pw_ward_d: 'Nothing gets through to the Button or the party for 3.5 seconds', pw_mend: 'Mend', pw_mend_d: 'Heals the Button by 35% and the party by 40%, and lifts the fallen', blocked: 'BLOCKED', enrageT: 'ENRAGED {0}s', shieldBroken: 'SHIELD BROKEN', tormentN: 'TORMENT {0}/{1}', tooEasy: 'too easy? raise Torment', tormentTip: 'Torment {0}: the Horde has {1} health and bites {2}, bosses have {3} health (more affixes from Torment 4). You get {4} gold, {5} XP and {6} loot.', tormentRar: 'Gear comes {0} rarity step(s) sooner.', tormentZero: 'Torment 0: the game as it comes. Raise it with + for a harder fight and more of everything.', tormentMore: 'One more level opens with every land you conquer, up to 10.', tormentBusy: '(Not during a boss or a Rift.)', tormentOpen: 'Torment {0} unlocked: raise it under the land name for more of everything', tormentCard: 'TORMENT {0}', enrageCard: 'ENRAGED!', enrageSub: 'Out of time: finish it now, it hits harder every second', aff_shielded: 'Shielded', aff_vampiric: 'Vampiric', aff_hasted: 'Hasted', aff_regen: 'Regenerating', aff_frenzied: 'Frenzied', hoardBurst: 'SACK BURST!', goblin: 'Treasure Goblin', rec_jp: 'JACKPOT', jpOdds: 'odds ×{0}', jpTitle: 'JACKPOT!!!', jpSub: 'AGAINST ALL ODDS', jpToast: 'JACKPOT! +{0} gold, and it rains chests', recent: 'Recent', feedEmpty: 'Nothing yet. Big drops and records from everyone show up here.',
+    feedDivine: 'found {0}', feedMad: 'defeated the Mad Button', feedEvo: 'evolved {0}', feedJackpot: 'hit the JACKPOT!', pw_smite: 'Smite', pw_smite_d: 'Hits the boss for 5 seconds of the party\u2019s damage and breaks its wind-up; without a boss, blasts the crowd at the Button', pw_ward: 'Ward', pw_ward_d: 'Nothing gets through to the Button or the party for 3.5 seconds', pw_mend: 'Mend', pw_mend_d: 'Heals the Button by 35% and the party by 40%, and lifts the fallen', blocked: 'BLOCKED', townBtn: 'TOWN', townBack: 'FIELD', townTip: 'Walk into town (T): gear up, brew, recruit. The field waits.', townBackTip: 'Back to the field (T)', townNo: 'Not now: finish the fight first (no town during a boss, a Rift, an invasion, an event or with the Button broken).', townTitle: 'BUTTONHOLD', townSub: 'Tap a building · the field waits while you are here', townLocked: 'Not open yet: play on a little first.',
+    town_forge: 'Forge', town_enchant: 'Enchanter', town_portal: 'To the field', town_stars: 'Observatory', town_alch: 'Alchemist', town_tavern: 'Tavern', town_quests: 'Quest board', town_pets: 'Hatchery',
+    twForgeSub: 'Pick who to dress, tap an item to see what it changes, then equip, upgrade or break it down for shards.', twEnchSub: 'Tap an item, then an orb below it: whetstones upgrade for free, Flux rerolls, Ascent adds, Grace improves, Ruin gambles.',
+    twAlchSub: 'Brew the potion you want. Each one is a lasting bonus until you ascend; the next of a kind costs more.', twTavernSub: 'Your party. Recruit a companion when a seat opens; tanks take the blows, clerics heal.',
+    twEmpty: 'empty', twPick: 'Tap an item in the bag or on the doll to see it here.', twPickEnchant: 'Tap an item to use your orbs on it.', twWornBy: 'worn by {0}', twIfWorn: 'If {0} wears it', twWrongClass: 'Not a weapon this class can use.', twEquipOn: 'Equip on {0}', twUpgrade: 'Upgrade to +{0}', twUpgradeHint: 'Upgrades: +{0} of {1}. Each one adds 12% to the item\u2019s main stat; shards come from breaking down items.', twOrbs: 'Orbs on this item:',
+    twAll: 'All', twBag: 'Bag {0}/{1}', twShards: 'shards', twSalvAll: 'Break down all below {0}', twBest: '⚡ EQUIP BEST · whole party', twBestDone: 'Equipped the best gear: {0} change(s)', twBestNone: 'Everyone already wears the best they have.', twAutoEq: 'Equip better drops automatically', twPower: 'Power', twDps: 'Damage /s', twHp: 'Health', twCrit: 'Crit',
+    twBrew: 'Brew', twGearUp: 'Gear', twRecruitN: '{0} seat(s) free: recruit a companion.', twRecruited: '{0} joins the party!', twPartyFull: 'The party is full.', twNextSlot: 'The next seat opens when you beat depth {0}.', enrageT: 'ENRAGED {0}s', shieldBroken: 'SHIELD BROKEN', tormentN: 'TORMENT {0}/{1}', tooEasy: 'too easy? raise Torment', tormentTip: 'Torment {0}: the Horde has {1} health and bites {2}, bosses have {3} health (more affixes from Torment 4). You get {4} gold, {5} XP and {6} loot.', tormentRar: 'Gear comes {0} rarity step(s) sooner.', tormentZero: 'Torment 0: the game as it comes. Raise it with + for a harder fight and more of everything.', tormentMore: 'One more level opens with every land you conquer, up to 10.', tormentBusy: '(Not during a boss or a Rift.)', tormentOpen: 'Torment {0} unlocked: raise it under the land name for more of everything', tormentCard: 'TORMENT {0}', enrageCard: 'ENRAGED!', enrageSub: 'Out of time: finish it now, it hits harder every second', aff_shielded: 'Shielded', aff_vampiric: 'Vampiric', aff_hasted: 'Hasted', aff_regen: 'Regenerating', aff_frenzied: 'Frenzied', hoardBurst: 'SACK BURST!', goblin: 'Treasure Goblin', rec_jp: 'JACKPOT', jpOdds: 'odds ×{0}', jpTitle: 'JACKPOT!!!', jpSub: 'AGAINST ALL ODDS', jpToast: 'JACKPOT! +{0} gold, and it rains chests', recent: 'Recent', feedEmpty: 'Nothing yet. Big drops and records from everyone show up here.',
     byRift: 'Rift', byToday: 'Today', byUq: 'Uniques', byStars: 'Land stars', rivalUp: 'You passed {0} · {1} #{2}', rivalDown: '{0} passed you · {1}', brag: 'Copy brag', bragged: 'Copied. Paste it to your friends',
     bragText: 'BTTN · {0} lv {1} · gear score {2}\n{3}\nUniques {4}/{5}: {6}\nCan you beat me?',
     byCrowns: 'Crowns', byFirsts: 'Firsts', crownsHint: 'Each lord\u2019s crown goes to the fastest kill of a fresh (unwounded) lord.', firstsHint: 'Who got there first among everyone on this ladder.',
@@ -1613,6 +1726,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     phaseN: 'PHASE {0}', phaseSub: 'It hits the whole party now', phaseRage: 'ENRAGED', btnBroken: 'BROKEN!', btnBrokenCard: 'THE BUTTON BROKE', btnBrokenSub: 'Hold for {0}s: if the whole party falls, the Horde breaks through',
     heraldSub: 'The herald: slay it for a big haul', invWon: 'INVASION REPELLED', invLost: 'THE INVASION WITHDRAWS', tapRevive: 'TAP', invName: '{0} · {1}/{2} · {3}s', invHerald: '{0} · {1}s',
     sk_3000: 'EXTINCTION', sk_6000: 'CATACLYSM', sk_10000: 'GODLIKE',
+    comboLine: 'Click combo {0} · gold ×{1}', chestLine: 'Next chest {0}% · on the field {1}/{2}',
+    tipClear: 'The clear bar: kill the Horde to fill it. Three waves, then the boss comes. Beat it to go a depth deeper.', tipHp: 'The Button\u2019s health. Mobs that reach it bite it; at 0 it breaks for 12 s. Better armour = more health.', tipChest: 'Clicks and kills fill this bar; when it is full a chest drops onto the field. Tap chests to open them (Looters open them for you).', tipCombo: 'Click fast to build a combo: more gold per click. It fades if you stop.', tipAbil: 'Your ability (Q): what it does depends on the ability item you wear.',
     waveN: 'WAVE {0}/3', waveSub: 'Champions lead the rush', zoneCard: 'ZONE {0}/5 · {1}', zoneLord: 'THE LORD AWAITS', newKind: 'NEW: {0}',
     landStar: 'LAND STAR · {0}', star_1: 'Conquered: slew the lord', star_2: 'Slaughter: {0} of its Horde slain', star_4: 'Swift: slay the lord within {0}s on a fresh try (not after it escaped)',
     starBonus: '{0}: {1} damage and gold', starsN: '{0} stars', star1: '1 star', starName_1: 'Conquered', starName_2: 'Slaughter', starName_4: 'Swift', carnage: 'Carnage ×{0}', carnageAt: 'Carnage ×{0} at {1}', carnageHint: 'Keep killing: gold and XP climb with the kill streak',
@@ -2157,6 +2272,30 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
 
   // ---------- Potions ----------
+  // 2.4: the Town. Between fights the party can walk into town: the field holds still (the Garrison keeps
+  // earning) while you gear up at the Forge, brew at the Alchemist, recruit at the Tavern.
+  G.townOk = () => !!(G.S.hero && G.S.hero.cls) && !R.boss && !R.rift && !R.inv && !(R.btnDown > 0) && !(R.ev && R.ev.k !== 'jackpot') && !(R.stun > 0);
+  G.enterTown = function () {
+    if (R.town || !G.townOk()) return false;
+    R.town = true; R.bossIn = null;
+    G.S.st.townVisits = (G.S.st.townVisits || 0) + 1;
+    emit('town', true);
+    return true;
+  };
+  G.leaveTown = function () {
+    if (!R.town) return false;
+    R.town = false;
+    emit('town', false);
+    return true;
+  };
+  // the Alchemist brews the potion you ask for: dearer with every one you already drink
+  G.brewCost = id => Math.round(Math.max(200, D.incomeRef * 90) * Math.pow(1.45, G.S.pots[id] || 0));
+  G.brewPotion = function (id) {
+    const S = G.S, c = G.brewCost(id);
+    if (!(S.pots[id] < D.potCap) || S.gold < c) return null;
+    S.gold -= c;
+    return givePotion(id);
+  };
   function givePotion(id) {
     const S = G.S;
     const avail = G.POTIONS.filter(p => S.pots[p.id] < D.potCap);
@@ -2770,6 +2909,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const S = G.S;
     if (R.dirty) recalc();
     S.st.playTime += dt;
+    // in town the field holds still: only the Garrison's income and the clock run
+    if (R.town) { addGold(D.gps * dt, 'gps'); return; }
 
     // Buffs
     if (S.buffs.length) {
@@ -2943,15 +3084,15 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
     // the arena is never empty: lots of small bodies, capped for the frame rate
-    mobMax: 900, packMul: 1.4, minCrowd: 40, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
+    mobMax: 1100, packMul: 2, minCrowd: 90, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
     killChest: 0.03, plunder: 0.002, biteFloor: 0.025,
-    // 2.3: the Horde never shrinks below a full one; regen out of and in a boss fight (share of health a second);
-    // new ground clears at most clearRate of weight a second
-    hsMin: 1, earlyHp: 2.5, earlyTo: 40, regen: 0.006, regenBoss: 0.002, clearRate: 0.75,
+    // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
+    // regen out of and in a boss fight (share of health a second)
+    hsMin: 1, earlyHp: 2.5, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
   });
 
   // ---------- Content ----------
@@ -3351,6 +3492,25 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     return combat(eq, G.D, m ? { cls: m.cls, lvl: G.S.hero.lvl } : undefined).power;
   }
   G.powerWith = powerWith;
+  // 2.4: "Equip best": every member of the party in turn (the Warden first) takes the strongest piece
+  // for each slot out of the bag and what they already wear. Companions keep to their own class's weapons.
+  G.equipBest = function () {
+    const S = G.S, h = S.hero;
+    if (!h || !h.cls) return 0;
+    let n = 0;
+    const whos = [-1].concat((S.party || []).map((_, i) => i));
+    for (const who of whos) {
+      const m = who >= 0 ? S.party[who] : null, eq = eqOf(who);
+      for (const slot of G.SLOTS) {
+        const pool = h.bag.filter(g => G.slotOf(g.id) === slot && (slot !== 'weapon' || !m || G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id])));
+        let best = eq[slot], bp = best ? powerWith(slot, best, who) : -1;
+        for (const g of pool) { const p = powerWith(slot, g, who); if (p > bp) { best = g; bp = p; } }
+        if (best && best !== eq[slot]) { equip(best, true, who); n++; }
+      }
+    }
+    if (n) { G.dirty(); G.recalc(); emit('equipBest', n); }
+    return n;
+  };
   // Whose gear set this is: the Warden's (who < 0) or a companion's
   const eqOf = who => (who != null && who >= 0 && G.S.party[who] ? G.S.party[who].eq : G.S.hero.eq);
   G.eqOf = eqOf;
@@ -3749,12 +3909,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       S.st.rares = (S.st.rares || 0) + 1;
       if (uq('headhunter')) { R.hb.hh = Math.min(60, Math.max(0, R.hb.hh || 0) + 20); G.dirty(); emit('headhunter', m); }
     }
-    // 2.3: new ground is cleared at a set pace however fast the Horde dies (the clear bank fills at
-    // clearRate a second); a depth already beaten clears up to six times faster for a Warden far too strong for it
-    if (!m.add && !R.rift) {
-      if (S.depth >= (S.bestDepth || 0)) { const g = Math.min(m.w, R.clearBank || 0); R.clearBank = (R.clearBank || 0) - g; S.bossMeter += g; }
-      else S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * TUNE.hordeMax), 1, 6);
-    }
+    // 2.4: a Warden far too strong for the depth clears it faster (up to 3 times on new ground, 6 on a depth
+    // already beaten), so the easy depths go by quickly and the fight is where you are really tested
+    if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * 2), 1, S.depth >= (S.bestDepth || 0) ? 3 : 6);
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
     else if (!m.add) {
@@ -4044,8 +4201,6 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (R.carn && (R.carnT += dt) > 2.5) { R.carn = 0; emit('carnage', 0); }
     // regen: slow, slower still with a boss on the field, so a fight can be lost
     const regen = R.boss ? TUNE.regenBoss : TUNE.regen;
-    // the clear bank for new ground (see mobDie): a few seconds' worth can wait
-    if (!R.boss && !R.rift) R.clearBank = Math.min(TUNE.clearRate * 6, (R.clearBank || 0) + TUNE.clearRate * (G.evMul ? Math.max(1, G.evMul('clear')) : 1) * dt);
     if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * regen * dt);
     partyTick(dt, regen);
     // the horde: a steady flow of packs, with a surge every half a minute
@@ -8464,6 +8619,892 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   ]));
 })(globalThis.G = globalThis.G || {});
 
+/* js/art4.js */
+// BTTN — art for the TOWN hub: the buildings (forge, enchanter's tower, alchemist, tavern, notice board,
+// observatory, hatchery, portal back to the field), street props, the five townsfolk and the HUD icon.
+// Loaded after sprites.js (and art2.js / art3.js); uses its def(). SPR.get() adds the 1px dark outline
+// itself, so none of these grids carry one (inner lines are drawn with the dark 'k' / 'K' keys).
+(function (G) {
+  'use strict';
+  const SPR = G.SPR;
+  if (!SPR) return;
+  const def = SPR.def;
+
+  // ---------- helpers ----------
+  const dist = (x, y, cx, cy) => Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+  // a w x h char grid with a few drawing ops; .rows() gives the def() rows
+  function grid(w, h) {
+    const g = [];
+    for (let y = 0; y < h; y++) g.push(new Array(w).fill('.'));
+    const C = {
+      w, h,
+      at: (x, y) => (x >= 0 && y >= 0 && x < w && y < h ? g[y][x] : '.'),
+      p(x, y, c) { if (c && x >= 0 && y >= 0 && x < w && y < h) g[y][x] = c; return C; },
+      r(x, y, rw, rh, c) { for (let j = 0; j < rh; j++) for (let i = 0; i < rw; i++) C.p(x + i, y + j, c); return C; },
+      // painter over the region: fn(x, y, current) -> char to set, or falsy to keep
+      f(fn, x0, y0, x1, y1) {
+        x0 = x0 || 0; y0 = y0 || 0; x1 = x1 == null ? w - 1 : x1; y1 = y1 == null ? h - 1 : y1;
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) C.p(x, y, fn(x, y, C.at(x, y)));
+        return C;
+      },
+      // paste rows at x, y ('.' keeps what is under)
+      s(x0, y0, rows) {
+        rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) if (r[x] !== '.') C.p(x0 + x, y0 + y, r[x]); });
+        return C;
+      },
+      // recolour: inside the region swap chars by map {from: to}
+      swap(map, x0, y0, x1, y1) { return C.f((x, y, c) => map[c], x0, y0, x1, y1); },
+      rows: () => g.map(r => r.join('')),
+    };
+    return C;
+  }
+  // pick from a light→dark ramp by t in 0..1 (left = lit)
+  const ramp = (t, chars, cuts) => {
+    cuts = cuts || [0.22, 0.55, 0.82];
+    for (let i = 0; i < cuts.length; i++) if (t < cuts[i]) return chars[i];
+    return chars[cuts.length];
+  };
+  // rows for a w x h piece from a per-pixel painter (x, y) -> palette char or '.'
+  function paint(w, h, fn) {
+    const rows = [];
+    for (let y = 0; y < h; y++) { let r = ''; for (let x = 0; x < w; x++) r += fn(x, y) || '.'; rows.push(r); }
+    return rows;
+  }
+
+  // ---------- shared town palette ----------
+  // S s d D stone (light→dark) · W w b B wood · p P plaster · k K dark interior / inner lines
+  // h y Y o O warm glow (hot white → deep orange) · j i I iron · g G l foliage
+  const TOWN = {
+    S: '#d0d0dc', s: '#a4a4b2', d: '#7a7a88', D: '#565664',
+    W: '#d09a5c', w: '#a86e38', b: '#7a4a24', B: '#4e2e16',
+    p: '#f0e2c0', P: '#c8b28c',
+    k: '#1e1a24', K: '#2e2834',
+    h: '#fff6c8', y: '#ffe27a', Y: '#ffb347', o: '#ff7a2e', O: '#c8461a',
+    j: '#d8dee8', i: '#8a90a0', I: '#4e5262',
+    g: '#4fb83e', G: '#2d7a28', l: '#8ae07a',
+  };
+  const TP = (o) => Object.assign({}, TOWN, o);
+
+  // shingled roof: a trapezoid from the ridge row y0 to the eave row y1, growing `slope` px per row each side.
+  // course of 3 rows: lit top edge, body, shadow; seams staggered. chars [light, mid, dark, deepest]
+  function roof(c, y0, y1, xl, xr, slope, ch, tw) {
+    tw = tw || 5;
+    for (let y = y0; y <= y1; y++) {
+      const k = y - y0, a = Math.round(xl - k * slope), b = Math.round(xr + k * slope), course = Math.floor(k / 3), v = k % 3;
+      for (let x = a; x <= b; x++) {
+        const t = (x - a) / Math.max(1, b - a);
+        let q = v === 0 ? 0 : v === 1 ? 1 : 2;
+        if ((x + course * 3) % tw === 0 && v !== 0) q = 2;
+        if (t > 0.62 && q < 3) q++;
+        if (x === a) q = Math.min(q, 0);
+        if (x === b) q = 3;
+        c.p(x, y, ch[Math.min(3, q)]);
+      }
+    }
+  }
+  // stone blocks over a rect, mortar in `m`, blocks lit at their top-left
+  function blocks(c, x0, y0, rw, rh, bw, bh, ch, m) {
+    c.f((x, y) => {
+      const ly = y - y0, row = Math.floor(ly / bh), lx = x - x0 + (row % 2) * Math.floor(bw / 2);
+      if (ly % bh === bh - 1 || lx % bw === bw - 1) return m;
+      if (ly % bh === 0 || lx % bw === 0) return ch[0];
+      return (x - x0) / rw > 0.7 ? ch[2] : ch[1];
+    }, x0, y0, x0 + rw - 1, y0 + rh - 1);
+  }
+  // a lit window: frame f, glass glowing top-left → bottom-right, cross mullion
+  function window_(c, x0, y0, ww, wh, f, glass, cross) {
+    c.r(x0, y0, ww, wh, f);
+    c.f((x, y) => {
+      const t = ((x - x0 - 1) / Math.max(1, ww - 3) + (y - y0 - 1) / Math.max(1, wh - 3)) / 2;
+      return ramp(t, glass, [0.2, 0.6]);
+    }, x0 + 1, y0 + 1, x0 + ww - 2, y0 + wh - 2);
+    if (cross) {
+      const mx = x0 + Math.floor(ww / 2), my = y0 + Math.floor(wh / 2);
+      c.f(() => f, mx, y0 + 1, mx, y0 + wh - 2);
+      c.f(() => f, x0 + 1, my, x0 + ww - 2, my);
+    }
+  }
+
+  // ================= THE FORGE (52x42) =================
+  {
+    const c = grid(52, 42);
+    // dark slate roof
+    roof(c, 5, 17, 13, 38, 1, ['r', 'R', 'q', 'Q']);
+    c.r(0, 18, 52, 1, 'B').r(1, 18, 50, 1, 'b');
+    // stone chimney through the roof, embers drifting out
+    blocks(c, 36, 2, 7, 13, 4, 3, ['S', 's', 'd'], 'D');
+    c.r(35, 1, 9, 2, 's').r(35, 1, 9, 1, 'S').r(37, 2, 5, 1, 'k');
+    c.p(39, 0, 'Y').p(42, 0, 'o');
+    // walls: timber posts + beams, plaster panels
+    c.r(3, 19, 46, 17, 'p');
+    c.f((x, y) => (x > 12 && x < 17) || (x > 43 && x < 47) || y > 32 ? 'P' : '', 5, 21, 46, 35);
+    c.r(3, 19, 46, 2, 'b').r(3, 19, 46, 1, 'w');
+    c.r(3, 19, 2, 17, 'b').r(3, 19, 1, 17, 'w');
+    c.r(47, 19, 2, 17, 'B').r(47, 19, 1, 17, 'b');
+    c.r(5, 27, 12, 1, 'b').r(40, 27, 7, 1, 'b');
+    c.s(40, 29, ['.iIi.', 'iaaAI', 'iayAI', 'iaAAI', '.iII.']); // a shield hung on the plaster
+    window_(c, 7, 22, 7, 5, 'b', ['y', 'Y', 'o'], true);
+    // the open front: posts, dark workshop, the hearth glowing at the back
+    c.r(17, 21, 21, 15, 'k');
+    c.f((x, y) => {
+      const d = dist(x, y * 1.25, 28, 34 * 1.25);
+      return d < 6 ? 'x' : d < 10 ? 'X' : y < 23 ? 'k' : 'K';
+    }, 19, 21, 37, 35);
+    c.r(17, 21, 2, 15, 'w').r(17, 21, 1, 15, 'W');
+    c.r(38, 21, 2, 15, 'b').r(39, 21, 1, 15, 'B');
+    c.r(19, 21, 19, 1, 'B');
+    // hood + hearth
+    c.r(24, 22, 9, 3, 'd').r(24, 22, 1, 3, 's').r(32, 22, 1, 3, 'D');
+    c.r(22, 25, 13, 11, 's');
+    blocks(c, 22, 25, 13, 11, 4, 3, ['S', 's', 'd'], 'D');
+    c.r(22, 25, 13, 1, 'S');
+    c.f((x, y) => {
+      const t = dist(x, y * 1.3, 28, 35.5 * 1.3);
+      if (y === 28 && (x === 25 || x === 31)) return '';
+      return t < 2.6 ? 'h' : t < 4.4 ? 'y' : t < 6.2 ? 'Y' : t < 7.6 ? 'o' : 'O';
+    }, 25, 28, 31, 35);
+    c.p(25, 28, 'D').p(31, 28, 'D');
+    // tongs and a horseshoe on the workshop wall
+    c.r(20, 24, 1, 6, 'i').p(21, 24, 'i').p(21, 29, 'I');
+    c.s(35, 24, ['i.i', 'i.I', '.I.']);
+    // stone base
+    blocks(c, 1, 36, 50, 6, 6, 3, ['S', 's', 'd'], 'D');
+    c.r(1, 36, 50, 1, 'S').r(1, 41, 50, 1, 'D');
+    c.r(18, 36, 21, 1, 'x'); // glow on the threshold
+    // the anvil on a stump out front
+    c.s(4, 31, [
+      'jjjjjjjjjjj.',
+      '.jiiiiiiiiiI',
+      '...iiiiiiII.',
+      '.....iiI....',
+      '....jiiiI...',
+      '...iiiiiII..',
+      '...WwwwwBb..',
+      '...wwwwwbb..',
+      '..BWwwwwbbB.',
+      '..BBBBBBBBB.',
+    ]);
+    def('tw_forge', TP({ a: '#e8413c', A: '#a82a26', r: '#7a7898', R: '#5a5874', q: '#42405a', Q: '#2e2c42', x: '#7a3a1e', X: '#4a2420' }), c.rows());
+  }
+
+  // ================= ENCHANTER'S TOWER (30x58) =================
+  {
+    const c = grid(30, 58);
+    // stone body, cylinder-shaded, coursed blocks
+    const bx0 = 5, bx1 = 24;
+    c.f((x, y) => {
+      const t = (x - bx0) / (bx1 - bx0), row = Math.floor((y - 25) / 3), lx = x + (row % 2) * 2;
+      let q = t < 0.18 ? 0 : t < 0.55 ? 1 : t < 0.84 ? 2 : 3;
+      if ((y - 25) % 3 === 2 || lx % 5 === 0) q = Math.min(3, q + 1);
+      return ['S', 's', 'd', 'D'][q];
+    }, bx0, 25, bx1, 54);
+    // base flare
+    c.f((x) => ramp((x - 3) / 23, ['S', 's', 'd', 'D']), 3, 54, 26, 57);
+    c.r(3, 54, 24, 1, 'S').r(4, 54, 1, 1, 'S');
+    c.f((x) => (x > 20 ? 'D' : 'd'), 3, 57, 26, 57);
+    // purple trim band
+    c.f((x) => ramp((x - bx0) / (bx1 - bx0), ['u', 'U', 'm', 'M']), bx0, 42, bx1, 43);
+    // conical roof
+    for (let y = 8; y <= 24; y++) {
+      const hw = 1 + (y - 8) * 13 / 16, a = Math.round(15 - hw), b = Math.round(14 + hw);
+      for (let x = a; x <= b; x++) {
+        const t = (x - a) / Math.max(1, b - a);
+        let q = t < 0.28 ? 0 : t < 0.6 ? 1 : t < 0.86 ? 2 : 3;
+        if ((y - 8) % 4 === 3) q = Math.min(3, q + 1);
+        c.p(x, y, ['u', 'U', 'm', 'M'][q]);
+      }
+    }
+    c.f((x) => ramp((x - 1) / 27, ['y', 'Y', 'Y', 'O']), 1, 24, 28, 24);
+    c.r(2, 25, 26, 1, 'M');
+    // little gold stars on the cone
+    c.p(10, 17, 'y').p(18, 13, 'y').p(13, 21, 'y').p(20, 20, 'Y');
+    // crystal tip on a gold finial
+    c.s(12, 0, [
+      '...n..',
+      '..nvV.',
+      '.nvvVV',
+      '.vvVVm',
+      '..VVm.',
+      '...m..',
+      '..yY..',
+      '..YO..',
+    ]);
+    // glowing violet arched window with a ledge
+    c.s(11, 29, [
+      '..DDDD..',
+      '.DnnvvD.',
+      'DnnvDvVD',
+      'DnvvDvVD',
+      'DvvvDVVD',
+      'DDDDDDDD',
+      'DvVVDVcD',
+      'DVVcDccD',
+      'SSssddDD',
+    ]);
+    // a small lit slit lower down and the door
+    c.s(8, 45, ['DD', 'nv', 'vV', 'DD']);
+    c.s(11, 47, [
+      '..BBBB..',
+      '.BwWwbB.',
+      'BwWwwbbB',
+      'BwWwwbbB',
+      'BwWwwyby',
+      'BwWwwbbB',
+      'BwWwwbbB',
+      'BwWwwbbB',
+    ]);
+    c.p(17, 51, 'B');
+    def('tw_tower', TP({ u: '#b682f0', U: '#8a4ad0', m: '#5e2e9a', M: '#3c1c68', n: '#f4e2ff', v: '#c890ff', V: '#9a5ae8', c: '#6a32b8' }), c.rows());
+  }
+
+  // ================= ALCHEMIST'S HUT (46x40) =================
+  {
+    const c = grid(46, 40);
+    // small stone chimney with a puff of green smoke
+    blocks(c, 31, 3, 5, 8, 3, 3, ['S', 's', 'd'], 'D');
+    c.r(30, 3, 7, 1, 'S');
+    c.s(30, 0, ['.lt.', 'ltt.', '.t..']);
+    // green scalloped tiles
+    for (let y = 5; y <= 17; y++) {
+      const k = y - 5, a = 12 - k, b = 33 + k, course = Math.floor(k / 3), v = k % 3;
+      for (let x = a; x <= b; x++) {
+        const u = (x + course * 2 + 100) % 4, t = (x - a) / Math.max(1, b - a);
+        let q = v === 0 ? (u === 0 ? 2 : 0) : v === 1 ? (u === 0 ? 2 : 1) : (u === 0 || u === 3 ? 2 : 1);
+        if (t > 0.62) q = Math.min(3, q + 1);
+        if (x === b) q = 3;
+        c.p(x, y, ['r', 'R', 'q', 'Q'][q]);
+      }
+    }
+    c.r(0, 18, 46, 1, 'B').r(1, 18, 44, 1, 'b');
+    // walls
+    c.r(3, 19, 40, 17, 'p');
+    c.f((x, y) => (x > 36 || y > 32 ? 'P' : ''), 4, 19, 42, 35);
+    c.r(3, 19, 2, 17, 'w').r(3, 19, 1, 17, 'W');
+    c.r(41, 19, 2, 17, 'b').r(42, 19, 1, 17, 'B');
+    c.r(5, 19, 36, 1, 'b');
+    // round window (cool green glow)
+    c.f((x, y) => {
+      const d = dist(x + 0.5, y + 0.5, 11, 25);
+      if (d > 4.2) return '';
+      if (d > 3.1) return 'b';
+      if (Math.abs(x + 0.5 - 11) < 0.6 || Math.abs(y + 0.5 - 25) < 0.6) return 'b';
+      return (x + y) < 34 ? 'e' : (x + y) < 37 ? 'E' : 'z';
+    }, 6, 20, 16, 30);
+    // door, arched, with a brass knob
+    c.s(18, 21, [
+      '..bbbb..',
+      '.bwWwwb.',
+      'bwWwwwbb',
+      'bwWwbwbb',
+      'bwWwbwbb',
+      'bwWwbwbb',
+      'bwWwbwbb',
+      'bwWwbwyb',
+      'bwWwbwbb',
+      'bwWwbwbb',
+      'bwWwbwbb',
+      'bwWwbwbb',
+      'bwWwbwbb',
+      'bwWwbwbb',
+      'BBBBBBBB',
+    ]);
+    // shelves of potions beside the door
+    c.r(28, 21, 12, 15, 'K').r(28, 21, 12, 1, 'b').r(28, 21, 1, 15, 'b').r(39, 21, 1, 15, 'B');
+    c.r(29, 26, 10, 1, 'W').r(29, 27, 10, 1, 'b').r(29, 31, 10, 1, 'W').r(29, 32, 10, 1, 'b');
+    const bottle = (x, y, col, tall) => {
+      if (tall) c.p(x, y - 4, 'P').p(x, y - 3, 'f');
+      else c.p(x, y - 3, 'P');
+      c.p(x - 1, y - 2, col).p(x, y - 2, 'h').p(x + 1, y - 2, col);
+      c.p(x - 1, y - 1, col).p(x, y - 1, col).p(x + 1, y - 1, col.toUpperCase() === col ? col : col.toUpperCase());
+    };
+    bottle(30, 26, 'a', true); bottle(34, 26, 'c', false); bottle(37, 26, 'v', true);
+    bottle(30, 31, 'e', false); bottle(33, 31, 'y', true); bottle(37, 31, 'a', false);
+    c.r(29, 33, 2, 2, 'f').p(29, 33, 'v').r(33, 34, 3, 1, 'c').p(37, 34, 'e').p(37, 33, 'E');
+    // stone base
+    blocks(c, 1, 36, 44, 4, 5, 2, ['S', 's', 'd'], 'D');
+    c.r(1, 36, 44, 1, 'S').r(1, 39, 44, 1, 'D');
+    // a little bubbling cauldron on a fire, out front
+    c.s(0, 29, [
+      '..l.t...l.',
+      '.t..l.t...',
+      'jiiiiiiiiI',
+      'IltlltlttI',
+      'KIiiIIIIKK',
+      'KiIIIIIIKK',
+      '.KIIIIIKK.',
+      '..KKKKKK..',
+      '.oKyoYKo..',
+      '.OY.o.YO..',
+      'BbbbbbbbB.',
+    ]);
+    def('tw_alch', TP({ r: '#8ad86a', R: '#4ea84a', q: '#2e7a3a', Q: '#1c5a2c', t: '#4fd65b', e: '#c8fff0', E: '#7fe0c0', z: '#3aa890',
+      a: '#ff4f6a', A: '#b82a40', c: '#4fa8ff', C: '#2a6ac0', v: '#c070ff', V: '#7a3ac0', f: '#a87048' }), c.rows());
+  }
+
+  // ================= TAVERN (60x44) =================
+  {
+    const c = grid(60, 44);
+    // chimney first so the roof ridge overlaps its foot
+    blocks(c, 44, 1, 6, 9, 3, 3, ['S', 's', 'd'], 'D');
+    c.r(43, 0, 8, 2, 's').r(43, 0, 8, 1, 'S').r(45, 1, 4, 1, 'k');
+    roof(c, 2, 13, 13, 46, 1, ['r', 'R', 'q', 'Q']);
+    c.r(0, 14, 60, 1, 'B').r(1, 14, 58, 1, 'b');
+    // upper storey: timber frame + plaster, four lit windows
+    c.r(4, 15, 52, 11, 'p');
+    c.f((x, y) => (x > 49 || y > 23 ? 'P' : ''), 4, 15, 55, 25);
+    for (const px of [4, 18, 30, 42]) c.r(px, 15, 2, 11, 'b').r(px, 15, 1, 11, 'w');
+    c.r(54, 15, 2, 11, 'B').r(54, 15, 1, 11, 'b');
+    c.r(4, 15, 52, 1, 'w');
+    window_(c, 9, 17, 6, 6, 'b', ['h', 'y', 'Y'], true);
+    window_(c, 22, 17, 6, 6, 'b', ['h', 'y', 'Y'], true);
+    window_(c, 34, 17, 6, 6, 'b', ['h', 'y', 'Y'], true);
+    window_(c, 46, 17, 6, 6, 'b', ['y', 'Y', 'o'], true);
+    // jetty beam
+    c.r(2, 26, 56, 2, 'b').r(2, 26, 56, 1, 'w').r(2, 27, 56, 1, 'B');
+    // ground floor: stone
+    blocks(c, 5, 28, 50, 12, 6, 3, ['S', 's', 'd'], 'D');
+    // lower windows (wider, warm) and the door with a lit pane
+    window_(c, 6, 30, 7, 6, 'B', ['h', 'y', 'Y'], true);
+    window_(c, 46, 30, 7, 6, 'B', ['y', 'Y', 'o'], true);
+    c.s(25, 29, [
+      '..BBBBBB..',
+      '.BwWwwwbB.',
+      'BwWwwwwbbB',
+      'BwWyyYwbbB',
+      'BwWYYYwbbB',
+      'BwWwwwwbbB',
+      'BwWwbwwbbB',
+      'BwWwbwwyyB',
+      'BwWwbwwbbB',
+      'BwWwbwwbbB',
+      'BwWwbwwbbB',
+    ]);
+    // stone base + step
+    blocks(c, 2, 40, 56, 4, 7, 2, ['S', 's', 'd'], 'D');
+    c.r(2, 40, 56, 1, 'S').r(2, 43, 56, 1, 'D');
+    c.r(24, 40, 12, 1, 'y');
+    // hanging sign: iron bracket, chains, a board with a frothy mug
+    c.r(15, 28, 9, 1, 'I').r(15, 28, 8, 1, 'i').p(23, 29, 'I');
+    c.p(16, 29, 'i').p(21, 29, 'i');
+    c.s(14, 30, [
+      'BBBBBBBBBB',
+      'BWwwwwwwbB',
+      'BwphhpwwbB',
+      'BwjyyjjwbB',
+      'BwjyYjbjbB',
+      'BwjyYjbjbB',
+      'BwjYYjjwbB',
+      'BwwjjwwbbB',
+      'BBBBBBBBBB',
+    ]);
+    // barrels by the door
+    const BARREL = [
+      '.wWWwb.',
+      'iijiiII',
+      'wWWwwbb',
+      'wWWwwbB',
+      'iijiiII',
+      'wWWwwbB',
+      'wWWwwbB',
+      'iijiiII',
+      '.wWwbB.',
+    ];
+    c.s(38, 31, BARREL.slice(0, 4)); // a third one lying behind, on top
+    c.s(35, 35, BARREL).s(42, 35, BARREL);
+    def('tw_tavern', TP({ r: '#d0604a', R: '#a63e34', q: '#7a2a28', Q: '#541a1e' }), c.rows());
+  }
+
+  // ================= QUEST NOTICE BOARD (22x24) =================
+  {
+    const c = grid(22, 24);
+    // posts
+    c.r(3, 2, 3, 22, 'w').r(3, 2, 1, 22, 'W').r(5, 2, 1, 22, 'b');
+    c.r(16, 2, 3, 22, 'w').r(16, 2, 1, 22, 'W').r(18, 2, 1, 22, 'b');
+    // little plank roof
+    c.r(0, 0, 22, 1, 'W').r(1, 1, 20, 1, 'w').r(1, 2, 20, 1, 'B');
+    // board
+    c.r(1, 3, 20, 14, 'b');
+    c.f((x, y) => ((y - 4) % 4 === 3 ? 'b' : x > 15 ? 'w' : 'W'), 2, 4, 19, 15);
+    c.r(1, 16, 20, 1, 'B');
+    // pinned notes
+    c.s(3, 5, ['pprpp', 'pPPPp', 'pPPpp', 'pPPPp', 'ppppP']);
+    c.s(10, 4, ['ppprpp', 'pPPPPp', 'ppppPp', 'pPPPPp', 'pPPpPp', 'pppppP']);
+    c.s(16, 6, ['prpP', 'pPPP', 'pPPP']);
+    c.s(5, 11, ['ppryp', 'pPPPp', 'ppPPP']);
+    c.s(13, 11, ['pppr', 'pnnp', 'pPPP', 'pppP']);
+    c.p(4, 16, 'g').p(17, 16, 'g'); // nothing; keep the frame bottom
+    c.r(4, 16, 1, 1, 'B').r(17, 16, 1, 1, 'B');
+    // grass at the feet
+    c.s(1, 21, ['l..l...', 'gglGg..']).s(14, 21, ['..l..l.', '.gGglgg']);
+    def('tw_board', TP({ r: '#e84a4a', n: '#e84a4a' }), c.rows());
+  }
+
+  // ================= OBSERVATORY (34x44) =================
+  {
+    const c = grid(34, 44);
+    const cx = 16.5;
+    // round stone body
+    const bx0 = 4, bx1 = 29;
+    c.f((x, y) => {
+      const t = (x - bx0) / (bx1 - bx0), row = Math.floor((y - 19) / 3), lx = x + (row % 2) * 2;
+      let q = t < 0.18 ? 0 : t < 0.55 ? 1 : t < 0.84 ? 2 : 3;
+      if ((y - 19) % 3 === 2 || lx % 5 === 0) q = Math.min(3, q + 1);
+      return ['S', 's', 'd', 'D'][q];
+    }, bx0, 19, bx1, 39);
+    // dome
+    c.f((x, y) => {
+      const X = x + 0.5, Y = y + 0.5, d = dist(X, Y, cx, 19);
+      if (d > 12.8 || Y > 19) return '';
+      const lit = ((cx - X) * 0.06 + (19 - Y) * 0.03) + (1 - d / 12.8) * 0.5;
+      return lit > 0.62 ? 'c' : lit > 0.3 ? 'C' : lit > 0.02 ? 'n' : 'N';
+    }, 3, 5, 30, 18);
+    // dome ribs and the open slit
+    c.f((x, y, ch) => (ch !== '.' && (x === 9 || x === 24) && y > 8 ? (x < 16 ? 'C' : 'N') : ''), 0, 6, 33, 18);
+    c.f((x, y, ch) => (ch !== '.' ? 'k' : ''), 18, 6, 21, 18);
+    c.r(18, 6, 4, 1, 'N');
+    // gold trim ring between dome and body
+    c.f((x) => ramp((x - 2) / 29, ['y', 'Y', 'Y', 'O']), 2, 19, 31, 20);
+    c.r(2, 19, 30, 1, 'y').r(2, 20, 30, 1, 'Y').r(27, 20, 5, 1, 'O');
+    // star decal on the dome
+    c.s(6, 10, ['..y..', '.yyy.', 'yyhyy', '.yYy.', '.y.Y.']);
+    // brass telescope out of the slit, pointing to the top right
+    {
+      const px = 19.5, py = 14, tx = 31.5, ty = 1.5, L = dist(px, py, tx, ty), dx = (tx - px) / L, dy = (ty - py) / L;
+      c.f((x, y) => {
+        const vx = x + 0.5 - px, vy = y + 0.5 - py, a = vx * dx + vy * dy, b = vx * dy - vy * dx, ab = Math.abs(b);
+        if (a < 0 || a > L) return '';
+        const wdt = a > L - 3 ? 2.2 : a > L - 9 ? 1.6 : 1.3;
+        if (ab > wdt) return '';
+        if (a > L - 3.2 && a < L - 2.2) return 'z';
+        return b < -0.4 ? 'a' : b < 0.5 ? 'A' : 'z';
+      }, 16, 0, 33, 16);
+      c.p(32, 1, 'c').p(31, 0, 'c');
+    }
+    // windows and a door
+    c.s(8, 24, ['DD', 'yh', 'yY', 'YY', 'DD']);
+    c.s(25, 24, ['DD', 'YY', 'Yo', 'DD']);
+    c.s(13, 31, [
+      '..DDDD..',
+      '.DbwwbD.',
+      'DbWwwbbD',
+      'DbWwwbbD',
+      'DbWwwybD',
+      'DbWwwbbD',
+      'DbWwwbbD',
+      'DbWwwbbD',
+      'DbWwwbbD',
+    ]);
+    // base
+    c.f((x) => ramp((x - 2) / 29, ['S', 's', 'd', 'D']), 2, 40, 31, 43);
+    c.r(2, 40, 30, 1, 'S');
+    c.r(2, 43, 30, 1, 'D');
+    c.r(13, 40, 8, 1, 's');
+    def('tw_obs', TP({ c: '#8ab4e8', C: '#5a7ec8', n: '#3a5096', N: '#232f66', a: '#ffe08a', A: '#d0a040', z: '#8a6220' }), c.rows());
+  }
+
+  // ================= HATCHERY (34x26) =================
+  {
+    const c = grid(34, 26);
+    // back fence: posts + two rails
+    const post = (x) => c.r(x, 3, 2, 15, 'w').r(x, 3, 1, 15, 'W').p(x, 3, 'W').p(x + 1, 3, 'w');
+    c.r(0, 7, 34, 2, 'w').r(0, 7, 34, 1, 'W');
+    c.r(0, 12, 34, 2, 'w').r(0, 12, 34, 1, 'W');
+    c.f((x, y, ch) => (ch === 'w' && (x + y) % 7 === 0 ? 'b' : ''), 0, 7, 33, 13);
+    [0, 11, 21, 32].forEach(post);
+    c.f((x, y, ch) => (ch === 'w' && y === 17 ? 'b' : ''), 0, 3, 33, 17);
+    // straw heap
+    c.f((x, y) => {
+      const X = x + 0.5, Y = y + 0.5, e = ((X - 17) / 16.5) ** 2 + ((Y - 19) / 6.8) ** 2;
+      if (e > 1) return '';
+      const ei = ((X - 17) / 11) ** 2 + ((Y - 16.6) / 3.4) ** 2;
+      if (ei < 1) return ei < 0.5 ? 'z' : 'Z';
+      const hatch = (x * 2 + y * 3) % 5 === 0 ? 2 : (x - y * 2 + 40) % 7 === 0 ? 0 : 1;
+      let q = hatch;
+      if (X > 26 || Y > 23) q = Math.min(2, q + 1);
+      if (Y < 14.5 && hatch === 1 && X < 20) q = 0;
+      return ['n', 'N', 'Z'][q];
+    }, 0, 11, 33, 25);
+    // three speckled eggs
+    const EGG = (sp, SP) => [
+      '..ppp..',
+      '.phppp.',
+      'phhp' + sp + 'pP',
+      'phppppP',
+      'p' + sp + 'ppp' + SP + 'P',
+      'pppp' + sp + 'PP',
+      '.pPPPP.',
+    ];
+    c.s(5, 9, EGG('t', 'T')).s(13, 7, EGG('u', 'U')).s(21, 9, EGG('t', 'T'));
+    c.f((x, y, ch) => (ch === 'p' && y === 15 ? 'P' : ''), 0, 15, 33, 15);
+    // straw wisps in front
+    c.s(3, 21, ['n.N..N', '.nNnN.']).s(24, 21, ['.N..n.', 'NnNnN.']);
+    // a short front fence piece each side
+    c.r(0, 18, 2, 7, 'w').r(0, 18, 1, 7, 'W').r(32, 18, 2, 7, 'b').r(32, 18, 1, 7, 'w');
+    c.r(0, 21, 6, 1, 'W').r(28, 21, 6, 1, 'w');
+    def('tw_nest', TP({ n: '#f0d070', N: '#c8a040', Z: '#8a6a28', z: '#5a4420', t: '#a0602e', T: '#7a4422', u: '#4f8ad0', U: '#2f5a9a' }), c.rows());
+  }
+
+  // ================= PORTAL (30x38, 2 frames) =================
+  {
+    const W = 30, H = 38, cx = 15, cy = 15, Ro = 14.6, Ri = 8.8;
+    const inArch = (X, Y, r) => (Y < cy ? dist(X, Y, cx, cy) < r : Math.abs(X - cx) < r);
+    const frame = (phase) => {
+      const c = grid(W, H);
+      c.f((x, y) => {
+        const X = x + 0.5, Y = y + 0.5;
+        if (Y > 34) return '';
+        if (!inArch(X, Y, Ro)) return '';
+        if (inArch(X, Y, Ri)) {
+          // swirl: spiral bands around the centre
+          const vx = X - cx, vy = (Y - 20) * 0.85, r = Math.sqrt(vx * vx + vy * vy);
+          const a = Math.atan2(vy, vx) / (Math.PI * 2);
+          if (r < 1.8) return 'h';
+          let v = (a * 3 + r * 0.22 + phase) % 1; if (v < 0) v += 1;
+          const edge = Math.min(1, r / 12);
+          const band = v < 0.18 ? 0 : v < 0.45 ? 1 : v < 0.75 ? 2 : 3;
+          const q = Math.min(4, band + (edge > 0.7 ? 1 : 0));
+          return ['h', 'c', 'C', 'n', 'N'][q];
+        }
+        // stone: voussoirs on the arch, blocks on the jambs, lit top-left
+        const lit = X < cx - 1;
+        if (Y < cy) {
+          const ang = Math.atan2(Y - cy, X - cx), seg = Math.round(ang / (Math.PI / 7));
+          const off = Math.abs(ang - seg * Math.PI / 7) * dist(X, Y, cx, cy);
+          if (off < 0.5) return 'D';
+          const rr = dist(X, Y, cx, cy);
+          if (rr > Ro - 1.2) return lit ? 'S' : 'd';
+          return lit ? 's' : rr < Ri + 1.2 ? 'D' : 'd';
+        }
+        const jx = X < cx ? X - (cx - Ro) : (cx + Ro) - X; // 0 at the outer face
+        if ((y - 15) % 4 === 3) return 'D';
+        if (jx < 1.1) return lit ? 'S' : 'd';
+        if (jx > Ro - Ri - 1.1) return lit ? 's' : 'D';
+        return lit ? 's' : 'd';
+      });
+      // keystone with a glowing rune, runes on the jambs
+      c.s(13, 0, ['SSSs', 'SsSd', 'scCd', 'sCcd', 'dddD']);
+      c.s(2, 21, ['c.', 'C.', 'cc']).s(26, 21, ['.C', 'CC', '.n']);
+      // base step
+      c.r(0, 34, 30, 4, 's');
+      c.f((x) => ramp(x / 29, ['S', 's', 'd', 'D']), 0, 35, 29, 37);
+      c.r(0, 34, 30, 1, 'S').r(0, 37, 30, 1, 'D');
+      c.f((x) => (x > 6 && x < 23 ? (x < 15 ? 'c' : 'C') : ''), 0, 34, 29, 34);
+      return c.rows();
+    };
+    const PORTAL_PAL = TP({ h: '#f0fdff', c: '#7fe9ff', C: '#3fa8e8', n: '#2a62d0', N: '#1e2a8a' });
+    def('tw_portal', PORTAL_PAL, frame(0));
+    def('tw_portal2', PORTAL_PAL, frame(0.5));
+  }
+
+  // ================= STREET PROPS =================
+  // well: little shingled roof on two posts, a bucket on a rope, round stone rim
+  {
+    const c = grid(18, 18);
+    roof(c, 0, 4, 6, 11, 1.2, ['r', 'R', 'q', 'Q'], 4);
+    c.r(2, 5, 2, 7, 'w').r(2, 5, 1, 7, 'W').r(14, 5, 2, 7, 'b').r(15, 5, 1, 7, 'B');
+    c.r(4, 6, 10, 1, 'b').r(8, 7, 1, 2, 'P').s(7, 8, ['iWi', 'iwI']);
+    c.f((x, y) => {
+      const t = (x - 1) / 15;
+      if (y === 10) return x > 1 && x < 16 ? 'K' : '';
+      if (y === 11 && x > 2 && x < 15) return 'k';
+      const q = ramp(t, ['S', 's', 'd', 'D']);
+      return (y === 13 || y === 16) || (x + (y > 13 ? 2 : 0)) % 4 === 0 ? (q === 'S' ? 's' : 'D') : q;
+    }, 1, 9, 16, 17);
+    c.r(1, 9, 16, 1, 'S').r(13, 9, 4, 1, 's');
+    c.r(1, 10, 1, 1, 'S').r(16, 10, 1, 1, 'd').r(1, 11, 2, 1, 'S').r(15, 11, 2, 1, 'd');
+    def('tw_well', TP({ r: '#d0604a', R: '#a63e34', q: '#7a2a28', Q: '#541a1e' }), c.rows());
+  }
+  def('tw_lamp', TOWN, [
+    '..II..',
+    '.IiiI.',
+    'IIIIII',
+    'Ihyy.I'.replace('.', 'Y'),
+    'IyyYYI',
+    'IyYYoI',
+    'IIIIII',
+    '.IiiI.',
+    '..iI..',
+    '..iI..',
+    '..iI..',
+    '..iI..',
+    '..iI..',
+    '..iI..',
+    '..iI..',
+    '..iI..',
+    '..iI..',
+    '.IiiI.',
+    'IiiiII',
+    'IIIIII',
+  ]);
+  def('tw_barrel', TOWN, [
+    '.wWWWwbb.',
+    'iijjiiiII',
+    'wWWbwwbbB',
+    'wWWbwwbbB',
+    'wWWbwwbbB',
+    'iijiiiiII',
+    'wWWbwwbbB',
+    'wWWbwwbbB',
+    'wWWbwwbbB',
+    'iijiiiiII',
+    '.wWbwbbB.',
+  ]);
+  def('tw_crate', TOWN, [
+    'WWWWWWWWWb',
+    'WbbbbbbbbB',
+    'WbWwwwwbbB',
+    'WbwWwwbwbB',
+    'WbwwWbwwbB',
+    'WbwwbWwwbB',
+    'WbwbwwWwbB',
+    'WbbwwwwWbB',
+    'WbbbbbbbbB',
+    'bBBBBBBBBB',
+  ]);
+  // round leafy tree: overlapping leaf clumps, each lit from its own top-left
+  {
+    const c = grid(20, 26);
+    c.r(8, 16, 4, 10, 'w').r(8, 16, 1, 10, 'W').r(11, 16, 1, 10, 'b');
+    c.s(5, 23, ['..wW..bb..', '.wwWwwbbb.', 'wwWwwwbbbB']);
+    c.p(10, 18, 'b').p(9, 21, 'b');
+    // back clumps first, front (lower) ones last
+    const clumps = [[10, 5, 5], [5, 8, 4.4], [15, 8, 4.4], [10, 9.5, 5], [4, 13, 3.8], [16, 13, 3.8], [8, 14, 4.2], [13, 14.5, 4]];
+    clumps.forEach(([bx, by, br], n) => {
+      const dark = by > 12 ? 1 : 0;
+      c.f((x, y) => {
+        const X = x + 0.5, Y = y + 0.5, d = dist(X, Y, bx, by);
+        if (d > br) return '';
+        const hl = dist(X, Y, bx - br * 0.38, by - br * 0.4);
+        let q = hl < br * 0.26 ? 0 : hl < br * 0.85 ? 1 : d > br - 1.2 && (X > bx || Y > by) ? 3 : 2;
+        q = Math.min(3, q + dark);
+        if (bx > 12 && q < 3 && hl > br * 0.5) q++;
+        return ['l', 'g', 'G', 'm'][q];
+      }, 0, 0, 19, 19);
+    });
+    c.p(14, 7, 'a').p(5, 11, 'a').p(12, 12, 'a'); // a few red apples
+    def('tw_tree', TP({ g: '#3fa838', G: '#2a7a28', l: '#78d05a', m: '#1c5a20', a: '#ff4f4f' }), c.rows());
+  }
+  def('tw_flower', TP({ r: '#ff5a7a', R: '#c83a5a', u: '#b682f0' }), [
+    '.r..u..',
+    'ryr.uyu',
+    '.R.g.u.',
+    '.g.g.g.',
+    'gGgGgGg',
+    '.GgGgG.',
+  ]);
+  def('tw_banner', TP({ r: '#e8413c', R: '#a82a26', q: '#7a1a1e' }), [
+    'yY......',
+    'YO......',
+    'ibbbbbbb',
+    'irrrrrRq',
+    'irrrrRRq',
+    'irryyRRq',
+    'iryhyYRq',
+    'irryYRRq',
+    'irrYRRRq',
+    'irrrrRRq',
+    'irrrRRRq',
+    'irrrRRRq',
+    'irrrRRqq',
+    'irr.RR.q',
+    'ir...R..',
+    'iI......',
+    'iI......',
+    'iI......',
+    'iI......',
+    'iI......',
+    'iI......',
+    'IIi.....',
+  ]);
+
+  // ================= TOWNSFOLK (11-12 x 15-16, 2 idle frames each: id and id + '2') =================
+  // shared keys: s/S skin, e eyes, plus each figure's own clothes
+  const SKIN = { s: '#f2c6a0', S: '#d49b72', e: '#1a1a22' };
+  const NP = (o) => Object.assign({}, TOWN, SKIN, o);
+  const frames = (id, pal, a, b) => { def(id, pal, a); def(id + '2', pal, b); };
+
+  // blacksmith: bald, big brown beard, bare arms, leather apron; hammer at his side / raised
+  {
+    const pal = NP({ H: '#6a3e1c', a: '#9a6434', A: '#6a4020', t: '#5a5e70' });
+    const top = [
+      '....sssS....',
+      '...sssssS...',
+      '...sesesS...',
+      '...sssSsS...',
+      '..HHHHHHHH..',
+      '.ssHHHHHHSS.',
+    ];
+    const legs = [
+      '...tt..tt...',
+      '...tt..tt...',
+      '..BBB..BBB..',
+    ];
+    frames('npc_smith', pal, top.concat([
+      'sssaHHHHaASS',
+      'ss.aaaaaaASS',
+      'ss.aaaaaaASS',
+      'Ss.aaWaaaASb',
+      '...aaaaaaA.b',
+      '...AAAAAAAjiI',
+    ].map(r => r.slice(0, 12))).concat([
+      '...tt..tt.iI',
+      '...tt..tt...',
+      '..BBB..BBB..',
+    ]), [
+      '....sssS.jiI',
+      '...sssssSIiI',
+      '...sesesS.b.',
+      '...sssSsSsS.',
+      '..HHHHHHHHSS',
+      '.ssHHHHHHSS.',
+      'sssaHHHHaA..',
+      'ss.aaaaaaA..',
+      'ss.aaaaaaA..',
+      'Ss.aaWaaaA..',
+      '...aaaaaaA..',
+      '...AAAAAAA..',
+    ].concat(legs));
+  }
+  // witch: tall crooked hat with a gold band, dark hair, purple robe, a glowing charm (raised in frame 2)
+  {
+    const pal = NP({ u: '#b682f0', m: '#8a4ad0', M: '#5e2e9a', N: '#3c1c68', H: '#2a1a3a', v: '#c890ff', n: '#f4e2ff' });
+    const robe = [
+      '..HNNsNNH..',
+      '..uummmMN..',
+      '.suummmMMs.',
+      '..uummmMMv.',
+      '.uummmmMMN.',
+      '.uummmmMMMN',
+      '..KK...KK..',
+    ];
+    const head = (tip) => tip.concat([
+      '...yyyyYY..',
+      '.uummmmMMMN',
+      '..HsesesH..',
+      '..HsssssH..',
+    ]);
+    const A = head([
+      '......m....',
+      '.....mM....',
+      '....mmM....',
+      '....umMM...',
+      '...ummMM...',
+    ]).concat(robe);
+    const B = head([
+      '...........',
+      '.......mM..',
+      '....mmmM...',
+      '....umMM...',
+      '...ummMM...',
+    ]).concat(robe);
+    B[10] = '..uummmMNn.';
+    B[11] = '.suummmMsvn';
+    B[12] = '..uummmMM..';
+    frames('npc_witch', pal, A, B);
+  }
+  // alchemist: ginger hair, brass goggles up on the brow, green robe, a pink flask (held up higher in frame 2)
+  {
+    const pal = NP({ H: '#d07a3a', h: '#a85a2a', r: '#5ab84e', R: '#3a8a3e', q: '#1c5a2c', A: '#c99a3a', c: '#bff0ff', f: '#ff7ae6', F: '#c040b0', w: '#e8f0ff' });
+    const head = [
+      '...HHHHH...',
+      '..HHHHHHh..',
+      '..AcAAcAh..',
+      '..HsesesH..',
+      '...sssSs...',
+    ];
+    const legs = ['..qq...qq..', '..BB...BB..'];
+    frames('npc_alch', pal, head.concat([
+      '..rrrRRRq.w',
+      '.rrrrRRRRfF',
+      '.rrrrRRRRfF',
+      '.srrrRRRRsS',
+      '..rrrRRRq..',
+      '..rrrRRRq..',
+      '..rrrRRRq..',
+      '.rrrrRRRqq.',
+    ], legs), head.concat([
+      '..rrrRRRqfF',
+      '.rrrrRRRRsS',
+      '.rrrrRRRRq.',
+      '.srrrRRRRq.',
+      '..rrrRRRq..',
+      '..rrrRRRq..',
+      '..rrrRRRq..',
+      '.rrrrRRRqq.',
+    ], legs).map((r, i) => (i === 2 ? '..AcAAcAhcw'.slice(0, 11) : r)));
+  }
+  // tavern keeper: brown hair, moustache, red shirt, white apron, a frothy mug (raised in frame 2)
+  {
+    const pal = NP({ H: '#7a4a24', r: '#d0483a', R: '#8a2a26', a: '#f4f0e4', A: '#c8c0b0', t: '#4e4a5a', m: '#f0a090' });
+    const head = [
+      '...HHHHH...',
+      '..HHHHHHH..',
+      '..HsesesH..',
+      '..smsSsmS..',
+      '...sHHHs...',
+    ];
+    const legs = ['...AAAAA...', '...tt.tt...', '..BBB.BBB..'];
+    frames('npc_keeper', pal, head.concat([
+      '.rrrsssrR..',
+      'rrraaaaaRRh',
+      'ss.aaaaaApp',
+      'ss.aaaaajyj',
+      '...aAaaajYj',
+      '...aaaaaSj.',
+      '...aaaaaA..',
+    ], legs), head.concat([
+      '.rrrsssrRhp',
+      'rrraaaaaRjy',
+      'ss.aaaaaAjY',
+      'ss.aaaaaASj',
+      '...aAaaaA..',
+      '...aaaaaA..',
+      '...aaaaaA..',
+    ], legs));
+  }
+  // sage: blue hood and robe, long white beard, a staff with a cyan gem (frame 2: bobs down a pixel)
+  {
+    const pal = NP({ u: '#6a9aff', U: '#3f63d9', N: '#26388a', H: '#f4f4fa', h: '#c8ccd8', c: '#7fe9ff', C: '#2f8fb8' });
+    const head = [
+      '...UUUUU.c.',
+      '..UuuuuUUCC',
+      '..UsesesU.w',
+      '..UHsssHU.w',
+      '...HHHHH..w',
+    ];
+    const body = [
+      '..uHHHHhUsw',
+      '.uuUHHhUUUw',
+      '.suUHHhUUNw',
+      '..uUUHUUUNw',
+      '..uUUuUUUNw',
+      '..uUUuUUUNw',
+      '.uuUUuUUUNw',
+      '.uuUUuUUUNw',
+      '.uUUUUUUUNN',
+    ];
+    const feet = ['..ee...ee.b'];
+    const A = head.concat(body, feet);
+    const B = ['..........c', '...UUUUU.CC', '..UuuuuUU.w'].concat(head.slice(2), body.slice(0, 2), body.slice(3), feet);
+    frames('npc_sage', pal, A, B);
+  }
+
+  // ================= HUD ICON: TOWN (10x10) =================
+  // a little castle: two towers, a gate and a red flag on the keep
+  def('ic_town', TP({ r: '#ff4f4f', R: '#b82a2a' }), [
+    '....irrr..',
+    '....iRrr..',
+    'S.s.i..d.D',
+    'SsS.i..ddD',
+    'SssSsSsddD',
+    'SssssssddD',
+    'SKsssssdKD',
+    'SssskKsddD',
+    'SssKkkKddD',
+    'SssKkkKddD',
+  ]);
+})(globalThis.G = globalThis.G || {});
+
 /* js/doll.js */
 // BTTN — the Warden's paper doll. A layered pixel character built from the
 // class and whatever is equipped: body armour in the item's colours, helmets,
@@ -9180,7 +10221,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const cw = Math.max(200, r.width), ch = Math.max(160, r.height);
     // a wide view of the field: on sharp screens the scale may be a half step (1.5 = 3 device pixels a pixel)
     const step = DPR >= 2 ? 0.5 : 1;
-    S = clamp(Math.floor(Math.min(cw / 270, ch / 200) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
+    // (2.4: a wider shot: the field shows about twice the ground it did, so the Horde has room to come from far off)
+    S = clamp(Math.floor(Math.min(cw / 380, ch / 280) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
     W = Math.ceil(cw / S); H = Math.ceil(ch / S);
     cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
     cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
@@ -9258,6 +10300,17 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   St.buttonPoint = function () { const b = btnPos(); return St.toScreen(b.x, b.y - 24); };
 
   // ---------- Particles & text ----------
+  function stepDrawParts(vdt) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i]; p.life -= vdt;
+      if (p.life <= 0) { parts.splice(i, 1); continue; }
+      p.vy += p.grav * vdt; p.x += p.vx * vdt; p.y += p.vy * vdt;
+      lctx.globalAlpha = Math.min(1, p.life / p.max * 1.6);
+      lctx.fillStyle = p.col;
+      lctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+    }
+    lctx.globalAlpha = 1;
+  }
   function part(x, y, col, o) {
     if (parts.length > MAXP) parts.shift();
     parts.push(Object.assign({ x, y, vx: rand(-40, 40), vy: rand(-70, -20), life: rand(0.4, 0.9), max: 0, col, size: 1, grav: 120 }, o || {}));
@@ -9615,6 +10668,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
   function doPress(p) {
     G.Audio && G.Audio.unlock();
+    if (G.R.town) { const t = hitTown(p); if (t) { if (G.Audio && G.Audio.buy) G.Audio.buy(); if (t.id === 'portal') G.leaveTown(); else G.UI.townOpen(t.id); return 'town'; } return null; }
     if (hitWisp(p)) { G.catchWisp(); return 'wisp'; }
     if (hitWeak(p)) { G.tapBoss(); return 'weak'; }
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
@@ -9648,6 +10702,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       pointer.x = p.x; pointer.y = p.y; pointer.over = true;
       hoverChest = hitChest(p);
       hoverLoot = hitLoot(p);
+      if (G.R.town) { townHover = hitTown(p); cv.style.cursor = townHover ? 'pointer' : 'default'; return; }
       cv.style.cursor = (hoverLoot || hitShrine(p) || hoverChest || hitMob(p) || hitButton(p) || hitWisp(p) || hitReady(p)) ? 'pointer' : 'default';
     });
     cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -11028,8 +12083,146 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   let breachKills = 0;
 
   // ---------- Frame ----------
+  // ---------- The Town (2.4) ----------
+  // A square of cobbles round a well; each building opens its own window (see UI.townOpen). The field
+  // holds still meanwhile. Places are fractions of the view: bottom-centre of each building's sprite.
+  const TOWN = [
+    { id: 'forge', spr: 'tw_forge', npc: 'npc_smith', x: 0.22, y: 0.5 },
+    { id: 'enchant', spr: 'tw_tower', npc: 'npc_witch', x: 0.37, y: 0.44 },
+    { id: 'portal', spr: 'tw_portal', x: 0.5, y: 0.38 },
+    { id: 'stars', spr: 'tw_obs', npc: 'npc_sage', x: 0.63, y: 0.44 },
+    { id: 'alch', spr: 'tw_alch', npc: 'npc_alch', x: 0.78, y: 0.5 },
+    { id: 'tavern', spr: 'tw_tavern', npc: 'npc_keeper', x: 0.27, y: 0.8 },
+    { id: 'quests', spr: 'tw_board', x: 0.5, y: 0.78 },
+    { id: 'pets', spr: 'tw_nest', x: 0.73, y: 0.8 },
+  ];
+  St.TOWN = TOWN;
+  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
+  let townGround = null, townKey = '', townHover = null;
+  const sprOr = id => (SPR.defs[id] ? SPR.get(id) : null);
+  function townPlace(t) {
+    const c = sprOr(t.spr), w = c ? c.width : 40, h = c ? c.height : 34;
+    const x = Math.round(W * t.x), y = Math.round(H * t.y);
+    return { x, y, w, h, c, x0: x - w / 2, y0: y - h };
+  }
+  function buildTownGround() {
+    const c = SPR.makeCanvas(W, H), x = c.getContext('2d'), rnd = G.seeded(4242);
+    // grass round the edge, cobbles in the square
+    x.fillStyle = '#3e6b34'; x.fillRect(0, 0, W, H);
+    for (let i = 0; i < W * H / 14; i++) { x.fillStyle = rnd() < 0.5 ? '#4b7d3e' : '#355d2d'; x.fillRect(Math.floor(rnd() * W), Math.floor(rnd() * H), 1, 1); }
+    const cx = W / 2, cy = H * 0.6, rx = W * 0.37, ry = H * 0.36;
+    for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
+      const dx = (xx - cx) / rx, dy = (yy - cy) / ry, d = dx * dx + dy * dy;
+      if (d > 1 + (rnd() - 0.5) * 0.06) continue;
+      // stones: a 6x4 brick grid, each stone its own shade, dark seams between
+      const row = Math.floor(yy / 4), off = row % 2 ? 3 : 0, col = Math.floor((xx + off) / 6);
+      const seam = yy % 4 === 3 || (xx + off) % 6 === 5;
+      const v = ((col * 73856093) ^ (row * 19349663)) & 7;
+      x.fillStyle = seam ? '#4a4540' : ['#8a837a', '#7f786f', '#958d83', '#867f75', '#7a736a', '#8f877d', '#827b72', '#9a9288'][v];
+      x.fillRect(xx, yy, 1, 1);
+    }
+    // the road to the portal
+    x.fillStyle = 'rgba(60,50,40,0.18)'; x.fillRect(Math.round(cx - 10), Math.round(H * 0.4), 20, Math.round(H * 0.2));
+    // scatter: flowers on the grass, lamps, barrels and crates by the walls
+    const put = (id, px, py) => { const s = sprOr(id); if (s) x.drawImage(s, Math.round(px - s.width / 2), Math.round(py - s.height)); };
+    for (let i = 0; i < 26; i++) { const px = rnd() * W, py = rnd() * H, dx = (px - cx) / rx, dy = (py - cy) / ry; if (dx * dx + dy * dy > 1.05) put('tw_flower', px, py); }
+    // a ring of trees round the square, thicker at the back
+    for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, px = cx + Math.cos(a) * rx * k, py = cy + Math.sin(a) * ry * k + 10; if (py > 20) put('tw_tree', px, py); }
+    put('tw_lamp', cx - 34, H * 0.62); put('tw_lamp', cx + 34, H * 0.62);
+    put('tw_barrel', W * 0.36, H * 0.84); put('tw_crate', W * 0.3, H * 0.56); put('tw_barrel', W * 0.7, H * 0.56); put('tw_crate', W * 0.64, H * 0.84);
+    put('tw_barrel', W * 0.15, H * 0.62); put('tw_crate', W * 0.86, H * 0.64); put('tw_lamp', W * 0.3, H * 0.4); put('tw_lamp', W * 0.7, H * 0.4);
+    put('tw_banner', W * 0.42, H * 0.42); put('tw_banner', W * 0.58, H * 0.42);
+    return c;
+  }
+  const villagers = [];
+  function stepVillagers(dt, cx, cy) {
+    const ids = ['npc_sage', 'npc_keeper', 'npc_alch', 'npc_smith'];
+    while (villagers.length < 5) villagers.push({ x: cx + rand(-60, 60), y: cy + rand(-20, 30), tx: cx, ty: cy, id: pick(ids), w: rand(0, 3) });
+    for (const v of villagers) {
+      if (v.w > 0) v.w -= dt;
+      else {
+        const dx = v.tx - v.x, dy = v.ty - v.y, d = Math.hypot(dx, dy);
+        if (d < 1) { v.w = rand(1, 4); const t = pick(TOWN), q = townPlace(t); v.tx = q.x + rand(-14, 14); v.ty = q.y + rand(2, 10); }
+        else { const sp = 12 * dt / d; v.x += dx * Math.min(1, sp); v.y += dy * Math.min(1, sp); v.face = dx >= 0 ? 1 : -1; }
+      }
+      const f = v.w > 0 || Math.floor(time * 5) % 2 ? v.id : v.id + '2', c = sprOr(f) || sprOr(v.id);
+      if (!c) continue;
+      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(Math.round(v.x) - 3, Math.round(v.y), 6, 1);
+      if (v.face < 0) { lctx.save(); lctx.translate(Math.round(v.x), 0); lctx.scale(-1, 1); lctx.drawImage(c, -(c.width >> 1), Math.round(v.y) - c.height); lctx.restore(); }
+      else lctx.drawImage(c, Math.round(v.x) - (c.width >> 1), Math.round(v.y) - c.height);
+    }
+  }
+  function hitTown(p) {
+    for (const t of TOWN) { const q = townPlace(t); if (p.x >= q.x0 - 2 && p.x <= q.x0 + q.w + 2 && p.y >= q.y0 - 2 && p.y <= q.y + 6) return t; }
+    return null;
+  }
+  St.townHit = p => hitTown(p);
+  St.townPoint = id => { const t = TOWN.find(x => x.id === id); if (!t) return null; const q = townPlace(t), r = cv.getBoundingClientRect(); return { x: r.left + q.x * S, y: r.top + q.y0 * S }; };
+  function drawTown(dt) {
+    const k = W + 'x' + H + (SPR.defs.tw_forge ? 'a' : '');
+    if (k !== townKey || !townGround) { townKey = k; townGround = buildTownGround(); }
+    lctx.imageSmoothingEnabled = false;
+    lctx.drawImage(townGround, 0, 0);
+    const cx = Math.round(W / 2), cy = Math.round(H * 0.6);
+    // the well in the middle, the party round it
+    const well = sprOr('tw_well'); if (well) lctx.drawImage(well, cx - (well.width >> 1), cy - well.height + 4);
+    const S0 = G.S, units = [S0.hero && S0.hero.cls].concat((S0.party || []).map(m => m.cls)).filter(Boolean);
+    units.forEach((cls, i) => {
+      const C = G.CLASS_BY_ID[cls], sp = C && sprOr(C.spr); if (!sp) return;
+      const a = Math.PI * 0.75 + i * Math.PI * 0.5, px = Math.round(cx + Math.cos(a) * 22), py = Math.round(cy + 10 + Math.sin(a) * 9 + (Math.floor(time * 2 + i) % 2));
+      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(px - 4, py, 8, 1);
+      lctx.drawImage(sp, px - (sp.width >> 1), py - sp.height);
+    });
+    // buildings, back to front
+    for (const t of TOWN.slice().sort((a, b) => a.y - b.y)) {
+      const q = townPlace(t);
+      let c = q.c;
+      if (t.id === 'portal' && Math.floor(time * 4) % 2 && SPR.defs.tw_portal2) c = SPR.get('tw_portal2');
+      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(Math.round(q.x0 + 2), q.y - 1, q.w - 4, 2);
+      if (c) lctx.drawImage(c, Math.round(q.x0), q.y0);
+      else { lctx.fillStyle = '#6a4a30'; lctx.fillRect(Math.round(q.x0), q.y0, q.w, q.h); }
+      if (townHover === t) { lctx.globalAlpha = 0.18 + 0.08 * Math.sin(time * 8); lctx.fillStyle = '#ffe27a'; lctx.fillRect(Math.round(q.x0) - 1, q.y0 - 1, q.w + 2, q.h + 2); lctx.globalAlpha = 1; }
+      // its keeper at the door, idling on two frames
+      if (t.npc) { const f = Math.floor(time * 1.6 + t.x * 7) % 2 && SPR.defs[t.npc + '2'] ? t.npc + '2' : t.npc, n = sprOr(f); if (n) lctx.drawImage(n, Math.round(q.x + q.w / 2 - n.width + 2), q.y - n.height + 2); }
+      if (t.id === 'forge' && Math.random() < 0.3) part(q.x0 + q.w * 0.75, q.y0 + 2, pick(['#6a6a72', '#8a8a92', '#4a4a52']), { vx: rand(-3, 3), vy: -rand(8, 16), grav: 0, life: rand(1, 2) });
+      if (t.id === 'portal' && Math.random() < 0.5) part(q.x + rand(-8, 8), q.y0 + q.h * 0.5 + rand(-8, 8), pick(['#7fe9ff', '#4fa8ff', '#ffffff']), { vx: rand(-6, 6), vy: -rand(4, 12), grav: 0, life: 0.6 });
+      if (t.id === 'enchant' && Math.random() < 0.15) part(q.x + rand(-6, 6), q.y0 + 4, pick(['#c88aff', '#ffffff']), { vx: rand(-4, 4), vy: -rand(4, 10), grav: 0, life: 1 });
+    }
+    // townsfolk strolling between the doors
+    stepVillagers(dt, cx, cy);
+    stepDrawParts(dt);
+    // warm evening light, darker at the edges
+    const vgl = lctx.createRadialGradient(cx, cy, 30, cx, cy, Math.max(W, H) * 0.7);
+    vgl.addColorStop(0, 'rgba(255,210,140,0.06)'); vgl.addColorStop(1, 'rgba(10,8,20,0.45)');
+    lctx.fillStyle = vgl; lctx.fillRect(0, 0, W, H);
+    // blit, then the names on the hi-res layer
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#0c0b12'; ctx.fillRect(0, 0, cv.width, cv.height);
+    const kk = S * DPR;
+    ctx.drawImage(low, 0, 0, W * kk, H * kk);
+    if (flash > 0) { ctx.globalAlpha = Math.min(0.85, flash); ctx.fillStyle = flashCol; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; flash = Math.max(0, flash - dt * 1.8); }
+    ctx.setTransform(kk, 0, 0, kk, 0, 0);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
+    for (const t of TOWN) {
+      const q = townPlace(t), on = townHover === t, nm = G.t('town_' + t.id);
+      ctx.font = crisp(on ? 4 : 3) + 'px ' + FONT;
+      const y = q.y0 - 5 + (on ? Math.sin(time * 6) : 0);
+      ctx.strokeText(nm, q.x, y); ctx.fillStyle = on ? '#ffe27a' : t.id === 'portal' ? '#7fe9ff' : '#ffffff'; ctx.fillText(nm, q.x, y);
+    }
+    // (the town's name only where the HUD leaves room for it)
+    if (W >= 320) {
+    ctx.font = crisp(6) + 'px ' + FONT; const ty = H * 0.13;
+    ctx.lineWidth = 2; ctx.strokeText(G.t('townTitle'), W / 2, ty); ctx.fillStyle = '#ffe27a'; ctx.fillText(G.t('townTitle'), W / 2, ty);
+    ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1;
+    ctx.strokeText(G.t('townSub'), W / 2, ty + 9); ctx.fillStyle = '#e8e0d0'; ctx.fillText(G.t('townSub'), W / 2, ty + 9);
+    }
+    drawTexts(dt);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
   St.frame = function (dt) {
     time += dt; fdt = dt || 1 / 60;
+    if (G.R.town) { drawTown(dt); return; }
     // several kills in one frame weigh more
     // the Horde dies in heaps all the time now: only a real heap stops the frame
     if (multiCd > 0) multiCd -= dt;
@@ -11292,15 +12485,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       }
     }
     // Particles
-    for (let i = parts.length - 1; i >= 0; i--) {
-      const p = parts[i]; p.life -= vdt;
-      if (p.life <= 0) { parts.splice(i, 1); continue; }
-      p.vy += p.grav * vdt; p.x += p.vx * vdt; p.y += p.vy * vdt;
-      lctx.globalAlpha = Math.min(1, p.life / p.max * 1.6);
-      lctx.fillStyle = p.col;
-      lctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
-    }
-    lctx.globalAlpha = 1;
+    stepDrawParts(vdt);
     drawGibs(false);
 
     // Buff tint
@@ -11988,12 +13173,19 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   };
 
   function bindHud() {
+    bindTown();
+    $('#btnTown').addEventListener('click', () => { G.Audio.unlock(); if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } });
+    G.on('town', on => { if (!on) UI.townClose(); document.getElementById('app').classList.toggle('inTown', on); UI.update(true); });
     $('#torment').addEventListener('click', e => { const b = e.target.closest('[data-tm]'); if (!b) return; G.Audio.unlock(); if (G.setTorment((G.S.torment || 0) + +b.dataset.tm)) { G.Audio.buy(); updateTorment(); } else G.Audio.error(); });
     $('#realmBox').addEventListener('click', () => { if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#realmBox').addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); e.stopPropagation(); if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#btnSound').addEventListener('click', () => { G.S.set.sound = G.S.set.sound ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.update(true); });
     $('#btnMusic').addEventListener('click', () => { G.S.set.music = G.S.set.music ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.update(true); });
     $('#btnSound img').src = ic('ic_note', 3);
+    $('#btnTown img').src = ic(G.SPR.defs.ic_town ? 'ic_town' : 'ic_tomb', 3);
+    // 2.4: every bar at the bottom says what it is: an icon, and a tip on hover
+    $$('[data-mico]').forEach(im => { im.src = ic(im.dataset.mico, 2); });
+    [['#bossWrap', 'tipClear'], ['#hpWrap', 'tipHp'], ['#chestWrap', 'tipChest'], ['#comboWrap', 'tipCombo'], ['#btnAbil', 'tipAbil']].forEach(([sel, k]) => { const el = $(sel); if (el) el.title = t(k); });
     $('#btnMusic img').src = ic('ic_echo', 3);
     $('#btnFight').addEventListener('click', () => { G.Audio.unlock(); G.startBoss(); });
     $('#btnRetreat').addEventListener('click', () => { if (G.R.rift) G.riftEnd(false, 'left'); else G.fleeBoss(); });
@@ -12015,6 +13207,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
+      else if (e.code === 'KeyT') { if (G.R.town) G.leaveTown(); else G.enterTown(); }
+      else if (e.code === 'Escape' && G.R.town) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
       else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
       else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
       else if (e.code === 'KeyC') { if (!G.uiBusy()) G.usePower('mend'); }
@@ -12184,6 +13378,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   UI.update = function (force) {
     const S = G.S, D = G.D, R = G.R;
     if (performance.now() - snapT > 250) { snapT = performance.now(); snapPixels(); }
+    // the Town button: into town between fights, back to the field from it
+    { const tb = $('#btnTown'); if (tb) { setText(tb.querySelector('b'), R.town ? t('townBack') : t('townBtn')); tb.classList.toggle('dim', !R.town && !G.townOk()); tb.classList.toggle('on', !!R.town);
+      // it glows when the bag holds something better than what someone wears (checked once a second)
+      if (performance.now() - (UI._upT || 0) > 1000) { UI._upT = performance.now(); UI._up = !!(S.hero && S.hero.cls) && [-1].concat((S.party || []).map((_, i) => i)).some(w => S.hero.bag.some(g => { const sl = G.slotOf(g.id); return canWear(g, w) && G.powerWith(sl, g, w) > G.powerWith(sl, G.eqOf(w)[sl], w); })); }
+      tb.classList.toggle('glow', !R.town && UI._up && G.townOk()); tb.title = R.town ? t('townBackTip') : G.townOk() ? t('townTip') : t('townNo'); } }
+    if (R.town && tw.id && (force || performance.now() - (UI._twT || 0) > 1000)) { UI._twT = performance.now(); const ae = document.activeElement; if (!force && !(ae && ae.tagName === 'SELECT' && $('#townWin').contains(ae))) renderTown(); }
     // the gold number rolls toward the real value and bumps on a real gain
     const gShow = UI._gold == null ? S.gold : UI._gold + (S.gold - UI._gold) * 0.45;
     const now = performance.now();
@@ -12254,8 +13454,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const comboK = R.combo / (D.comboCap || 1);
     $('#comboMeter').style.width = Math.min(100, comboK * 100) + '%';
     setClass($('#comboWrap'), 'hot', comboK >= 1);
-    setText($('#comboText'), t('combo') + ' ' + Math.floor(R.combo) + ' · ×' + (1 + R.combo * D.comboPer).toFixed(2));
-    setText($('#chestText'), t('nextChest') + ' ' + Math.floor(S.chestMeter / D.chestNeed * 100) + '% · ' + S.chests.length + '/' + D.slots);
+    setText($('#comboText'), t('comboLine', Math.floor(R.combo), (1 + R.combo * D.comboPer).toFixed(2)));
+    setText($('#chestText'), t('chestLine', Math.floor(S.chestMeter / D.chestNeed * 100), S.chests.length, D.slots));
     const bossShown = !!(S.hero && S.hero.cls);
     setClass($('#stageWrap'), 'fighting', !!R.boss);
     $('#bossRow').hidden = !bossShown;
@@ -12296,7 +13496,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         // the countdown to a boss that comes on its own
         const callIn = R.bossReady && S.set.autoBoss && R.bossIn != null ? Math.max(0, Math.ceil(R.bossIn + (odds >= 0.6 ? 0 : D.autoBoss ? 20 : 60))) : -1;
         if (callIn >= 0) setText($('#bossText'), narrow ? t('bossInShort', L(G.bossName(S.depth)), callIn) : t('bossIn', L(G.bossName(S.depth)), callIn) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : ''));
-        else         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : easy ? t('tooEasy') : t('hordeX', hs.toFixed(1))));
+        else         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : easy ? t('tooEasy') : t('toBoss')));
         setClass($('#bossWrap'), 'waves', true);
         setClass($('#btnFight'), 'long', R.bossReady && odds < 0.6);
         setClass($('#bossWrap'), 'weak', weak && !R.bossReady);
@@ -12905,6 +14105,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         </div>
       </div>
       <div class="doll">${G.SLOTS.map(s => `<div class="dslot" data-slot="${s}"><span class="lbl">${esc(t('slot_' + s))}</span><div data-in></div></div>`).join('')}</div>
+      <div class="bestRow"><button class="btn gold" data-bestall>${esc(t('twBest'))}</button></div>
       <div class="detail" data-gd></div>
       <div class="sect">${esc(t('orbs'))} <small style="color:var(--dim)">${esc(t('orbHint'))}</small></div>
       <div data-orbs></div>
@@ -12950,6 +14151,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         const r = G.salvageBelow(Math.max(1, h.salv || 2));
         UI.toast(esc(t('salvaged', r.n, fmt(r.v))), '', 'ic_shard'); refs.hero.key = ''; return;
       }
+      if (e.target.closest('[data-bestall]')) { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); refs.hero.key = ''; refs.hero.dollKey = ''; updaters.hero(true); return; }
       const gt = e.target.closest('[data-g]');
       // the item's details sit above the bag: bring them into view, or on a phone nothing seems to happen
       if (gt) { selGear = +gt.dataset.g; refs.hero.key = ''; updaters.hero(true); if (refs.hero.gd) refs.hero.gd.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
@@ -13084,6 +14286,180 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         ${f.worn ? '' : `<button class="btn red" data-act="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))}</button>`}
       </div>`;
   };
+  // ---------- The Town (2.4): one window per building, over the field ----------
+  // Forge: the party's gear, big and plain: who wears what, the bag, what an item would change, and the
+  // buttons that matter (equip, equip best for everyone, upgrade, break down). The Enchanter is the same
+  // window with the orbs first. Alchemist: brew the potion you want. Tavern: the party and new recruits.
+  const tw = { id: null, who: -1, sel: null, filter: 'all', salv: 2 };
+  const twEl = () => $('#townWin');
+  UI.townOpen = function (id) {
+    if (!G.R.town) return;
+    if (id === 'quests' || id === 'stars' || id === 'pets') {
+      // the board, the observatory and the hatchery open their tab in the panel
+      if (!tabOpen(id)) { UI.toast(esc(t('townLocked')), '', 'ic_scroll'); return; }
+      UI.unfold && UI.unfold(); UI.go(id); return;
+    }
+    tw.id = id; tw.sel = null;
+    if (tw.who >= (G.S.party || []).length) tw.who = -1;
+    twEl().hidden = false; renderTown();
+  };
+  UI.townClose = function () { tw.id = null; const el = twEl(); if (el) { el.hidden = true; el.innerHTML = ''; } };
+  const memOf = who => (who >= 0 ? G.S.party[who] : null);
+  const clsOf = who => (who >= 0 ? G.S.party[who].cls : G.S.hero.cls);
+  const canWear = (g, who) => G.slotOf(g.id) !== 'weapon' || who < 0 || G.CLASS_BY_ID[clsOf(who)].weapons.includes(G.ITEM_TYPE[g.id]);
+  function twFind(u) {
+    const h = G.S.hero;
+    for (const g of h.bag) if (g.u === u) return { g, worn: null, who: null };
+    for (const s of G.SLOTS) if (h.eq[s] && h.eq[s].u === u) return { g: h.eq[s], worn: s, who: -1 };
+    for (let i = 0; i < (G.S.party || []).length; i++) for (const s of G.SLOTS) { const g = G.S.party[i].eq[s]; if (g && g.u === u) return { g, worn: s, who: i }; }
+    return null;
+  }
+  // what wearing g would change for this member: damage, health, crit, power
+  function twCompare(g, who) {
+    const m = memOf(who), base = m ? m.eq : G.S.hero.eq, slot = G.slotOf(g.id), o = m ? { cls: m.cls, lvl: G.S.hero.lvl } : undefined;
+    const a = G.heroCombat(base, G.D, o), eq2 = Object.assign({}, base); eq2[slot] = g;
+    const b = G.heroCombat(eq2, G.D, o);
+    return [['twDps', a.dps, b.dps, v => fmt(v, true)], ['twHp', a.hp, b.hp, v => fmt(v)], ['twCrit', a.crit, b.crit, v => Math.round(v * 100) + '%'], ['twPower', a.power, b.power, v => fmt(v)]];
+  }
+  function twDelta(a, b, f) {
+    const d = b - a, up = d > 1e-9, dn = d < -1e-9;
+    return `<span><b>${esc(f(b))}</b> <em class="${up ? 'up' : dn ? 'dn' : ''}">${up ? '▲' : dn ? '▼' : '='}${up || dn ? ' ' + esc(f(Math.abs(d))) : ''}</em></span>`;
+  }
+  function twHeader(npc, title, sub) {
+    return `<header class="twHead">${img(npc, '', 4)}<div><b>${esc(title)}</b><small>${esc(sub)}</small></div><button class="twX" data-tw="close" aria-label="${esc(t('close'))}">✕</button></header>`;
+  }
+  function twWhoRow() {
+    const S = G.S, units = [{ who: -1, cls: S.hero.cls, eq: S.hero.eq }].concat((S.party || []).map((m, i) => ({ who: i, cls: m.cls, eq: m.eq })));
+    return `<div class="twWho">${units.map(u => `<button class="${u.who === tw.who ? 'on' : ''}" data-twwho="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small>${esc(u.who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[u.cls].name))}</small></button>`).join('')}</div>`;
+  }
+  function renderForge(el) {
+    const S = G.S, h = S.hero, who = tw.who, m = memOf(who), eq = m ? m.eq : h.eq, enchant = tw.id === 'enchant';
+    const c = G.heroCombat(eq, G.D, m ? { cls: m.cls, lvl: h.lvl } : undefined);
+    const f = tw.sel != null ? twFind(tw.sel) : null;
+    if (tw.sel != null && !f) tw.sel = null;
+    const slots = G.SLOTS.map(s => {
+      const g = eq[s];
+      return `<div class="twSlot ${g && tw.sel === g.u ? 'sel' : ''}" role="button" tabindex="0" ${g ? `data-twg="${g.u}"` : `data-twf="${s}"`}>
+        <span class="lbl">${esc(t('slot_' + s))}</span>
+        <span class="row">${g ? gearTile(g) : `<span class="empty">${img(SLOT_ICON[s], '', 3, { dark: true })}</span>`}
+        <span class="nm" style="color:${g ? gearCol(g) : 'var(--dim)'}">${g ? esc(gearName(g)) : esc(t('twEmpty'))}</span></span></div>`;
+    }).join('');
+    const bag = h.bag.filter(g => tw.filter === 'all' || G.slotOf(g.id) === tw.filter)
+      .sort((a, b) => G.SLOTS.indexOf(G.slotOf(a.id)) - G.SLOTS.indexOf(G.slotOf(b.id)) || b.r - a.r || b.il - a.il);
+    const tiles = bag.map(g => {
+      const sl = G.slotOf(g.id), ok = canWear(g, who), d = ok ? G.powerWith(sl, g, who) - G.powerWith(sl, eq[sl], who) : 0;
+      return `<span class="twTile ${ok ? '' : 'no'} ${d > 0 ? 'better' : ''} ${tw.sel === g.u ? 'sel' : ''}" data-twg="${g.u}">${gearTile(g)}${d > 0 ? '<i class="up">▲</i>' : ''}</span>`;
+    }).join('');
+    // the item card
+    let card = `<div class="twCard empty"><p>${esc(t(enchant ? 'twPickEnchant' : 'twPick'))}</p></div>`;
+    if (f) {
+      const g = f.g, slot = G.slotOf(g.id), U = g.q ? G.UNIQUES[g.q] : null, ec = G.enchantCost(g);
+      const canE = g.e < G.ENCHANT_MAX && h.shards >= ec.shards && S.gold >= ec.gold;
+      const wearer = f.who != null ? f.who : who;
+      const cmp = f.worn ? null : (canWear(g, who) ? twCompare(g, who) : null);
+      card = `<div class="twCard">
+        <h3 style="color:${gearCol(g)}">${gearTile(g)} ${esc(gearName(g))}</h3>
+        <p class="sub">${U ? `<b style="color:${G.UNIQUE_COL}">${esc(t('unique'))}</b> · ` : ''}${esc(L(G.RARITIES[g.r].name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${f.worn ? ' · <b class="worn">' + esc(t('twWornBy', wearer < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(wearer)].name))) + '</b>' : ''}</p>
+        <p class="main">${esc(mainLine(g))}</p>
+        ${g.a.length ? `<ul class="affs">${g.a.map(a => affLine(a, g)).join('')}</ul>` : ''}
+        ${U ? `<p class="uqfx">${esc(U.fx)}</p>` : ''}
+        ${cmp ? `<div class="twCmp"><small>${esc(t('twIfWorn', who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(who)].name)))}</small>${cmp.map(([k, a, b, fm]) => `<span>${esc(t(k))}</span>${twDelta(a, b, fm)}`).join('')}</div>` : (!f.worn && !canWear(g, who) ? `<p class="warn">${esc(t('twWrongClass'))}</p>` : '')}
+        <div class="twActs">
+          ${f.worn ? `<button class="btn" data-twa="unequip">${esc(t('unequip'))}</button>` : `<button class="btn gold" data-twa="equip" ${canWear(g, who) ? '' : 'disabled'}>${esc(t('twEquipOn', who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(who)].name)))}</button>`}
+          <button class="btn ${canE ? 'gold' : ''}" data-twa="enchant" ${g.e >= G.ENCHANT_MAX ? 'disabled' : ''}>${esc(t('twUpgrade', g.e + 1))} ${g.e >= G.ENCHANT_MAX ? t('max') : `${img('ic_shard', '', 2)}${fmt(ec.shards)} ${img('ic_coin', '', 2)}${fmt(ec.gold)}`}</button>
+          ${f.worn ? '' : `<button class="btn red" data-twa="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))} ${img('ic_shard', '', 2)}</button>`}
+        </div>
+        <p class="hint">${esc(t('twUpgradeHint', g.e, G.ENCHANT_MAX))}</p>
+        <div class="twOrbs"><small>${esc(t('twOrbs'))}</small>${orbBar(g)}</div>
+      </div>`;
+    }
+    const filters = ['all'].concat(G.SLOTS).map(k => `<button class="${tw.filter === k ? 'on' : ''}" data-twflt="${k}">${esc(k === 'all' ? t('twAll') : t('slot_' + k))}</button>`).join('');
+    const better = h.bag.some(g => { const sl = G.slotOf(g.id); return canWear(g, who) && G.powerWith(sl, g, who) > G.powerWith(sl, eq[sl], who); });
+    el.innerHTML = `<div class="tw forge ${enchant ? 'ench' : ''}">
+      ${twHeader(enchant ? 'npc_witch' : 'npc_smith', t(enchant ? 'town_enchant' : 'town_forge'), t(enchant ? 'twEnchSub' : 'twForgeSub'))}
+      ${twWhoRow()}
+      <div class="twBody">
+        <div class="twDoll">
+          <div class="twPortrait"><img src="${G.Doll.portrait(m ? { cls: m.cls, eq: m.eq } : h, 5)}" alt=""></div>
+          <div class="twSlots">${slots}</div>
+          <div class="twStat"><span>${esc(t('twPower'))}</span><b>${fmt(c.power)}</b><span>${esc(t('twDps'))}</span><b>${fmt(c.dps, true)}</b><span>${esc(t('twHp'))}</span><b>${fmt(c.hp)}</b></div>
+          <button class="btn gold big ${better ? 'pulse' : ''}" data-twa="best">${esc(t('twBest'))}</button>
+          <label class="twAuto"><input type="checkbox" data-twauto ${h.auto ? 'checked' : ''}> ${esc(t('twAutoEq'))}</label>
+        </div>
+        <div class="twBag">
+          <div class="twBagHead"><b>${esc(t('twBag', h.bag.length, G.TUNE.bagMax))}</b><span class="flt">${filters}</span></div>
+          <div class="twGrid">${tiles || `<p class="note">${esc(t('bagEmpty'))}</p>`}</div>
+          <div class="twSalv">${img('ic_shard', '', 2)} <b>${fmt(h.shards)}</b> ${esc(t('twShards'))}
+            <button class="btn red" data-twa="salvall">${esc(t('twSalvAll', L(G.RARITIES[tw.salv].name)))}</button>
+            <select data-twsalv>${G.RARITIES.slice(1, 6).map((r, i) => `<option value="${i + 1}" ${tw.salv === i + 1 ? 'selected' : ''}>${esc(L(r.name))}</option>`).join('')}</select></div>
+        </div>
+        ${card}
+      </div></div>`;
+  }
+  function renderAlch(el) {
+    const S = G.S, D = G.D;
+    const rows = G.POTIONS.map(p => {
+      const n = S.pots[p.id] || 0, full = n >= D.potCap, c = G.brewCost(p.id), can = !full && S.gold >= c;
+      return `<div class="twPot">${img('pot_' + p.id, '', 4)}<div><b>${esc(L(p.name))}</b><small>${esc(L(p.desc))}</small><i class="bar"><u style="width:${Math.min(100, n / D.potCap * 100)}%;background:${p.color}"></u></i><small>${n} / ${D.potCap}</small></div>
+        <button class="btn ${can ? 'gold' : ''}" data-twbrew="${p.id}" ${full ? 'disabled' : ''}>${full ? esc(t('max')) : `${esc(t('twBrew'))} ${img('ic_coin', '', 2)}${fmt(c)}`}</button></div>`;
+    }).join('');
+    el.innerHTML = `<div class="tw alch">${twHeader('npc_alch', t('town_alch'), t('twAlchSub'))}<div class="twPots">${rows}</div></div>`;
+  }
+  function renderTavern(el) {
+    const S = G.S, slots = G.partySlots(), party = S.party || [];
+    const mem = party.map((m, i) => `<div class="twMem"><img src="${G.Doll.portrait({ cls: m.cls, eq: m.eq }, 3, true)}" alt=""><b>${esc(L(G.CLASS_BY_ID[m.cls].name))}</b><small class="r_${G.ROLES[m.cls]}">${esc(G.ROLE_NAMES[G.ROLES[m.cls]])}</small><button class="btn" data-twgear="${i}">${esc(t('twGearUp'))}</button></div>`).join('');
+    const open = slots - party.length;
+    const recruits = open > 0 ? `<p>${esc(t('twRecruitN', open))}</p><div class="twRecruit">${G.CLASSES.map(c => `<button class="clsCard" data-twrec="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><small class="r_${G.ROLES[c.id]}">${esc(G.ROLE_NAMES[G.ROLES[c.id]])}</small></button>`).join('')}</div>` : `<p class="note">${esc(t(slots >= 3 ? 'twPartyFull' : 'twNextSlot', (G.PARTY_AT || [])[slots] || ''))}</p>`;
+    el.innerHTML = `<div class="tw tavern">${twHeader('npc_keeper', t('town_tavern'), t('twTavernSub'))}
+      <div class="twParty"><div class="twMem lead"><img src="${G.Doll.portrait(S.hero, 3)}" alt=""><b>${esc(S.profile.name || t('wardenName'))}</b><small>${esc(L(G.CLASS_BY_ID[S.hero.cls].name))} · ${esc(t('lvl'))} ${S.hero.lvl}</small><button class="btn" data-twgear="-1">${esc(t('twGearUp'))}</button></div>${mem}</div>
+      ${recruits}</div>`;
+  }
+  function renderTown() {
+    const el = twEl(); if (!el || !tw.id) return;
+    const sc = el.querySelector('.twBody, .twPots, .twParty'), y = sc ? sc.scrollTop : 0, gy = el.querySelector('.twGrid') ? el.querySelector('.twGrid').scrollTop : 0;
+    if (tw.id === 'forge' || tw.id === 'enchant') renderForge(el);
+    else if (tw.id === 'alch') renderAlch(el);
+    else if (tw.id === 'tavern') renderTavern(el);
+    const sc2 = el.querySelector('.twBody, .twPots, .twParty'); if (sc2) sc2.scrollTop = y;
+    const g2 = el.querySelector('.twGrid'); if (g2) g2.scrollTop = gy;
+  }
+  UI.townRender = renderTown;
+  function bindTown() {
+    const el = twEl(); if (!el) return;
+    el.addEventListener('change', e => {
+      if (e.target.matches('[data-twauto]')) { G.S.hero.auto = e.target.checked; }
+      if (e.target.matches('[data-twsalv]')) { tw.salv = +e.target.value; renderTown(); }
+    });
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb]');
+      if (!b) { if (e.target === el) UI.townClose(); return; }
+      G.Audio.unlock();
+      const h = G.S.hero;
+      if (b.dataset.tw === 'close') { UI.townClose(); return; }
+      if (b.dataset.twwho != null) { tw.who = +b.dataset.twwho; tw.sel = null; }
+      else if (b.dataset.twg != null) { tw.sel = +b.dataset.twg; }
+      else if (b.dataset.twf != null) { tw.filter = b.dataset.twf; tw.sel = null; }
+      else if (b.dataset.twflt != null) { tw.filter = b.dataset.twflt; }
+      else if (b.dataset.twgear != null) { tw.id = 'forge'; tw.who = +b.dataset.twgear; tw.sel = null; }
+      else if (b.dataset.twrec) { if (G.recruit(b.dataset.twrec)) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twRecruited', L(G.CLASS_BY_ID[b.dataset.twrec].name))), 'ach', G.CLASS_BY_ID[b.dataset.twrec].spr); } else G.Audio.error(); }
+      else if (b.dataset.twbrew) { const p = G.brewPotion(b.dataset.twbrew); if (p) G.Audio.buy(); else G.Audio.error(); }
+      else if (b.dataset.orb) {
+        const f = tw.sel != null ? twFind(tw.sel) : null;
+        if (!f) { G.Audio.error(); return; }
+        const res = G.useOrb(b.dataset.orb, f.g); if (!res) G.Audio.error();
+      } else if (b.dataset.twa) {
+        const a = b.dataset.twa, f = tw.sel != null ? twFind(tw.sel) : null;
+        if (a === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); }
+        else if (a === 'salvall') { const r = G.salvageBelow(tw.salv); if (r.n) G.Audio.buy(); }
+        else if (f && a === 'equip') { if (canWear(f.g, tw.who)) { G.equip(f.g, false, tw.who); G.Audio.buy(); } }
+        else if (f && a === 'unequip') { G.unequip(f.worn, f.who); }
+        else if (f && a === 'enchant') { if (G.enchant(f.g)) G.Audio.buy(); else G.Audio.error(); }
+        else if (f && a === 'salvage') { G.salvage(f.g); tw.sel = null; G.Audio.buy(); }
+      }
+      G.dirty(); G.recalc(); renderTown(); UI.update(true);
+    });
+  }
+
   let pickWait = 0;
   UI.pickClass = function () {
     if (G.S.hero.cls) return;
