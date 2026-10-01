@@ -42,15 +42,15 @@ Existing saves skip the intro and tutorial. On a new device, the "load cloud sav
 | Shrine | tap it | — |
 | Break a boss move | tap the glowing weak point beside the boss while it winds up | Z (Smite) |
 | Torment | − / + under the land name | — |
-| Town | TOWN at the top right (between fights) | T, Esc to leave |
+| Town (every page but Upgrades) | TOWN at the top right, or Town in the panel; tap a building | T, Esc to leave |
 | Smite / Ward / Mend | the three buttons right of the Button bar | Z / X / C |
-| Open a Rift | the ◈ button by the clear bar, or the Rifts tab | — |
+| Open a Rift | the ◈ button by the clear bar, or the Rift Gate in town | — |
 | Raise a fallen ally | tap them on the field or on the party bar | — |
-| Fold the panel (phones) | ▾ next to the gold; any tab opens it again | — |
-| Tabs | icons on the right | 1–0 |
+| Fold the panel (phones) | ▾ next to the gold | — |
+| Lucky Spin | tap the slot machine when it pops up | R |
 | How to play | ? at the top right | — |
 
-Hold-to-click is on by default (up to 10 clicks a second) and can be turned off in Settings.
+Holding the Button repeats clicks once you buy **Steady Hand** (1 a second, up to 10); it can be turned off in Settings.
 
 ## What the original has and what changed
 
@@ -138,7 +138,7 @@ Builds `dist/bttn.html` (self-contained, fonts inlined), `dist/artifact.html` (t
 
 ## Multiplayer and the ladder
 
-The Ladder tab has nine boards (depth, power, best Rift, today's Rift, land stars, uniques, the Mad Button race, lord crowns and firsts), a feed of big moments, rival notices and a share line; progress is saved to the cloud. On claude.ai, invite each friend **by email as Editor** and keep link sharing off: while "Anyone with the link" is on, even invited friends can only watch. Each friend can only write their own row; the owner can remove any row. For your own site there's a server in `server/` (see `server/README.md`).
+The Ladder (at the Tavern) has nine boards (depth, power, best Rift, today's Rift, land stars, uniques, the Mad Button race, lord crowns and firsts), a feed of big moments, rival notices and a share line; progress is saved to the cloud. On claude.ai, invite each friend **by email as Editor** and keep link sharing off: while "Anyone with the link" is on, even invited friends can only watch. Each friend can only write their own row; the owner can remove any row. For your own site there's a server in `server/` (see `server/README.md`).
 
 Plans for seasons, a world boss, an arena and guilds are in [MULTIPLAYER.md](MULTIPLAYER.md). The logic runs without a browser, randomness is reproducible from a seed (`SEED=42 node tools/sim.js 8` gives the same result every time), and `G.ladderSnapshot()` returns a snapshot of the hero.
 

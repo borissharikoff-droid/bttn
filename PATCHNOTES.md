@@ -4,10 +4,62 @@
 
 - **The party.** A Warden plus up to three companions (slots at depths 5, 12 and 20) with roles: tank, healer, damage. Everyone can fall, and a broken Button plus a fallen party is a wipe.
 - **Bosses that fight back.** Weak points to tap, DOOM to Ward or Smite, ENRAGE when time runs out, affixes from depth 9, and phases. **Torment 0–10** trades a tougher Horde for more gold, XP and loot.
-- **The Town.** Between fights: the Forge with **EQUIP BEST**, the Enchanter, the Alchemist, the Tavern, the quest board, the Observatory and the Hatchery.
+- **The Town is the hub.** Eleven buildings hold every page and grow with gold for bonuses that last through ascension. **EQUIP BEST** at the Forge dresses the whole party.
 - **A busy arena.** Sudden events about every minute, chests by the hundred with Looters, invasions, and the **JACKPOT** (about one kill in two million).
 - **Lands, zones and stars.** 15 lands of five zones each, each with its own rule and lord and three stars to earn; then corrupted cycles. **Rifts** are timed runs for the endgame, ranked on a ladder you share with friends.
-- **Built for holding the Button.** Hold-to-click is on by default, and nothing counts past 10 clicks a second.
+- **Built for holding the Button.** Steady Hand turns a held Button into 1 to 10 clicks a second, and nothing counts past 10.
+- **Chase the rare.** Relics drop in a white bag from bosses only, the Lucky Spin pays out from kills, and the JACKPOT hits about one kill in two million.
+
+## 3.0 — The Town Is Home
+
+- **Everything lives in town.** The side panel keeps only Upgrades and Settings. Every other page has a building:
+  - Forge, Enchanter and Alchemist.
+  - Tavern: party, character and ladder.
+  - Barracks: the Garrison.
+  - Museum: collection, relics and achievements.
+  - Quest board, Observatory and Hatchery.
+  - Temple: ascension.
+  - Rift Gate.
+
+  The town opens at any time except during a Rift, and the field holds still while you're there.
+- **The town grows.**
+  - Each building can be built up five times with gold (500 × 10^level). Each level gives a lasting bonus that is kept through ascension, for example party damage, health, crit damage, potion cap, Garrison gold, item value or Essence.
+  - Closed buildings stand as scaffolding.
+  - The square has a fountain, stalls, a cat, a dog and chickens, and more townsfolk as the town level rises.
+- **Party roles you can see.**
+  - The tank walks out to the incoming wave and holds a line of mobs on its shield.
+  - The healer stays behind the Button and runs to whoever it mends.
+  - Damage dealers work the flanks, and melee companions lunge at their targets.
+- **Steady Hand.** Holding the Button (or Space) repeats clicks only with this upgrade: 1 a second at level 1, up to 10.
+- **18 new perks and 4 evolutions**, for example Kindling, Frostbite, Executioner, Ricochet, Corpse Blast, Glass Cannon vs Fortress, Momentum, Last Stand and Warband, with their own effects on the field. Auto-pick takes a solid card and never one with a downside.
+- **Warden ranks.** Every five levels the whole party gains something visible: an extra mob hit per attack, faster attacks, harder crits, more health or more damage. The XP bar names the next rank.
+- **A story.** The first fall of each land's lord opens a chapter card: a line of story, what opened, and where the road goes next.
+- **Relics.** A white bag from bosses only, never from Rifts: about 1 in 600 bosses, 1 in 200 lords, and more at higher Torment.
+  - The drop plays with slow motion, darkness, a spear of light, the bag bursting open and a reveal card.
+  - There are eight relics, each with a rule that changes how you play. The Museum keeps the list.
+- **Lucky Spin.** Kills fill a slot machine. Tap it (or press R) for gold, chests, Frenzy, XP or orbs; 7-7-7 is the big one. Mobs also drop "?" bubbles for quick boosts, and crits in a row chain for extra damage.
+- **New events.**
+  - Portal Storm: portals open by the Button; tap them shut.
+  - Warlord: a giant marches in with an escort.
+  - High Stakes: gold ×3, but bites ×1.6.
+- **Incoming packs.** Rare, champion and special packs flash an arrow with their name at the edge they enter from.
+- **A tougher Horde.** Bigger mobs take 1.8 times longer to kill, and bites are a little harder.
+- **Fairer losses.**
+  - Only a wipe during a boss costs a depth.
+  - After a wipe or a break, no boss comes on its own for 25 seconds. After two losses at the same boss, the party farms for 90 seconds before trying again.
+  - Each wipe says why it happened and what to do about it.
+- **Calmer start.**
+  - The field waits for your first press, and bosses don't come on their own before the tutorial's boss step.
+  - Nothing runs on behind an open window.
+  - A tip tells you when a party seat opens.
+- **Phones.**
+  - Building windows are full screen.
+  - The slot machine moves to the corner.
+  - Bar text is bigger, and keyboard letters are hidden.
+- **Other changes.**
+  - Garrison fighters are renamed (Cutpurse, Bowman, Hedge Mage, Sentinel) so they don't clash with the classes.
+  - A held Button keeps a quarter of its clicks while you're away.
+  - The Build-all button builds up every building you can afford.
 
 ## 2.4 — The Town
 
