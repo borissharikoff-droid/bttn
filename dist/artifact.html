@@ -1274,12 +1274,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // how many chests fit on the field at each Treasure Hall level
   G.HALL_SLOTS = [6, 10, 20, 30, 50, 100, 200];
   G.HEROES = [
-    { id: 'rogue',    name: 'Rogue',       cost: 50,     gps: 0.2,    shot: '#9aa0a8' },
-    { id: 'archer',   name: 'Archer',      cost: 400,    gps: 1.2,    shot: '#9be15d' },
-    { id: 'wizard',   name: 'Wizard',      cost: 4500,   gps: 8,      shot: '#5ab4ff' },
+    { id: 'rogue',    name: 'Cutpurse',    cost: 50,     gps: 0.2,    shot: '#9aa0a8' },
+    { id: 'archer',   name: 'Bowman',      cost: 400,    gps: 1.2,    shot: '#9be15d' },
+    { id: 'wizard',   name: 'Hedge Mage',  cost: 4500,   gps: 8,      shot: '#5ab4ff' },
     { id: 'priest',   name: 'Priestess',   cost: 50000,  gps: 45,     shot: '#fff3a0' },
     { id: 'warrior',  name: 'Warrior',     cost: 5.5e5,  gps: 260,    shot: '#ff7a4a' },
-    { id: 'knight',   name: 'Knight',      cost: 6e6,  gps: 1400,   shot: '#cfd8e0' },
+    { id: 'knight',   name: 'Sentinel',    cost: 6e6,  gps: 1400,   shot: '#cfd8e0' },
     { id: 'paladin',  name: 'Paladin',     cost: 8.5e7,  gps: 7800,   shot: '#ffd84a' },
     { id: 'necro',    name: 'Necromancer', cost: 1.3e9,  gps: 44000,  shot: '#c06bff' },
     { id: 'mystic',   name: 'Mystic',      cost: 2e10,  gps: 2.6e5,  shot: '#ff6bd8' },
@@ -16603,7 +16603,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         <p class="note">${esc(t('journeyNext'))}: ${nextSteps.map(esc).join(' · ')}</p><p class="note">${esc(t('journeyHint'))}</p></div>
       <div class="quest ${avail ? 'done' : ''}">
         <div class="top"><b>${esc(t('daily'))}</b>${avail ? `<button class="btn gold" data-daily>${esc(t('collect'))}</button>` : `<small style="color:var(--dim)">${esc(t('tomorrow'))}</small>`}</div>
-        <div class="dailyDays">${G.DAILY.map((d, i) => `<div class="${i < streak % 7 ? 'past' : ''} ${i === streak % 7 && avail ? 'now' : ''}">${esc(t('dayN', i + 1))}${img(dayIcon(i), '', 2)}</div>`).join('')}</div>
+        <div class="dailyDays">${G.DAILY.map((d, i) => { const ld = G.S.daily.last ? G.S.daily.streak % 7 : -1, nw = avail ? (G.S.daily.last ? (G.S.daily.streak + 1) % 7 : 0) : -1; return `<div class="${(avail ? i < nw : i <= ld) ? 'past' : ''} ${i === nw ? 'now' : ''}">${esc(t('dayN', i + 1))}${img(dayIcon(i), '', 2)}</div>`; }).join('')}</div>
       </div>
       <div class="sect">${esc(t('quests'))}</div>
       <div class="list" data-q></div>`;
@@ -17644,7 +17644,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     tu_upg: 'Back to the field: buy Iron Finger in Upgrades for stronger clicks.',
     tu_mobs: 'The Horde! Your Warden fights alone; clicks zap mobs near the Button. Tap a mob to focus it.',
     tu_garrisonWait: 'Nice! Save 50 gold to hire a fighter.',
-    tu_garrison: 'In town, at the Barracks, hire a Rogue. The Garrison earns gold without clicks.',
+    tu_garrison: 'In town, at the Barracks, hire a Cutpurse. The Garrison earns gold without clicks.',
     tu_boss: 'Kill mobs to fill the orange bar. Then the boss comes.',
     tu_bossReady: 'Boss ready! Press ⚔ or the skull. You have 30 seconds: click like mad.',
     tu_bossFight: 'Hit the boss! Too slow and it leaves, but it comes back.',

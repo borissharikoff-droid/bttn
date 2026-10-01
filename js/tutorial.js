@@ -27,7 +27,7 @@
     tu_upg: 'Back to the field: buy Iron Finger in Upgrades for stronger clicks.',
     tu_mobs: 'The Horde! Your Warden fights alone; clicks zap mobs near the Button. Tap a mob to focus it.',
     tu_garrisonWait: 'Nice! Save 50 gold to hire a fighter.',
-    tu_garrison: 'In town, at the Barracks, hire a Rogue. The Garrison earns gold without clicks.',
+    tu_garrison: 'In town, at the Barracks, hire a Cutpurse. The Garrison earns gold without clicks.',
     tu_boss: 'Kill mobs to fill the orange bar. Then the boss comes.',
     tu_bossReady: 'Boss ready! Press ⚔ or the skull. You have 30 seconds: click like mad.',
     tu_bossFight: 'Hit the boss! Too slow and it leaves, but it comes back.',

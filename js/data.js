@@ -115,12 +115,12 @@
   // how many chests fit on the field at each Treasure Hall level
   G.HALL_SLOTS = [6, 10, 20, 30, 50, 100, 200];
   G.HEROES = [
-    { id: 'rogue',    name: 'Rogue',       cost: 50,     gps: 0.2,    shot: '#9aa0a8' },
-    { id: 'archer',   name: 'Archer',      cost: 400,    gps: 1.2,    shot: '#9be15d' },
-    { id: 'wizard',   name: 'Wizard',      cost: 4500,   gps: 8,      shot: '#5ab4ff' },
+    { id: 'rogue',    name: 'Cutpurse',    cost: 50,     gps: 0.2,    shot: '#9aa0a8' },
+    { id: 'archer',   name: 'Bowman',      cost: 400,    gps: 1.2,    shot: '#9be15d' },
+    { id: 'wizard',   name: 'Hedge Mage',  cost: 4500,   gps: 8,      shot: '#5ab4ff' },
     { id: 'priest',   name: 'Priestess',   cost: 50000,  gps: 45,     shot: '#fff3a0' },
     { id: 'warrior',  name: 'Warrior',     cost: 5.5e5,  gps: 260,    shot: '#ff7a4a' },
-    { id: 'knight',   name: 'Knight',      cost: 6e6,  gps: 1400,   shot: '#cfd8e0' },
+    { id: 'knight',   name: 'Sentinel',    cost: 6e6,  gps: 1400,   shot: '#cfd8e0' },
     { id: 'paladin',  name: 'Paladin',     cost: 8.5e7,  gps: 7800,   shot: '#ffd84a' },
     { id: 'necro',    name: 'Necromancer', cost: 1.3e9,  gps: 44000,  shot: '#c06bff' },
     { id: 'mystic',   name: 'Mystic',      cost: 2e10,  gps: 2.6e5,  shot: '#ff6bd8' },

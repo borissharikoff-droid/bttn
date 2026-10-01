@@ -1021,7 +1021,7 @@
         <p class="note">${esc(t('journeyNext'))}: ${nextSteps.map(esc).join(' · ')}</p><p class="note">${esc(t('journeyHint'))}</p></div>
       <div class="quest ${avail ? 'done' : ''}">
         <div class="top"><b>${esc(t('daily'))}</b>${avail ? `<button class="btn gold" data-daily>${esc(t('collect'))}</button>` : `<small style="color:var(--dim)">${esc(t('tomorrow'))}</small>`}</div>
-        <div class="dailyDays">${G.DAILY.map((d, i) => `<div class="${i < streak % 7 ? 'past' : ''} ${i === streak % 7 && avail ? 'now' : ''}">${esc(t('dayN', i + 1))}${img(dayIcon(i), '', 2)}</div>`).join('')}</div>
+        <div class="dailyDays">${G.DAILY.map((d, i) => { const ld = G.S.daily.last ? G.S.daily.streak % 7 : -1, nw = avail ? (G.S.daily.last ? (G.S.daily.streak + 1) % 7 : 0) : -1; return `<div class="${(avail ? i < nw : i <= ld) ? 'past' : ''} ${i === nw ? 'now' : ''}">${esc(t('dayN', i + 1))}${img(dayIcon(i), '', 2)}</div>`; }).join('')}</div>
       </div>
       <div class="sect">${esc(t('quests'))}</div>
       <div class="list" data-q></div>`;
