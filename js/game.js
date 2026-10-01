@@ -29,9 +29,13 @@
   function potZero() { const o = {}; G.POTIONS.forEach(p => o[p.id] = 0); return o; }
   // Rift records: best level ever (and its time), the highest level open, today's best
   function newRift() { return { best: 0, bestT: 0, open: 1, runs: 0, day: { k: '', l: 0 } }; }
+  // The season: a save from an earlier one starts the game over (only its settings and name carry on).
+  // 2.3 wiped everything once, since all progress so far was made while the game was far too easy.
+  const WIPE = G.WIPE = 1;
+  G.oldSeason = data => !!data && typeof data === 'object' && (data.wipe || 0) < WIPE;
   function newState() {
     return {
-      v: 1, created: Date.now(), lastSave: Date.now(),
+      v: 1, wipe: WIPE, created: Date.now(), lastSave: Date.now(),
       gold: 0, goldRun: 0, goldTotal: 0,
       clicks: 0, clicksRun: 0,
       upg: {}, heroes: {}, nodes: {}, legacy: {},
@@ -1159,6 +1163,12 @@
   function deserialize(str) {
     const data = typeof str === 'string' ? JSON.parse(str) : str;
     if (!data || typeof data !== 'object' || !('gold' in data)) throw new Error('bad save');
+    if (G.oldSeason(data)) {
+      const s = newState();
+      if (data.set) s.set = Object.assign(s.set, data.set);
+      if (data.profile && data.profile.id) s.profile = { id: data.profile.id, name: data.profile.name || '' };
+      return deserialize(s);
+    }
     const fresh = newState();
     const S = Object.assign(fresh, data);
     // Merge nested objects so new fields get defaults.

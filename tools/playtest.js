@@ -95,6 +95,8 @@ function run(name, seed, minutes) {
   const sessions = [];
   // how crowded the arena is: mobs alive, sampled once a second, and kills per minute
   const crowd = []; let kills = 0;
+  // pressure: how often the Button is in real danger (sampled once a second)
+  const press = { n: 0, low: 0, crit: 0, boss: 0 };
   G.on('mobDie', () => kills++);
   function playFor(seconds, P) {
     const end = clock.now + seconds;
@@ -119,7 +121,7 @@ function run(name, seed, minutes) {
         else if (b && !(b.inv > 0)) G.usePower('smite');
       }
       G.tick(dt);
-      if (Math.round(t / dt) % 5 === 0) { crowd.push(G.R.mobs.length); chests.field.push(G.S.chests.length); }
+      if (Math.round(t / dt) % 5 === 0) { crowd.push(G.R.mobs.length); chests.field.push(G.S.chests.length); press.n++; const hf = s.hero.hp / Math.max(1, G.D.heroHp); if (hf < 0.5) press.low++; if (hf < 0.2) press.crit++; if (G.R.boss) press.boss++; }
       // events: tap the shrine, chase the Hoarder
       if (P.events && G.R.shrine && r() < P.events * dt * 2) G.useShrine('hand');
       if (P.events && !G.R.focus) { const hd = G.R.mobs.find(m => m.kind === 'hoard'); if (hd && r() < P.events * dt * 3) G.R.focus = hd.id; }
@@ -193,6 +195,7 @@ function run(name, seed, minutes) {
     windows: win, longestStall: stalls.reduce((m, x) => Math.max(m, x[1]), 0) / 60,
     bossFails: fails, maxFailStreak, ascensions: s.ascensions, journey: s.journey || 0, evos: Object.keys((s.rec && s.rec.evos) || {}).length, bounties: moments.filter(m => m[1] === 'bounty').length, bestDepth: s.bestDepth, level: s.hero.lvl,
     ach: Object.keys(s.ach).length + '/' + G.ACH.length, pets: Object.keys(s.pets).length, collection: Object.keys(s.coll).length + '/' + G.ITEMS.length,
+    pressure: { low: +(press.low / Math.max(1, press.n)).toFixed(3), crit: +(press.crit / Math.max(1, press.n)).toFixed(3), boss: +(press.boss / Math.max(1, press.n)).toFixed(3) },
     sessions, attempts: process.env.BOSSLOG ? attempts : undefined,
   };
 }
@@ -209,7 +212,7 @@ function all(seeds, minutes) {
   for (const p of Object.keys(PERSONAS)) for (let sd = 1; sd <= seeds; sd++) jobs.push([p, sd]);
   const results = [];
   let next = 0;
-  const workers = Math.max(2, Math.min(8, require('os').cpus().length));
+  const workers = +process.env.PT_WORKERS || Math.max(2, Math.min(8, require('os').cpus().length));
   return new Promise(done => {
     const launch = () => {
       if (next >= jobs.length) { if (results.length === jobs.length) done(results); return; }
@@ -245,6 +248,7 @@ function report(results) {
     lines.push(`first (min): uncommon ${f('r1')} · rare ${f('r2')} · hoarder seen ${f('hoardSeen')} / slain ${f('hoard')} · shrine ${f('shrine')} · breach ${f('breach')} · unique ${f('unique')} · rift win ${f('riftWin')}`);
     lines.push(`loot: drops/min ${lt('dropsPerMin')} · orbs ${lt('orbs')} · uniques ${lt('uniques')} (distinct ${lt('found')}/${ok[0].uqTotal}) · hoarders ${lt('hoards')}/${lt('hoardsSeen')} · shrines ${lt('shrines')} · breaches ${lt('breaches')} · rift best ${med(ok.map(r => r.rift && r.rift.best))} (${med(ok.map(r => r.rift && r.rift.runs))} runs)`);
     lines.push(`journey step ${med(ok.map(r => r.journey || 0))} · evolutions discovered ${med(ok.map(r => r.evos || 0))} · bounties ${med(ok.map(r => r.bounties || 0))}`);
+    lines.push(`pressure: Button under 50% ${med(ok.map(r => r.pressure.low))} of the time, under 20% ${med(ok.map(r => r.pressure.crit))}, in boss fights ${med(ok.map(r => r.pressure.boss))} · wipes ${med(ok.map(r => r.party.wipes))} · downs ${med(ok.map(r => r.party.downs))}`);
     lines.push(`longest depth stall ${med(ok.map(r => r.longestStall)).toFixed(1)} min · boss fails ${med(ok.map(r => r.bossFails))} (worst streak ${Math.max(...ok.map(r => r.maxFailStreak))}) · ascensions ${med(ok.map(r => r.ascensions))} · best depth ${med(ok.map(r => r.bestDepth))} · lvl ${med(ok.map(r => r.level))} · ach ${ok[0].ach.split('/')[1] ? med(ok.map(r => +r.ach.split('/')[0])) + '/' + ok[0].ach.split('/')[1] : '-'} · pets ${med(ok.map(r => r.pets))} · collection ${med(ok.map(r => +r.collection.split('/')[0]))}/${ok[0].collection.split('/')[1]}`);
     if (ok[0].sessions.length) {
       const n = ok[0].sessions.length;

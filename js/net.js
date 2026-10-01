@@ -116,6 +116,8 @@
         // Hold all uploads until the player decides, so a fresh device never overwrites a real save
         let cs = null;
         try { cs = JSON.parse(cloud.data); } catch (e) { cs = null; }
+        // a cloud save from an earlier season is nothing to go back to
+        if (cs && G.oldSeason(cs)) cs = null;
         const more = cs && (cs.goldTotal || 0) > (G.S.goldTotal || 0) * 1.01 + 100;
         const newer = (cloud.ts || 0) > (G.S.lastSave || 0) + 60e3;
         if (cs && (more || newer) && cloud.data !== G.serialize()) { Net.hold = true; G.emit('cloudNewer', cloud); }
@@ -211,6 +213,7 @@
           const cloud = await backend.loadSave().catch(() => null);
           let cs = null;
           if (cloud && cloud.dev && cloud.dev !== DEV && (cloud.ts || 0) > lastPushTs) { try { cs = JSON.parse(cloud.data); } catch (e) { cs = null; } }
+          if (cs && G.oldSeason(cs)) cs = null;
           if (cs && (cs.goldTotal || 0) > (G.S.goldTotal || 0) * 1.01 + 100) {
             Net.cloud = cloud; Net.hold = true; busy = false; G.emit('cloudNewer', cloud); G.emit('net'); return;
           }
