@@ -121,6 +121,20 @@
     if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
   // the page in view: the Forge and Enchanter count as the Party page, for the tips that point there
+  // the chapter card (waits for a relic show or another window to finish)
+  UI.chapter = function (li) {
+    if (!$('#modal').hidden || (G.relicShow && G.relicShow()) || G.R.boss) { setTimeout(() => UI.chapter(li), 1500); return; }
+    const nx = G.REALMS[li + 1], d = (li + 2) * G.REALM_SIZE - 1;
+    const opened = [];
+    const tm = G.tormentMax ? G.tormentMax() : 0;
+    if (tm) opened.push(t('tormentCard', tm));
+    UI.modal(t('chTitle', li + 1, G.REALMS[li].name), `<div class="chapter"><p class="story">${esc(t('ch_' + li))}</p>
+      ${opened.length ? `<p><b>${esc(t('chOpen'))}:</b> ${esc(opened.join(' · '))}</p>` : ''}
+      <p class="next">${esc(nx ? t('chNext', G.bossName(d), nx.name, d + 1) : t('chEnd'))}</p></div>`, [{ label: t('chGo'), cls: 'gold' }]);
+    G.Audio && G.Audio.achievement && G.Audio.achievement();
+  };
+  UI.rankText = x => t(x.k, x.tg || (x.cd ? x.cd.toFixed(1) : Math.round((x.spd || x.hp || x.dmg) * 100)));
+  G.on('rankUp', x => UI.toast(`<b>${esc(t('rankUp'))}</b>&nbsp;${esc(t('lvl'))} ${x.lv}: ${esc(UI.rankText(x))}`, 'ach', 'ic_star'));
   UI.tab = () => (tw.id === 'forge' || tw.id === 'enchant' ? 'hero' : curTab());
   UI.townId = () => tw.id;
   UI.bldOf = id => TAB_BLD[id] || null;
@@ -300,6 +314,11 @@
     });
     G.on('bossWin', (rew) => {
       dirtyTab('quests'); dirtyTab('asc');
+      // 3.0: a land's lord falls for the first time: its chapter of the story, and where the road goes next
+      if (rew && rew.lord && !G.R.rift) {
+        const li = G.realmIndex(rew.d), sn = G.S.seen = G.S.seen || {}; sn.ch = sn.ch || {};
+        if (!sn.ch[li]) { sn.ch[li] = 1; setTimeout(() => UI.chapter(li), 2600); }
+      }
       // a land conquered opens the next Torment level
       const mx = G.tormentMax(), sn = G.S.seen = G.S.seen || {};
       if (mx > (sn.tmax || 0)) { sn.tmax = mx; UI.toast(esc(t('tormentOpen', mx)), 'ach', 'ic_skull'); updateTorment(); }
@@ -565,7 +584,8 @@
     $('#xpBar').hidden = !(h && h.cls);
     if (h && h.cls) {
       $('#xpFill').style.width = Math.min(100, h.xp / G.xpNeed(h.lvl) * 100) + '%';
-      setText($('#xpText'), t('lvl') + ' ' + h.lvl);
+      const nr = G.nextRank && G.nextRank(h.lvl);
+      setText($('#xpText'), t('lvl') + ' ' + h.lvl + (nr ? ' · ' + t('rankNext', nr.lv, UI.rankText(nr)) : ''));
     }
     updatePerks();
     updatePartyHud();

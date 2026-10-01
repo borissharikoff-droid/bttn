@@ -942,3 +942,5 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .dirRow .up { position: absolute; bottom: 3px; right: 6px; color: #ffd84a; font-style: normal; font-size: 12px; }
 .tw.host { width: min(760px, 100%); }
 .twBld { position: sticky; bottom: 0; z-index: 2; }
+.chapter .story { font-size: 18px; line-height: 1.4; color: #ffe8c0; font-style: italic; margin: 6px 0 12px; }
+.chapter .next { color: #ffd84a; }

@@ -337,6 +337,11 @@
       cardText(9, G.t('btnBrokenSub', G.TUNE.btnDown), '#ffffff', 3, { life: 2.2, vy: -3 });
     });
     partyListen();
+    G.on('rankUp', x => {
+      const hp = heroPos();
+      text(hp.x, hp.y - 46, G.t('rankUp'), '#ffd84a', 6, { life: 2.2, max: 2.2, vy: -10, big: true });
+      ring(hp.x, hp.y - 4, 44, 22, '#ffd84a', 0.8); St.flash(0.25, '#ffd84a'); St.shake(2);
+    });
     G.on('levelUp', lvl => {
       const hp = heroPos();
       hitstop = Math.max(hitstop, 0.06);

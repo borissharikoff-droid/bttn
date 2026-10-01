@@ -2444,6 +2444,21 @@
   }
   G.mainStat = mainStat;
 
+  // 3.0: Warden ranks. Every few levels the whole party gains something you can see: an extra mob hit
+  // per attack, faster attacks, harder crits, more damage or health (on top of +5% a level)
+  G.RANKS = [
+    { lv: 5, tg: 1, k: 'rk_tg' }, { lv: 10, spd: 0.1, k: 'rk_spd' }, { lv: 15, hp: 0.15, k: 'rk_hp' },
+    { lv: 20, tg: 1, k: 'rk_tg' }, { lv: 25, cd: 0.4, k: 'rk_cd' }, { lv: 30, spd: 0.1, k: 'rk_spd' },
+    { lv: 35, dmg: 0.2, k: 'rk_dmg' }, { lv: 40, tg: 1, k: 'rk_tg' }, { lv: 45, hp: 0.25, k: 'rk_hp' },
+    { lv: 50, dmg: 0.3, k: 'rk_dmg' }, { lv: 55, spd: 0.15, k: 'rk_spd' }, { lv: 60, tg: 2, k: 'rk_tg' },
+  ];
+  function ranksAt(lvl) {
+    const r = { tg: 0, spd: 0, hp: 0, cd: 0, dmg: 0 };
+    for (const x of G.RANKS) if (lvl >= x.lv) for (const k in r) r[k] += x[k] || 0;
+    return r;
+  }
+  G.ranksAt = ranksAt;
+  G.nextRank = lvl => G.RANKS.find(x => x.lv > lvl) || null;
   // Full combat numbers for a given set of equipped items
   function combat(eq, d, who) {
     const h = who || G.S.hero;
@@ -2456,16 +2471,16 @@
     const w = eq.weapon;
     const wtype = w ? G.ITEM_TYPE[w.id] : 'dagger';
     const wt = G.WEAPONS[wtype];
-    const lvlM = 1 + 0.05 * (h.lvl - 1);
+    const lvlM = 1 + 0.05 * (h.lvl - 1), rk = ranksAt(h.lvl);
     const own = cls.weapons.includes(wtype) ? 1.5 : 1;
     const pct = 1 + (aff.dmg || 0) + (eq.ring ? mainStat(eq.ring) : 0) + (eq.ability ? mainStat(eq.ability) : 0);
-    const base = (w ? mainStat(w) : 4) * own * lvlM * pct * (d.heroMult || 1);
+    const base = (w ? mainStat(w) : 4) * own * lvlM * pct * (d.heroMult || 1) * (1 + rk.dmg);
     const hit = base * wt.mult;
-    const rate = wt.rate * (1 + (aff.spd || 0) + (cls.spd || 0)) * (d.spdMult || 1);
+    const rate = wt.rate * (1 + (aff.spd || 0) + (cls.spd || 0) + rk.spd) * (d.spdMult || 1);
     const crit = Math.min(0.9, (d.crit || 0.03) + (aff.crit || 0) + cls.crit);
-    const critMult = (d.critMult || 3) + (aff.critd || 0);
-    const targets = wt.targets + cls.extra;
-    const hp = (eq.armor ? mainStat(eq.armor) : TUNE.baseHp) * lvlM * cls.hp * (1 + (aff.hp || 0)) * (d.hpMult || 1);
+    const critMult = (d.critMult || 3) + (aff.critd || 0) + rk.cd;
+    const targets = wt.targets + cls.extra + rk.tg;
+    const hp = (eq.armor ? mainStat(eq.armor) : TUNE.baseHp) * lvlM * cls.hp * (1 + (aff.hp || 0) + rk.hp) * (d.hpMult || 1);
     const dps = hit * rate * (1 + crit * (critMult - 1));
     const power = Math.floor(dps * (1 + 0.15 * (targets - 1)) * Math.sqrt(hp / TUNE.baseHp) * 10);
     return { aff, wtype, wt, hit, rate, crit, critMult, targets, hp, dps, power, own: own > 1 };
@@ -2990,6 +3005,7 @@
       G.dirty(); G.recalc();
       h.hp = G.D.heroHp;
       emit('levelUp', h.lvl);
+      for (const x of G.RANKS) if (x.lv > before && x.lv <= h.lvl) emit('rankUp', x);
     }
   }
   G.gainXp = gainXp;

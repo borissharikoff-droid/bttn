@@ -950,6 +950,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .dirRow .up { position: absolute; bottom: 3px; right: 6px; color: #ffd84a; font-style: normal; font-size: 12px; }
 .tw.host { width: min(760px, 100%); }
 .twBld { position: sticky; bottom: 0; z-index: 2; }
+.chapter .story { font-size: 18px; line-height: 1.4; color: #ffe8c0; font-style: italic; margin: 6px 0 12px; }
+.chapter .next { color: #ffd84a; }
 
 </style>
 </head>
@@ -1813,6 +1815,24 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     dirHint: 'Tap a building here or in the square. Build them up for bonuses that last through ascension.',
     dirLvl: 'Town level {0}', dirBack: 'Back to the field (T)', dirSet: 'Settings',
     goTown: 'That is in town: tap TOWN (T).',
+    rk_tg: 'attacks hit +{0} mob', rk_spd: 'attacks {0}% faster', rk_hp: 'party health +{0}%', rk_cd: 'crits +{0}× damage', rk_dmg: 'party damage +{0}%',
+    chTitle: 'Chapter {0}: {1} is free', chNext: 'Next: {0}, lord of {1} (depth {2})', chEnd: 'Every land is free. Now raise the Torment.', chOpen: 'Opened', chGo: 'Onward',
+    ch_0: 'The Crab King\u2019s claws fall silent. Inland, goblin drums answer the Button\u2019s hum.',
+    ch_1: 'The Warchief\u2019s banner burns. Something old stirs under the Deepwood roots.',
+    ch_2: 'The Elder Treant kneels. Its last word is a name: the First Hand.',
+    ch_3: 'The Titan\u2019s fall shakes the peaks. Ice creeps down from the north.',
+    ch_4: 'The Wyrm\u2019s breath fades. Light spills from somewhere far above.',
+    ch_5: 'The Eye closes. Beneath it, a stair goes down into the dark.',
+    ch_6: 'The Demon Lord laughs as he falls: \u201cThe Button was never yours.\u201d',
+    ch_7: 'The Mad Button shatters. Its pages drift into a drowned library.',
+    ch_8: 'The Archivist\u2019s book names a maker: the Foundry that built the first Button.',
+    ch_9: 'The Gear Tyrant grinds to a stop. Past the furnace, the land is burning.',
+    ch_10: 'The Colossus crumbles to ash. In the smoke you see your own face.',
+    ch_11: 'The Other Warden was you, once. The Sky Citadel opens its gates.',
+    ch_12: 'The First Hand lets go. The Button glows, and the Moon looks back.',
+    ch_13: 'The Selenite King bows. Past him lies a sea of stars and one hungry mouth.',
+    ch_14: 'The Star Eater is still. The Button is safe, until the Torment rises.',
+    rankUp: 'RANK UP!', rankNext: 'Lv {0}: {1}', rankAll: 'All ranks earned',
     pkCrushTxt: 'CRUSH!', pkWindTxt: 'SECOND WIND!',
     relic: 'RELIC', feedRelic: 'found the RELIC {0}!', relicBook: 'Relics',
     relicHint: 'White-bag drops from bosses only: about 1 in 600 bosses, 1 in 200 lords, more at higher Torment. Never in Rifts.',
@@ -3620,6 +3640,21 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
   G.mainStat = mainStat;
 
+  // 3.0: Warden ranks. Every few levels the whole party gains something you can see: an extra mob hit
+  // per attack, faster attacks, harder crits, more damage or health (on top of +5% a level)
+  G.RANKS = [
+    { lv: 5, tg: 1, k: 'rk_tg' }, { lv: 10, spd: 0.1, k: 'rk_spd' }, { lv: 15, hp: 0.15, k: 'rk_hp' },
+    { lv: 20, tg: 1, k: 'rk_tg' }, { lv: 25, cd: 0.4, k: 'rk_cd' }, { lv: 30, spd: 0.1, k: 'rk_spd' },
+    { lv: 35, dmg: 0.2, k: 'rk_dmg' }, { lv: 40, tg: 1, k: 'rk_tg' }, { lv: 45, hp: 0.25, k: 'rk_hp' },
+    { lv: 50, dmg: 0.3, k: 'rk_dmg' }, { lv: 55, spd: 0.15, k: 'rk_spd' }, { lv: 60, tg: 2, k: 'rk_tg' },
+  ];
+  function ranksAt(lvl) {
+    const r = { tg: 0, spd: 0, hp: 0, cd: 0, dmg: 0 };
+    for (const x of G.RANKS) if (lvl >= x.lv) for (const k in r) r[k] += x[k] || 0;
+    return r;
+  }
+  G.ranksAt = ranksAt;
+  G.nextRank = lvl => G.RANKS.find(x => x.lv > lvl) || null;
   // Full combat numbers for a given set of equipped items
   function combat(eq, d, who) {
     const h = who || G.S.hero;
@@ -3632,16 +3667,16 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const w = eq.weapon;
     const wtype = w ? G.ITEM_TYPE[w.id] : 'dagger';
     const wt = G.WEAPONS[wtype];
-    const lvlM = 1 + 0.05 * (h.lvl - 1);
+    const lvlM = 1 + 0.05 * (h.lvl - 1), rk = ranksAt(h.lvl);
     const own = cls.weapons.includes(wtype) ? 1.5 : 1;
     const pct = 1 + (aff.dmg || 0) + (eq.ring ? mainStat(eq.ring) : 0) + (eq.ability ? mainStat(eq.ability) : 0);
-    const base = (w ? mainStat(w) : 4) * own * lvlM * pct * (d.heroMult || 1);
+    const base = (w ? mainStat(w) : 4) * own * lvlM * pct * (d.heroMult || 1) * (1 + rk.dmg);
     const hit = base * wt.mult;
-    const rate = wt.rate * (1 + (aff.spd || 0) + (cls.spd || 0)) * (d.spdMult || 1);
+    const rate = wt.rate * (1 + (aff.spd || 0) + (cls.spd || 0) + rk.spd) * (d.spdMult || 1);
     const crit = Math.min(0.9, (d.crit || 0.03) + (aff.crit || 0) + cls.crit);
-    const critMult = (d.critMult || 3) + (aff.critd || 0);
-    const targets = wt.targets + cls.extra;
-    const hp = (eq.armor ? mainStat(eq.armor) : TUNE.baseHp) * lvlM * cls.hp * (1 + (aff.hp || 0)) * (d.hpMult || 1);
+    const critMult = (d.critMult || 3) + (aff.critd || 0) + rk.cd;
+    const targets = wt.targets + cls.extra + rk.tg;
+    const hp = (eq.armor ? mainStat(eq.armor) : TUNE.baseHp) * lvlM * cls.hp * (1 + (aff.hp || 0) + rk.hp) * (d.hpMult || 1);
     const dps = hit * rate * (1 + crit * (critMult - 1));
     const power = Math.floor(dps * (1 + 0.15 * (targets - 1)) * Math.sqrt(hp / TUNE.baseHp) * 10);
     return { aff, wtype, wt, hit, rate, crit, critMult, targets, hp, dps, power, own: own > 1 };
@@ -4166,6 +4201,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       G.dirty(); G.recalc();
       h.hp = G.D.heroHp;
       emit('levelUp', h.lvl);
+      for (const x of G.RANKS) if (x.lv > before && x.lv <= h.lvl) emit('rankUp', x);
     }
   }
   G.gainXp = gainXp;
@@ -12790,6 +12826,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       cardText(9, G.t('btnBrokenSub', G.TUNE.btnDown), '#ffffff', 3, { life: 2.2, vy: -3 });
     });
     partyListen();
+    G.on('rankUp', x => {
+      const hp = heroPos();
+      text(hp.x, hp.y - 46, G.t('rankUp'), '#ffd84a', 6, { life: 2.2, max: 2.2, vy: -10, big: true });
+      ring(hp.x, hp.y - 4, 44, 22, '#ffd84a', 0.8); St.flash(0.25, '#ffd84a'); St.shake(2);
+    });
     G.on('levelUp', lvl => {
       const hp = heroPos();
       hitstop = Math.max(hitstop, 0.06);
@@ -15537,6 +15578,20 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
   // the page in view: the Forge and Enchanter count as the Party page, for the tips that point there
+  // the chapter card (waits for a relic show or another window to finish)
+  UI.chapter = function (li) {
+    if (!$('#modal').hidden || (G.relicShow && G.relicShow()) || G.R.boss) { setTimeout(() => UI.chapter(li), 1500); return; }
+    const nx = G.REALMS[li + 1], d = (li + 2) * G.REALM_SIZE - 1;
+    const opened = [];
+    const tm = G.tormentMax ? G.tormentMax() : 0;
+    if (tm) opened.push(t('tormentCard', tm));
+    UI.modal(t('chTitle', li + 1, G.REALMS[li].name), `<div class="chapter"><p class="story">${esc(t('ch_' + li))}</p>
+      ${opened.length ? `<p><b>${esc(t('chOpen'))}:</b> ${esc(opened.join(' · '))}</p>` : ''}
+      <p class="next">${esc(nx ? t('chNext', G.bossName(d), nx.name, d + 1) : t('chEnd'))}</p></div>`, [{ label: t('chGo'), cls: 'gold' }]);
+    G.Audio && G.Audio.achievement && G.Audio.achievement();
+  };
+  UI.rankText = x => t(x.k, x.tg || (x.cd ? x.cd.toFixed(1) : Math.round((x.spd || x.hp || x.dmg) * 100)));
+  G.on('rankUp', x => UI.toast(`<b>${esc(t('rankUp'))}</b>&nbsp;${esc(t('lvl'))} ${x.lv}: ${esc(UI.rankText(x))}`, 'ach', 'ic_star'));
   UI.tab = () => (tw.id === 'forge' || tw.id === 'enchant' ? 'hero' : curTab());
   UI.townId = () => tw.id;
   UI.bldOf = id => TAB_BLD[id] || null;
@@ -15716,6 +15771,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     });
     G.on('bossWin', (rew) => {
       dirtyTab('quests'); dirtyTab('asc');
+      // 3.0: a land's lord falls for the first time: its chapter of the story, and where the road goes next
+      if (rew && rew.lord && !G.R.rift) {
+        const li = G.realmIndex(rew.d), sn = G.S.seen = G.S.seen || {}; sn.ch = sn.ch || {};
+        if (!sn.ch[li]) { sn.ch[li] = 1; setTimeout(() => UI.chapter(li), 2600); }
+      }
       // a land conquered opens the next Torment level
       const mx = G.tormentMax(), sn = G.S.seen = G.S.seen || {};
       if (mx > (sn.tmax || 0)) { sn.tmax = mx; UI.toast(esc(t('tormentOpen', mx)), 'ach', 'ic_skull'); updateTorment(); }
@@ -15981,7 +16041,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     $('#xpBar').hidden = !(h && h.cls);
     if (h && h.cls) {
       $('#xpFill').style.width = Math.min(100, h.xp / G.xpNeed(h.lvl) * 100) + '%';
-      setText($('#xpText'), t('lvl') + ' ' + h.lvl);
+      const nr = G.nextRank && G.nextRank(h.lvl);
+      setText($('#xpText'), t('lvl') + ' ' + h.lvl + (nr ? ' · ' + t('rankNext', nr.lv, UI.rankText(nr)) : ''));
     }
     updatePerks();
     updatePartyHud();
