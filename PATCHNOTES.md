@@ -10,6 +10,15 @@
 - **Built for holding the Button.** A held Button clicks once a second, Steady Hand takes it up to 10, and nothing counts past 10.
 - **Chase the rare.** Relics drop in a white bag from bosses only, the Lucky Spin pays out from kills, and the JACKPOT hits about one kill in two million.
 
+## 3.1 — Overdrive
+
+- **OVERDRIVE** (V, or the lightning button next to the powers).
+  - Fighting charges it: time in the field, faster against a boss, plus clicks and kills. It fills in about a minute and a half.
+  - When full, the Button goes white and blue for 8 seconds. Every 0.4 seconds it lashes every mob in sight with lightning for six Warden hits and takes a bite out of a boss. Meanwhile the party attacks twice as fast and gold comes in three times over.
+  - Left full for 20 seconds, it goes off by itself.
+- **The Gambler**, at the Enchanter's. Spend shards on a mystery item for the slot you pick. It is magic or better, up to the best rarity the depth allows, and about 1 time in 25 it's a unique.
+- **Seal an affix** at the Enchanter for shards. An Orb of Flux then rerolls only the other affixes.
+
 ## 3.0 — The Town Is Home
 
 - **Everything lives in town.** The side panel keeps only Upgrades and Settings. Every other page has a building:

@@ -10,7 +10,7 @@ function makeWorld(seed) {
   const ctx = { console, Math, JSON, Date, performance: { now: () => clock.now * 1000 }, Object, Array, Number, String, Infinity, NaN, isFinite };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
-  for (const f of ['util.js', 'data.js', 'game.js', 'hero.js', 'ach.js', 'journey.js', 'world.js', 'events.js', 'perks2.js', 'casino.js', 'relic.js']) {
+  for (const f of ['util.js', 'data.js', 'game.js', 'hero.js', 'ach.js', 'journey.js', 'world.js', 'events.js', 'perks2.js', 'casino.js', 'relic.js', 'overdrive.js']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx, { filename: f });
   }
   const G = ctx.G;

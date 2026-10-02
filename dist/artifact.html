@@ -964,6 +964,33 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   .pw kbd, kbd.hint { display: none; }
 }
 .twGrid > .note { grid-column: 1 / -1; }
+/* 3.1 OVERDRIVE */
+.pw.od { box-shadow: inset 0 0 0 2px #7fe9ff55, 0 3px 0 var(--ink); }
+.pw.od.ready { animation: odReady .5s steps(2) infinite; }
+.pw.od.on { background: #7fe9ff; box-shadow: inset 0 0 0 2px #ffffff, 0 0 12px #7fe9ff; }
+@keyframes odReady { 0% { box-shadow: inset 0 0 0 2px #7fe9ff, 0 0 6px #7fe9ff; } 100% { box-shadow: inset 0 0 0 2px #ffffff, 0 0 14px #ffffff; } }
+/* 3.1 the Gambler and affix seals */
+.gmb { padding: 10px 14px 14px; overflow: auto; }
+.gmbHave { display: flex; align-items: center; gap: 6px; margin: 6px 0 10px; font: 11px/1 var(--font-display); color: #bfe8ff; }
+.gmbSlots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.gmbSlot { display: grid; justify-items: center; gap: 6px; padding: 10px 4px; border: 2px solid var(--ink); background: linear-gradient(#3a2a5e, #22183a); color: var(--text); cursor: pointer; box-shadow: inset 0 0 0 2px #c88aff55, 0 3px 0 var(--ink); }
+.gmbSlot:hover { box-shadow: inset 0 0 0 2px #c88aff, 0 3px 0 var(--ink); }
+.gmbSlot.no { opacity: .5; }
+.gmbSlot b { font: 9px/1 var(--font-display); color: #e8d8ff; }
+.gmbSlot small { display: flex; align-items: center; gap: 3px; color: #bfe8ff; }
+.gmbRes { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 10px; border: 2px solid var(--ink); background: #1a1626; box-shadow: inset 0 0 0 2px var(--rc); }
+.gmbRes b { display: block; font: 11px/1.3 var(--font-display); }
+.gmbRes small { color: var(--dim); }
+.gmbRes.pop { animation: gmbPop .5s cubic-bezier(.2,1.6,.4,1); }
+.gmbRes.uq.pop { animation: gmbPop .5s cubic-bezier(.2,1.6,.4,1), gmbUq .25s steps(2) 6; }
+@keyframes gmbPop { 0% { transform: scale(.4) rotate(-6deg); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes gmbUq { 0% { box-shadow: inset 0 0 0 2px #e8903a, 0 0 18px #e8903a; } 100% { box-shadow: inset 0 0 0 2px #fff, 0 0 4px #fff; } }
+.affs.seal li { display: flex; align-items: center; gap: 6px; }
+.sealB { margin-left: auto; padding: 3px 6px; border: 2px solid var(--ink); background: var(--panel2); color: var(--dim); font: 8px/1 var(--font-display); cursor: pointer; }
+.sealB.on { background: #3a3014; color: #ffd84a; box-shadow: inset 0 0 0 1px #ffd84a; }
+@media (max-width: 700px) { .gmbSlots { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.gmbRes .gear { width: 56px; height: 56px; flex: none; }
+.gmbRes .gear img { width: 40px; height: 40px; }
 
 </style>
 <div id="app">
@@ -1741,7 +1768,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     autoBoss: 'Auto-call bosses', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code, then Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Deletes everything forever',
     saved: 'Game saved', badSave: 'Save code didn\u2019t load. Copied all of it?', imported: 'Save loaded',
-    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · R spin · T town · 1 2 3 perks',
+    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · V overdrive · R spin · T town · 1 2 3 perks',
     welcomeBack: 'Welcome back!', awayFor: 'Away {0}. Your garrison:', earned: 'earned', foundChests: 'found chests',
     divineLoot: 'DIVINE LOOT', legendLoot: 'LEGENDARY LOOT', mythicLoot: 'MYTHIC LOOT', newLands: 'New land: {0}',
     unlocked: 'Unlocked: {0}', achievement: 'Achievement', questDone: 'Quest complete!', potionDrink: 'Potion drunk: {0}',
@@ -1850,6 +1877,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     rankUp: 'RANK UP!', rankNext: 'Lv {0}: {1}', rankAll: 'All ranks earned',
     in_rare: 'RARE!', in_magic: 'CHAMPIONS', in_warded: 'WARDED', in_charger: 'CHARGERS', in_healer: 'MENDERS', in_summoner: 'CALLER',
     portalShut: 'SHUT!', evPortals: '{0} open: tap them', warlordName: 'WARLORD',
+    gambleTab: 'Gambler', gambleTitle: 'The Gambler', gambleSub: 'Shards for a mystery item of the slot you pick.',
+    gambleHint: 'Magic or better, up to {0} at this depth; {1}% of the time a unique.', gambleNo: 'Not enough shards: break down spare gear at the Forge.',
+    seal: 'Seal', sealed: 'SEALED', sealHint: 'Seal one affix ({0} shards): an Orb of Flux rerolls only the others.', equipped: 'equipped',
+    odName: 'OVERDRIVE', odDesc: 'Fighting charges it. When full: 8 s of lightning from the Button, party attacks ×2, gold ×3.',
+    odReady: 'OVERDRIVE READY · V', odEnd: '{0} novas', odGo: 'OVERDRIVE!',
     pkCrushTxt: 'CRUSH!', pkWindTxt: 'SECOND WIND!',
     relic: 'RELIC', feedRelic: 'found the RELIC {0}!', relicBook: 'Relics',
     relicHint: 'White-bag drops from bosses only: about 1 in 600 bosses, 1 in 200 lords, more at higher Torment. Never in Rifts.',
@@ -3860,7 +3892,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     G.S.st.orbsUsed = (G.S.st.orbsUsed || 0) + 1;
     let res = id;
     if (id === 'whet') g.e++;
-    else if (id === 'flux') g.a = rollAffixes(g.r, g.a.length);
+    else if (id === 'flux') {
+      // (3.1: a sealed affix stays; the rest roll again)
+      const keep = g.lk != null && g.a[g.lk] ? [g.a[g.lk]] : [];
+      const out = keep.slice(); while (out.length < g.a.length) out.push(newAffix(g.r, out));
+      g.a = out; if (keep.length) g.lk = 0;
+    }
     else if (id === 'ascent') g.a.push(newAffix(g.r, g.a));
     else if (id === 'grace') g.a = g.a.map(([k, v]) => [k, Math.max(v, rollAffix(k, g.r))]);
     else if (id === 'ruin') {
@@ -3873,6 +3910,47 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     G.dirty(); G.recalc();
     emit('orb', id, g, res);
     return res;
+  };
+
+  // 3.1: seal one affix for shards, so an Orb of Flux rerolls only the others (one seal an item; sealing
+  // another moves it)
+  G.sealCost = g => Math.round(20 * (g.r + 1) * (1 + (g.il || 0) / 12));
+  G.sealAffix = function (g, i) {
+    const h = G.S.hero;
+    if (!g || g.q || g.c || !g.a[i] || g.lk === i) return false;
+    const c = G.sealCost(g);
+    if (h.shards < c) return false;
+    h.shards -= c; g.lk = i;
+    emit('seal', g, i);
+    return true;
+  };
+  // 3.1: the Gambler: shards for a mystery item of the slot you choose; mostly magic to the depth's best
+  // rarity, now and then a unique
+  G.gambleCost = () => Math.round(30 * Math.pow(1.07, G.S.bestDepth || 0));
+  G.GAMBLE_UQ = 0.04;
+  G.gamble = function (slot) {
+    const S = G.S, h = S.hero, c = G.gambleCost();
+    if (!h || !h.cls || h.shards < c || !G.SLOTS.includes(slot)) return null;
+    h.shards -= c;
+    S.st.gambles = (S.st.gambles || 0) + 1;
+    const d = S.bestDepth || 0, cap = G.rarityCap();
+    // a unique of this slot the depth allows
+    const uqs = (G.UNIQUE_IDS || []).filter(q => { const U = G.UNIQUES[q]; return U.minD <= d && !U.boss && G.slotOf(U.base) === slot; });
+    if (uqs.length && chance(G.GAMBLE_UQ)) {
+      const q = uqs[Math.floor(G.rng() * uqs.length)], U = G.UNIQUES[q], it = G.ITEM_BY_ID[U.base];
+      const first = !S.uq[q]; S.uq[q] = (S.uq[q] || 0) + 1;
+      const res = G.lootItem(it, 'unique', makeUnique(q, d + 1));
+      if (first && G.feed) G.feed('uq', U.name);
+      emit('gamble', { slot, q, it, g: res && res.g, first });
+      return { slot, q, it, g: res && res.g };
+    }
+    let r = Math.max(1, Math.min(cap, G.rollTier() + 1));
+    let list = [];
+    for (; r >= 0 && !list.length; r--) list = G.ITEMS.filter(it => it.r === r && G.slotOf(it.id) === slot);
+    const it = list[Math.floor(G.rng() * list.length)];
+    const res = G.lootItem(it, 'gamble', makeGear(it.id, d + 1));
+    emit('gamble', { slot, it, g: res && res.g });
+    return { slot, it, g: res && res.g };
   };
 
   function chooseClass(id) {
@@ -6793,6 +6871,84 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (!(R.btnDown > 0)) h.hp = G.D.heroHp;
     if (G.mendParty) G.mendParty(1);
   });
+})(globalThis.G = globalThis.G || {});
+
+/* js/overdrive.js */
+// BTTN 3.1 — OVERDRIVE: the Button's own ultimate. Fighting fills the meter (time in the field, clicks and
+// kills); when it's full, press V (or the OVERDRIVE button) and for a few seconds the Button pulses
+// lightning over the whole field, the party attacks twice as fast and gold comes in three times over.
+// No DOM here: it runs in the Node playtests too. The show is in stage.js (events odStart/odPulse/odEnd).
+(function (G) {
+  'use strict';
+  const { emit } = G;
+  const R = G.R, TUNE = G.TUNE;
+  Object.assign(TUNE, {
+    odFill: 75,        // seconds of fighting to fill it from empty, before clicks and kills
+    odClick: 0.0025,   // meter per manual click
+    odKill: 0.0004,    // meter per mob killed (a few a second count, a flood doesn't fill it alone)
+    odKillCap: 0.012,  // most the kills can add a second
+    odTime: 8,         // how long it lasts
+    odPulse: 0.4,      // a nova every this many seconds
+    odHit: 6,          // each nova: this many Warden hits on every mob in sight
+    odBoss: 0.6,       // and this many seconds of the party's damage on a boss
+    odAuto: 20,        // full and left alone this long, it goes off by itself (for the idle)
+  });
+  const od = () => (R.od = R.od || { m: 0, t: 0, kAcc: 0, full: 0 });
+  G.odState = od;
+  G.odReady = () => od().m >= 1 && !(od().t > 0) && !R.town && !!(G.S.hero && G.S.hero.cls);
+  G.odActive = () => od().t > 0;
+
+  G.overdrive = function (how) {
+    if (!G.odReady()) return false;
+    const o = od();
+    o.m = 0; o.t = TUNE.odTime; o.acc = 0; o.full = 0; o.n = 0;
+    G.S.st.overdrives = (G.S.st.overdrives || 0) + 1;
+    G.dirty(); G.recalc();
+    if (G.cinematic) G.cinematic(0.45); // a beat of stillness before it goes off
+    emit('odStart', how || 'tap');
+    return true;
+  };
+
+  function pulse() {
+    const o = od(), D = G.D, hit = (D.heroHit || 1) * TUNE.odHit;
+    let n = 0;
+    for (const m of R.mobs.slice()) {
+      if (m.dead || m.p < 0.05) continue;
+      G.dealHit(m, m.kind === 'guardian' ? hit * 0.5 : hit, 'overdrive', false);
+      n++;
+    }
+    if (R.boss && G.hitBoss) G.hitBoss((D.heroDps || 0) * TUNE.odBoss);
+    o.n++;
+    emit('odPulse', n, o.n);
+  }
+
+  G.hook('tick', dt => {
+    const o = od();
+    if (R.town || !(G.S.hero && G.S.hero.cls)) return;
+    if (o.t > 0) {
+      o.t -= dt; o.acc += dt;
+      while (o.acc >= TUNE.odPulse && o.t > -0.01) { o.acc -= TUNE.odPulse; pulse(); }
+      if (o.t <= 0) { o.t = 0; G.dirty(); G.recalc(); emit('odEnd', o.n); }
+      return;
+    }
+    if (o.m < 1) {
+      // fighting fills it: faster against a boss
+      o.m = Math.min(1, o.m + dt / TUNE.odFill * (R.boss ? 1.5 : 1) + Math.min(o.kAcc, TUNE.odKillCap * dt));
+      o.kAcc = 0;
+      if (o.m >= 1) emit('odReady');
+    } else if ((o.full += dt) >= TUNE.odAuto && G.S.hero.autoOd !== 0) G.overdrive('auto');
+  });
+  G.hook('kill', () => { const o = od(); if (!(o.t > 0)) o.kAcc += TUNE.odKill; });
+  G.hook('click', () => { const o = od(); if (!(o.t > 0) && o.m < 1) o.m = Math.min(1, o.m + TUNE.odClick); });
+  // twice the attack speed for the party while it lasts
+  G.hook('stats', d => {
+    if (!(od().t > 0)) return;
+    d.heroRate *= 2; d.heroDps *= 2; if (d.wardenDps) d.wardenDps *= 2;
+    for (const p of d.party || []) { p.rate *= 2; p.dps *= 2; }
+  });
+  // three times the gold from kills and clicks
+  const baseEv = G.evMul || (() => 1);
+  G.evMul = k => { const v = baseEv(k); return (k === 'gold' || k === 'click') && od().t > 0 ? v * 3 : v; };
 })(globalThis.G = globalThis.G || {});
 
 /* js/net.js */
@@ -13335,6 +13491,31 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
       for (const id of ev.ids || []) mobVisOf({ id }).hit = 0.09;
     });
+    // 3.1 OVERDRIVE: a white-out and a shockwave, then the Button lashes every mob with lightning
+    G.on('odReady', () => { const b = btnPos(); ring(b.x, b.y - 4, 30, 15, '#7fe9ff', 0.6); text(b.x, b.y - 46, G.t('odReady'), '#7fe9ff', 4, { life: 1.8, vy: -8 }); if (G.Audio && G.Audio.achievement) G.Audio.achievement(); });
+    G.on('odStart', () => {
+      const b = btnPos();
+      St.flash(0.9, '#ffffff'); St.shake(10); slowmo = Math.max(slowmo, 0.6); hitstop = Math.max(hitstop, 0.12);
+      cardText(0, G.t('odGo'), '#7fe9ff', 9, { life: 2.2, vy: -3, big: true, now: true });
+      for (let k = 0; k < 3; k++) ring(b.x, b.y - 4, 60 + k * 50, 30 + k * 25, k ? '#7fe9ff' : '#ffffff', 0.5 + k * 0.25);
+      burst(b.x, b.y - 10, ['#ffffff', '#7fe9ff', '#4fa8ff'], 70, 160);
+      beams.push({ x: b.x, y: b.y, col: '#7fe9ff', life: 1.2, max: 1.2, w: 16 });
+      if (G.Audio && G.Audio.jackpot) G.Audio.jackpot(); else if (G.Audio && G.Audio.levelUp) G.Audio.levelUp();
+    });
+    G.on('odPulse', () => {
+      const b = btnPos(), ms = G.R.mobs;
+      ring(b.x, b.y - 4, 40 + Math.random() * 40, 20 + Math.random() * 20, Math.random() < 0.5 ? '#7fe9ff' : '#ffffff', 0.3);
+      // a few forks of lightning from the Button out into the crowd
+      for (let k = 0; k < Math.min(7, ms.length); k++) {
+        const m = ms[Math.floor(Math.random() * ms.length)]; if (!m || m.p < 0.05) continue;
+        const q = mobPos(m), pts = [[b.x, b.y - 14]];
+        for (let j = 1; j < 5; j++) pts.push([b.x + (q.x - b.x) * j / 5 + rand(-7, 7), b.y - 14 + (q.y - 6 - b.y + 14) * j / 5 + rand(-7, 7)]);
+        pts.push([q.x, q.y - 6]); bolts.push({ pts, life: 0.18, cols: ['#ffffff', '#7fe9ff'], wide: k < 2 });
+      }
+      St.shake(2);
+      if (G.Audio && G.Audio.zap) G.Audio.zap(); else if (G.Audio && G.Audio.click) G.Audio.click(0, true);
+    });
+    G.on('odEnd', n => { const b = btnPos(); ring(b.x, b.y - 4, 120, 60, '#ffffff', 0.7); St.flash(0.3, '#7fe9ff'); text(b.x, b.y - 40, G.t('odEnd', n), '#7fe9ff', 5, { life: 1.6, vy: -10 }); });
     G.on('heal', (i, who) => {
       beamsFx.push({ kind: 'heal', from: i, to: who, t: 0, dur: 0.35 });
       // the healer runs to whoever it mends (not to the Button: it mends that from where it stands)
@@ -15354,6 +15535,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
 
   function drawButton(b) {
+    if (G.odActive && G.odActive()) {
+      // the field goes electric blue, and arcs crawl out of the Button every frame
+      lctx.globalAlpha = 0.08 + 0.04 * Math.sin(time * 20); lctx.fillStyle = '#7fe9ff'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1;
+      if (Math.random() < 0.5) { const an = Math.random() * Math.PI * 2, r = rand(40, 110), pts = [[b.x, b.y - 14]]; for (let j = 1; j < 5; j++) pts.push([b.x + Math.cos(an) * r * j / 5 + rand(-6, 6), b.y - 14 + Math.sin(an) * r * 0.55 * j / 5 + rand(-6, 6)]); bolts.push({ pts, life: 0.1, cols: ['#ffffff', '#7fe9ff'] }); }
+      glow(b.x, b.y - 8, 34 + 6 * Math.sin(time * 18), '#7fe9ff', 0.35 + 0.15 * Math.sin(time * 25)); if (Math.random() < 0.6) part(b.x + rand(-22, 22), b.y - rand(0, 20), pick(['#ffffff', '#7fe9ff']), { vx: rand(-30, 30), vy: -rand(20, 60), grav: 0, life: 0.3 }); }
+    else if (G.odReady && G.odReady()) glow(b.x, b.y - 8, 22, '#7fe9ff', 0.12 + 0.08 * Math.sin(time * 6));
     const skin = G.SKINS.find(s => s.id === G.S.skin) || G.SKINS[0];
     const pressed = btnPress > 0;
     if (btnPress > 0) btnPress -= fdt;
@@ -15674,7 +15861,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   const tabOpen = id => { const d = TABS.find(x => x.id === id); return d && d.unlock(G.S); };
   // 3.0: the panel keeps only the Upgrades (and Settings); every other page lives in a town building
   const BLDS = {
-    forge: { npc: 'npc_smith', subs: ['forge'] }, enchant: { npc: 'npc_witch', subs: ['enchant'] }, alch: { npc: 'npc_alch', subs: ['alch'] },
+    forge: { npc: 'npc_smith', subs: ['forge'] }, enchant: { npc: 'npc_witch', subs: ['enchant', 'gamble'] }, alch: { npc: 'npc_alch', subs: ['alch'] },
     tavern: { npc: 'npc_keeper', subs: ['tavern', 'hero', 'ladder'] },
     barracks: { npc: 'npc_keeper', subs: ['heroes'], sub: 'twBarracksSub' }, museum: { npc: 'npc_sage', subs: ['coll', 'ach'], sub: 'twMuseumSub' },
     quests: { npc: 'npc_keeper', subs: ['quests'], sub: 'twBoardSub' }, stars: { npc: 'npc_sage', subs: ['stars'], sub: 'twObsSub' },
@@ -15683,7 +15870,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   };
   const BLD_ORDER = ['forge', 'enchant', 'alch', 'tavern', 'barracks', 'museum', 'quests', 'stars', 'pets', 'temple', 'rift'];
   const BLD_SPR = { forge: 'tw_forge', enchant: 'tw_tower', alch: 'tw_alch', tavern: 'tw_tavern', barracks: 'tw_barracks', museum: 'tw_museum', quests: 'tw_board', stars: 'tw_obs', pets: 'tw_nest', temple: 'tw_temple', rift: 'tw_rift' };
-  const CUSTOM = { forge: 1, enchant: 1, alch: 1, tavern: 1 };
+  const CUSTOM = { forge: 1, enchant: 1, gamble: 1, alch: 1, tavern: 1 };
   const TAB_BLD = {}; Object.keys(BLDS).forEach(b => BLDS[b].subs.forEach(x => { TAB_BLD[x] = b; }));
   const subOpen = x => !!CUSTOM[x] || tabOpen(x);
   const bldOpen = id => !!BLDS[id] && BLDS[id].subs.some(subOpen);
@@ -15743,10 +15930,20 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     el.hidden = !(h && h.cls);
     if (el.hidden) return;
     if (!el.children.length) {
-      el.innerHTML = Object.keys(G.POWERS).map(id => { const P = G.POWERS[id]; return `<button class="pw" data-pw="${id}" title="${esc(t('pw_' + id) + ' (' + P.key + '): ' + t('pw_' + id + '_d'))}" aria-label="${esc(t('pw_' + id))}">${img(P.icon, '', 3)}<i></i><kbd>${P.key}</kbd></button>`; }).join('');
-      el.addEventListener('click', e => { const b = e.target.closest('[data-pw]'); if (b && !G.usePower(b.dataset.pw)) G.Audio.error(); });
+      el.innerHTML = Object.keys(G.POWERS).map(id => { const P = G.POWERS[id]; return `<button class="pw" data-pw="${id}" title="${esc(t('pw_' + id) + ' (' + P.key + '): ' + t('pw_' + id + '_d'))}" aria-label="${esc(t('pw_' + id))}">${img(P.icon, '', 3)}<i></i><kbd>${P.key}</kbd></button>`; }).join('')
+        + (G.overdrive ? `<button class="pw od" data-od title="${esc(t('odName') + ' (V): ' + t('odDesc'))}" aria-label="${esc(t('odName'))}">${img(G.SPR.defs.ic_bolt ? 'ic_bolt' : 'ic_star', '', 3)}<i></i><kbd>V</kbd></button>` : '');
+      el.addEventListener('click', e => {
+        if (e.target.closest('[data-od]')) { G.Audio.unlock(); if (!G.overdrive('tap')) G.Audio.error(); return; }
+        const b = e.target.closest('[data-pw]'); if (b && !G.usePower(b.dataset.pw)) G.Audio.error();
+      });
     }
-    for (const b of el.children) {
+    const odB = el.querySelector('[data-od]');
+    if (odB) {
+      const o = G.odState(), on = o.t > 0;
+      odB.querySelector('i').style.height = (on ? 0 : (1 - o.m) * 100) + '%';
+      setClass(odB, 'ready', G.odReady()); setClass(odB, 'on', on);
+    }
+    for (const b of el.querySelectorAll('[data-pw]')) {
       const id = b.dataset.pw, cd = G.R.pw[id] || 0, tot = G.POWERS[id].cd;
       b.querySelector('i').style.height = (cd > 0 ? cd / tot * 100 : 0) + '%';
       setClass(b, 'ready', !(cd > 0));
@@ -15889,6 +16086,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         const c = $$('#perks [data-perk]')[+e.code.slice(5) - 1];
         if (c && G.pickPerk(c.dataset.perk)) { G.Audio && G.Audio.buy(); UI.update(true); }
       }
+      else if (e.code === 'KeyV') { if (!G.uiBusy() && G.overdrive && !G.overdrive('key')) G.Audio.error(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
       else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } }
       else if (e.code === 'Escape' && G.R.town && !G.uiBusy()) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
@@ -17037,7 +17235,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // a building's tabs (the Tavern: party, character, ladder; the Museum: collection, trophies)
   function twSubRow(id) {
     const B = BLDS[id]; if (!B || B.subs.length < 2) return '';
-    return `<nav class="twSubs">${B.subs.map(x => `<button class="${x === tw.sub ? 'on' : ''}" data-twsub="${x}" ${subOpen(x) ? '' : 'disabled'}>${esc(x === 'tavern' ? t('twSubParty') : x === 'hero' ? t('twSubChar') : t('tab_' + x))}</button>`).join('')}</nav>`;
+    return `<nav class="twSubs">${B.subs.map(x => `<button class="${x === tw.sub ? 'on' : ''}" data-twsub="${x}" ${subOpen(x) ? '' : 'disabled'}>${esc(x === 'tavern' ? t('twSubParty') : x === 'hero' ? t('twSubChar') : x === 'enchant' ? t('town_enchant') : x === 'gamble' ? t('gambleTab') : t('tab_' + x))}</button>`).join('')}</nav>`;
   }
   const bldVal = (id, L) => { const b = G.BLD_BY_ID[id]; return b.v >= 1 ? L * b.v : Math.round(L * b.v * 100); };
   // building it up: its level, what it gives now and next, the price
@@ -17145,7 +17343,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         <h3 style="color:${gearCol(g)}">${gearTile(g)} ${esc(gearName(g))}</h3>
         <p class="sub">${U ? `${uqLabel(g)} · ` : ''}${esc(L(G.RARITIES[g.r].name))} · ${esc(t('slot_' + slot))} · ${esc(t('ilvl', g.il))}${f.worn ? ' · <b class="worn">' + esc(t('twWornBy', wearer < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(wearer)].name))) + '</b>' : ''}</p>
         <p class="main">${esc(mainLine(g))}</p>
-        ${g.a.length ? `<ul class="affs">${g.a.map(a => affLine(a, g)).join('')}</ul>` : ''}
+        ${g.a.length ? (enchant && !g.q && !g.c ? `<ul class="affs seal">${g.a.map((a, i) => affLine(a, g).replace(/<\/li>$/, ` <button class="sealB ${g.lk === i ? 'on' : ''}" data-twseal="${i}">${esc(g.lk === i ? t('sealed') : t('seal'))}</button></li>`)).join('')}</ul><p class="hint">${esc(t('sealHint', fmt(G.sealCost(g))))}</p>` : `<ul class="affs">${g.a.map(a => affLine(a, g)).join('')}</ul>`) : ''}
         ${U ? `<p class="uqfx">${esc(U.fx)}</p>` : ''}
         ${cmp ? `<div class="twCmp"><small>${esc(t('twIfWorn', who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(who)].name)))}</small>${cmp.map(([k, a, b, fm]) => `<span>${esc(t(k))}</span>${twDelta(a, b, fm)}`).join('')}</div>` : (!f.worn && !canWear(g, who) ? `<p class="warn">${esc(t('twWrongClass'))}</p>` : '')}
         <div class="twActs">
@@ -17179,6 +17377,19 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         </div>
         ${card}
       </div></div>`;
+  }
+  // 3.1: the Gambler, at the Enchanter's: shards for a mystery item of the slot you pick
+  function renderGamble(el) {
+    const h = G.S.hero, c = G.gambleCost(), can = h.shards >= c, last = tw.gamb;
+    const cap = G.RARITIES[G.rarityCap()];
+    el.innerHTML = `<div class="tw gamble">${twHeader('npc_witch', t('gambleTitle'), t('gambleSub'))}
+      <div class="gmb">
+        <p class="note">${esc(t('gambleHint', L(cap.name), Math.round(G.GAMBLE_UQ * 100)))}</p>
+        <div class="gmbHave">${img('ic_shard', '', 3)} <b>${fmt(h.shards)}</b> ${esc(t('twShards'))}</div>
+        <div class="gmbSlots">${G.SLOTS.map(s => `<button class="gmbSlot ${can ? '' : 'no'}" data-twgamb="${s}">${img(SLOT_ICON[s], '', 5)}<b>${esc(t('slot_' + s))}</b><small>${img('ic_shard', '', 2)}${fmt(c)}</small></button>`).join('')}</div>
+        ${last ? `<div class="gmbRes ${last.q ? 'uq' : ''} ${last.fresh ? 'pop' : ''}" style="--rc:${last.col}">${last.g ? gearTile(last.g) : ''}<div><b style="color:${last.col}">${esc(last.name)}</b><small>${esc(last.sub)}</small></div></div>` : ''}
+      </div></div>`;
+    if (last) last.fresh = false;
   }
   function renderAlch(el) {
     const S = G.S, D = G.D;
@@ -17215,7 +17426,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       return;
     }
     const sc = el.querySelector('.twBody, .twPots, .tw.tavern'), y = sc ? sc.scrollTop : 0, gy = el.querySelector('.twGrid') ? el.querySelector('.twGrid').scrollTop : 0;
-    if (tw.id === 'forge' || tw.id === 'enchant') renderForge(el);
+    if (tw.id === 'forge' || (tw.id === 'enchant' && tw.sub !== 'gamble')) renderForge(el);
+    else if (tw.sub === 'gamble') renderGamble(el);
     else if (tw.id === 'alch') renderAlch(el);
     else if (tw.id === 'tavern') renderTavern(el);
     const head = el.querySelector('.twHead'); if (head) head.insertAdjacentHTML('afterend', twSubRow(tw.id));
@@ -17235,12 +17447,25 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     el.addEventListener('click', e => {
       // (a page hosted here handles its own clicks)
       if (e.target.closest('.twTabBody')) return;
-      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb],[data-twsub],[data-twbuild]');
+      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb],[data-twsub],[data-twbuild],[data-twgamb],[data-twseal]');
       if (!b) { if (e.target === el) UI.townClose(); return; }
       G.Audio.unlock();
       const h = G.S.hero;
       if (b.dataset.tw === 'close') { UI.townClose(); return; }
       if (b.dataset.twsub) { UI.townOpen(tw.id, b.dataset.twsub); return; }
+      if (b.dataset.twgamb) {
+        const r = G.gamble(b.dataset.twgamb);
+        if (!r) { G.Audio.error(); UI.toast(esc(t('gambleNo')), '', 'ic_shard'); return; }
+        const g = r.g || null, rar = G.RARITIES[r.it.r];
+        tw.gamb = { g, q: r.q, fresh: true, col: r.q ? G.UNIQUE_COL : rar.color, name: g ? gearName(g) : L(r.it.name), sub: r.q ? t('unique') + ' · ' + G.UNIQUES[r.q].fx : L(rar.name) + ' · ' + t('slot_' + r.slot) + (g && G.S.hero.eq[r.slot] === g ? ' · ' + t('equipped') : '') };
+        if (r.q || r.it.r >= 4) { G.Audio.levelUp && G.Audio.levelUp(); } else G.Audio.buy();
+        G.dirty(); G.recalc(); renderTown(); UI.update(true); return;
+      }
+      if (b.dataset.twseal != null) {
+        const f = tw.sel != null ? twFind(tw.sel) : null;
+        if (!f || !G.sealAffix(f.g, +b.dataset.twseal)) { G.Audio.error(); return; }
+        G.Audio.buy(); renderTown(); UI.update(true); return;
+      }
       if (b.dataset.twbuild) {
         const id = b.dataset.twbuild;
         if (G.buildUp(id)) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('bldDone', t('town_' + id), G.bldLvl(id))), 'ach', G.SPR.defs[BLD_SPR[id]] ? BLD_SPR[id] : 'ic_town'); pingT = 0; UI.render(); if (CUSTOM[tw.sub]) renderTown(); }

@@ -614,7 +614,12 @@
     G.S.st.orbsUsed = (G.S.st.orbsUsed || 0) + 1;
     let res = id;
     if (id === 'whet') g.e++;
-    else if (id === 'flux') g.a = rollAffixes(g.r, g.a.length);
+    else if (id === 'flux') {
+      // (3.1: a sealed affix stays; the rest roll again)
+      const keep = g.lk != null && g.a[g.lk] ? [g.a[g.lk]] : [];
+      const out = keep.slice(); while (out.length < g.a.length) out.push(newAffix(g.r, out));
+      g.a = out; if (keep.length) g.lk = 0;
+    }
     else if (id === 'ascent') g.a.push(newAffix(g.r, g.a));
     else if (id === 'grace') g.a = g.a.map(([k, v]) => [k, Math.max(v, rollAffix(k, g.r))]);
     else if (id === 'ruin') {
@@ -627,6 +632,47 @@
     G.dirty(); G.recalc();
     emit('orb', id, g, res);
     return res;
+  };
+
+  // 3.1: seal one affix for shards, so an Orb of Flux rerolls only the others (one seal an item; sealing
+  // another moves it)
+  G.sealCost = g => Math.round(20 * (g.r + 1) * (1 + (g.il || 0) / 12));
+  G.sealAffix = function (g, i) {
+    const h = G.S.hero;
+    if (!g || g.q || g.c || !g.a[i] || g.lk === i) return false;
+    const c = G.sealCost(g);
+    if (h.shards < c) return false;
+    h.shards -= c; g.lk = i;
+    emit('seal', g, i);
+    return true;
+  };
+  // 3.1: the Gambler: shards for a mystery item of the slot you choose; mostly magic to the depth's best
+  // rarity, now and then a unique
+  G.gambleCost = () => Math.round(30 * Math.pow(1.07, G.S.bestDepth || 0));
+  G.GAMBLE_UQ = 0.04;
+  G.gamble = function (slot) {
+    const S = G.S, h = S.hero, c = G.gambleCost();
+    if (!h || !h.cls || h.shards < c || !G.SLOTS.includes(slot)) return null;
+    h.shards -= c;
+    S.st.gambles = (S.st.gambles || 0) + 1;
+    const d = S.bestDepth || 0, cap = G.rarityCap();
+    // a unique of this slot the depth allows
+    const uqs = (G.UNIQUE_IDS || []).filter(q => { const U = G.UNIQUES[q]; return U.minD <= d && !U.boss && G.slotOf(U.base) === slot; });
+    if (uqs.length && chance(G.GAMBLE_UQ)) {
+      const q = uqs[Math.floor(G.rng() * uqs.length)], U = G.UNIQUES[q], it = G.ITEM_BY_ID[U.base];
+      const first = !S.uq[q]; S.uq[q] = (S.uq[q] || 0) + 1;
+      const res = G.lootItem(it, 'unique', makeUnique(q, d + 1));
+      if (first && G.feed) G.feed('uq', U.name);
+      emit('gamble', { slot, q, it, g: res && res.g, first });
+      return { slot, q, it, g: res && res.g };
+    }
+    let r = Math.max(1, Math.min(cap, G.rollTier() + 1));
+    let list = [];
+    for (; r >= 0 && !list.length; r--) list = G.ITEMS.filter(it => it.r === r && G.slotOf(it.id) === slot);
+    const it = list[Math.floor(G.rng() * list.length)];
+    const res = G.lootItem(it, 'gamble', makeGear(it.id, d + 1));
+    emit('gamble', { slot, it, g: res && res.g });
+    return { slot, it, g: res && res.g };
   };
 
   function chooseClass(id) {

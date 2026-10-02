@@ -772,6 +772,31 @@
       for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
       for (const id of ev.ids || []) mobVisOf({ id }).hit = 0.09;
     });
+    // 3.1 OVERDRIVE: a white-out and a shockwave, then the Button lashes every mob with lightning
+    G.on('odReady', () => { const b = btnPos(); ring(b.x, b.y - 4, 30, 15, '#7fe9ff', 0.6); text(b.x, b.y - 46, G.t('odReady'), '#7fe9ff', 4, { life: 1.8, vy: -8 }); if (G.Audio && G.Audio.achievement) G.Audio.achievement(); });
+    G.on('odStart', () => {
+      const b = btnPos();
+      St.flash(0.9, '#ffffff'); St.shake(10); slowmo = Math.max(slowmo, 0.6); hitstop = Math.max(hitstop, 0.12);
+      cardText(0, G.t('odGo'), '#7fe9ff', 9, { life: 2.2, vy: -3, big: true, now: true });
+      for (let k = 0; k < 3; k++) ring(b.x, b.y - 4, 60 + k * 50, 30 + k * 25, k ? '#7fe9ff' : '#ffffff', 0.5 + k * 0.25);
+      burst(b.x, b.y - 10, ['#ffffff', '#7fe9ff', '#4fa8ff'], 70, 160);
+      beams.push({ x: b.x, y: b.y, col: '#7fe9ff', life: 1.2, max: 1.2, w: 16 });
+      if (G.Audio && G.Audio.jackpot) G.Audio.jackpot(); else if (G.Audio && G.Audio.levelUp) G.Audio.levelUp();
+    });
+    G.on('odPulse', () => {
+      const b = btnPos(), ms = G.R.mobs;
+      ring(b.x, b.y - 4, 40 + Math.random() * 40, 20 + Math.random() * 20, Math.random() < 0.5 ? '#7fe9ff' : '#ffffff', 0.3);
+      // a few forks of lightning from the Button out into the crowd
+      for (let k = 0; k < Math.min(7, ms.length); k++) {
+        const m = ms[Math.floor(Math.random() * ms.length)]; if (!m || m.p < 0.05) continue;
+        const q = mobPos(m), pts = [[b.x, b.y - 14]];
+        for (let j = 1; j < 5; j++) pts.push([b.x + (q.x - b.x) * j / 5 + rand(-7, 7), b.y - 14 + (q.y - 6 - b.y + 14) * j / 5 + rand(-7, 7)]);
+        pts.push([q.x, q.y - 6]); bolts.push({ pts, life: 0.18, cols: ['#ffffff', '#7fe9ff'], wide: k < 2 });
+      }
+      St.shake(2);
+      if (G.Audio && G.Audio.zap) G.Audio.zap(); else if (G.Audio && G.Audio.click) G.Audio.click(0, true);
+    });
+    G.on('odEnd', n => { const b = btnPos(); ring(b.x, b.y - 4, 120, 60, '#ffffff', 0.7); St.flash(0.3, '#7fe9ff'); text(b.x, b.y - 40, G.t('odEnd', n), '#7fe9ff', 5, { life: 1.6, vy: -10 }); });
     G.on('heal', (i, who) => {
       beamsFx.push({ kind: 'heal', from: i, to: who, t: 0, dur: 0.35 });
       // the healer runs to whoever it mends (not to the Button: it mends that from where it stands)
@@ -2791,6 +2816,12 @@
   }
 
   function drawButton(b) {
+    if (G.odActive && G.odActive()) {
+      // the field goes electric blue, and arcs crawl out of the Button every frame
+      lctx.globalAlpha = 0.08 + 0.04 * Math.sin(time * 20); lctx.fillStyle = '#7fe9ff'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1;
+      if (Math.random() < 0.5) { const an = Math.random() * Math.PI * 2, r = rand(40, 110), pts = [[b.x, b.y - 14]]; for (let j = 1; j < 5; j++) pts.push([b.x + Math.cos(an) * r * j / 5 + rand(-6, 6), b.y - 14 + Math.sin(an) * r * 0.55 * j / 5 + rand(-6, 6)]); bolts.push({ pts, life: 0.1, cols: ['#ffffff', '#7fe9ff'] }); }
+      glow(b.x, b.y - 8, 34 + 6 * Math.sin(time * 18), '#7fe9ff', 0.35 + 0.15 * Math.sin(time * 25)); if (Math.random() < 0.6) part(b.x + rand(-22, 22), b.y - rand(0, 20), pick(['#ffffff', '#7fe9ff']), { vx: rand(-30, 30), vy: -rand(20, 60), grav: 0, life: 0.3 }); }
+    else if (G.odReady && G.odReady()) glow(b.x, b.y - 8, 22, '#7fe9ff', 0.12 + 0.08 * Math.sin(time * 6));
     const skin = G.SKINS.find(s => s.id === G.S.skin) || G.SKINS[0];
     const pressed = btnPress > 0;
     if (btnPress > 0) btnPress -= fdt;
