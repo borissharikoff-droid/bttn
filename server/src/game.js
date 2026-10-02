@@ -692,7 +692,8 @@
   function newRift() { return { best: 0, bestT: 0, open: 1, runs: 0, day: { k: '', l: 0 } }; }
   // The season: a save from an earlier one starts the game over (only its settings and name carry on).
   // 2.3 wiped everything once, since all progress so far was made while the game was far too easy.
-  const WIPE = G.WIPE = 1;
+  // the season: saves from an earlier one start over (3.1: season 2, a clean start for everyone)
+  const WIPE = G.WIPE = 2;
   G.oldSeason = data => !!data && typeof data === 'object' && (data.wipe || 0) < WIPE;
   function newState() {
     return {
@@ -3524,7 +3525,7 @@
     const snap = {
       // the best level reached, so ascending (which starts the level over) doesn't sink you on the ladder
       // v2: 2.0 and later, where depths 65-74 are the Moon and the Star Sea
-      v: 2, name: (S.profile.name || '').slice(0, 16), cls: h.cls, lvl: Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
+      v: 2, ss: G.WIPE || 1, name: (S.profile.name || '').slice(0, 16), cls: h.cls, lvl: Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
       depth: S.bestDepth, asc: S.ascensions, fame: S.fameTotal, mad: Math.round(S.rec.madTime || 0), gear, ts: Date.now(),
       rift: rf.best | 0, rt: Math.round(rf.bestT || 0), rd: today, uq: Object.keys(S.uq || {}).length, kills: h.kills | 0, ls: G.starCount ? G.starCount() : 0,
       ev: (S.feed || []).slice(-6), fs: Object.assign({}, S.rec.firsts || {}), cr,

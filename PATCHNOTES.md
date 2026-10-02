@@ -12,6 +12,8 @@
 
 ## 3.1 — Overdrive
 
+- **Season 2: everyone starts over.** All progress is reset, on every device and in the cloud. Ladder rows from season 1 are hidden. Settings, name and ladder identity carry over.
+
 - **OVERDRIVE** (V, or the lightning button next to the powers).
   - Fighting charges it: time in the field, faster against a boss, plus clicks and kills. It fills in about a minute and a half.
   - When full, the Button goes white and blue for 8 seconds. Every 0.4 seconds it lashes every mob in sight with lightning for six Warden hits and takes a bite out of a boss. Meanwhile the party attacks twice as fast and gold comes in three times over.

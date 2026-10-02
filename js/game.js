@@ -38,7 +38,8 @@
   function newRift() { return { best: 0, bestT: 0, open: 1, runs: 0, day: { k: '', l: 0 } }; }
   // The season: a save from an earlier one starts the game over (only its settings and name carry on).
   // 2.3 wiped everything once, since all progress so far was made while the game was far too easy.
-  const WIPE = G.WIPE = 1;
+  // the season: saves from an earlier one start over (3.1: season 2, a clean start for everyone)
+  const WIPE = G.WIPE = 2;
   G.oldSeason = data => !!data && typeof data === 'object' && (data.wipe || 0) < WIPE;
   function newState() {
     return {

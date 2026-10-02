@@ -130,7 +130,8 @@
   };
 
   function prepare(list) {
-    return list.filter(e => e && typeof e === 'object').map(e => {
+    // (rows from an earlier season don't show: everyone starts the new one from nothing)
+    return list.filter(e => e && typeof e === 'object' && (e.ss || 1) >= (G.WIPE || 1)).map(e => {
       // rows from before 2.0: their crowns past depth 65 belonged to lands that come later now
       if ((e.v | 0) < 2 && e.cr && typeof e.cr === 'object') { const cr = {}; for (const k in e.cr) if (+k < 65) cr[k] = e.cr[k]; e = Object.assign({}, e, { cr }); }
       const problems = G.verifySnapshot(e);
