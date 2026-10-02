@@ -7,7 +7,7 @@
 - **The Town is the hub.** Eleven buildings hold every page and grow with gold for bonuses that last through ascension. **EQUIP BEST** at the Forge dresses the whole party.
 - **A busy arena.** Sudden events about every minute, chests by the hundred with Looters, invasions, and the **JACKPOT** (about one kill in two million).
 - **Lands, zones and stars.** 15 lands of five zones each, each with its own rule and lord and three stars to earn; then corrupted cycles. **Rifts** are timed runs for the endgame, ranked on a ladder you share with friends.
-- **Built for holding the Button.** Steady Hand turns a held Button into 1 to 10 clicks a second, and nothing counts past 10.
+- **Built for holding the Button.** A held Button clicks once a second, Steady Hand takes it up to 10, and nothing counts past 10.
 - **Chase the rare.** Relics drop in a white bag from bosses only, the Lucky Spin pays out from kills, and the JACKPOT hits about one kill in two million.
 
 ## 3.0 — The Town Is Home
@@ -23,14 +23,14 @@
 
   The town opens at any time except during a Rift, and the field holds still while you're there.
 - **The town grows.**
-  - Each building can be built up five times with gold (500 × 10^level). Each level gives a lasting bonus that is kept through ascension, for example party damage, health, crit damage, potion cap, Garrison gold, item value or Essence.
+  - Each building can be built up five times with gold (800 × 20^level). Each level gives a lasting bonus that is kept through ascension, for example party damage, health, crit damage, potion cap, Garrison gold, item value or Essence.
   - Closed buildings stand as scaffolding.
   - The square has a fountain, stalls, a cat, a dog and chickens, and more townsfolk as the town level rises.
 - **Party roles you can see.**
   - The tank walks out to the incoming wave and holds a line of mobs on its shield.
   - The healer stays behind the Button and runs to whoever it mends.
   - Damage dealers work the flanks, and melee companions lunge at their targets.
-- **Steady Hand.** Holding the Button (or Space) repeats clicks only with this upgrade: 1 a second at level 1, up to 10.
+- **Holding the Button** (or Space) clicks once a second from the start; each level of **Steady Hand** adds one, up to 10.
 - **18 new perks and 4 evolutions**, for example Kindling, Frostbite, Executioner, Ricochet, Corpse Blast, Glass Cannon vs Fortress, Momentum, Last Stand and Warband, with their own effects on the field. Auto-pick takes a solid card and never one with a downside.
 - **Warden ranks.** Every five levels the whole party gains something visible: an extra mob hit per attack, faster attacks, harder crits, more health or more damage. The XP bar names the next rank.
 - **A story.** The first fall of each land's lord opens a chapter card: a line of story, what opened, and where the road goes next.
@@ -44,6 +44,7 @@
   - High Stakes: gold ×3, but bites ×1.6.
 - **Incoming packs.** Rare, champion and special packs flash an arrow with their name at the edge they enter from.
 - **A tougher Horde.** Bigger mobs take 1.8 times longer to kill, and bites are a little harder.
+- **Gentler first steps.** The first companion joins after depth 3 (was 5), bites are halved for the first three minutes, and the first two lords hit a third softer.
 - **Fairer losses.**
   - Only a wipe during a boss costs a depth.
   - After a wipe or a break, no boss comes on its own for 25 seconds. After two losses at the same boss, the party farms for 90 seconds before trying again.
@@ -60,6 +61,11 @@
   - Garrison fighters are renamed (Cutpurse, Bowman, Hedge Mage, Sentinel) so they don't clash with the classes.
   - A held Button keeps a quarter of its clicks while you're away.
   - The Build-all button builds up every building you can afford.
+  - **1, 2, 3** pick a level-up card.
+  - Shrine, breach and Hoarder clocks keep running through boss fights.
+  - Starting a Rift sends a waiting boss away instead of refusing.
+  - Relics have bad-luck protection: every boss without one adds 1% to the odds.
+  - The Lucky Spin works from step 5 of the tutorial on.
 
 ## 2.4 — The Town
 

@@ -1224,7 +1224,7 @@
   G.BLD_MAX = 5;
   G.bldLvl = id => ((G.S.bld || {})[id] || 0);
   G.townLvl = () => G.BLD.reduce((a, b) => a + G.bldLvl(b.id), 0);
-  G.bldCost = id => Math.round(500 * Math.pow(10, G.bldLvl(id)));
+  G.bldCost = id => Math.round(800 * Math.pow(20, G.bldLvl(id)));
   G.buildUp = function (id) {
     const S = G.S, b = G.BLD_BY_ID[id];
     if (!b || G.bldLvl(id) >= G.BLD_MAX || (G.bldOpen && !G.bldOpen(id))) return false;
@@ -3730,7 +3730,8 @@
 
   // ---------- The drop ----------
   // one boss in 600, one lord in 200, 10% more per Torment level; never in a Rift
-  G.relicOdds = lord => (lord ? G.TUNE.relicLord : G.TUNE.relicBoss) * (1 + G.TUNE.relicTorment * (G.torment ? G.torment().n : 0));
+  // (3.0: bad luck protection: every boss without one adds 1% to the odds, so a long dry spell ends)
+  G.relicOdds = lord => (lord ? G.TUNE.relicLord : G.TUNE.relicBoss) * (1 + G.TUNE.relicTorment * (G.torment ? G.torment().n : 0)) * (1 + 0.01 * ((S_().st && S_().st.relicDry) || 0));
   const owned = () => {
     const S = S_(), h = S.hero, n = Object.assign({}, (S.rec && S.rec.relicN) || {});
     const all = [].concat(h.bag || [], G.SLOTS.map(s => h.eq[s]), ...(S.party || []).map(m => G.SLOTS.map(s => m.eq[s])));

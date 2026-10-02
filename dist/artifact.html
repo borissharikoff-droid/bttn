@@ -1741,7 +1741,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     autoBoss: 'Auto-call bosses', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code, then Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Deletes everything forever',
     saved: 'Game saved', badSave: 'Save code didn\u2019t load. Copied all of it?', imported: 'Save loaded',
-    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · R spin · T town',
+    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · R spin · T town · 1 2 3 perks',
     welcomeBack: 'Welcome back!', awayFor: 'Away {0}. Your garrison:', earned: 'earned', foundChests: 'found chests',
     divineLoot: 'DIVINE LOOT', legendLoot: 'LEGENDARY LOOT', mythicLoot: 'MYTHIC LOOT', newLands: 'New land: {0}',
     unlocked: 'Unlocked: {0}', achievement: 'Achievement', questDone: 'Quest complete!', potionDrink: 'Potion drunk: {0}',
@@ -2437,7 +2437,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.BLD_MAX = 5;
   G.bldLvl = id => ((G.S.bld || {})[id] || 0);
   G.townLvl = () => G.BLD.reduce((a, b) => a + G.bldLvl(b.id), 0);
-  G.bldCost = id => Math.round(500 * Math.pow(10, G.bldLvl(id)));
+  G.bldCost = id => Math.round(800 * Math.pow(20, G.bldLvl(id)));
   G.buildUp = function (id) {
     const S = G.S, b = G.BLD_BY_ID[id];
     if (!b || G.bldLvl(id) >= G.BLD_MAX || (G.bldOpen && !G.bldOpen(id))) return false;
@@ -5571,11 +5571,15 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (R.hoardT == null) R.hoardT = S.st.hoards ? rand(0.6, 1.2) * TUNE.hoardEvery : TUNE.hoardFirst;
     if (R.shrineT == null) R.shrineT = S.st.shrines ? rand(0.6, 1.2) * TUNE.shrineEvery : TUNE.shrineFirst;
     if (R.breachT == null) R.breachT = S.st.breaches ? rand(0.7, 1.3) * TUNE.breachEvery : TUNE.breachFirst;
+    // the first of each comes on a fixed clock; after that the land's rule speeds them up
+    // (3.0: the clocks run through boss fights too, and what's due comes as soon as the fight is over)
+    R.hoardT = Math.max(0, R.hoardT - dt * (S.st.hoards ? L.hoard || 1 : 1));
+    if (!R.shrine && !R.shr) R.shrineT = Math.max(0, R.shrineT - dt * (S.st.shrines ? L.shrine || 1 : 1));
+    if (!R.breach && S.bestDepth >= 3) R.breachT = Math.max(0, R.breachT - dt * (L.breach || 1));
     if (!busy()) {
-      // the first of each comes on a fixed clock; after that the land's rule speeds them up
-      if ((R.hoardT -= dt * (S.st.hoards ? L.hoard || 1 : 1)) <= 0) { R.hoardT = rand(0.7, 1.3) * TUNE.hoardEvery; spawnHoarder(); }
-      if (!R.shrine && !R.shr && (R.shrineT -= dt * (S.st.shrines ? L.shrine || 1 : 1)) <= 0) { R.shrineT = rand(0.7, 1.3) * TUNE.shrineEvery; spawnShrine(); }
-      if (!R.breach && S.bestDepth >= 3 && (R.breachT -= dt * (L.breach || 1)) <= 0) { R.breachT = rand(0.7, 1.3) * TUNE.breachEvery; openBreach(); }
+      if (R.hoardT <= 0) { R.hoardT = rand(0.7, 1.3) * TUNE.hoardEvery; spawnHoarder(); }
+      if (!R.shrine && !R.shr && R.shrineT <= 0) { R.shrineT = rand(0.7, 1.3) * TUNE.shrineEvery; spawnShrine(); }
+      if (!R.breach && S.bestDepth >= 3 && R.breachT <= 0) { R.breachT = rand(0.7, 1.3) * TUNE.breachEvery; openBreach(); }
     }
     // an untouched shrine is claimed by the Warden
     if (R.shrine && (R.shrine.t -= dt) <= 0) G.useShrine('auto');
@@ -6717,7 +6721,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- The drop ----------
   // one boss in 600, one lord in 200, 10% more per Torment level; never in a Rift
-  G.relicOdds = lord => (lord ? G.TUNE.relicLord : G.TUNE.relicBoss) * (1 + G.TUNE.relicTorment * (G.torment ? G.torment().n : 0));
+  // (3.0: bad luck protection: every boss without one adds 1% to the odds, so a long dry spell ends)
+  G.relicOdds = lord => (lord ? G.TUNE.relicLord : G.TUNE.relicBoss) * (1 + G.TUNE.relicTorment * (G.torment ? G.torment().n : 0)) * (1 + 0.01 * ((S_().st && S_().st.relicDry) || 0));
   const owned = () => {
     const S = S_(), h = S.hero, n = Object.assign({}, (S.rec && S.rec.relicN) || {});
     const all = [].concat(h.bag || [], G.SLOTS.map(s => h.eq[s]), ...(S.party || []).map(m => G.SLOTS.map(s => m.eq[s])));
@@ -15879,6 +15884,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         G.Stage.keyClick();
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
+      else if (/^Digit[1-3]$/.test(e.code) && !$('#perks').hidden) {
+        // 3.0: 1, 2, 3 pick a level-up card
+        const c = $$('#perks [data-perk]')[+e.code.slice(5) - 1];
+        if (c && G.pickPerk(c.dataset.perk)) { G.Audio && G.Audio.buy(); UI.update(true); }
+      }
       else if (e.code === 'KeyQ') { G.castAbility(); }
       else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } }
       else if (e.code === 'Escape' && G.R.town && !G.uiBusy()) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
@@ -17313,6 +17323,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (e.target.closest('[data-ropen]')) {
         G.Audio.unlock();
         if (G.R.town) G.leaveTown();
+        // (a boss in the way steps aside for the Rift; it comes back after)
+        if (G.R.boss && !G.R.rift) G.fleeBoss();
         if (!G.riftStart(riftSel)) { G.Audio.error(); UI.toast(esc(t('riftBusy')), '', 'ic_rift'); return; }
         updaters.rift(true);
       }
@@ -18662,7 +18674,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- Wiring ----------
   // the casino waits through the tutorial, and a ready spin doesn't pull itself behind an open window
-  const tutOn = () => typeof G.S.tut === 'number' && G.S.tut >= 0;
+  // (3.0: only the tutorial's first steps hold the casino back)
+  const tutOn = () => typeof G.S.tut === 'number' && G.S.tut >= 0 && G.S.tut < 4;
   G.casinoHold = what => tutOn() || (what === 'auto' && !!(G.uiBusy && G.uiBusy()));
   G.on('spinReady', () => { if (!(hideAt && now() < hideAt)) onReady(); });
   G.on('spinStart', res => onStart(res));

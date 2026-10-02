@@ -570,7 +570,7 @@
   G.BLD_MAX = 5;
   G.bldLvl = id => ((G.S.bld || {})[id] || 0);
   G.townLvl = () => G.BLD.reduce((a, b) => a + G.bldLvl(b.id), 0);
-  G.bldCost = id => Math.round(500 * Math.pow(10, G.bldLvl(id)));
+  G.bldCost = id => Math.round(800 * Math.pow(20, G.bldLvl(id)));
   G.buildUp = function (id) {
     const S = G.S, b = G.BLD_BY_ID[id];
     if (!b || G.bldLvl(id) >= G.BLD_MAX || (G.bldOpen && !G.bldOpen(id))) return false;

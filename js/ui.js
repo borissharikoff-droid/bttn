@@ -291,6 +291,11 @@
         G.Stage.keyClick();
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
       else if (e.code === 'KeyB') { G.startBoss(); }
+      else if (/^Digit[1-3]$/.test(e.code) && !$('#perks').hidden) {
+        // 3.0: 1, 2, 3 pick a level-up card
+        const c = $$('#perks [data-perk]')[+e.code.slice(5) - 1];
+        if (c && G.pickPerk(c.dataset.perk)) { G.Audio && G.Audio.buy(); UI.update(true); }
+      }
       else if (e.code === 'KeyQ') { G.castAbility(); }
       else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } }
       else if (e.code === 'Escape' && G.R.town && !G.uiBusy()) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
@@ -1725,6 +1730,8 @@
       if (e.target.closest('[data-ropen]')) {
         G.Audio.unlock();
         if (G.R.town) G.leaveTown();
+        // (a boss in the way steps aside for the Rift; it comes back after)
+        if (G.R.boss && !G.R.rift) G.fleeBoss();
         if (!G.riftStart(riftSel)) { G.Audio.error(); UI.toast(esc(t('riftBusy')), '', 'ic_rift'); return; }
         updaters.rift(true);
       }

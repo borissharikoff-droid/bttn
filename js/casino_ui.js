@@ -622,7 +622,8 @@
 
   // ---------- Wiring ----------
   // the casino waits through the tutorial, and a ready spin doesn't pull itself behind an open window
-  const tutOn = () => typeof G.S.tut === 'number' && G.S.tut >= 0;
+  // (3.0: only the tutorial's first steps hold the casino back)
+  const tutOn = () => typeof G.S.tut === 'number' && G.S.tut >= 0 && G.S.tut < 4;
   G.casinoHold = what => tutOn() || (what === 'auto' && !!(G.uiBusy && G.uiBusy()));
   G.on('spinReady', () => { if (!(hideAt && now() < hideAt)) onReady(); });
   G.on('spinStart', res => onStart(res));

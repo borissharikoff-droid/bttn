@@ -61,7 +61,7 @@
     autoBoss: 'Auto-call bosses', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code, then Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Deletes everything forever',
     saved: 'Game saved', badSave: 'Save code didn\u2019t load. Copied all of it?', imported: 'Save loaded',
-    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · R spin · T town',
+    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · R spin · T town · 1 2 3 perks',
     welcomeBack: 'Welcome back!', awayFor: 'Away {0}. Your garrison:', earned: 'earned', foundChests: 'found chests',
     divineLoot: 'DIVINE LOOT', legendLoot: 'LEGENDARY LOOT', mythicLoot: 'MYTHIC LOOT', newLands: 'New land: {0}',
     unlocked: 'Unlocked: {0}', achievement: 'Achievement', questDone: 'Quest complete!', potionDrink: 'Potion drunk: {0}',

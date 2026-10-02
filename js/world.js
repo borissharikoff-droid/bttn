@@ -519,11 +519,15 @@
     if (R.hoardT == null) R.hoardT = S.st.hoards ? rand(0.6, 1.2) * TUNE.hoardEvery : TUNE.hoardFirst;
     if (R.shrineT == null) R.shrineT = S.st.shrines ? rand(0.6, 1.2) * TUNE.shrineEvery : TUNE.shrineFirst;
     if (R.breachT == null) R.breachT = S.st.breaches ? rand(0.7, 1.3) * TUNE.breachEvery : TUNE.breachFirst;
+    // the first of each comes on a fixed clock; after that the land's rule speeds them up
+    // (3.0: the clocks run through boss fights too, and what's due comes as soon as the fight is over)
+    R.hoardT = Math.max(0, R.hoardT - dt * (S.st.hoards ? L.hoard || 1 : 1));
+    if (!R.shrine && !R.shr) R.shrineT = Math.max(0, R.shrineT - dt * (S.st.shrines ? L.shrine || 1 : 1));
+    if (!R.breach && S.bestDepth >= 3) R.breachT = Math.max(0, R.breachT - dt * (L.breach || 1));
     if (!busy()) {
-      // the first of each comes on a fixed clock; after that the land's rule speeds them up
-      if ((R.hoardT -= dt * (S.st.hoards ? L.hoard || 1 : 1)) <= 0) { R.hoardT = rand(0.7, 1.3) * TUNE.hoardEvery; spawnHoarder(); }
-      if (!R.shrine && !R.shr && (R.shrineT -= dt * (S.st.shrines ? L.shrine || 1 : 1)) <= 0) { R.shrineT = rand(0.7, 1.3) * TUNE.shrineEvery; spawnShrine(); }
-      if (!R.breach && S.bestDepth >= 3 && (R.breachT -= dt * (L.breach || 1)) <= 0) { R.breachT = rand(0.7, 1.3) * TUNE.breachEvery; openBreach(); }
+      if (R.hoardT <= 0) { R.hoardT = rand(0.7, 1.3) * TUNE.hoardEvery; spawnHoarder(); }
+      if (!R.shrine && !R.shr && R.shrineT <= 0) { R.shrineT = rand(0.7, 1.3) * TUNE.shrineEvery; spawnShrine(); }
+      if (!R.breach && S.bestDepth >= 3 && R.breachT <= 0) { R.breachT = rand(0.7, 1.3) * TUNE.breachEvery; openBreach(); }
     }
     // an untouched shrine is claimed by the Warden
     if (R.shrine && (R.shrine.t -= dt) <= 0) G.useShrine('auto');

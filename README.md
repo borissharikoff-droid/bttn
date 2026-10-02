@@ -50,7 +50,7 @@ Existing saves skip the intro and tutorial. On a new device, the "load cloud sav
 | Lucky Spin | tap the slot machine when it pops up | R |
 | How to play | ? at the top right | — |
 
-Holding the Button repeats clicks once you buy **Steady Hand** (1 a second, up to 10); it can be turned off in Settings.
+Holding the Button clicks once a second; **Steady Hand** takes it up to 10. Holding can be turned off in Settings.
 
 ## What the original has and what changed
 
