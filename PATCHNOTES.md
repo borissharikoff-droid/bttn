@@ -10,6 +10,16 @@
 - **Built for holding the Button.** A held Button clicks once a second, Steady Hand takes it up to 10, and nothing counts past 10.
 - **Chase the rare.** Relics drop in a white bag from bosses only, the Lucky Spin pays out from kills, and the JACKPOT hits about one kill in two million.
 
+## 3.2 — Runs
+
+- **When the Button falls, the run is over.** A wipe after the first few minutes ends the run with THE BUTTON FELL.
+  - The screen shows how deep you got, the run time, your Warden's level and the gold you earned, plus the fame it pays.
+  - Fame is 60% of an ascension's worth, from any depth, for the depth gained beyond where the run started.
+  - **Rise again** starts a new run, and the Warden keeps its class. **Spend fame** opens the Hall of Fame at the Temple, which now opens after your first lost run.
+  - Kept: gear, the town, pets, the collection, relics, land stars and fame. Lost: gold, upgrades, Garrison, constellation, potions, levels and perks.
+- **Checkpoints.** A new run, after a fall or an ascension, starts at the first zone of the land at half your best depth (or deeper with Deep Dive).
+- **Lands go by faster.** A depth needs 11 kills of the clear bar instead of 18.
+
 ## 3.1 — Overdrive
 
 - **Season 2: everyone starts over.** All progress is reset, on every device and in the cloud. Ladder rows from season 1 are hidden. Settings, name and ladder identity carry over.

@@ -366,7 +366,12 @@
     R.stun = 4; // the party regroups
     R.bossHold = 25; // and no boss comes on its own for a while
     G.dirty(); G.recalc();
+    // 3.1: past the first minutes the Button's fall ends the run (fame, then a new run from the checkpoint)
+    const fell = !inRift && G.runOver && !(S.tut >= 0) && (S.st.playTime || 0) > 150;
+    R.fell = fell;
     emit('wipe', from, S.depth, inRift, hadBoss);
+    if (fell) G.runOver();
+    R.fell = false;
   }
   G.wipe = wipe;
 

@@ -902,8 +902,10 @@
     G.on('invasionEnd', (won, r) => { const V = G.INV_BY_ID[r.k]; cardText(0, won ? G.t('invWon') : G.t('invLost'), won ? '#ffd84a' : '#c8b4ff', 7, { life: 2.6, vy: -2, big: true }); if (won) { St.flash(0.4, '#ffd84a'); St.shake(6); } });
     G.on('wipe', (from, to, rift) => {
       St.flash(0.9, '#3a0000'); St.shake(9); slowmo = Math.max(slowmo, 1.2);
-      cardText(0, G.t('wipeTitle'), '#ff4f4f', 8, { life: 3.4, vy: -2, big: true });
-      cardText(11, rift ? G.t('wipeRift') : to < from ? G.t('wipeBack', to + 1) : G.t('wipeBar'), '#ffffff', 3, { life: 3.4, vy: -2 });
+      const fell = G.R.fell;
+      cardText(0, G.t(fell ? 'fellCard' : 'wipeTitle'), '#ff4f4f', 8, { life: 3.4, vy: -2, big: true });
+      cardText(11, fell ? G.t('fellSub') : rift ? G.t('wipeRift') : to < from ? G.t('wipeBack', to + 1) : G.t('wipeBar'), '#ffffff', 3, { life: 3.4, vy: -2 });
+      if (fell) { slowmo = Math.max(slowmo, 2); St.flash(1, '#000000'); }
       if (G.Audio && G.Audio.wipe) G.Audio.wipe();
     });
     // a phase card still waiting when the fight ends is stale

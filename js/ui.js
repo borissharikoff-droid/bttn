@@ -73,7 +73,7 @@
     { id: 'stars', icon: 'ic_star', unlock: S => S.essRun >= 1 || Object.keys(S.nodes).length > 0 || S.ascensions > 0 },
     { id: 'pets', icon: 'egg_2', unlock: S => S.eggs > 0 || Object.keys(S.pets).length > 0 },
     { id: 'ach', icon: 'ic_trophy', unlock: S => Object.keys(S.ach).length > 0 },
-    { id: 'asc', icon: 'ic_tomb', unlock: S => S.maxDepth >= 15 || S.ascensions > 0 },
+    { id: 'asc', icon: 'ic_tomb', unlock: S => S.maxDepth >= 15 || S.ascensions > 0 || S.fameTotal > 0 },
     { id: 'rift', icon: 'ic_rift', unlock: S => S.bestDepth >= 5 || S.rift.runs > 0 },
     { id: 'ladder', icon: 'ic_crown', unlock: () => true },
     { id: 'set', icon: 'ic_gear', unlock: () => true },
@@ -355,7 +355,18 @@
     });
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'asc')) UI.update(true); if (kind === 'node' && curTab() === 'stars') UI.render(); });
-    G.on('ascend', g => { if (g) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
+    G.on('ascend', (g, death) => { if (g && !death) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
+    // 3.1: the Button fell: the run's tally, the fame it earned, and where the next one starts
+    G.on('runOver', sum => setTimeout(() => {
+      const m = UI.modal(t('fellTitle'), `<div class="fell">
+        <p class="story">${esc(t('fellText'))}</p>
+        <div class="fellStats"><span>${esc(t('fellDepth'))}</span><b>${sum.depth + 1}</b><span>${esc(t('fellTime'))}</span><b>${esc(G.fmtTime(sum.secs))}</b><span>${esc(t('fellLvl'))}</span><b>${sum.lvl}</b><span>${esc(t('fellGold'))}</span><b>${fmt(sum.gold)}</b></div>
+        <p class="fellFame">${img('ic_fame', '', 3)} <b>+${fmt(sum.fame)}</b> ${esc(t('fame').toLowerCase())} <small>(${esc(t('fellTotal', fmt(sum.total)))})</small></p>
+        <p class="note">${esc(t('fellKeep'))}</p>
+        <p class="next">${esc(t('fellNext', G.realmName(sum.next), sum.next + 1))}</p></div>`,
+        [{ label: t('fellAgain'), cls: 'gold' }, { label: t('fellSpend'), fn: () => { if (G.enterTown()) UI.townOpen('temple'); } }], true);
+      return m;
+    }, 1400));
     G.on('quests', () => dirtyTab('quests'));
     G.on('questClaim', () => { if (curTab() === 'quests') UI.render(); });
     G.on('daily', () => { if (curTab() === 'quests') UI.render(); });

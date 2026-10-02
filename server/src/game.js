@@ -722,6 +722,8 @@
       jp: { n: 0, at: 0 },
       // 2.3: the chosen Torment level (see G.torment)
       torment: 0, tormentRun: 0,
+      // 3.1: the depth this run started from (fame counts what's gained beyond it)
+      runFrom: 0,
       // 3.0: the town's building levels (kept through ascension)
       bld: {},
     };
@@ -744,7 +746,7 @@
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 18,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 11,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -1794,23 +1796,30 @@
   // ---------- Ascension ----------
   // Fame depends mostly on how deep this run went (bosses gate depth), with a
   // small bonus for gold, so each ascension is worth a similar, growing amount.
-  function fameGain() {
-    const S = G.S, d = S.maxDepth;
+  // Fame depends on how deep this run went beyond where it started (bosses gate depth), with a small bonus
+  // for gold. 3.1: a run also ends when the Button falls; that pays 60% of it, from any depth.
+  const fameAt = d => 0.3 * d * Math.pow(1.07, d);
+  function fameGain(death) {
+    const S = G.S, d = S.maxDepth, d0 = Math.min(d, S.runFrom || 0);
     // (2.3: nothing to ascend for before depth 15, so the first run is played out, not skipped)
-    if (d < TUNE.ascFrom) return 0;
+    if (!death && d < TUNE.ascFrom) return 0;
     const goldBonus = 1 + 0.1 * Math.max(0, Math.log10(Math.max(1, S.goldRun / 1e9)));
-    return Math.floor(0.3 * d * Math.pow(1.07, d) * goldBonus * D.fameMult);
+    const g = Math.floor((fameAt(d) - fameAt(d0)) * goldBonus * D.fameMult * (death ? 0.6 : 1));
+    return death ? Math.max(d > d0 ? 1 : 0, g) : g;
   }
   G.fameGain = fameGain;
-  function ascend() {
+  // where the next run starts: the first zone of the land at half your best depth (or Deep Dive's, if deeper)
+  G.checkpoint = () => { const S = G.S, L = S.legacy || {}; return Math.max(2 * (L.lg_deep || 0), Math.floor(Math.floor((S.bestDepth || 0) / 2) / G.REALM_SIZE) * G.REALM_SIZE); };
+  function ascend(death) {
     const S = G.S;
-    const g = fameGain();
-    if (g < 1) return false;
+    const g = fameGain(!!death);
+    if (!death && g < 1) return false;
     if (R.town) { R.town = false; emit('town', false); }
     const keepPct = 0.25 * (S.legacy.lg_keeppot || 0);
     const keep = {};
     G.POTIONS.forEach(p => keep[p.id] = Math.floor(S.pots[p.id] * keepPct));
-    S.fame += g; S.fameTotal += g; S.ascensions++;
+    S.fame += g; S.fameTotal += g;
+    if (death) S.st.deaths = (S.st.deaths || 0) + 1; else S.ascensions++;
     S.lastRunEss = S.essRun;
     const fresh = newState();
     const runKeys = ['gold', 'goldRun', 'clicksRun', 'upg', 'heroes', 'nodes', 'essence', 'essRun', 'depth', 'maxDepth',
@@ -1819,15 +1828,24 @@
     S.pots = Object.assign(potZero(), keep);
     const L = S.legacy;
     if (L.lg_start) S.gold = 100 * Math.pow(10, L.lg_start);
-    if (L.lg_deep) S.depth = S.maxDepth = 2 * L.lg_deep;
+    S.depth = S.maxDepth = S.runFrom = G.checkpoint();
     if (L.lg_stars) S.essence = S.lastRunEss * 0.12 * L.lg_stars;
     R.boss = null; R.bossReady = false; R.combo = 0;
-    if (G.heroReset) G.heroReset(false);
+    // (a fallen Button keeps its Warden's class: straight back in)
+    if (G.heroReset) G.heroReset(!!death);
     R.dirty = true; recalc();
     fillQuests();
-    emit('ascend', g);
+    emit('ascend', g, !!death);
     return g;
   }
+  // 3.1: the Button fell: the run is over. Fame for how far it got, then a new run from the checkpoint.
+  G.runOver = function () {
+    const S = G.S, sum = { depth: S.maxDepth, from: S.runFrom || 0, best: S.bestDepth, secs: Math.max(0, (Date.now() - ((S.rec && S.rec.runStart) || Date.now())) / 1000), gold: S.goldRun, lvl: S.hero.lvl };
+    sum.fame = ascend(true) || 0;
+    sum.total = S.fame; sum.deaths = S.st.deaths; sum.next = S.depth;
+    emit('runOver', sum);
+    return sum;
+  };
   G.ascend = ascend;
 
   // ---------- Offline ----------
@@ -2400,7 +2418,12 @@
     R.stun = 4; // the party regroups
     R.bossHold = 25; // and no boss comes on its own for a while
     G.dirty(); G.recalc();
+    // 3.1: past the first minutes the Button's fall ends the run (fame, then a new run from the checkpoint)
+    const fell = !inRift && G.runOver && !(S.tut >= 0) && (S.st.playTime || 0) > 150;
+    R.fell = fell;
     emit('wipe', from, S.depth, inRift, hadBoss);
+    if (fell) G.runOver();
+    R.fell = false;
   }
   G.wipe = wipe;
 

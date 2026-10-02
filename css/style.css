@@ -989,3 +989,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 @media (max-width: 700px) { .gmbSlots { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .gmbRes .gear { width: 56px; height: 56px; flex: none; }
 .gmbRes .gear img { width: 40px; height: 40px; }
+/* 3.1 the Button fell */
+.fell .story { font-size: 17px; color: #ffd0c0; font-style: italic; margin: 4px 0 12px; }
+.fellStats { display: grid; grid-template-columns: auto auto; gap: 4px 18px; justify-content: start; margin-bottom: 10px; }
+.fellStats span { color: var(--dim); }
+.fellStats b { font: 11px/1.4 var(--font-display); color: #fff; }
+.fellFame { display: flex; align-items: center; gap: 6px; font-size: 18px; margin: 8px 0; }
+.fellFame b { font: 14px/1 var(--font-display); color: var(--fame, #c88aff); }
+.fell .next { color: #ffd84a; }

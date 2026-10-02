@@ -64,7 +64,7 @@
     help_4: 'Horde and bosses', help_4t: 'Tap a mob to target it. Fill the clear bar for the boss (30 s, 45 for a lord); tap its glowing weak point to break its moves. Ward its DOOM; out of time it ENRAGES. Warded mobs shrug off the Hand: your party kills them.',
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests. The Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence buys stars; boss eggs hatch pets.',
-    help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and collection stay.',
+    help_7: 'Ascension', help_7t: 'When the Button falls, the run is over: you earn fame and start again from a checkpoint (half your best depth). Spend fame in the Hall of Fame at the Temple. Ascending on purpose from depth 15 pays full fame. Gear, the town, pets and collection always stay.',
     help_8: 'Ladder', help_8t: 'Name your hero at the Tavern (Character) and compare with friends there.',
     help_9: 'Lands and stars', help_9t: 'Each land has five zones and three stars (+2.5% damage and gold each, forever). Tap the land name for the map.',
     help_11: 'Your party', help_11t: 'Beat depths 3, 12 and 20 for party slots; recruit at the Tavern. Tap a fallen ally to raise them sooner.',

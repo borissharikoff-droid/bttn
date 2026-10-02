@@ -997,6 +997,14 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 @media (max-width: 700px) { .gmbSlots { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .gmbRes .gear { width: 56px; height: 56px; flex: none; }
 .gmbRes .gear img { width: 40px; height: 40px; }
+/* 3.1 the Button fell */
+.fell .story { font-size: 17px; color: #ffd0c0; font-style: italic; margin: 4px 0 12px; }
+.fellStats { display: grid; grid-template-columns: auto auto; gap: 4px 18px; justify-content: start; margin-bottom: 10px; }
+.fellStats span { color: var(--dim); }
+.fellStats b { font: 11px/1.4 var(--font-display); color: #fff; }
+.fellFame { display: flex; align-items: center; gap: 6px; font-size: 18px; margin: 8px 0; }
+.fellFame b { font: 14px/1 var(--font-display); color: var(--fame, #c88aff); }
+.fell .next { color: #ffd84a; }
 
 </style>
 </head>
@@ -1847,7 +1855,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   Object.assign(STR, {
     town_barracks: 'Barracks', town_museum: 'Museum', town_temple: 'Temple', town_rift: 'Rift Gate',
     twBarracksSub: 'Hire the Garrison: they earn gold on their own.', twMuseumSub: 'Your collection and trophies.',
-    twTempleSub: 'Ascend: start over stronger, for fame.', twRiftSub: 'Timed runs for the ladder.',
+    twTempleSub: 'Spend fame in the Hall of Fame; ascend for full fame.', twRiftSub: 'Timed runs for the ladder.',
     twBoardSub: 'Quests, bounties and the daily gift.', twObsSub: 'Spend Essence on the stars.', twNestSub: 'Hatch eggs into pets.',
     twSubParty: 'Party', twSubChar: 'Character', tab_towndir: 'Town',
     bldFx_forge: 'party damage +{0}%', bldFx_tavern: 'party health +{0}%', bldFx_enchant: 'crit damage +{0}%', bldFx_alch: 'potion cap +{0}',
@@ -1856,7 +1864,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     bldLvl: 'Lv {0}/{1}', bldUp: 'Build up', bldMax: 'Fully built', bldNow: 'now', bldNext: 'next',
     bldLocked: 'Under construction', bldOpens: 'Opens when you {0}', bldDone: '{0} built up to Lv {1}!',
     lock_barracks: 'earn 40 gold', lock_museum: 'open a chest', lock_quests: 'open 5 chests', lock_stars: 'earn Essence',
-    lock_pets: 'find an egg', lock_temple: 'reach depth 15', lock_rift: 'reach depth 5',
+    lock_pets: 'find an egg', lock_temple: 'reach depth 15 (or lose a run)', lock_rift: 'reach depth 5',
     dirHint: 'Tap a building here or in the square. Build them up for bonuses that last through ascension.',
     dirLvl: 'Town level {0}', dirBack: 'Back to the field (T)', dirSet: 'Settings',
     wipeWhy: 'Tip:', wipeWhy_seat: 'Your party has a free seat: recruit a companion at the Tavern in town.',
@@ -1888,6 +1896,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     gambleTab: 'Gambler', gambleTitle: 'The Gambler', gambleSub: 'Shards for a mystery item of the slot you pick.',
     gambleHint: 'Magic or better, up to {0} at this depth; {1}% of the time a unique.', gambleNo: 'Not enough shards: break down spare gear at the Forge.',
     seal: 'Seal', sealed: 'SEALED', sealHint: 'Seal one affix ({0} shards): an Orb of Flux rerolls only the others.', equipped: 'equipped',
+    fellTitle: 'THE BUTTON FELL', fellText: 'The Horde broke through and the Button went dark. Its light comes back in a new run; what you earned stays.',
+    fellDepth: 'Reached depth', fellTime: 'Run time', fellLvl: 'Warden level', fellGold: 'Gold this run', fellTotal: '{0} to spend',
+    fellKeep: 'Kept: gear, the town, pets, collection, relics, stars and fame. Lost: gold, upgrades, Garrison, constellation, potions, levels and perks.',
+    fellNext: 'Next run starts in {0}, depth {1}. Spend fame in the Hall of Fame at the Temple.', fellAgain: 'Rise again', fellSpend: 'Spend fame (Temple)',
+    fellCard: 'THE BUTTON FELL', fellSub: 'Run over · fame earned',
     odName: 'OVERDRIVE', odDesc: 'Fighting charges it. When full: 8 s of lightning from the Button, party attacks ×2, gold ×3.',
     odReady: 'OVERDRIVE READY · V', odEnd: '{0} novas', odGo: 'OVERDRIVE!',
     pkCrushTxt: 'CRUSH!', pkWindTxt: 'SECOND WIND!',
@@ -1975,6 +1988,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       jp: { n: 0, at: 0 },
       // 2.3: the chosen Torment level (see G.torment)
       torment: 0, tormentRun: 0,
+      // 3.1: the depth this run started from (fame counts what's gained beyond it)
+      runFrom: 0,
       // 3.0: the town's building levels (kept through ascension)
       bld: {},
     };
@@ -1997,7 +2012,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 18,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 11,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -3047,23 +3062,30 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // ---------- Ascension ----------
   // Fame depends mostly on how deep this run went (bosses gate depth), with a
   // small bonus for gold, so each ascension is worth a similar, growing amount.
-  function fameGain() {
-    const S = G.S, d = S.maxDepth;
+  // Fame depends on how deep this run went beyond where it started (bosses gate depth), with a small bonus
+  // for gold. 3.1: a run also ends when the Button falls; that pays 60% of it, from any depth.
+  const fameAt = d => 0.3 * d * Math.pow(1.07, d);
+  function fameGain(death) {
+    const S = G.S, d = S.maxDepth, d0 = Math.min(d, S.runFrom || 0);
     // (2.3: nothing to ascend for before depth 15, so the first run is played out, not skipped)
-    if (d < TUNE.ascFrom) return 0;
+    if (!death && d < TUNE.ascFrom) return 0;
     const goldBonus = 1 + 0.1 * Math.max(0, Math.log10(Math.max(1, S.goldRun / 1e9)));
-    return Math.floor(0.3 * d * Math.pow(1.07, d) * goldBonus * D.fameMult);
+    const g = Math.floor((fameAt(d) - fameAt(d0)) * goldBonus * D.fameMult * (death ? 0.6 : 1));
+    return death ? Math.max(d > d0 ? 1 : 0, g) : g;
   }
   G.fameGain = fameGain;
-  function ascend() {
+  // where the next run starts: the first zone of the land at half your best depth (or Deep Dive's, if deeper)
+  G.checkpoint = () => { const S = G.S, L = S.legacy || {}; return Math.max(2 * (L.lg_deep || 0), Math.floor(Math.floor((S.bestDepth || 0) / 2) / G.REALM_SIZE) * G.REALM_SIZE); };
+  function ascend(death) {
     const S = G.S;
-    const g = fameGain();
-    if (g < 1) return false;
+    const g = fameGain(!!death);
+    if (!death && g < 1) return false;
     if (R.town) { R.town = false; emit('town', false); }
     const keepPct = 0.25 * (S.legacy.lg_keeppot || 0);
     const keep = {};
     G.POTIONS.forEach(p => keep[p.id] = Math.floor(S.pots[p.id] * keepPct));
-    S.fame += g; S.fameTotal += g; S.ascensions++;
+    S.fame += g; S.fameTotal += g;
+    if (death) S.st.deaths = (S.st.deaths || 0) + 1; else S.ascensions++;
     S.lastRunEss = S.essRun;
     const fresh = newState();
     const runKeys = ['gold', 'goldRun', 'clicksRun', 'upg', 'heroes', 'nodes', 'essence', 'essRun', 'depth', 'maxDepth',
@@ -3072,15 +3094,24 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     S.pots = Object.assign(potZero(), keep);
     const L = S.legacy;
     if (L.lg_start) S.gold = 100 * Math.pow(10, L.lg_start);
-    if (L.lg_deep) S.depth = S.maxDepth = 2 * L.lg_deep;
+    S.depth = S.maxDepth = S.runFrom = G.checkpoint();
     if (L.lg_stars) S.essence = S.lastRunEss * 0.12 * L.lg_stars;
     R.boss = null; R.bossReady = false; R.combo = 0;
-    if (G.heroReset) G.heroReset(false);
+    // (a fallen Button keeps its Warden's class: straight back in)
+    if (G.heroReset) G.heroReset(!!death);
     R.dirty = true; recalc();
     fillQuests();
-    emit('ascend', g);
+    emit('ascend', g, !!death);
     return g;
   }
+  // 3.1: the Button fell: the run is over. Fame for how far it got, then a new run from the checkpoint.
+  G.runOver = function () {
+    const S = G.S, sum = { depth: S.maxDepth, from: S.runFrom || 0, best: S.bestDepth, secs: Math.max(0, (Date.now() - ((S.rec && S.rec.runStart) || Date.now())) / 1000), gold: S.goldRun, lvl: S.hero.lvl };
+    sum.fame = ascend(true) || 0;
+    sum.total = S.fame; sum.deaths = S.st.deaths; sum.next = S.depth;
+    emit('runOver', sum);
+    return sum;
+  };
   G.ascend = ascend;
 
   // ---------- Offline ----------
@@ -3653,7 +3684,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     R.stun = 4; // the party regroups
     R.bossHold = 25; // and no boss comes on its own for a while
     G.dirty(); G.recalc();
+    // 3.1: past the first minutes the Button's fall ends the run (fame, then a new run from the checkpoint)
+    const fell = !inRift && G.runOver && !(S.tut >= 0) && (S.st.playTime || 0) > 150;
+    R.fell = fell;
     emit('wipe', from, S.depth, inRift, hadBoss);
+    if (fell) G.runOver();
+    R.fell = false;
   }
   G.wipe = wipe;
 
@@ -13631,8 +13667,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     G.on('invasionEnd', (won, r) => { const V = G.INV_BY_ID[r.k]; cardText(0, won ? G.t('invWon') : G.t('invLost'), won ? '#ffd84a' : '#c8b4ff', 7, { life: 2.6, vy: -2, big: true }); if (won) { St.flash(0.4, '#ffd84a'); St.shake(6); } });
     G.on('wipe', (from, to, rift) => {
       St.flash(0.9, '#3a0000'); St.shake(9); slowmo = Math.max(slowmo, 1.2);
-      cardText(0, G.t('wipeTitle'), '#ff4f4f', 8, { life: 3.4, vy: -2, big: true });
-      cardText(11, rift ? G.t('wipeRift') : to < from ? G.t('wipeBack', to + 1) : G.t('wipeBar'), '#ffffff', 3, { life: 3.4, vy: -2 });
+      const fell = G.R.fell;
+      cardText(0, G.t(fell ? 'fellCard' : 'wipeTitle'), '#ff4f4f', 8, { life: 3.4, vy: -2, big: true });
+      cardText(11, fell ? G.t('fellSub') : rift ? G.t('wipeRift') : to < from ? G.t('wipeBack', to + 1) : G.t('wipeBar'), '#ffffff', 3, { life: 3.4, vy: -2 });
+      if (fell) { slowmo = Math.max(slowmo, 2); St.flash(1, '#000000'); }
       if (G.Audio && G.Audio.wipe) G.Audio.wipe();
     });
     // a phase card still waiting when the fight ends is stale
@@ -15863,7 +15901,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     { id: 'stars', icon: 'ic_star', unlock: S => S.essRun >= 1 || Object.keys(S.nodes).length > 0 || S.ascensions > 0 },
     { id: 'pets', icon: 'egg_2', unlock: S => S.eggs > 0 || Object.keys(S.pets).length > 0 },
     { id: 'ach', icon: 'ic_trophy', unlock: S => Object.keys(S.ach).length > 0 },
-    { id: 'asc', icon: 'ic_tomb', unlock: S => S.maxDepth >= 15 || S.ascensions > 0 },
+    { id: 'asc', icon: 'ic_tomb', unlock: S => S.maxDepth >= 15 || S.ascensions > 0 || S.fameTotal > 0 },
     { id: 'rift', icon: 'ic_rift', unlock: S => S.bestDepth >= 5 || S.rift.runs > 0 },
     { id: 'ladder', icon: 'ic_crown', unlock: () => true },
     { id: 'set', icon: 'ic_gear', unlock: () => true },
@@ -16145,7 +16183,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     });
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'asc')) UI.update(true); if (kind === 'node' && curTab() === 'stars') UI.render(); });
-    G.on('ascend', g => { if (g) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
+    G.on('ascend', (g, death) => { if (g && !death) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
+    // 3.1: the Button fell: the run's tally, the fame it earned, and where the next one starts
+    G.on('runOver', sum => setTimeout(() => {
+      const m = UI.modal(t('fellTitle'), `<div class="fell">
+        <p class="story">${esc(t('fellText'))}</p>
+        <div class="fellStats"><span>${esc(t('fellDepth'))}</span><b>${sum.depth + 1}</b><span>${esc(t('fellTime'))}</span><b>${esc(G.fmtTime(sum.secs))}</b><span>${esc(t('fellLvl'))}</span><b>${sum.lvl}</b><span>${esc(t('fellGold'))}</span><b>${fmt(sum.gold)}</b></div>
+        <p class="fellFame">${img('ic_fame', '', 3)} <b>+${fmt(sum.fame)}</b> ${esc(t('fame').toLowerCase())} <small>(${esc(t('fellTotal', fmt(sum.total)))})</small></p>
+        <p class="note">${esc(t('fellKeep'))}</p>
+        <p class="next">${esc(t('fellNext', G.realmName(sum.next), sum.next + 1))}</p></div>`,
+        [{ label: t('fellAgain'), cls: 'gold' }, { label: t('fellSpend'), fn: () => { if (G.enterTown()) UI.townOpen('temple'); } }], true);
+      return m;
+    }, 1400));
     G.on('quests', () => dirtyTab('quests'));
     G.on('questClaim', () => { if (curTab() === 'quests') UI.render(); });
     G.on('daily', () => { if (curTab() === 'quests') UI.render(); });
@@ -17935,7 +17984,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     help_4: 'Horde and bosses', help_4t: 'Tap a mob to target it. Fill the clear bar for the boss (30 s, 45 for a lord); tap its glowing weak point to break its moves. Ward its DOOM; out of time it ENRAGES. Warded mobs shrug off the Hand: your party kills them.',
     help_5: 'Gold', help_5t: 'Upgrades boost clicks and chests. The Garrison earns on its own.',
     help_6: 'Constellation and pets', help_6t: 'Essence buys stars; boss eggs hatch pets.',
-    help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and collection stay.',
+    help_7: 'Ascension', help_7t: 'When the Button falls, the run is over: you earn fame and start again from a checkpoint (half your best depth). Spend fame in the Hall of Fame at the Temple. Ascending on purpose from depth 15 pays full fame. Gear, the town, pets and collection always stay.',
     help_8: 'Ladder', help_8t: 'Name your hero at the Tavern (Character) and compare with friends there.',
     help_9: 'Lands and stars', help_9t: 'Each land has five zones and three stars (+2.5% damage and gold each, forever). Tap the land name for the map.',
     help_11: 'Your party', help_11t: 'Beat depths 3, 12 and 20 for party slots; recruit at the Tavern. Tap a fallen ally to raise them sooner.',
