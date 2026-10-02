@@ -1,0 +1,10 @@
+{
+  "name": "bttn",
+  "private": true,
+  "description": "BTTN: a pixel-art clicker about a Button and the Horde that wants it broken",
+  "scripts": {
+    "build": "node tools/build.js",
+    "start": "node deploy/serve.js"
+  },
+  "engines": { "node": ">=18" }
+}

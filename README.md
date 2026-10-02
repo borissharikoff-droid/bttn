@@ -145,3 +145,10 @@ Plans for seasons, a world boss, an arena and guilds are in [MULTIPLAYER.md](MUL
 ## Font licences
 
 Press Start 2P (CodeMan38) and Tiny5 (Stefan Schmidt) are distributed under the SIL Open Font License 1.1; the licence text is in `fonts/OFL.txt`.
+
+## Hosting it
+
+- **GitHub Pages:** Settings → Pages → Deploy from a branch → this branch, folder `/docs`.
+- **Railway** (or any Node host): New Project → Deploy from GitHub repo → this repo and branch. `railway.json` and `npm start` run `deploy/serve.js`, which serves `docs/index.html` on `$PORT` (health check at `/health`). Then Settings → Networking → Generate Domain.
+
+On a public host, saves stay in the player's browser. The friends ladder and cloud saves work only in the claude.ai artifact.
