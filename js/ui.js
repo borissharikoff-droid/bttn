@@ -385,11 +385,8 @@
     G.on('journey', (st, got) => { UI.toast(`<span><b>${esc(t('journeyDone'))}</b> · ${esc(st.text)}</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_trophy'); G.Audio && G.Audio.achievement(); if (curTab() === 'quests') UI.render(); });
     G.on('bounty', got => { UI.toast(`<span><b>${esc(t('bounty'))}</b> ✓</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_skull'); if (curTab() === 'quests') UI.render(); });
     G.on('evolve', id => {
-      const E = G.EVOS[id], el = $('#banner');
-      el.innerHTML = `<div class="inner" style="color:#ffd84a"><h2>${esc(t('evoTitle'))}</h2><img class="ico" src="${ic(E.icon, 10)}" alt=""><p>${esc(E.name)}</p><p style="font-size:15px;color:#d8dce8">${esc(E.desc)}</p></div>`;
-      el.hidden = false; el.classList.remove('out');
-      clearTimeout(bannerT);
-      bannerT = setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; }, 400); }, 2600);
+      const E = G.EVOS[id];
+      UI.bannerShow(`<div class="inner" style="color:#ffd84a"><h2>${esc(t('evoTitle'))}</h2><img class="ico" src="${ic(E.icon, 10)}" alt=""><p>${esc(E.name)}</p><p style="font-size:15px;color:#d8dce8">${esc(E.desc)}</p></div>`, 2600);
       G.Audio && G.Audio.achievement();
     });
     G.on('pets', () => { if (curTab() === 'pets') UI.render(); });
@@ -663,7 +660,8 @@
       }
     }
     // Buffs
-    const bh = S.buffs.map(b => `<span class="buff ${b.id}">${esc(t(b.id))} ${Math.ceil(b.t)}s</span>`).join('')
+    const bb = S.bless && G.BLESS_BY_ID && G.BLESS_BY_ID[S.bless];
+    const bh = (bb ? `<span class="buff bless${bb.twist ? ' twist' : ''}" title="${esc(bb.desc)}">${img(G.SPR.defs[bb.icon] ? bb.icon : 'ic_star', '', 2)}${esc(bb.name)}</span>` : '') + S.buffs.map(b => `<span class="buff ${b.id}">${esc(t(b.id))} ${Math.ceil(b.t)}s</span>`).join('')
       + Object.keys(R.hb || {}).filter(k => R.hb[k] > 0).map(k => `<span class="buff ${k === 'hh' ? 'hunt' : 'storm'}">${esc(k === 'hh' ? G.UNIQUES.headhunter.name : L(G.ABILITIES[k].name))} ${Math.ceil(R.hb[k])}s</span>`).join('')
       + (R.shr && R.shr.t > 0 ? `<span class="buff shrine" style="--c:${G.SHRINES[R.shr.k].col}">${esc(t('shrineBuff', G.SHRINES[R.shr.k].name, Math.ceil(R.shr.t)))}</span>` : '');
     const bEl = $('#buffs');
@@ -2064,21 +2062,30 @@
     toastQ.push({ html, cls, iconId });
     pumpToasts();
   };
-  let bannerT = null;
+  // 3.3: big center banners wait their turn instead of wiping each other out (a burst of loot shows one by one,
+  // a little quicker when more are waiting)
+  const bannerQ = [];
+  let bannerBusy = false;
+  function pumpBanner() {
+    if (bannerBusy || !bannerQ.length) return;
+    const { html, ms } = bannerQ.shift(), el = $('#banner');
+    bannerBusy = true;
+    el.innerHTML = html; el.hidden = false; el.classList.remove('out');
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; bannerBusy = false; pumpBanner(); }, 400); }, bannerQ.length ? ms * 0.7 : ms);
+  }
+  UI.bannerShow = function (html, ms) {
+    if (bannerQ.length > 4) bannerQ.splice(0, bannerQ.length - 4);
+    bannerQ.push({ html, ms: ms || 2000 });
+    pumpBanner();
+  };
   UI.banner = function (it) {
-    const el = $('#banner'), r = G.RARITIES[it.r];
+    const r = G.RARITIES[it.r];
     const title = it.r === 6 ? t('divineLoot') : it.r === 5 ? t('mythicLoot') : t('legendLoot');
-    el.innerHTML = `<div class="inner" style="color:${r.color}"><h2>${esc(title)}</h2><img class="ico" src="${ic('it_' + it.id, 10)}" alt=""><p>${esc(L(it.name))}</p></div>`;
-    el.hidden = false; el.classList.remove('out');
-    clearTimeout(bannerT);
-    bannerT = setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; }, 400); }, it.r >= 6 ? 2600 : 1700);
+    UI.bannerShow(`<div class="inner" style="color:${r.color}"><h2>${esc(title)}</h2><img class="ico" src="${ic('it_' + it.id, 10)}" alt=""><p>${esc(L(it.name))}</p></div>`, it.r >= 6 ? 2600 : 1700);
   };
   UI.bannerU = function (q, first) {
-    const el = $('#banner'), U = G.UNIQUES[q];
-    el.innerHTML = `<div class="inner uqb" style="color:${G.UNIQUE_COL}"><h2>${esc(first ? t('uqNew') : t('uqBanner'))}</h2><img class="ico" src="${ic('u_' + q, 10)}" alt=""><p>${esc(U.name)}</p><p style="font-size:15px;color:#ffe0c0">${esc(U.fx)}</p></div>`;
-    el.hidden = false; el.classList.remove('out');
-    clearTimeout(bannerT);
-    bannerT = setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; }, 400); }, 3200);
+    const U = G.UNIQUES[q];
+    UI.bannerShow(`<div class="inner uqb" style="color:${G.UNIQUE_COL}"><h2>${esc(first ? t('uqNew') : t('uqBanner'))}</h2><img class="ico" src="${ic('u_' + q, 10)}" alt=""><p>${esc(U.name)}</p><p style="font-size:15px;color:#ffe0c0">${esc(U.fx)}</p></div>`, 3200);
   };
   UI.modal = function (title, html, actions, locked) {
     const m = $('#modal');
