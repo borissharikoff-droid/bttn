@@ -187,6 +187,8 @@
     if (c.spin === res) c.spin = null;
     c.last = res;
     const P = res.n ? PAY[res.sym][res.n] : null, paid = {};
+    // (3.3: a miss gives back a third of the meter, so the next spin comes sooner)
+    if (!res.n && !c.ready) { c.meter = Math.max(c.meter, TUNE.spinNeed * 0.35); paid.refill = 1; }
     if (P) {
       if (P.gold) { paid.gold = income() * P.gold; c.own += paid.gold; G.addGold(paid.gold, 'casino'); }
       if (P.chests) paid.chests = chests(P.chests, false, res.n === 3);
@@ -286,7 +288,7 @@
     const c = C();
     if (!on()) return;
     if (!c.ready && !c.spin) {
-      c.meter += (m.w || 0) * (m.add ? 0.4 : 1);
+      c.meter += (m.w || 0) * (m.add ? 0.4 : 1) * (G.D.spinRate || 1);
       if (c.meter >= TUNE.spinNeed) ready();
     }
     if (c.bubWant && !m.add && m.kind !== 'guardian') { c.bubWant = false; spawnBubble(m); }

@@ -57,7 +57,7 @@
     }
     if (o.m < 1) {
       // fighting fills it: faster against a boss
-      o.m = Math.min(1, o.m + dt / TUNE.odFill * (R.boss ? 1.5 : 1) + Math.min(o.kAcc, TUNE.odKillCap * dt));
+      o.m = Math.min(1, o.m + (dt / TUNE.odFill * (R.boss ? 1.5 : 1) + Math.min(o.kAcc, TUNE.odKillCap * dt)) * (G.D.odRate || 1));
       o.kAcc = 0;
       if (o.m >= 1) emit('odReady');
     } else if ((o.full += dt) >= TUNE.odAuto && G.S.hero.autoOd !== 0) G.overdrive('auto');

@@ -763,7 +763,8 @@
   // Bosses are worth a few dozen mobs at first and grow into real walls by
   // the second land: from then on a boss needs a Warden strong for this depth.
   G.bossHp = d => mobHp(d) * Math.min(TUNE.bossHpMobs, 40 + 30 * d) * (G.isLord(d) ? TUNE.lordHp : 1);
-  function xpNeed(l) { return Math.floor(10 * Math.pow(1.2, l - 1) + 6 * l); }
+  // (3.3: the first levels cost more, so the opening isn't a blur of level-up cards)
+  function xpNeed(l) { return Math.floor(10 * Math.pow(1.2, l - 1) + 14 * l); }
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {

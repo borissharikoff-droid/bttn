@@ -999,6 +999,23 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .fellFame { display: flex; align-items: center; gap: 6px; font-size: 18px; margin: 8px 0; }
 .fellFame b { font: 14px/1 var(--font-display); color: var(--fame, #c88aff); }
 .fell .next { color: #ffd84a; }
+/* 3.3 run blessings */
+.blessCards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+.blessCard { display: grid; justify-items: center; gap: 6px; padding: 14px 8px; border: 3px solid var(--ink); background: linear-gradient(#2e2a48, #1c1a2c); color: var(--text); cursor: pointer; box-shadow: inset 0 0 0 2px #ffd84a55, 0 4px 0 var(--ink); text-align: center; animation: blessIn .4s cubic-bezier(.2,1.6,.4,1) both; }
+.blessCard:nth-child(2) { animation-delay: .08s; } .blessCard:nth-child(3) { animation-delay: .16s; }
+.blessCard:hover { box-shadow: inset 0 0 0 2px #ffd84a, 0 4px 0 var(--ink); transform: translateY(-2px); }
+.blessCard b { font: 10px/1.3 var(--font-display); color: #ffe27a; }
+.blessCard small { color: var(--text); font-size: 14px; line-height: 1.25; }
+.blessCard.twist { box-shadow: inset 0 0 0 2px #ff5a7a88, 0 4px 0 var(--ink); }
+.blessCard.twist b { color: #ff8aa0; }
+.blessCard em { font: 8px/1 var(--font-display); color: #ff8aa0; font-style: normal; }
+@keyframes blessIn { from { transform: translateY(20px) scale(.8); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 700px) { .blessCards { grid-template-columns: 1fr; } }
+/* 3.3 Buy all, and affordable rows that catch the eye */
+.buyAll { width: 100%; margin-bottom: 8px; }
+.buyAll.dim { opacity: .45; filter: grayscale(.6); }
+.row.can { animation: rowCan 2.4s ease-in-out infinite; }
+@keyframes rowCan { 0%, 100% { box-shadow: inset 0 0 0 2px var(--line-hi); } 50% { box-shadow: inset 0 0 0 2px #ffd84a88, 0 0 8px #ffd84a33; } }
 
 </style>
 <div id="app">
@@ -1888,6 +1905,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     gambleTab: 'Gambler', gambleTitle: 'The Gambler', gambleSub: 'Shards for a mystery item of the slot you pick.',
     gambleHint: 'Magic or better, up to {0} at this depth; {1}% of the time a unique.', gambleNo: 'Not enough shards: break down spare gear at the Forge.',
     seal: 'Seal', sealed: 'SEALED', sealHint: 'Seal one affix ({0} shards): an Orb of Flux rerolls only the others.', equipped: 'equipped',
+    buyAll: 'Buy everything I can afford', buyAllDone: 'Bought {0} upgrade level(s)',
+    blessTitle: 'A NEW RUN: CHOOSE A BLESSING', blessHint: 'It holds until the Button falls or you ascend.', blessTwist: 'with a twist', blessOn: 'Blessing:', blessNow: 'This run: {0}',
     fellTitle: 'THE BUTTON FELL', fellText: 'The Horde broke through and the Button went dark. Its light comes back in a new run; what you earned stays.',
     fellDepth: 'Reached depth', fellTime: 'Run time', fellLvl: 'Warden level', fellGold: 'Gold this run', fellTotal: '{0} to spend',
     fellKeep: 'Kept: gear, the town, pets, collection, relics, stars and fame. Lost: gold, upgrades, Garrison, constellation, potions, levels and perks.',
@@ -1982,6 +2001,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       torment: 0, tormentRun: 0,
       // 3.1: the depth this run started from (fame counts what's gained beyond it)
       runFrom: 0,
+      // 3.3: this run's blessing, and the three on offer when a new run starts
+      bless: null, blessOffer: null,
       // 3.0: the town's building levels (kept through ascension)
       bld: {},
     };
@@ -2030,6 +2051,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     for (const n of G.NODES) { const L = S.nodes[n.id] || 0; if (L) n.fx(L, d); }
     for (const l of G.LEGACY) { const L = S.legacy[l.id] || 0; if (L) l.fx(L, d); }
     if (G.heroEcon) G.heroEcon(d);
+    // 3.3: this run's blessing
+    if (G.blessFx) G.blessFx(d);
     // Torment pays: gold, XP, luck and fame
     // (fame is paid for the highest Torment a boss was beaten at on this run's deepest ground, not for the dial's setting)
     { const T = torment(); d.goldMult *= T.gold; d.xpMult = (d.xpMult || 1) * T.xp; d.luck += T.luck; d.fameMult = (d.fameMult || 1) * (1 + 0.12 * Math.min(S.tormentRun || 0, TORMENT_MAX)); }
@@ -4073,7 +4096,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // Bosses are worth a few dozen mobs at first and grow into real walls by
   // the second land: from then on a boss needs a Warden strong for this depth.
   G.bossHp = d => mobHp(d) * Math.min(TUNE.bossHpMobs, 40 + 30 * d) * (G.isLord(d) ? TUNE.lordHp : 1);
-  function xpNeed(l) { return Math.floor(10 * Math.pow(1.2, l - 1) + 6 * l); }
+  // (3.3: the first levels cost more, so the opening isn't a blur of level-up cards)
+  function xpNeed(l) { return Math.floor(10 * Math.pow(1.2, l - 1) + 14 * l); }
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {
@@ -6510,6 +6534,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (c.spin === res) c.spin = null;
     c.last = res;
     const P = res.n ? PAY[res.sym][res.n] : null, paid = {};
+    // (3.3: a miss gives back a third of the meter, so the next spin comes sooner)
+    if (!res.n && !c.ready) { c.meter = Math.max(c.meter, TUNE.spinNeed * 0.35); paid.refill = 1; }
     if (P) {
       if (P.gold) { paid.gold = income() * P.gold; c.own += paid.gold; G.addGold(paid.gold, 'casino'); }
       if (P.chests) paid.chests = chests(P.chests, false, res.n === 3);
@@ -6609,7 +6635,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const c = C();
     if (!on()) return;
     if (!c.ready && !c.spin) {
-      c.meter += (m.w || 0) * (m.add ? 0.4 : 1);
+      c.meter += (m.w || 0) * (m.add ? 0.4 : 1) * (G.D.spinRate || 1);
       if (c.meter >= TUNE.spinNeed) ready();
     }
     if (c.bubWant && !m.add && m.kind !== 'guardian') { c.bubWant = false; spawnBubble(m); }
@@ -6970,7 +6996,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     }
     if (o.m < 1) {
       // fighting fills it: faster against a boss
-      o.m = Math.min(1, o.m + dt / TUNE.odFill * (R.boss ? 1.5 : 1) + Math.min(o.kAcc, TUNE.odKillCap * dt));
+      o.m = Math.min(1, o.m + (dt / TUNE.odFill * (R.boss ? 1.5 : 1) + Math.min(o.kAcc, TUNE.odKillCap * dt)) * (G.D.odRate || 1));
       o.kAcc = 0;
       if (o.m >= 1) emit('odReady');
     } else if ((o.full += dt) >= TUNE.odAuto && G.S.hero.autoOd !== 0) G.overdrive('auto');
@@ -6993,8 +7019,58 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 (function (G) { 'use strict'; })(globalThis.G = globalThis.G || {});
 
 /* js/blessings.js */
-// placeholder
-(function (G) { 'use strict'; })(globalThis.G = globalThis.G || {});
+// BTTN 3.3 — run blessings. Every new run (after the Button falls or an ascension) opens with a choice of one of
+// three blessings that hold for the whole run, so no two runs play quite the same. Some are a plain boon, some a
+// boon with a twist. No DOM here: the cards are drawn by ui.js (event 'blessOffer').
+(function (G) {
+  'use strict';
+  const { emit } = G;
+  const B = G.BLESSINGS = [
+    { id: 'gilded', icon: 'ic_coin', name: 'Gilded Run', desc: 'Gold ×1.6', fx: d => { d.goldMult *= 1.6; } },
+    { id: 'warpath', icon: 'ic_sword', name: 'Warpath', desc: 'Party damage +35%', fx: d => { d.heroMult *= 1.35; } },
+    { id: 'iron', icon: 'pot_def', name: 'Iron Button', desc: 'Button and party health +60%', fx: d => { d.hpMult *= 1.6; } },
+    { id: 'quick', icon: 'ev_frenzy', name: 'Quick Hands', desc: 'Party attack speed +25%', fx: d => { d.spdMult *= 1.25; } },
+    { id: 'fortune', icon: 'ic_chest', name: 'Fortune', desc: 'Better chests, chest bar +30%', fx: d => { d.luck += 0.3; d.chestProg *= 1.3; } },
+    { id: 'livewire', icon: 'ic_bolt', name: 'Live Wire', desc: 'Overdrive charges twice as fast', fx: d => { d.odRate = (d.odRate || 1) * 2; } },
+    { id: 'roller', icon: 'ic_jackpot', name: 'High Roller', desc: 'The Lucky Spin fills twice as fast', fx: d => { d.spinRate = (d.spinRate || 1) * 2; } },
+    { id: 'scholar', icon: 'ic_scroll', name: 'Scholar', desc: 'XP +60%: levels and perks come sooner', fx: d => { d.xpMult = (d.xpMult || 1) * 1.6; } },
+    { id: 'slayer', icon: 'ic_skull', name: 'Giant Slayer', desc: 'Damage to bosses +50%', fx: d => { d.bossMult *= 1.5; } },
+    // with a twist
+    { id: 'glass', icon: 'it_crystal_dagger', twist: 1, name: 'Glass Run', desc: 'Party damage ×1.8, but Button and party health ×0.6', fx: d => { d.heroMult *= 1.8; d.hpMult *= 0.6; } },
+    { id: 'greed', icon: 'ic_vault', twist: 1, name: 'Greed', desc: 'Gold ×2.5, but the Horde bites 40% harder', fx: d => { d.goldMult *= 2.5; d.biteMult = (d.biteMult || 1) * 1.4; } },
+    { id: 'reckless', icon: 'ev_bloodmoon', twist: 1, name: 'Reckless', desc: 'Start one land deeper, but bosses take 20% less damage', fx: d => { d.bossMult *= 0.8; }, onPick: S => { S.depth = S.maxDepth = (S.depth || 0) + G.REALM_SIZE; } },
+  ];
+  const BY = G.BLESS_BY_ID = {};
+  B.forEach(b => { BY[b.id] = b; });
+
+  // in recalc, after gear and before the totals (see game.js)
+  G.blessFx = d => { const b = G.S && BY[G.S.bless]; if (b) b.fx(d); };
+  // the Horde's bites (Greed)
+  G.hook('bite', (m, who, bd) => (G.D.biteMult && G.D.biteMult !== 1 ? bd * G.D.biteMult : null));
+
+  // three to choose from, at most one with a twist
+  function offer() {
+    const S = G.S, pool = B.filter(b => !b.twist), tw = B.filter(b => b.twist);
+    const pick = (list, n) => { const out = [], l = list.slice(); while (out.length < n && l.length) out.push(l.splice(Math.floor(G.rng() * l.length), 1)[0].id); return out; };
+    const o = G.rng() < 0.6 ? pick(pool, 2).concat(pick(tw, 1)) : pick(pool, 3);
+    S.blessOffer = o;
+    emit('blessOffer', o);
+    return o;
+  }
+  G.blessOffer = offer;
+  G.chooseBlessing = function (id) {
+    const S = G.S, b = BY[id];
+    if (!b || !(S.blessOffer || []).includes(id)) return false;
+    S.bless = id; S.blessOffer = null;
+    if (b.onPick) b.onPick(S);
+    S.st.blessings = (S.st.blessings || 0) + 1;
+    G.dirty(); G.recalc();
+    emit('bless', b);
+    return true;
+  };
+  // a new run: the old blessing is gone, three new ones on offer
+  G.on('ascend', () => { G.S.bless = null; offer(); });
+})(globalThis.G = globalThis.G || {});
 
 /* js/net.js */
 // BTTN — online layer: cloud save and the shared ladder.
@@ -16184,6 +16260,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'asc')) UI.update(true); if (kind === 'node' && curTab() === 'stars') UI.render(); });
     G.on('ascend', (g, death) => { if (g && !death) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
+    // 3.3: a new run's blessings: three cards, after whatever window is up (the fall, a class pick) closes
+    UI.blessCards = function () {
+      const S = G.S, o = S.blessOffer;
+      if (!o || !o.length) return;
+      if (!$('#modal').hidden || !$('#intro').hidden || (G.relicShow && G.relicShow()) || !(S.hero && S.hero.cls)) { setTimeout(UI.blessCards, 600); return; }
+      const m = UI.modal(t('blessTitle'), `<p class="note">${esc(t('blessHint'))}</p><div class="blessCards">${o.map(id => { const b = G.BLESS_BY_ID[id]; return `<button class="blessCard ${b.twist ? 'twist' : ''}" data-bless="${id}">${img(G.SPR.defs[b.icon] ? b.icon : 'ic_star', '', 5)}<b>${esc(b.name)}</b><small>${esc(b.desc)}</small>${b.twist ? `<em>${esc(t('blessTwist'))}</em>` : ''}</button>`; }).join('')}</div>`, [], true);
+      m.querySelectorAll('[data-bless]').forEach(el => el.addEventListener('click', () => {
+        if (G.chooseBlessing(el.dataset.bless)) { m.hidden = true; m.innerHTML = ''; G.Audio && G.Audio.levelUp && G.Audio.levelUp(); UI.toast(`<b>${esc(t('blessOn'))}</b>&nbsp;${esc(G.BLESS_BY_ID[el.dataset.bless].name)}`, 'ach', G.BLESS_BY_ID[el.dataset.bless].icon); UI.update(true); }
+      }));
+    };
+    G.on('blessOffer', () => setTimeout(UI.blessCards, 1900));
+    setTimeout(() => { if (G.S.blessOffer) UI.blessCards(); }, 2500);
     // 3.1: the Button fell: the run's tally, the fame it earned, and where the next one starts
     G.on('runOver', sum => setTimeout(() => {
       const m = UI.modal(t('fellTitle'), `<div class="fell">
@@ -16542,7 +16630,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   renderers.upg = function (body) {
     const S = G.S;
     const list = G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (!u.req || S.upg[u.req] > 0) && (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger'));
-    body.innerHTML = `<div class="list">${list.map(u => `
+    body.innerHTML = `<button class="btn gold buyAll" data-buyall>${esc(t('buyAll'))}</button><div class="list">${list.map(u => `
       <button class="row" data-u="${u.id}">
         <span class="ico">${img(u.icon, '', 4)}</span>
         <span class="info"><span class="name">${esc(L(u.name))}<span class="lv" data-lv></span></span><span class="desc">${esc(L(u.desc))}</span></span>
@@ -16550,6 +16638,15 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       </button>`).join('')}</div>
       <p class="note keys">${esc(t('keysHint'))}</p>`;
     refs.rows = $$('.row', body).map(el => ({ el, u: G.UPGRADES.find(x => x.id === el.dataset.u), lv: el.querySelector('[data-lv]'), cost: el.querySelector('[data-cost]') }));
+    // 3.3: buy the cheapest affordable upgrade again and again until nothing's affordable
+    body.querySelector('[data-buyall]').addEventListener('click', () => {
+      G.Audio.unlock(); let n = 0;
+      for (let k = 0; k < 300; k++) {
+        const u = G.UPGRADES.filter(x => refs.rows.some(r => r.u === x) && !(x.max && (G.S.upg[x.id] || 0) >= x.max) && G.S.gold >= G.upgCost(x)).sort((a, b) => G.upgCost(a) - G.upgCost(b))[0];
+        if (!u || !G.buyUpgrade(u.id)) break; n++;
+      }
+      if (n) { G.Audio.buy(); UI.toast(esc(t('buyAllDone', n)), '', 'ic_coin'); UI.update(true); } else G.Audio.error();
+    });
     body.querySelector('.list').addEventListener('click', e => {
       const r = e.target.closest('.row'); if (!r) return;
       if (!G.buyUpgrade(r.dataset.u)) { shakeRow(r); }
@@ -16571,6 +16668,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       setClass(r.el, 'can', !maxed && S.gold >= c);
       setClass(r.el, 'cant', !maxed && S.gold < c);
     }
+    const ba = $('[data-buyall]'); if (ba) setClass(ba, 'dim', !refs.rows.some(r => r.el.classList.contains('can')));
   };
   function shakeRow(r) { r.classList.remove('shake'); void r.offsetWidth; r.classList.add('shake'); G.Audio.error(); }
 
@@ -18124,7 +18222,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     while (active() && STEPS[S.tut].skip && STEPS[S.tut].skip(S)) S.tut++;
     // the welcome pack kills plenty before this step comes up, so count from here
     if (active() && STEPS[S.tut].id === 'mobs') seen().tutK = S.hero.kills;
-    if (!active()) S.tut = -1;
+    if (!active()) { S.tut = -1; if (!S.bless && G.blessOffer) G.blessOffer(); }
     if (G.Audio) G.Audio.achievement();
   }
 
@@ -18719,7 +18817,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   const fmt = v => (G.fmt ? G.fmt(v) : String(Math.round(v)));
   function resultText(res) {
     const p = res.paid || {}, I = G.SLOT_INFO[res.sym] || {};
-    if (!res.n) return { t: 'NO LUCK', s: 'next time...', c: '#c8c0d8', cls: 'small' };
+    if (!res.n) return (res.reels || []).includes('seven') ? { t: 'SO CLOSE!', s: 'a 7 slipped by · meter +35%', c: '#ffb86a', cls: 'small' } : { t: 'MISS', s: 'meter +35%: the next one comes sooner', c: '#c8c0d8', cls: 'small' };
     if (res.jackpot) return { t: '777 JACKPOT!', s: '×10 · +' + fmt(p.gold || 0) + ' gold · chests · frenzy', c: '#ffd84a', cls: 'huge long' };
     const big = res.n === 3 ? 'big' : '';
     switch (res.sym) {
@@ -18759,7 +18857,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       }
       hideAt = now() + (res.jackpot ? 4200 : res.n === 3 ? 2600 : 1900);
     } else {
-      setMode('off'); footTxt.textContent = 'NO LUCK';
+      setMode('off'); footTxt.textContent = (res.reels || []).includes('seven') ? 'SO CLOSE!' : 'MISS';
       Snd.miss();
       hideAt = now() + 1300;
     }

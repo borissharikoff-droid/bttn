@@ -724,6 +724,8 @@
       torment: 0, tormentRun: 0,
       // 3.1: the depth this run started from (fame counts what's gained beyond it)
       runFrom: 0,
+      // 3.3: this run's blessing, and the three on offer when a new run starts
+      bless: null, blessOffer: null,
       // 3.0: the town's building levels (kept through ascension)
       bld: {},
     };
@@ -772,6 +774,8 @@
     for (const n of G.NODES) { const L = S.nodes[n.id] || 0; if (L) n.fx(L, d); }
     for (const l of G.LEGACY) { const L = S.legacy[l.id] || 0; if (L) l.fx(L, d); }
     if (G.heroEcon) G.heroEcon(d);
+    // 3.3: this run's blessing
+    if (G.blessFx) G.blessFx(d);
     // Torment pays: gold, XP, luck and fame
     // (fame is paid for the highest Torment a boss was beaten at on this run's deepest ground, not for the dial's setting)
     { const T = torment(); d.goldMult *= T.gold; d.xpMult = (d.xpMult || 1) * T.xp; d.luck += T.luck; d.fameMult = (d.fameMult || 1) * (1 + 0.12 * Math.min(S.tormentRun || 0, TORMENT_MAX)); }
@@ -2815,7 +2819,8 @@
   // Bosses are worth a few dozen mobs at first and grow into real walls by
   // the second land: from then on a boss needs a Warden strong for this depth.
   G.bossHp = d => mobHp(d) * Math.min(TUNE.bossHpMobs, 40 + 30 * d) * (G.isLord(d) ? TUNE.lordHp : 1);
-  function xpNeed(l) { return Math.floor(10 * Math.pow(1.2, l - 1) + 6 * l); }
+  // (3.3: the first levels cost more, so the opening isn't a blur of level-up cards)
+  function xpNeed(l) { return Math.floor(10 * Math.pow(1.2, l - 1) + 14 * l); }
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {

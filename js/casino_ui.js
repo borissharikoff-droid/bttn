@@ -383,7 +383,7 @@
   const fmt = v => (G.fmt ? G.fmt(v) : String(Math.round(v)));
   function resultText(res) {
     const p = res.paid || {}, I = G.SLOT_INFO[res.sym] || {};
-    if (!res.n) return { t: 'NO LUCK', s: 'next time...', c: '#c8c0d8', cls: 'small' };
+    if (!res.n) return (res.reels || []).includes('seven') ? { t: 'SO CLOSE!', s: 'a 7 slipped by · meter +35%', c: '#ffb86a', cls: 'small' } : { t: 'MISS', s: 'meter +35%: the next one comes sooner', c: '#c8c0d8', cls: 'small' };
     if (res.jackpot) return { t: '777 JACKPOT!', s: '×10 · +' + fmt(p.gold || 0) + ' gold · chests · frenzy', c: '#ffd84a', cls: 'huge long' };
     const big = res.n === 3 ? 'big' : '';
     switch (res.sym) {
@@ -423,7 +423,7 @@
       }
       hideAt = now() + (res.jackpot ? 4200 : res.n === 3 ? 2600 : 1900);
     } else {
-      setMode('off'); footTxt.textContent = 'NO LUCK';
+      setMode('off'); footTxt.textContent = (res.reels || []).includes('seven') ? 'SO CLOSE!' : 'MISS';
       Snd.miss();
       hideAt = now() + 1300;
     }

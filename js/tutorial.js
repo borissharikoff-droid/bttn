@@ -204,7 +204,7 @@
     while (active() && STEPS[S.tut].skip && STEPS[S.tut].skip(S)) S.tut++;
     // the welcome pack kills plenty before this step comes up, so count from here
     if (active() && STEPS[S.tut].id === 'mobs') seen().tutK = S.hero.kills;
-    if (!active()) S.tut = -1;
+    if (!active()) { S.tut = -1; if (!S.bless && G.blessOffer) G.blessOffer(); }
     if (G.Audio) G.Audio.achievement();
   }
 

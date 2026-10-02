@@ -173,6 +173,8 @@
     gambleTab: 'Gambler', gambleTitle: 'The Gambler', gambleSub: 'Shards for a mystery item of the slot you pick.',
     gambleHint: 'Magic or better, up to {0} at this depth; {1}% of the time a unique.', gambleNo: 'Not enough shards: break down spare gear at the Forge.',
     seal: 'Seal', sealed: 'SEALED', sealHint: 'Seal one affix ({0} shards): an Orb of Flux rerolls only the others.', equipped: 'equipped',
+    buyAll: 'Buy everything I can afford', buyAllDone: 'Bought {0} upgrade level(s)',
+    blessTitle: 'A NEW RUN: CHOOSE A BLESSING', blessHint: 'It holds until the Button falls or you ascend.', blessTwist: 'with a twist', blessOn: 'Blessing:', blessNow: 'This run: {0}',
     fellTitle: 'THE BUTTON FELL', fellText: 'The Horde broke through and the Button went dark. Its light comes back in a new run; what you earned stays.',
     fellDepth: 'Reached depth', fellTime: 'Run time', fellLvl: 'Warden level', fellGold: 'Gold this run', fellTotal: '{0} to spend',
     fellKeep: 'Kept: gear, the town, pets, collection, relics, stars and fame. Lost: gold, upgrades, Garrison, constellation, potions, levels and perks.',

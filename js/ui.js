@@ -356,6 +356,18 @@
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'asc')) UI.update(true); if (kind === 'node' && curTab() === 'stars') UI.render(); });
     G.on('ascend', (g, death) => { if (g && !death) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
+    // 3.3: a new run's blessings: three cards, after whatever window is up (the fall, a class pick) closes
+    UI.blessCards = function () {
+      const S = G.S, o = S.blessOffer;
+      if (!o || !o.length) return;
+      if (!$('#modal').hidden || !$('#intro').hidden || (G.relicShow && G.relicShow()) || !(S.hero && S.hero.cls)) { setTimeout(UI.blessCards, 600); return; }
+      const m = UI.modal(t('blessTitle'), `<p class="note">${esc(t('blessHint'))}</p><div class="blessCards">${o.map(id => { const b = G.BLESS_BY_ID[id]; return `<button class="blessCard ${b.twist ? 'twist' : ''}" data-bless="${id}">${img(G.SPR.defs[b.icon] ? b.icon : 'ic_star', '', 5)}<b>${esc(b.name)}</b><small>${esc(b.desc)}</small>${b.twist ? `<em>${esc(t('blessTwist'))}</em>` : ''}</button>`; }).join('')}</div>`, [], true);
+      m.querySelectorAll('[data-bless]').forEach(el => el.addEventListener('click', () => {
+        if (G.chooseBlessing(el.dataset.bless)) { m.hidden = true; m.innerHTML = ''; G.Audio && G.Audio.levelUp && G.Audio.levelUp(); UI.toast(`<b>${esc(t('blessOn'))}</b>&nbsp;${esc(G.BLESS_BY_ID[el.dataset.bless].name)}`, 'ach', G.BLESS_BY_ID[el.dataset.bless].icon); UI.update(true); }
+      }));
+    };
+    G.on('blessOffer', () => setTimeout(UI.blessCards, 1900));
+    setTimeout(() => { if (G.S.blessOffer) UI.blessCards(); }, 2500);
     // 3.1: the Button fell: the run's tally, the fame it earned, and where the next one starts
     G.on('runOver', sum => setTimeout(() => {
       const m = UI.modal(t('fellTitle'), `<div class="fell">
@@ -714,7 +726,7 @@
   renderers.upg = function (body) {
     const S = G.S;
     const list = G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (!u.req || S.upg[u.req] > 0) && (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger'));
-    body.innerHTML = `<div class="list">${list.map(u => `
+    body.innerHTML = `<button class="btn gold buyAll" data-buyall>${esc(t('buyAll'))}</button><div class="list">${list.map(u => `
       <button class="row" data-u="${u.id}">
         <span class="ico">${img(u.icon, '', 4)}</span>
         <span class="info"><span class="name">${esc(L(u.name))}<span class="lv" data-lv></span></span><span class="desc">${esc(L(u.desc))}</span></span>
@@ -722,6 +734,15 @@
       </button>`).join('')}</div>
       <p class="note keys">${esc(t('keysHint'))}</p>`;
     refs.rows = $$('.row', body).map(el => ({ el, u: G.UPGRADES.find(x => x.id === el.dataset.u), lv: el.querySelector('[data-lv]'), cost: el.querySelector('[data-cost]') }));
+    // 3.3: buy the cheapest affordable upgrade again and again until nothing's affordable
+    body.querySelector('[data-buyall]').addEventListener('click', () => {
+      G.Audio.unlock(); let n = 0;
+      for (let k = 0; k < 300; k++) {
+        const u = G.UPGRADES.filter(x => refs.rows.some(r => r.u === x) && !(x.max && (G.S.upg[x.id] || 0) >= x.max) && G.S.gold >= G.upgCost(x)).sort((a, b) => G.upgCost(a) - G.upgCost(b))[0];
+        if (!u || !G.buyUpgrade(u.id)) break; n++;
+      }
+      if (n) { G.Audio.buy(); UI.toast(esc(t('buyAllDone', n)), '', 'ic_coin'); UI.update(true); } else G.Audio.error();
+    });
     body.querySelector('.list').addEventListener('click', e => {
       const r = e.target.closest('.row'); if (!r) return;
       if (!G.buyUpgrade(r.dataset.u)) { shakeRow(r); }
@@ -743,6 +764,7 @@
       setClass(r.el, 'can', !maxed && S.gold >= c);
       setClass(r.el, 'cant', !maxed && S.gold < c);
     }
+    const ba = $('[data-buyall]'); if (ba) setClass(ba, 'dim', !refs.rows.some(r => r.el.classList.contains('can')));
   };
   function shakeRow(r) { r.classList.remove('shake'); void r.offsetWidth; r.classList.add('shake'); G.Audio.error(); }
 

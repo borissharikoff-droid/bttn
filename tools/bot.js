@@ -81,6 +81,8 @@ function shop(G, cps) {
     const n = G.NODES.filter(x => (G.S.nodes[x.id] || 0) < x.max && G.nodeAvailable(x)).sort((a, b) => G.nodeCost(a) - G.nodeCost(b))[0];
     if (!n || !G.buyNode(n.id)) break;
   }
+  // 3.3: a new run's blessing: the first card
+  if (G.S.blessOffer && G.chooseBlessing) G.chooseBlessing(G.S.blessOffer[0]);
   // 3.0: build up the town when a level costs under a fifth of the gold on hand
   if (G.BLD) for (let i = 0; i < 11; i++) {
     const b = G.BLD.filter(x => G.bldLvl(x.id) < G.BLD_MAX).sort((x, y) => G.bldCost(x.id) - G.bldCost(y.id))[0];
