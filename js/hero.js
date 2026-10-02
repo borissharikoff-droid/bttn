@@ -160,8 +160,8 @@
   //   click()                                         a manual click that landed
   G.HOOKS = G.HOOKS || { hit: [], kill: [], bite: [], tick: [], stats: [], click: [] };
   G.hook = (name, fn) => { (G.HOOKS[name] = G.HOOKS[name] || []).push(fn); };
-  // the tutorial's Horde bites at half strength, so the first boss is reached while learning
-  G.hook('bite', (m, who, bd) => (G.UI && G.S && G.S.tut >= 0 ? bd * 0.5 : null));
+  // the tutorial's Horde (and the first three minutes') bites at half strength, so the first boss is reached while learning
+  G.hook('bite', (m, who, bd) => (G.UI && G.S && (G.S.tut >= 0 || G.S.st.playTime < 180) ? bd * 0.5 : null));
   G.PERKS = {
     might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses too' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
@@ -239,7 +239,7 @@
 
   // ---------- The party ----------
   // The Warden leads; companions join as you go deeper (after the Crab King, at depth 12 and at depth 20).
-  G.PARTY_AT = [5, 12, 20];
+  G.PARTY_AT = [3, 12, 20];
   G.partySlots = () => G.PARTY_AT.filter(d => (G.S.bestDepth || 0) >= d).length;
   G.recruit = function (cls) {
     const S = G.S, C = G.CLASS_BY_ID[cls];

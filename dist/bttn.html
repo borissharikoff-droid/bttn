@@ -963,7 +963,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   #townWin .tw.tavern .twHead { position: sticky; top: 0; z-index: 3; }
   .twBld { padding: 6px 10px; gap: 6px; }
   .twBld .fx { min-width: 0; font-size: 13px; }
-  .meter > span { font-size: 10px; }
+  .meter > span { font-size: 9px; overflow: hidden; padding: 0 3px; }
   .realm, .goalBox b { font-size: 10px; }
 }
 @media (hover: none) {
@@ -1305,10 +1305,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       desc: '+1 click power; ×2 at levels 10, 25, 50, 75…',
       fx: (L, D) => { D.clickAdd += L; D.clickMult *= Math.pow(2, G.FINGER_MILESTONES.filter(m => L >= m).length); } },
     // 3.0: holding the Button clicks on its own only as fast as this allows: 1 click a second per level
-    { id: 'hold', icon: 'ic_clock', base: 30, growth: 2.6, max: 10,
+    { id: 'hold', icon: 'ic_clock', base: 30, growth: 2.6, max: 9,
       name: 'Steady Hand',
       desc: 'Hold the Button: +1 auto-click/s',
-      fx: (L, D) => { D.holdRate = L; } },
+      fx: (L, D) => { D.holdRate = Math.min(10, 1 + L); } },
     { id: 'might', icon: 'ic_rune', base: 5000, growth: 30, max: 15,
       name: 'Rune of Might',
       desc: 'Click gold ×1.5',
@@ -1832,6 +1832,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     lock_pets: 'find an egg', lock_temple: 'reach depth 15', lock_rift: 'reach depth 5',
     dirHint: 'Tap a building here or in the square. Build them up for bonuses that last through ascension.',
     dirLvl: 'Town level {0}', dirBack: 'Back to the field (T)', dirSet: 'Settings',
+    wipeWhy: 'Tip:', wipeWhy_seat: 'Your party has a free seat: recruit a companion at the Tavern in town.',
+    wipeWhy_gear: 'Better gear is waiting in your bag: EQUIP BEST at the Forge in town.',
+    wipeWhy_boss: 'Bosses hit hard: tap the glowing weak point, Ward its big blows, Mend when low.',
+    wipeWhy_up: 'Get stronger: Upgrades, the Forge, building up the town, or a lower Torment.',
+    dirBuildAll: 'Build up everything I can afford', dirBuilt: 'Built up {0} time(s)',
     goTown: 'That is in town: tap TOWN (T).', chipTown: 'Gear and party live in town: tap TOWN (T), then the Forge.',
     rk_tg: 'attacks hit +{0} mob', rk_spd: 'attacks {0}% faster', rk_hp: 'party health +{0}%', rk_cd: 'crits +{0}× damage', rk_dmg: 'party damage +{0}%',
     chTitle: 'Chapter {0}: {1} is free', chNext: 'Next: {0}, lord of {1} (depth {2})', chEnd: 'Every land is free. Now raise the Torment.', chOpen: 'Opened', chGo: 'Onward',
@@ -1955,7 +1960,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   const D = G.D = {};
   function baseD() {
     return {
-      holdRate: 0, clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
+      holdRate: 1, clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
@@ -3053,7 +3058,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     recalc();
     const t = Math.min(sec, D.offCap);
     // (3.0: a held Button keeps clicking while you're away, at a quarter of its rate)
-    const gold = (D.gpsBase + (D.holdRate || 0) * (D.clickBase || 0) * 0.25) * t * D.offEff;
+    const gold = (D.gpsBase + (G.S.upg.hold ? D.holdRate : 0) * (D.clickBase || 0) * 0.25) * t * D.offEff;
     // back after a long rest: the next boss fight hits harder
     if (sec >= 4 * 3600) G.S.rested = 1;
     addGold(gold);
@@ -3409,8 +3414,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   //   click()                                         a manual click that landed
   G.HOOKS = G.HOOKS || { hit: [], kill: [], bite: [], tick: [], stats: [], click: [] };
   G.hook = (name, fn) => { (G.HOOKS[name] = G.HOOKS[name] || []).push(fn); };
-  // the tutorial's Horde bites at half strength, so the first boss is reached while learning
-  G.hook('bite', (m, who, bd) => (G.UI && G.S && G.S.tut >= 0 ? bd * 0.5 : null));
+  // the tutorial's Horde (and the first three minutes') bites at half strength, so the first boss is reached while learning
+  G.hook('bite', (m, who, bd) => (G.UI && G.S && (G.S.tut >= 0 || G.S.st.playTime < 180) ? bd * 0.5 : null));
   G.PERKS = {
     might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses too' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
@@ -3488,7 +3493,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- The party ----------
   // The Warden leads; companions join as you go deeper (after the Crab King, at depth 12 and at depth 20).
-  G.PARTY_AT = [5, 12, 20];
+  G.PARTY_AT = [3, 12, 20];
   G.partySlots = () => G.PARTY_AT.filter(d => (G.S.bestDepth || 0) >= d).length;
   G.recruit = function (cls) {
     const S = G.S, C = G.CLASS_BY_ID[cls];
@@ -5647,7 +5652,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       mul: { rate: 2 } },
     // 3.0
     { id: 'portals', at: 3, w: 2, t: 14, col: '#c88aff', icon: 'ic_riftgate', name: 'PORTAL STORM', sub: 'Portals open by the Button; tap them shut' },
-    { id: 'warlord', at: 6, w: 2, t: 30, col: '#ff7a2e', icon: 'ic_skull', name: 'WARLORD!', sub: 'A giant marches in; slay it before it reaches the Button' },
+    { id: 'warlord', at: 6, w: 2, t: 30, col: '#ff7a2e', icon: 'ic_skull', name: 'WARLORD!', sub: 'A giant marches in: kill it in time' },
     { id: 'stakes', at: 2, w: 2, t: 15, col: '#ffd84a', icon: 'ic_coin', name: 'HIGH STAKES', sub: 'Gold ×3 and chests ×2, but bites ×1.6',
       mul: { gold: 3, click: 3, chest: 2, bite: 1.6 } },
     // never by chance: only the JACKPOT (js/world.js) sets it off
@@ -15638,8 +15643,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function updateTorment() {
     const el = $('#torment'); if (!el || !G.S) return;
     const mx = G.tormentMax(), T = G.torment(true), busy = !!(G.R.boss || G.R.rift);
-    el.hidden = mx < 1;
-    if (mx < 1) return;
+    // (on a phone the boss's bar takes its place at the top while the fight is on)
+    el.hidden = mx < 1 || (busy && window.innerWidth < 700);
+    if (el.hidden) return;
     setText($('#tormentN'), t('tormentN', T.n, mx));
     el.classList.toggle('on', T.n > 0);
     const [lo, hi] = el.querySelectorAll('button');
@@ -16248,7 +16254,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function townPing() {
     const now = performance.now();
     if (now - pingT < 500) return pingV;
-    pingT = now; pingV = BLD_ORDER.find(id => bldPing(id) || bldCanBuild(id)) || null;
+    pingT = now; pingV = BLD_ORDER.find(id => bldPing(id)) || null;
     return pingV;
   }
   // ---------- Render tabs ----------
@@ -17693,7 +17699,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and collection stay.',
     help_8: 'Ladder', help_8t: 'Name your hero at the Tavern (Character) and compare with friends there.',
     help_9: 'Lands and stars', help_9t: 'Each land has five zones and three stars (+2.5% damage and gold each, forever). Tap the land name for the map.',
-    help_11: 'Your party', help_11t: 'Beat depths 5, 12 and 20 for party slots; recruit at the Tavern. Tap a fallen ally to raise them sooner.',
+    help_11: 'Your party', help_11t: 'Beat depths 3, 12 and 20 for party slots; recruit at the Tavern. Tap a fallen ally to raise them sooner.',
     help_12: 'Events and invasions', help_12t: 'About every minute, an event hits. Every seven minutes or so, a world invades: slay its herald for loot.',
     help_13: 'Chests and Looters', help_13t: 'The chest bar brings chests; the Treasure Hall holds more. Looters open them for you.',
     help_14: 'JACKPOT', help_14t: 'About one kill in two million, and the odds grow over time. You’ll know it.',
@@ -17702,7 +17708,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     help_17: 'Town', help_17t: 'Everything but Upgrades is in town: tap TOWN (or press T) between fights; the field waits. EQUIP BEST at the Forge dresses the party in one tap. Build up each building for a bonus that lasts through ascension.',
     help_18: 'Lucky Spin', help_18t: 'Kills fill the spin meter. When the slot machine pops up, tap it (or R): gold, chests, Frenzy, XP, orbs; 7-7-7 is the big one. Tap the ? bubbles mobs drop for a quick boost. Crits in a row chain for extra damage.',
     help_19: 'Relics', help_19t: 'The rarest drop there is: a white bag from a boss (about 1 in 600; 1 in 200 for a lord; more at higher Torment; never in Rifts). Each relic changes how you play. The Museum keeps the list.',
-    help_20: 'Holding the Button', help_20t: 'Holding Space or the Button repeats clicks only with Steady Hand (Upgrades): 1 a second at first, up to 10.',
+    help_20: 'Holding the Button', help_20t: 'Hold Space or the Button to click 1 time a second; each Steady Hand level (Upgrades) adds one, up to 10.',
     help_10: 'Carnage', help_10t: 'Kill without a 2.5-second pause to raise gold and XP, up to +40%.',
   });
 
@@ -17898,7 +17904,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- Coach bubble & pointer ----------
   let lastKey = '';
+  // on a touch screen the keyboard letters mean nothing: drop them from what the coach says
+  const touch = typeof matchMedia !== 'undefined' && matchMedia('(hover: none)').matches;
+  const untype = s => s.replace(/ ?\((?:or press )?[A-Z]\)/g, '').replace(/\b([ZXC]) (Smite|Ward|Mend)\b/g, '$2').replace(/ (?:or )?(?:with|press) [ZXCQRTEB]\b/g, '').replace(/ ?\((?:[ZXC] )?\d+ ?s\)/g, m => m.replace(/[ZXC] /, ''));
   function render(key, text, step, manual) {
+    if (touch && typeof text === 'string') text = untype(text);
     const c = $('#coach');
     const k = key + text + step + manual;
     if (k !== lastKey) {

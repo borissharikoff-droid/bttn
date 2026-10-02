@@ -26,7 +26,7 @@
       mul: { rate: 2 } },
     // 3.0
     { id: 'portals', at: 3, w: 2, t: 14, col: '#c88aff', icon: 'ic_riftgate', name: 'PORTAL STORM', sub: 'Portals open by the Button; tap them shut' },
-    { id: 'warlord', at: 6, w: 2, t: 30, col: '#ff7a2e', icon: 'ic_skull', name: 'WARLORD!', sub: 'A giant marches in; slay it before it reaches the Button' },
+    { id: 'warlord', at: 6, w: 2, t: 30, col: '#ff7a2e', icon: 'ic_skull', name: 'WARLORD!', sub: 'A giant marches in: kill it in time' },
     { id: 'stakes', at: 2, w: 2, t: 15, col: '#ffd84a', icon: 'ic_coin', name: 'HIGH STAKES', sub: 'Gold ×3 and chests ×2, but bites ×1.6',
       mul: { gold: 3, click: 3, chest: 2, bite: 1.6 } },
     // never by chance: only the JACKPOT (js/world.js) sets it off

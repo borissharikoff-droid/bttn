@@ -85,7 +85,7 @@
   const D = G.D = {};
   function baseD() {
     return {
-      holdRate: 0, clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
+      holdRate: 1, clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
@@ -1183,7 +1183,7 @@
     recalc();
     const t = Math.min(sec, D.offCap);
     // (3.0: a held Button keeps clicking while you're away, at a quarter of its rate)
-    const gold = (D.gpsBase + (D.holdRate || 0) * (D.clickBase || 0) * 0.25) * t * D.offEff;
+    const gold = (D.gpsBase + (G.S.upg.hold ? D.holdRate : 0) * (D.clickBase || 0) * 0.25) * t * D.offEff;
     // back after a long rest: the next boss fight hits harder
     if (sec >= 4 * 3600) G.S.rested = 1;
     addGold(gold);

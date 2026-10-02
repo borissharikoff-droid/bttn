@@ -955,7 +955,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   #townWin .tw.tavern .twHead { position: sticky; top: 0; z-index: 3; }
   .twBld { padding: 6px 10px; gap: 6px; }
   .twBld .fx { min-width: 0; font-size: 13px; }
-  .meter > span { font-size: 10px; }
+  .meter > span { font-size: 9px; overflow: hidden; padding: 0 3px; }
   .realm, .goalBox b { font-size: 10px; }
 }
 @media (hover: none) {

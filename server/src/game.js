@@ -271,10 +271,10 @@
       desc: '+1 click power; ×2 at levels 10, 25, 50, 75…',
       fx: (L, D) => { D.clickAdd += L; D.clickMult *= Math.pow(2, G.FINGER_MILESTONES.filter(m => L >= m).length); } },
     // 3.0: holding the Button clicks on its own only as fast as this allows: 1 click a second per level
-    { id: 'hold', icon: 'ic_clock', base: 30, growth: 2.6, max: 10,
+    { id: 'hold', icon: 'ic_clock', base: 30, growth: 2.6, max: 9,
       name: 'Steady Hand',
       desc: 'Hold the Button: +1 auto-click/s',
-      fx: (L, D) => { D.holdRate = L; } },
+      fx: (L, D) => { D.holdRate = Math.min(10, 1 + L); } },
     { id: 'might', icon: 'ic_rune', base: 5000, growth: 30, max: 15,
       name: 'Rune of Might',
       desc: 'Click gold ×1.5',
@@ -739,7 +739,7 @@
   const D = G.D = {};
   function baseD() {
     return {
-      holdRate: 0, clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
+      holdRate: 1, clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
@@ -1837,7 +1837,7 @@
     recalc();
     const t = Math.min(sec, D.offCap);
     // (3.0: a held Button keeps clicking while you're away, at a quarter of its rate)
-    const gold = (D.gpsBase + (D.holdRate || 0) * (D.clickBase || 0) * 0.25) * t * D.offEff;
+    const gold = (D.gpsBase + (G.S.upg.hold ? D.holdRate : 0) * (D.clickBase || 0) * 0.25) * t * D.offEff;
     // back after a long rest: the next boss fight hits harder
     if (sec >= 4 * 3600) G.S.rested = 1;
     addGold(gold);
@@ -2193,8 +2193,8 @@
   //   click()                                         a manual click that landed
   G.HOOKS = G.HOOKS || { hit: [], kill: [], bite: [], tick: [], stats: [], click: [] };
   G.hook = (name, fn) => { (G.HOOKS[name] = G.HOOKS[name] || []).push(fn); };
-  // the tutorial's Horde bites at half strength, so the first boss is reached while learning
-  G.hook('bite', (m, who, bd) => (G.UI && G.S && G.S.tut >= 0 ? bd * 0.5 : null));
+  // the tutorial's Horde (and the first three minutes') bites at half strength, so the first boss is reached while learning
+  G.hook('bite', (m, who, bd) => (G.UI && G.S && (G.S.tut >= 0 || G.S.st.playTime < 180) ? bd * 0.5 : null));
   G.PERKS = {
     might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses too' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
@@ -2272,7 +2272,7 @@
 
   // ---------- The party ----------
   // The Warden leads; companions join as you go deeper (after the Crab King, at depth 12 and at depth 20).
-  G.PARTY_AT = [5, 12, 20];
+  G.PARTY_AT = [3, 12, 20];
   G.partySlots = () => G.PARTY_AT.filter(d => (G.S.bestDepth || 0) >= d).length;
   G.recruit = function (cls) {
     const S = G.S, C = G.CLASS_BY_ID[cls];

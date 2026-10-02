@@ -47,8 +47,9 @@
   function updateTorment() {
     const el = $('#torment'); if (!el || !G.S) return;
     const mx = G.tormentMax(), T = G.torment(true), busy = !!(G.R.boss || G.R.rift);
-    el.hidden = mx < 1;
-    if (mx < 1) return;
+    // (on a phone the boss's bar takes its place at the top while the fight is on)
+    el.hidden = mx < 1 || (busy && window.innerWidth < 700);
+    if (el.hidden) return;
     setText($('#tormentN'), t('tormentN', T.n, mx));
     el.classList.toggle('on', T.n > 0);
     const [lo, hi] = el.querySelectorAll('button');
@@ -657,7 +658,7 @@
   function townPing() {
     const now = performance.now();
     if (now - pingT < 500) return pingV;
-    pingT = now; pingV = BLD_ORDER.find(id => bldPing(id) || bldCanBuild(id)) || null;
+    pingT = now; pingV = BLD_ORDER.find(id => bldPing(id)) || null;
     return pingV;
   }
   // ---------- Render tabs ----------

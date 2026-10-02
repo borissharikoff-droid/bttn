@@ -67,7 +67,7 @@
     help_7: 'Ascension', help_7t: 'Stuck? Ascend for fame, a permanent bonus. Gear, pets and collection stay.',
     help_8: 'Ladder', help_8t: 'Name your hero at the Tavern (Character) and compare with friends there.',
     help_9: 'Lands and stars', help_9t: 'Each land has five zones and three stars (+2.5% damage and gold each, forever). Tap the land name for the map.',
-    help_11: 'Your party', help_11t: 'Beat depths 5, 12 and 20 for party slots; recruit at the Tavern. Tap a fallen ally to raise them sooner.',
+    help_11: 'Your party', help_11t: 'Beat depths 3, 12 and 20 for party slots; recruit at the Tavern. Tap a fallen ally to raise them sooner.',
     help_12: 'Events and invasions', help_12t: 'About every minute, an event hits. Every seven minutes or so, a world invades: slay its herald for loot.',
     help_13: 'Chests and Looters', help_13t: 'The chest bar brings chests; the Treasure Hall holds more. Looters open them for you.',
     help_14: 'JACKPOT', help_14t: 'About one kill in two million, and the odds grow over time. You’ll know it.',
@@ -76,7 +76,7 @@
     help_17: 'Town', help_17t: 'Everything but Upgrades is in town: tap TOWN (or press T) between fights; the field waits. EQUIP BEST at the Forge dresses the party in one tap. Build up each building for a bonus that lasts through ascension.',
     help_18: 'Lucky Spin', help_18t: 'Kills fill the spin meter. When the slot machine pops up, tap it (or R): gold, chests, Frenzy, XP, orbs; 7-7-7 is the big one. Tap the ? bubbles mobs drop for a quick boost. Crits in a row chain for extra damage.',
     help_19: 'Relics', help_19t: 'The rarest drop there is: a white bag from a boss (about 1 in 600; 1 in 200 for a lord; more at higher Torment; never in Rifts). Each relic changes how you play. The Museum keeps the list.',
-    help_20: 'Holding the Button', help_20t: 'Holding Space or the Button repeats clicks only with Steady Hand (Upgrades): 1 a second at first, up to 10.',
+    help_20: 'Holding the Button', help_20t: 'Hold Space or the Button to click 1 time a second; each Steady Hand level (Upgrades) adds one, up to 10.',
     help_10: 'Carnage', help_10t: 'Kill without a 2.5-second pause to raise gold and XP, up to +40%.',
   });
 
@@ -272,7 +272,11 @@
 
   // ---------- Coach bubble & pointer ----------
   let lastKey = '';
+  // on a touch screen the keyboard letters mean nothing: drop them from what the coach says
+  const touch = typeof matchMedia !== 'undefined' && matchMedia('(hover: none)').matches;
+  const untype = s => s.replace(/ ?\((?:or press )?[A-Z]\)/g, '').replace(/\b([ZXC]) (Smite|Ward|Mend)\b/g, '$2').replace(/ (?:or )?(?:with|press) [ZXCQRTEB]\b/g, '').replace(/ ?\((?:[ZXC] )?\d+ ?s\)/g, m => m.replace(/[ZXC] /, ''));
   function render(key, text, step, manual) {
+    if (touch && typeof text === 'string') text = untype(text);
     const c = $('#coach');
     const k = key + text + step + manual;
     if (k !== lastKey) {
