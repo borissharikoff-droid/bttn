@@ -60,6 +60,11 @@ function run(name, seed, minutes) {
   G.on('bossWin', () => Object.assign(attempts[attempts.length - 1] || {}, { res: 'win', secs: Math.round(clock.now - attempts[attempts.length - 1].t0) }));
   G.on('evolve', () => mark('evolve'));
   G.on('landStar', () => mark('landStar'));
+  // 3.3: Land Champions: how many came, fell, got away, and of what kind
+  const champ = { seen: 0, kill: 0, esc: {}, secs: [], mech: {} };
+  G.on('champSpawn', c => { champ.seen++; c._t0 = clock.now; mark('champ'); });
+  G.on('champKill', c => { champ.kill++; champ.secs.push(Math.round(clock.now - c._t0)); champ.mech[c.mech] = (champ.mech[c.mech] || '') + 'K'; });
+  G.on('champEscape', (c, why) => { champ.esc[why] = (champ.esc[why] || 0) + 1; champ.mech[c.mech] = (champ.mech[c.mech] || '') + 'x'; });
   const party = { downs: 0, wipes: 0, breaks: 0, invasions: 0, invWins: 0, phases: 0, heralds: 0, invLog: [] };
   G.on('invasion', () => party.invLog.push({ d: G.depthNow(), k: +((G.D.heroDps || 0) / G.mobHp(G.depthNow())).toFixed(2) }));
   G.on('invasionBoss', m => { party.heralds++; const l = party.invLog[party.invLog.length - 1]; if (l) { l.herald = +(G.R.inv.T - G.R.inv.t).toFixed(0); l.hp = +(m.max / Math.max(1, G.D.heroDps)).toFixed(1); } });
@@ -211,7 +216,7 @@ function run(name, seed, minutes) {
     rift: { best: riftBest, runs: riftRuns, open: S().rift.open },
     depthAt: Object.fromEntries(Object.entries(depthAt).map(([k, v]) => [k, +(v / 60).toFixed(1)])),
     windows: win, longestStall: stalls.reduce((m, x) => Math.max(m, x[1]), 0) / 60,
-    bossFails: fails, maxFailStreak, ascensions: s.ascensions, journey: s.journey || 0, evos: Object.keys((s.rec && s.rec.evos) || {}).length, bounties: moments.filter(m => m[1] === 'bounty').length, bestDepth: s.bestDepth, level: s.hero.lvl,
+    champ, bossFails: fails, maxFailStreak, ascensions: s.ascensions, journey: s.journey || 0, evos: Object.keys((s.rec && s.rec.evos) || {}).length, bounties: moments.filter(m => m[1] === 'bounty').length, bestDepth: s.bestDepth, level: s.hero.lvl,
     ach: Object.keys(s.ach).length + '/' + G.ACH.length, pets: Object.keys(s.pets).length, collection: Object.keys(s.coll).length + '/' + G.ITEMS.length,
     torment: s.torment || 0,
     pressure: { low: +(press.low / Math.max(1, press.n)).toFixed(3), crit: +(press.crit / Math.max(1, press.n)).toFixed(3), boss: +(press.boss / Math.max(1, press.n)).toFixed(3) },

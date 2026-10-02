@@ -10,6 +10,24 @@
 - **Built for holding the Button.** A held Button clicks once a second, Steady Hand takes it up to 10, and nothing counts past 10.
 - **Chase the rare.** Relics drop in a white bag from bosses only, the Lucky Spin pays out from kills, and the JACKPOT hits about one kill in two million.
 
+## 3.3 — Polish & Runs
+
+- **Run blessings.** Every new run (after the Button falls or an ascension, and when the tutorial ends) opens with a choice of one of three blessings that hold for the whole run.
+  - Boons: Gilded Run (gold ×1.6), Warpath (party damage +35%), Iron Button (health +60%), Quick Hands (attack speed +25%), Fortune (better chests), Live Wire (Overdrive charges twice as fast), High Roller (the Lucky Spin fills twice as fast), Scholar (XP +60%), Giant Slayer (+50% damage to bosses).
+  - Boons with a twist: Glass Run (damage ×1.8, health ×0.6), Greed (gold ×2.5, the Horde bites 40% harder), Reckless (start one land deeper, bosses take 20% less damage).
+  - The run's blessing shows among the buffs, over the HP bar.
+- **Land Champions.** Once per land per run, 40–90 seconds in, a named mini-boss walks into the field. It is not a boss fight: the Horde keeps coming. Kill it within a minute for guaranteed loot: two or three pieces of gear at the land's promise, an Ascent orb and another, one or two good chests, and now and then a unique. Each land's champion has a rule of its own:
+  - **Splitter**: splits in three when slain. **Thief**: steals gold each second, then runs; slay it and get twice back.
+  - **Burrower**: dives underground and comes up elsewhere. **Shield-bearer**: only the Hand's clicks (and Smite) crack its shield.
+  - **Berserker**: faster and deadlier as it bleeds. **Phantom**: hides among decoys; only the real one bleeds.
+  - **Bomb-carrier**: stop it before it reaches the Button (Ward stops the blast). **Summoner**: calls the Horde until slain.
+  - The party marks it. A boss fight sends it away for a while, and it comes back after, even if you've moved on to the next land.
+- **Polish.**
+  - Big center banners (legendary loot, uniques, evolutions) wait their turn instead of wiping each other out.
+  - The Lucky Spin: a near miss says **SO CLOSE!** and leaves a third of the meter filled.
+  - Upgrades: **Buy everything I can afford**, and affordable rows glow.
+  - The first levels come at a calmer pace.
+
 ## 3.2 — Runs
 
 - **When the Button falls, the run is over.** A wipe after the first few minutes ends the run with THE BUTTON FELL.

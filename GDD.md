@@ -38,7 +38,8 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
   - Events, the Lucky Spin and the Overdrive break the rhythm.
 - **Session.**
   - Push through lands, going into town to gear up and build up between fights.
-  - A wipe ends the run: **THE BUTTON FELL** awards fame, and the next run starts at a checkpoint.
+  - A wipe ends the run: **THE BUTTON FELL** awards fame, and the next run starts at a checkpoint with a choice of
+    one of three **blessings** for the run.
 - **Meta (days and weeks).**
   - Spend fame in the Hall of Fame, build the town to 55/55, and chase uniques, relics, land stars and achievements.
   - Climb the friends ladder and the daily Rift.
@@ -67,6 +68,8 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
 - **Mob types:** small fry, brutes, champions, rares, runners, spitters, bombers and tanks. From land 2 on, warded,
   charger, mender and caller packs join; Hoarders and goblins also appear.
 - Bites have a floor relative to the Button's health, so pressure stays even when you overpower a depth.
+- **Land Champions:** once per land per run, a named mini-boss with a rule of its own (splits, steals, burrows, shields,
+  rages, hides among decoys, carries a bomb, summons). Kill it within a minute for guaranteed good loot.
 - Big mobs take 1.8 times as long to kill. Arrows mark dangerous packs as they come in.
 
 ### 4.4 Bosses and lords
@@ -130,8 +133,9 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
 | Metric | Target | Now (playtest bot) |
 |---|---|---|
 | Time to depth 5 (active) | 3–5 min | 3.7 |
-| Time to depth 20 (casual, first run) | ≤ 25 min | 21.6 |
-| Button under 50% (active) | 15–25% of the time | 12.5% |
+| Time to depth 20 (casual, first run) | ≤ 25 min | 24.4 |
+| Button under 50% (casual / active) | 15–25% of the time | 15.5% / 11% |
+| Land Champions slain (casual, idle) | most | 3/3, 3/3 |
 | A big moment | ≥ 4 per min early, ≥ 2 later | 9 / 5 |
 | A whole town (55/55) | weeks, across ascensions | — |
 | Relic | about 1 per 600 bosses, with pity | ✓ |
@@ -147,17 +151,17 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
 
 ### 3.3 — Polish & Runs (this patch)
 
-1. **Run blessings.** A new run starts with a choice of 1 of 3 blessings that hold for the whole run (upside, or upside
+1. ✅ **Run blessings.** A new run starts with a choice of 1 of 3 blessings that hold for the whole run (upside, or upside
    with a twist), so each run plays differently.
-2. **Land Champions.** One mini-boss per land per run, each with its own mechanic and guaranteed good loot: a moment in
-   every land. *(Built in a separate module.)*
-3. **Polish:**
+2. ✅ **Land Champions.** One mini-boss per land per run, each with its own mechanic (8 rules across 15 champions) and
+   guaranteed good loot: a moment in every land. Logic in `js/champions.js`, show in `js/champions_fx.js`.
+3. ✅ **Polish:**
    - floating center texts are queued instead of stacked;
    - "SO CLOSE" for a two-of-a-kind miss on the Lucky Spin;
    - "Buy all" for Upgrades;
    - an affordable glow on Upgrades;
    - a gentler first-run level-up pace.
-4. Tests, patch notes, build, publish (artifact + Railway).
+4. ✅ Tests, patch notes, build, publish (artifact + Railway).
 
 ### 3.4 — Builds
 
@@ -175,7 +179,7 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
 
 - Vanilla JS. The game logic files are DOM-free and also run under Node:
   - util, data, game, hero, ach, journey, world, events;
-  - perks2, casino, relic, overdrive.
+  - perks2, casino, relic, overdrive, champions, blessings.
 - Logic talks to the rest through events (`G.on`/`G.emit`) and hooks (`G.hook`: hit, kill, bite, tick, stats, click).
 - `tools/build.js` produces `dist/bttn.html`, `dist/artifact.html`, `docs/index.html` and the ladder server's game logic.
 - Headless persona playtests (`tools/playtest.js`), regression suites, and Playwright checks on desktop and phone.
