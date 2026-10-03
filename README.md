@@ -152,3 +152,14 @@ Press Start 2P (CodeMan38) and Tiny5 (Stefan Schmidt) are distributed under the 
 - **Railway** (or any Node host): New Project → Deploy from GitHub repo → this repo and branch. `railway.json` and `npm start` run `deploy/serve.js`, which serves `docs/index.html` on `$PORT` (health check at `/health`). Then Settings → Networking → Generate Domain.
 
 On a public host, saves stay in the player's browser. The friends ladder and cloud saves work only in the claude.ai artifact.
+
+## Analytics and the admin dashboard
+
+On the public host (deploy/serve.js) the game sends anonymous play events to `/api/ev` (js/analytics.js). They are
+stored as NDJSON files in `$DATA_DIR` (a Railway volume mounted at `/data`) and folded into memory at boot.
+
+- Dashboard: `https://<host>/admin`. The token is the `ADMIN_TOKEN` variable of the service (Railway → Variables).
+- Variables: `ADMIN_TOKEN` (required for the dashboard), `DATA_DIR` (default `./data`), `ANALYTICS_SALT` (hashing IPs
+  for counting, never stored raw), `KEEP_DAYS` (default 400).
+- Tag links with `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`; the dashboard's link builder makes them.
+- Players can turn it off in Settings; Global Privacy Control turns it off too. It never runs on claude.ai.

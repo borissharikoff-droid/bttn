@@ -168,6 +168,21 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
 - Lands of three zones, the march between zones, Hand Spells (13 spells + land flourishes), 75 new mob looks and
   five new kinds, a denser Horde, the HOLD SPACE plate, the team always on show.
 
+### Next: measure, then grow (now)
+
+- ✅ **Analytics** on the public host: anonymous events (first-touch UTM source / referrer, device and in-app browser,
+  country from the time zone, language), the funnel (intro → class → first press → hold → boss → tutorial → land 2 →
+  depth 5 → 5 min → land 3 → 15 min → recruit → fall → came back), retention cohorts, drop-off, errors. Off with Global
+  Privacy Control or Settings → Anonymous play stats. No IPs or saves are stored.
+- ✅ **Admin dashboard** at `/admin` (token: Railway → bttn → Variables → `ADMIN_TOKEN`): sources ranked by a quality
+  score, campaigns, funnel, cohorts, devices, countries, play hours, game stats, live players, CSV export, and a
+  tracking-link builder.
+- **Traffic plan.** Tag every post and ad (`?utm_source=tiktok&utm_medium=video&utm_campaign=…&utm_content=clip_3`).
+  Start small on 3–4 channels (TikTok/Reels/Shorts clips of meteors and a breaking Button, Reddit r/incremental_games
+  and r/WebGames, Telegram game channels, itch.io/CrazyGames/Poki listings). After ~100 visitors a source, keep the
+  ones with the best quality score and day-1 return, cut the rest, and fix the biggest funnel drop before scaling.
+- **Targets to scale paid traffic:** picked a class ≥ 85%, played 5 min ≥ 40%, day-1 return ≥ 20%, day-7 ≥ 8%.
+
 ### 3.5 — Builds
 
 - Class talents at ranks: a choice of two.
