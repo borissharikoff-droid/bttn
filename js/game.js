@@ -10,7 +10,7 @@
     depthGold: 1.08,        // gold multiplier per depth
     bossBase: 400,          // boss hp at depth 0
     bossGrowth: 2.5,        // boss hp growth per depth
-    lordHp: 3,
+    lordHp: 2.2, // 3.4: a lord every third depth now, so a little less of a wall (was 3)
     bossCall: 3,            // seconds of warning before a ready boss arrives on its own
     marchTime: 2.4,         // 3.4: after a boss, the party marches on to the next zone for this long (no Horde meanwhile)
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
@@ -22,7 +22,7 @@
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
-    bossMin: 9, bossMinLord: 22, bossMinOld: 0.25, bossClickK: 0.9,
+    bossMin: 9, bossMinLord: 16, bossMinOld: 0.25, bossClickK: 0.9,
     // 2.3: a boss out of time enrages for this long (s); DOOM from this depth on; Rally per failed try and its cap
     enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.15, rallyMax: 4,
     // boss affixes from this depth; a Shield cracked stays down this long; Regenerating heals this share a second

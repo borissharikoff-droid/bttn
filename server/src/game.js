@@ -667,7 +667,7 @@
     depthGold: 1.08,        // gold multiplier per depth
     bossBase: 400,          // boss hp at depth 0
     bossGrowth: 2.5,        // boss hp growth per depth
-    lordHp: 3,
+    lordHp: 2.2, // 3.4: a lord every third depth now, so a little less of a wall (was 3)
     bossCall: 3,            // seconds of warning before a ready boss arrives on its own
     marchTime: 2.4,         // 3.4: after a boss, the party marches on to the next zone for this long (no Horde meanwhile)
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
@@ -679,7 +679,7 @@
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
-    bossMin: 9, bossMinLord: 22, bossMinOld: 0.25, bossClickK: 0.9,
+    bossMin: 9, bossMinLord: 16, bossMinOld: 0.25, bossClickK: 0.9,
     // 2.3: a boss out of time enrages for this long (s); DOOM from this depth on; Rally per failed try and its cap
     enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.15, rallyMax: 4,
     // boss affixes from this depth; a Shield cracked stays down this long; Regenerating heals this share a second
@@ -2036,6 +2036,8 @@
     if (!('lands' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 40) delete S.rec.crowns[k];
     // saves from before 2.0: depths 65-74 were corrupted lands then, the Moon and the Star Sea now
     if (!('party' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 65) delete S.rec.crowns[k];
+    // 3.4: lands have three zones now, so lords stand at other depths: a crown time on what's no longer a lord goes
+    if (S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (!isLord(+k)) delete S.rec.crowns[k];
     // saves from before 2.1: the hall gave one slot a level (up to 16); now it steps 10, 20, 30…
     if (!('jp' in data) && S.upg && S.upg.hall > 0) S.upg.hall = S.upg.hall <= 4 ? 1 : 2;
     // a save from before the jackpot starts its clock now, not at its first minute of play
