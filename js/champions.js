@@ -20,7 +20,7 @@
     champLife: 60,            // seconds to kill it before it gets away
     champSecs: 20,            // its health: about this many seconds of the party's damage and the Hand's clicks...
     champMobsMin: 40, champMobsMax: 200, // ...but never under 40 or over 200 standard mobs of its depth
-    champDelayMin: 40, champDelayMax: 90, // seconds into the land before it comes
+    champDelayMin: 20, champDelayMax: 45, // seconds into the land before it comes (3.4: lands are shorter now)
     champW: 5,                // its weight: clear bar, gold and XP of five brutes
   });
 
@@ -309,9 +309,9 @@
     if (R.town || R.cine > 0) return;
     L.t += dt; L.zt += dt;
     if (run()[key] || R.chRetry > 0 || (S.st.playTime || 0) < 150) return;
-    // the second to fourth zone of the land, 40-90 s in; on the land's last zones it comes for sure
+    // past the land's first zone, 20-45 s in; in the lord's zone it comes for sure
     // (and only with the clear bar well short of full, so the fight isn't cut off by the boss)
-    const ok = zone >= 1 && (L.t >= L.delay || (zone >= 3 && L.zt >= 10));
+    const ok = (zone >= 1 && L.t >= L.delay) || (zone >= G.REALM_SIZE - 1 && L.zt >= 8);
     if (!ok || busy() || S.bossMeter > (G.D.bossNeed || 1) * 0.6) return;
     run()[key] = 1;
     spawn(G.realmIndex(S.depth), null, key);

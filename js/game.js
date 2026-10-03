@@ -12,6 +12,7 @@
     bossGrowth: 2.5,        // boss hp growth per depth
     lordHp: 3,
     bossCall: 3,            // seconds of warning before a ready boss arrives on its own
+    marchTime: 2.4,         // 3.4: after a boss, the party marches on to the next zone for this long (no Horde meanwhile)
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
     // 2.5: the game is balanced for the Button held down (10 clicks a second); faster clicking, or an
@@ -21,9 +22,9 @@
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
-    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25, bossClickK: 0.9,
+    bossMin: 9, bossMinLord: 22, bossMinOld: 0.25, bossClickK: 0.9,
     // 2.3: a boss out of time enrages for this long (s); DOOM from this depth on; Rally per failed try and its cap
-    enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.05, rallyMax: 3,
+    enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.15, rallyMax: 4,
     // boss affixes from this depth; a Shield cracked stays down this long; Regenerating heals this share a second
     affixFrom: 8, shieldDown: 10, bossRegen: 0.008,
     rarityAt: [0, 0, 2, 5, 12, 24, 40], ascFrom: 15,
@@ -94,7 +95,7 @@
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 11,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 10,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -873,6 +874,8 @@
     else for (let i = 0; i < count; i++) rew.chests.push(openChest(makeChest(tier, null), 'boss'));
     questProgress('boss', 1);
     emit('bossWin', rew, b);
+    // 3.4: on to the next zone: a short march, the ground rolling by
+    if (!R.rift) { R.march = { t: TUNE.marchTime, T: TUNE.marchTime }; emit('marchStart', TUNE.marchTime, realmIndex(S.depth) !== realmIndex(d)); }
     if (realmIndex(S.depth) !== realmIndex(d)) emit('realm', realmIndex(S.depth));
   }
 
@@ -1236,6 +1239,7 @@
     if (G.tutFreeze && G.tutFreeze()) return;
     // 3.0: a cinematic (a relic dropping) holds the whole game still while it plays
     if (R.cine > 0) { R.cine = Math.max(0, R.cine - dt); return; }
+    if (R.march && (R.march.t -= dt) <= 0) { R.march = null; emit('marchEnd'); }
 
     // Buffs
     if (S.buffs.length) {
@@ -1290,8 +1294,9 @@
       if (S.set.autoBoss && !R.inv && !(R.ev && R.ev.k !== 'jackpot') && !(G.tutHold && G.tutHold())) {
         if (R.bossHold > 0) R.bossHold -= dt;
         else R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
-        // (lost here twice: the party farms this ground a minute and a half before it tries again)
-        const wait = S.scar && S.scar.d === S.depth && S.scar.n >= 2 ? 90 : bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
+        // (lost here twice: the party farms this ground half a minute before it tries again)
+        // (3.4: shorter waits: Rally grows faster with each try, so a wall gives way sooner)
+        const wait = S.scar && S.scar.d === S.depth && S.scar.n >= 2 ? 30 : bossOdds() >= 0.6 ? 0 : D.autoBoss ? 12 : 25;
         if (R.bossIn <= -wait) startBoss();
       }
     }
@@ -1374,6 +1379,8 @@
     if (!('lands' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 40) delete S.rec.crowns[k];
     // saves from before 2.0: depths 65-74 were corrupted lands then, the Moon and the Star Sea now
     if (!('party' in data) && S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (+k >= 65) delete S.rec.crowns[k];
+    // 3.4: lands have three zones now, so lords stand at other depths: a crown time on what's no longer a lord goes
+    if (S.rec && S.rec.crowns) for (const k in S.rec.crowns) if (!isLord(+k)) delete S.rec.crowns[k];
     // saves from before 2.1: the hall gave one slot a level (up to 16); now it steps 10, 20, 30…
     if (!('jp' in data) && S.upg && S.upg.hall > 0) S.upg.hall = S.upg.hall <= 4 ? 1 : 2;
     // a save from before the jackpot starts its clock now, not at its first minute of play

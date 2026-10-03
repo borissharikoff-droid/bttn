@@ -447,7 +447,7 @@
       St.flash(0.25, '#fff3a0');
     });
     G.on('realm', r => {
-      groundKey = ''; St.flash(0.3, '#000000');
+      groundKey = ''; if (!march) St.flash(0.3, '#000000');
       // a title card for the new land and its rule
       const R_ = G.REALMS[r];
       cardText(0, G.realmName(G.S.depth).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
@@ -471,7 +471,7 @@
     cardText(0, G.t('zoneCard', z + 1, G.ZONE_NAME(d)).toUpperCase(), '#ffffff', 5, { life: 2.6, max: 2.6, vy: -3, big: true });
     if (z === G.REALM_SIZE - 1) cardText(10, G.t('zoneLord'), '#ff4f7e', 4, { life: 2.6, max: 2.6, vy: -3 });
     // the kind of mob this zone brings for the first time
-    const now = G.ZONE_MIX[z], before = z ? G.ZONE_MIX[z - 1] : {};
+    const now = G.ZONE_MIX[G.ZONE_LOOK(z)], before = z ? G.ZONE_MIX[G.ZONE_LOOK(z - 1)] : {};
     for (const k in G.ARCHETYPES) if (now[k] > 0 && !(before[k] > 0) && z > 0) {
       const A = G.ARCHETYPES[k];
       const o = z === G.REALM_SIZE - 1 ? 19 : 10;
@@ -553,6 +553,7 @@
     });
     cv.addEventListener('contextmenu', e => e.preventDefault());
   }
+  St.isHolding = () => holding;
   St.keyClick = function () { G.Audio && G.Audio.unlock(); G.manualClick(); };
   St.keyChest = function () {
     const list = G.S.chests;
@@ -2330,16 +2331,24 @@
     const S_ = G.S, R = G.R;
     const realm = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
     // every zone of a land has its own light and ground (in a Rift, the Rift's)
-    const zone = G.R.rift ? 1 : G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth);
+    const zone = G.R.rift ? 1 : G.ZONE_LOOK(G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth));
     const gk = realm.id + '|' + zone + '|' + W + 'x' + H;
-    if (gk !== groundKey) { if (groundKey.split('|')[0] !== realm.id) St.clearStain(); if (groundKey) zoneFade = 1; groundKey = gk; groundCanvas = buildGround(realm.id, zone); }
+    if (gk !== groundKey) { if (groundKey.split('|')[0] !== realm.id) St.clearStain(); if (groundKey && !march) zoneFade = 1; groundKey = gk; groundCanvas = buildGround(realm.id, zone); }
     buildHeroes();
 
     // hold-to-click
     if (holding) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = 1 / Math.max(0.5, G.D.holdRate || 0); if (G.D.holdRate > 0) G.manualClick(); } }
 
     lctx.imageSmoothingEnabled = false;
-    lctx.drawImage(groundCanvas, 0, 0);
+    // 3.4: the march: the old ground rolls away below and the next zone comes in from ahead (above)
+    if (march) {
+      march.t += dt;
+      const k = Math.min(1, march.t / march.T), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2, off = Math.round(e * H);
+      if (march.prev && march.prev !== groundCanvas) { lctx.drawImage(march.prev, 0, off); lctx.drawImage(groundCanvas, 0, off - H); }
+      else lctx.drawImage(groundCanvas, 0, 0);
+      marchFx(dt, k);
+      if (k >= 1) march = null;
+    } else lctx.drawImage(groundCanvas, 0, 0);
     if (realm.id === 'shore') drawWater();
     drawDecals(dt);
     stepGibs(vdt);
@@ -2666,9 +2675,30 @@
   // weather and light that move: mist at dawn, leaves at dusk, fireflies and a lit circle at night,
   // embers and a red sky on the lord's ground; and a dip to black between zones
   let zoneFade = 0;
+  // 3.4: marching on to the next zone (game.js 'marchStart'): the ground scrolls, dust streams past the party,
+  // speed lines at the edges and a chevron trail ahead
+  let march = null;
+  function marchFx(dt, k) {
+    const sp = Math.sin(Math.PI * k), b = btnPos();
+    // streaks of dust rushing past (the field moves, the party holds the Button and walks on)
+    const n = Math.round(sp * 26 * Math.min(2, dt * 60));
+    for (let i = 0; i < n; i++) part(rand(0, W), rand(-10, H * 0.6), pick(['#ffffff', '#e8e0c8', '#c8c0a8']), { vx: 0, vy: rand(260, 420) * sp, grav: 0, life: rand(0.25, 0.5), size: 1 });
+    for (let i = 0; i < Math.round(sp * 3); i++) part(b.x + rand(-60, 60), b.y + rand(4, 30), pick(['#c8b89a', '#8a7a60', '#a89878']), { vx: rand(-20, 20), vy: rand(30, 70), grav: 0, life: rand(0.3, 0.6) });
+    // chevrons pointing the way, ahead of the Button
+    lctx.globalAlpha = 0.55 * sp; lctx.fillStyle = '#ffd84a';
+    for (let j = 0; j < 3; j++) {
+      const y = ((b.y - 70 - j * 26 - (march.t * 90) % 26) | 0), w = 18 - j * 3;
+      for (let t = 0; t < 4; t++) { lctx.fillRect((b.x - w + t * 2) | 0, y + t * 2, 4, 2); lctx.fillRect((b.x + w - 4 - t * 2) | 0, y + t * 2, 4, 2); }
+    }
+    lctx.globalAlpha = 0.18 * sp; lctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 7; i++) { const x = (i < 4 ? i * 9 : W - (i - 3) * 9) | 0, y = ((time * 700 + i * 97) % (H + 80)) - 80; lctx.fillRect(x, y | 0, 2, 60); }
+    lctx.globalAlpha = 1;
+  }
+  St.marching = () => !!march;
+  G.on('marchStart', (T, newLand) => { march = { t: 0, T, prev: groundCanvas, land: newLand }; St.clearStain(); if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); });
   function drawZoneFx(dt) {
     if (G.R.rift) return;
-    const z = G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth), b = btnPos();
+    const z = G.ZONE_LOOK(G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth)), b = btnPos();
     if (z === 0) {
       // low sun from the east: warm light across the field
       const lg = lctx.createLinearGradient(0, 0, W * 0.8, H);

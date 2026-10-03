@@ -121,12 +121,12 @@
     sk_3000: 'EXTINCTION', sk_6000: 'CATACLYSM', sk_10000: 'GODLIKE',
     comboLine: 'Combo {0} · gold ×{1}', chestLine: 'Chest {0}% · {1}/{2}',
     tipClear: 'Kill the Horde to fill it. Three waves, then the boss; beat it to go deeper.', tipHp: 'Button health. Mobs that reach it bite; at 0 it breaks for 12 s. Better armour, more health.', tipChest: 'Kills and clicks fill it; full drops a chest. Also counts chests on the field. Tap to open (or let Looters).', tipCombo: 'Click fast for a combo: more gold per click. Fades if you stop.', tipAbil: 'Ability (Q): depends on your ability item.',
-    waveN: 'WAVE {0}/3', waveSub: 'Champions lead the rush', zoneCard: 'ZONE {0}/5 · {1}', zoneLord: 'THE LORD AWAITS', newKind: 'NEW: {0}',
+    waveN: 'WAVE {0}/3', waveSub: 'Champions lead the rush', zoneCard: 'ZONE {0}/3 · {1}', zoneLord: 'THE LORD AWAITS', newKind: 'NEW: {0}',
     landStar: 'LAND STAR · {0}', star_1: 'Conquered: slew the lord', star_2: 'Slaughter: {0} of its Horde slain', star_4: 'Swift: slay the lord within {0}s on a fresh try',
     starBonus: '{0}: {1} damage and gold', starsN: '{0} stars', star1: '1 star', starName_1: 'Conquered', starName_2: 'Slaughter', starName_4: 'Swift', carnage: 'Carnage ×{0}', carnageAt: 'Carnage ×{0} at {1}', carnageHint: 'Keep killing: the streak boosts gold and XP',
     worldMap: 'World map', worldHint: 'Each land has three stars, kept forever (even through ascension). Each adds 2.5% damage and gold.',
     starReqs: 'Slay the lord · Slay {0} of its Horde · Slay it within {1}s on a fresh try', landLocked: 'Undiscovered', landHere: 'You are here',
-    landKills: '{0}/{1} slain', outerLands: 'Past the Button', bomberPop: 'BOOM', zoneOf: 'Zone {0}/5', slainTotal: '{0} slain',
+    landKills: '{0}/{1} slain', outerLands: 'Past the Button', bomberPop: 'BOOM', zoneOf: 'Zone {0}/3', slainTotal: '{0} slain',
   };
   // 3.0: the town as the hub
   Object.assign(STR, {
@@ -174,6 +174,8 @@
     gambleHint: 'Magic or better, up to {0} at this depth; {1}% of the time a unique.', gambleNo: 'Not enough shards: break down spare gear at the Forge.',
     seal: 'Seal', sealed: 'SEALED', sealHint: 'Seal one affix ({0} shards): an Orb of Flux rerolls only the others.', equipped: 'equipped',
     buyAll: 'Buy everything I can afford', buyAllDone: 'Bought {0} upgrade level(s)',
+    teamTitle: 'BUILD YOUR TEAM', teamText: 'Your Warden doesn\u2019t have to hold the Button alone. Hire up to three companions at the Tavern and build the team you want.', teamOpen: 'A seat is open now! Tanks draw the bites, healers mend, damage dealers thin the Horde.', teamNext: 'The first seats open at depth {0}. Tanks draw the bites, healers mend, damage dealers thin the Horde.', teamGo: 'Recruit now', later: 'Later', seatOpen: 'An open seat: recruit at the Tavern',
+    holdYouCan: 'YOU CAN', holdKey: 'HOLD SPACE', holdTouch: 'HOLD THE BUTTON', holdWhy: 'No need to mash: hold it and the Button keeps clicking. Steady Hand makes it faster.',
     blessTitle: 'A NEW RUN: CHOOSE A BLESSING', blessHint: 'It holds until the Button falls or you ascend.', blessTwist: 'with a twist', blessOn: 'Blessing:', blessNow: 'This run: {0}',
     fellTitle: 'THE BUTTON FELL', fellText: 'The Horde broke through and the Button went dark. Its light comes back in a new run; what you earned stays.',
     fellDepth: 'Reached depth', fellTime: 'Run time', fellLvl: 'Warden level', fellGold: 'Gold this run', fellTotal: '{0} to spend',

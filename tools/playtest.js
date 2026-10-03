@@ -43,7 +43,8 @@ function run(name, seed, minutes) {
   G.on('perk', () => mark('perk'));
   G.on('bossWin', (rew, b) => { mark(b.lord ? 'lord' : 'boss'); failStreak = 0; });
   G.on('bossFail', () => { fails++; failStreak++; maxFailStreak = Math.max(maxFailStreak, failStreak); mark('bossFail'); });
-  G.on('realm', () => mark('land'));
+  const landAt = [];
+  G.on('realm', r => { mark('land'); landAt.push(+(clock.now / 60).toFixed(1)); });
   G.on('achievement', () => mark('ach'));
   G.on('chestOpen', loot => { const top = loot.items.reduce((m, x) => Math.max(m, x.it.r), 0); if (top > bestR) { for (let q = bestR + 1; q <= top; q++) mark('r' + q); bestR = top; mark('rarity'); } });
   G.on('gear', (g, eq) => { if (eq) mark('gear'); });
@@ -216,7 +217,7 @@ function run(name, seed, minutes) {
     rift: { best: riftBest, runs: riftRuns, open: S().rift.open },
     depthAt: Object.fromEntries(Object.entries(depthAt).map(([k, v]) => [k, +(v / 60).toFixed(1)])),
     windows: win, longestStall: stalls.reduce((m, x) => Math.max(m, x[1]), 0) / 60,
-    champ, bossFails: fails, maxFailStreak, ascensions: s.ascensions, journey: s.journey || 0, evos: Object.keys((s.rec && s.rec.evos) || {}).length, bounties: moments.filter(m => m[1] === 'bounty').length, bestDepth: s.bestDepth, level: s.hero.lvl,
+    champ, landAt, bossFails: fails, maxFailStreak, ascensions: s.ascensions, journey: s.journey || 0, evos: Object.keys((s.rec && s.rec.evos) || {}).length, bounties: moments.filter(m => m[1] === 'bounty').length, bestDepth: s.bestDepth, level: s.hero.lvl,
     ach: Object.keys(s.ach).length + '/' + G.ACH.length, pets: Object.keys(s.pets).length, collection: Object.keys(s.coll).length + '/' + G.ITEMS.length,
     torment: s.torment || 0,
     pressure: { low: +(press.low / Math.max(1, press.n)).toFixed(3), crit: +(press.crit / Math.max(1, press.n)).toFixed(3), boss: +(press.boss / Math.max(1, press.n)).toFixed(3) },

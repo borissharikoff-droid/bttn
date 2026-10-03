@@ -334,7 +334,10 @@
   G.GOLDEN_CHANCE = 0.05;
 
   // ---------- Realms & bosses ----------
-  G.REALM_SIZE = 5; // depths per realm; the 5th depth is the realm lord
+  // 3.4: three zones a land (it was five), so the scenery changes twice as often; the last zone holds the land's lord
+  G.REALM_SIZE = 3; // depths per realm; the last depth is the realm lord
+  // each land still has five looks and names (morning ... the lord's lair): a zone takes the ones spread across them
+  G.ZONE_LOOK = z => (G.REALM_SIZE <= 1 ? 4 : Math.round(z * 4 / (G.REALM_SIZE - 1)));
   G.REALMS = [
     { id: 'shore',     name: 'Shoreline',  minion: 'b_crab',   lord: 'l_crab',   fodder: 'f_crab',
       minionName: 'Sand Crab', lordName: 'The Crab King',
@@ -448,7 +451,7 @@
     { runner: 0.2,  spitter: 0.12, bomber: 0.16, tank: 0 },
     { runner: 0.2,  spitter: 0.14, bomber: 0.16, tank: 0.08 },
   ];
-  G.ZONE_NAME = d => { const r = G.REALMS[G.realmIndex(d)]; return r.zones[((d % G.REALM_SIZE) + G.REALM_SIZE) % G.REALM_SIZE]; };
+  G.ZONE_NAME = d => { const r = G.REALMS[G.realmIndex(d)]; return r.zones[G.ZONE_LOOK(((d % G.REALM_SIZE) + G.REALM_SIZE) % G.REALM_SIZE)]; };
 
   // Land mastery: three stars per land, kept forever. Each one: +2.5% damage and gold
   G.STAR_BONUS = 0.025;

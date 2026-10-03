@@ -137,13 +137,13 @@
     hellstring: { base: 'phoenix_bow',    minD: 31, name: 'Hellstring',            a: [['dmg', 0.6], ['spd', 0.2]], fx: 'Kills explode' },
     voidplate:  { base: 'golden_plate',   minD: 34, name: 'Voidplate',             a: [['hp', 1.2], ['dmg', 0.2]], fx: 'Biting mobs take 10 hits back' },
     reaper:     { base: 'blood_scythe',   minD: 37, name: 'Reaper\u2019s Due',     a: [['dmg', 0.8], ['critd', 0.6]], fx: 'Kills: +2% attack speed for 6s, max +80%' },
-    lastbutton: { base: 'golden_button',  minD: 39, boss: true, name: 'The Last Button', a: [['dmg', 0.5], ['gold', 0.5], ['luck', 0.3], ['xp', 0.3]], fx: 'Clicks strike twice. Mad Button and deep Rifts only' },
+    lastbutton: { base: 'golden_button',  minD: 8 * G.REALM_SIZE - 1, boss: true, name: 'The Last Button', a: [['dmg', 0.5], ['gold', 0.5], ['luck', 0.3], ['xp', 0.3]], fx: 'Clicks strike twice. Mad Button and deep Rifts only' },
     // past the Button
     codex:      { base: 'star_codex',     minD: 44, name: 'The Drowned Codex',     a: [['xp', 0.4], ['dmg', 0.45]], fx: 'Spitters and bombers die to any hit' },
     tyrant:     { base: 'king_crown',     minD: 49, name: 'Crown of the Gear Tyrant', a: [['spd', 0.3], ['dmg', 0.5]], fx: 'Tanks, brutes, champions take 2× damage' },
     ashbringer: { base: 'dragon_sword',   minD: 54, name: 'Ashbringer',            a: [['dmg', 1], ['critd', 0.6]], fx: 'Warden kills explode in flame' },
     othercloak: { base: 'void_cloak',     minD: 59, name: 'The Other Cloak',       a: [['hp', 1.1], ['crit', 0.08]], fx: '1 bite in 3 kills the biter instead' },
-    firsthand:  { base: 'celestial_staff', minD: 64, boss: true, name: 'Palm of the First Hand', a: [['dmg', 1.1], ['spd', 0.3], ['gold', 0.4]], fx: 'Clicks call 3 more bolts. First Hand and deep Rifts only' },
+    firsthand:  { base: 'celestial_staff', minD: 13 * G.REALM_SIZE - 1, boss: true, name: 'Palm of the First Hand', a: [['dmg', 1.1], ['spd', 0.3], ['gold', 0.4]], fx: 'Clicks call 3 more bolts. First Hand and deep Rifts only' },
   };
   G.UNIQUE_IDS = Object.keys(G.UNIQUES);
   // Rift level -> the depth its Horde fights at: Rift N fights like depth N
@@ -239,7 +239,7 @@
 
   // ---------- The party ----------
   // The Warden leads; companions join as you go deeper (after the Crab King, at depth 12 and at depth 20).
-  G.PARTY_AT = [3, 12, 20];
+  G.PARTY_AT = [3, 9, 15]; // 3.4: the team fills up sooner
   G.partySlots = () => G.PARTY_AT.filter(d => (G.S.bestDepth || 0) >= d).length;
   G.recruit = function (cls) {
     const S = G.S, C = G.CLASS_BY_ID[cls];
@@ -842,7 +842,7 @@
   G.zoneOf = zoneOf;
   // The share of packs each archetype leads here: the zone's mix, bent by the land's rule
   function zoneMix(d) {
-    const z = G.ZONE_MIX ? G.ZONE_MIX[zoneOf(d)] : null, L = land();
+    const z = G.ZONE_MIX ? G.ZONE_MIX[G.ZONE_LOOK(zoneOf(d))] : null, L = land();
     if (!z) return {};
     return { runner: z.runner * (L.run || 1), spitter: z.spitter * (L.spit || 1), bomber: z.bomber * (L.bomb || 1), tank: z.tank * (L.tanky || 1) };
   }
@@ -1259,8 +1259,8 @@
     const regen = R.boss ? TUNE.regenBoss : TUNE.regen;
     if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * regen * dt);
     partyTick(dt, regen);
-    // the horde: a steady flow of packs, with a surge every half a minute
-    if (R.stun <= 0) {
+    // the horde: a steady flow of packs, with a surge every half a minute (3.4: none while the party marches on)
+    if (R.stun <= 0 && !R.march) {
       if (R.boss) {
         R.hordeAcc = Math.min(3, R.hordeAcc + dt * TUNE.hordeRate * TUNE.addRate * (R.boss.lord ? 1.6 : 1) * (R.boss.rage ? 2 : 1));
         if (R.hordeAcc >= 1 && aliveWeight(true) < 2) { R.hordeAcc -= 0.5; spawnPack(true); }

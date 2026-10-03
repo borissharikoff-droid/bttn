@@ -192,13 +192,18 @@
   let phKey = '';
   function updatePartyHud() {
     const el = $('#partyHud'), h = G.S.hero;
-    const units = h && h.cls && G.S.party.length ? G.partyUnits() : [];
-    el.hidden = !units.length;
+    // 3.4: the team is always on show, from the first minute: the Warden, each companion, and the empty seats
+    // (an open one pulses with a +, a locked one says the depth that opens it)
+    const units = h && h.cls ? G.partyUnits() : [];
+    el.hidden = !units.length || (G.S.tut >= 0 && G.S.tut < 3);
     if (!units.length) return;
-    const key = units.map(u => u.cls + JSON.stringify(u.eq && G.SLOTS.map(s => u.eq[s] ? u.eq[s].id + (u.eq[s].q || '') : ''))).join('|');
+    const slots = G.partySlots ? G.partySlots() : 0, seats = [];
+    for (let k = G.S.party.length; k < 3; k++) seats.push(k < slots ? 'open' : 'lock');
+    const key = units.map(u => u.cls + JSON.stringify(u.eq && G.SLOTS.map(s => u.eq[s] ? u.eq[s].id + (u.eq[s].q || '') : ''))).join('|') + '|' + seats.join(',');
     if (key !== phKey) {
       phKey = key;
-      el.innerHTML = units.map(u => `<button class="pchip r_${u.role}" data-who="${u.who}" aria-label="${esc(u.who < 0 ? t('wardenName') : L(G.CLASS_BY_ID[u.cls].name))}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><i><u></u></i><b></b></button>`).join('');
+      el.innerHTML = units.map(u => `<button class="pchip r_${u.role}" data-who="${u.who}" aria-label="${esc(u.who < 0 ? t('wardenName') : L(G.CLASS_BY_ID[u.cls].name))}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><i><u></u></i><b></b></button>`).join('')
+        + seats.map((s, k) => s === 'open' ? `<button class="pseat open" data-seat title="${esc(t('seatOpen'))}">+</button>` : `<button class="pseat lock" data-seatlock title="${esc(t('recruitAt', G.PARTY_AT[G.S.party.length + k]))}">${img('ic_key', '', 2)}<small>D${G.PARTY_AT[G.S.party.length + k] + 1}</small></button>`).join('');
     }
     const chips = el.children, rate = G.reviveRate ? G.reviveRate() : 1;
     el.title = t('partyHint');
@@ -216,6 +221,8 @@
   }
   function bindPartyHud() {
     $('#partyHud').addEventListener('click', e => {
+      if (e.target.closest('[data-seat]')) { G.Audio.unlock(); if (G.enterTown()) UI.townOpen('tavern'); else UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
+      if (e.target.closest('[data-seatlock]')) { UI.teamCard(); return; }
       const c = e.target.closest('.pchip'); if (!c) return;
       const who = +c.dataset.who;
       if (G.reviveTap(who)) { G.Audio.click(0, false); return; }
@@ -297,6 +304,7 @@
         if (tg && tg.tagName === 'BUTTON' && e.code !== 'Space') return;
         e.preventDefault();
         // a held key repeats at Steady Hand's rate (none without it)
+        if (e.repeat) UI._holdKeyT = performance.now();
         if (e.repeat) { const hr = G.D.holdRate || 0; if (!G.S.set.hold || hr <= 0 || performance.now() - (UI._holdT || 0) < 1000 / hr) return; UI._holdT = performance.now(); }
         G.Stage.keyClick();
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
@@ -356,6 +364,51 @@
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'asc')) UI.update(true); if (kind === 'node' && curTab() === 'stars') UI.render(); });
     G.on('ascend', (g, death) => { if (g && !death) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
+    // 3.4: BUILD YOUR TEAM: when a seat opens (and from a locked seat on the party bar), a big card shows the five
+    // classes and their roles, with a straight way to the Tavern
+    UI.teamCard = function (slot) {
+      if (!$('#modal').hidden || G.R.boss) { setTimeout(() => UI.teamCard(slot), 1500); return; }
+      const S = G.S, n = G.partySlots ? G.partySlots() : 0, open = n > S.party.length;
+      const m = UI.modal(t('teamTitle'), `<div class="teamCard">
+        <p class="story">${esc(t('teamText'))}</p>
+        <div class="teamRow">${G.CLASSES.map((c, i) => `<div class="teamCls" style="animation-delay:${0.08 * i}s">${img(c.spr, '', 6)}<b>${esc(L(c.name))}</b><small class="r_${G.ROLES[c.id]}">${esc(G.ROLE_NAMES[G.ROLES[c.id]])}</small></div>`).join('')}</div>
+        <p class="note">${esc(t(open ? 'teamOpen' : 'teamNext', G.PARTY_AT[Math.min(2, n)] + 1))}</p></div>`,
+        open ? [{ label: t('teamGo'), cls: 'gold', fn: () => { if (G.enterTown()) UI.townOpen('tavern'); } }, { label: t('later') }] : [{ label: t('close') }]);
+      G.Audio && G.Audio.levelUp && G.Audio.levelUp();
+      return m;
+    };
+    G.on('slotOpen', slot => setTimeout(() => UI.teamCard(slot), 1600));
+    // 3.4: a huge plate at the start: YOU CAN HOLD SPACE (on a phone: HOLD THE BUTTON). It goes once the
+    // player has held for a second and a half (or after a while), and comes back each session until they have
+    UI.holdPlate = function () {
+      const S = G.S;
+      if ((S.seen && S.seen.hold) || $('#holdPlate')) return;
+      const touch = matchMedia('(pointer: coarse)').matches;
+      const el = document.createElement('div');
+      el.id = 'holdPlate';
+      el.innerHTML = `<div class="hpIn"><small>${esc(t('holdYouCan'))}</small><b>${esc(t(touch ? 'holdTouch' : 'holdKey'))}</b>
+        <div class="hpArt">${touch ? `<img class="hpFinger" src="${ic('ic_finger', 6)}" alt="">` : `<span class="hpKey">SPACE</span>`}</div>
+        <p>${esc(t('holdWhy'))}</p></div>`;
+      $('#stageWrap').appendChild(el);
+      let held = 0, life = 0;
+      const iv = setInterval(() => {
+        if (!el.isConnected) { clearInterval(iv); return; }
+        const busy = !!(G.uiBusy() || G.R.town);
+        el.classList.toggle('away', busy);
+        if (busy) return;
+        life += 0.1;
+        const on = (G.Stage.isHolding && G.Stage.isHolding()) || performance.now() - (UI._holdKeyT || 0) < 250;
+        held = on ? held + 0.1 : Math.max(0, held - 0.05);
+        el.style.setProperty('--hk', Math.min(1, held / 1.5));
+        el.classList.toggle('on', !!on);
+        if (held >= 1.5 || life > 40) {
+          if (held >= 1.5) { S.seen.hold = 1; G.dirty && G.dirty(); G.Audio && G.Audio.levelUp && G.Audio.levelUp(); el.classList.add('done'); }
+          el.classList.add('out'); clearInterval(iv); setTimeout(() => el.remove(), 600);
+        }
+      }, 100);
+    };
+    G.on('classChosen', () => setTimeout(UI.holdPlate, 1200));
+    setTimeout(() => { if (G.S.hero && G.S.hero.cls) UI.holdPlate(); }, 3000);
     // 3.3: a new run's blessings: three cards, after whatever window is up (the fall, a class pick) closes
     UI.blessCards = function () {
       const S = G.S, o = S.blessOffer;
@@ -445,7 +498,7 @@
       if (!open) return head + `<div class="wmRow locked">${img(R_.fodder, '', 3, { dark: true })}<div><b>${esc(t('landLocked'))}</b><small>${esc(t('depth'))} ${i * G.REALM_SIZE + 1}–${(i + 1) * G.REALM_SIZE}</small></div><span class="lstars">${stars}</span></div>`;
       const cleared = S.bestDepth > i * G.REALM_SIZE + G.REALM_SIZE - 1;
       // the land you're in shows where you are now; the others how far you've ever got
-      const zones = R_.zones.map((zn, zi) => { const d = i * G.REALM_SIZE + zi; const cls = i === here ? (zi < G.zoneOf(S.depth) ? 'done' : zi === G.zoneOf(S.depth) ? 'cur' : '') : d < S.bestDepth ? 'done' : ''; return `<span class="${cls} ${zi === G.REALM_SIZE - 1 ? 'lord' : ''}" title="${esc(zn)}"></span>`; }).join('');
+      const zones = Array.from({ length: G.REALM_SIZE }, (_, zi) => R_.zones[G.ZONE_LOOK(zi)]).map((zn, zi) => { const d = i * G.REALM_SIZE + zi; const cls = i === here ? (zi < G.zoneOf(S.depth) ? 'done' : zi === G.zoneOf(S.depth) ? 'cur' : '') : d < S.bestDepth ? 'done' : ''; return `<span class="${cls} ${zi === G.REALM_SIZE - 1 ? 'lord' : ''}" title="${esc(zn)}"></span>`; }).join('');
       return head + `<div class="wmRow ${i === here ? 'here' : ''} ${cleared ? 'clear' : ''}">${img(R_.fodder, '', 3)}<div><b>${esc(R_.name)}${i === here ? ` <em>${esc(t('landHere'))}</em>` : ''}</b>
         <small>${esc(R_.rule)}: ${esc(R_.ruleDesc)}</small>
         <div class="wmZones">${zones}</div>

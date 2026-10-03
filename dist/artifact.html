@@ -1056,6 +1056,45 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .buff.bless { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-color: #b9a6ff; color: #d8ccff; }
 .buff.bless.twist { border-color: #ff8a6a; color: #ffc0a8; }
 .buff.bless img { width: 12px; height: 12px; image-rendering: pixelated; }
+/* 3.4: the huge HOLD SPACE plate over the field at the start (doesn't take clicks, so it never blocks the Button) */
+#holdPlate { position: absolute; left: 50%; top: 9%; transform: translateX(-50%); z-index: 6; pointer-events: none; --hk: 0;
+  animation: hpIn .6s cubic-bezier(.2,1.6,.4,1) both; transition: opacity .3s; }
+#holdPlate.away { opacity: 0; }
+#holdPlate.out { animation: hpOut .55s ease-in forwards; }
+#holdPlate .hpIn { position: relative; display: grid; justify-items: center; gap: 6px; padding: 14px 26px 16px; background: rgba(10,9,16,.88);
+  border: 3px solid #0a0910; box-shadow: inset 0 0 0 3px var(--gold), 0 0 40px -6px rgba(255,216,74,.55), 0 5px 0 #0a0910; text-align: center; overflow: hidden; }
+#holdPlate .hpIn::after { content: ''; position: absolute; left: 0; bottom: 0; height: 5px; width: calc(var(--hk) * 100%); background: var(--gold); transition: width .1s linear; }
+#holdPlate small { font: 12px/1 var(--font-display); color: #d8dce8; letter-spacing: .2em; }
+#holdPlate b { font: 34px/1.1 var(--font-display); color: var(--gold); text-shadow: 3px 3px 0 #8a4a10, 6px 6px 0 #0a0910; letter-spacing: .04em; animation: hpPulse 1.4s ease-in-out infinite; }
+#holdPlate p { margin: 2px 0 0; max-width: 30ch; font-size: 17px; color: #c8ccd8; }
+#holdPlate .hpArt { height: 46px; display: grid; place-items: center; }
+#holdPlate .hpKey { display: inline-block; padding: 8px 40px 10px; font: 12px/1 var(--font-display); color: #0a0910; background: #f1ece0; border: 3px solid #0a0910;
+  box-shadow: 0 6px 0 #8a8478, 0 9px 0 #0a0910; animation: hpPress 1.6s ease-in-out infinite; }
+#holdPlate .hpFinger { width: 44px; image-rendering: pixelated; animation: hpPressF 1.6s ease-in-out infinite; }
+#holdPlate.on .hpKey { animation: none; transform: translateY(6px); box-shadow: 0 0 0 #8a8478, 0 3px 0 #0a0910; background: #ffe27a; }
+#holdPlate.on b { animation: none; color: #fff3a0; }
+#holdPlate.done .hpIn { box-shadow: inset 0 0 0 3px #7aff8a, 0 0 50px -4px rgba(122,255,138,.7), 0 5px 0 #0a0910; }
+@keyframes hpIn { from { transform: translateX(-50%) scale(.3); opacity: 0; } }
+@keyframes hpOut { to { transform: translateX(-50%) translateY(-16px) scale(1.08); opacity: 0; } }
+@keyframes hpPulse { 50% { transform: scale(1.06); } }
+@keyframes hpPress { 0%, 15% { transform: none; } 25%, 80% { transform: translateY(6px); box-shadow: 0 0 0 #8a8478, 0 3px 0 #0a0910; background: #ffe27a; } 90%, 100% { transform: none; } }
+@keyframes hpPressF { 0%, 15% { transform: none; } 25%, 80% { transform: translateY(8px) scale(.94); } 90%, 100% { transform: none; } }
+@media (max-width: 860px) { #holdPlate { top: 13%; width: max-content; max-width: 94%; } #holdPlate .hpIn { padding: 8px 14px 10px; gap: 4px; } #holdPlate b { font-size: 17px; white-space: nowrap; } #holdPlate small { font-size: 8px; } #holdPlate p { display: none; } #holdPlate .hpArt { height: 34px; } #holdPlate .hpFinger { width: 30px; } }
+/* 3.4: the team on the party bar: open seats pulse with a +, locked ones show the depth that opens them */
+.pseat { width: 38px; min-height: 37px; display: grid; place-items: center; align-content: center; gap: 1px; cursor: pointer; padding: 0;
+  background: rgba(12,11,18,.6); border: 2px dashed #6d6784; color: var(--gold); font: 16px/1 var(--font-display); }
+.pseat.open { border: 2px solid var(--gold); background: rgba(60,48,10,.75); animation: seatPulse 1.2s ease-in-out infinite; }
+.pseat.lock { color: #9a94b0; opacity: .85; }
+.pseat.lock img { width: 14px; height: 14px; image-rendering: pixelated; opacity: .7; }
+.pseat small { font: 7px/1 var(--font-display); }
+@keyframes seatPulse { 50% { box-shadow: 0 0 12px 2px rgba(255,216,74,.6); transform: translateY(-1px); } }
+.teamCard { display: grid; gap: 12px; justify-items: center; text-align: center; }
+.teamRow { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.teamCls { display: grid; justify-items: center; gap: 3px; width: 82px; padding: 8px 4px; background: rgba(255,255,255,.04); border: 2px solid var(--line); animation: popIn .45s cubic-bezier(.3,1.7,.5,1) both; }
+.teamCls img { width: 48px; image-rendering: pixelated; }
+.teamCls b { font: 8px/1.2 var(--font-display); color: #fff; }
+.teamCls small { font-size: 13px; }
+.teamCls small.r_tank { color: #8fc8ff; } .teamCls small.r_heal { color: #7aff8a; } .teamCls small.r_dps { color: #ff9a5a; }
 
 </style>
 <div id="app">
@@ -1585,7 +1624,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.GOLDEN_CHANCE = 0.05;
 
   // ---------- Realms & bosses ----------
-  G.REALM_SIZE = 5; // depths per realm; the 5th depth is the realm lord
+  // 3.4: three zones a land (it was five), so the scenery changes twice as often; the last zone holds the land's lord
+  G.REALM_SIZE = 3; // depths per realm; the last depth is the realm lord
+  // each land still has five looks and names (morning ... the lord's lair): a zone takes the ones spread across them
+  G.ZONE_LOOK = z => (G.REALM_SIZE <= 1 ? 4 : Math.round(z * 4 / (G.REALM_SIZE - 1)));
   G.REALMS = [
     { id: 'shore',     name: 'Shoreline',  minion: 'b_crab',   lord: 'l_crab',   fodder: 'f_crab',
       minionName: 'Sand Crab', lordName: 'The Crab King',
@@ -1699,7 +1741,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     { runner: 0.2,  spitter: 0.12, bomber: 0.16, tank: 0 },
     { runner: 0.2,  spitter: 0.14, bomber: 0.16, tank: 0.08 },
   ];
-  G.ZONE_NAME = d => { const r = G.REALMS[G.realmIndex(d)]; return r.zones[((d % G.REALM_SIZE) + G.REALM_SIZE) % G.REALM_SIZE]; };
+  G.ZONE_NAME = d => { const r = G.REALMS[G.realmIndex(d)]; return r.zones[G.ZONE_LOOK(((d % G.REALM_SIZE) + G.REALM_SIZE) % G.REALM_SIZE)]; };
 
   // Land mastery: three stars per land, kept forever. Each one: +2.5% damage and gold
   G.STAR_BONUS = 0.025;
@@ -1893,12 +1935,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     sk_3000: 'EXTINCTION', sk_6000: 'CATACLYSM', sk_10000: 'GODLIKE',
     comboLine: 'Combo {0} · gold ×{1}', chestLine: 'Chest {0}% · {1}/{2}',
     tipClear: 'Kill the Horde to fill it. Three waves, then the boss; beat it to go deeper.', tipHp: 'Button health. Mobs that reach it bite; at 0 it breaks for 12 s. Better armour, more health.', tipChest: 'Kills and clicks fill it; full drops a chest. Also counts chests on the field. Tap to open (or let Looters).', tipCombo: 'Click fast for a combo: more gold per click. Fades if you stop.', tipAbil: 'Ability (Q): depends on your ability item.',
-    waveN: 'WAVE {0}/3', waveSub: 'Champions lead the rush', zoneCard: 'ZONE {0}/5 · {1}', zoneLord: 'THE LORD AWAITS', newKind: 'NEW: {0}',
+    waveN: 'WAVE {0}/3', waveSub: 'Champions lead the rush', zoneCard: 'ZONE {0}/3 · {1}', zoneLord: 'THE LORD AWAITS', newKind: 'NEW: {0}',
     landStar: 'LAND STAR · {0}', star_1: 'Conquered: slew the lord', star_2: 'Slaughter: {0} of its Horde slain', star_4: 'Swift: slay the lord within {0}s on a fresh try',
     starBonus: '{0}: {1} damage and gold', starsN: '{0} stars', star1: '1 star', starName_1: 'Conquered', starName_2: 'Slaughter', starName_4: 'Swift', carnage: 'Carnage ×{0}', carnageAt: 'Carnage ×{0} at {1}', carnageHint: 'Keep killing: the streak boosts gold and XP',
     worldMap: 'World map', worldHint: 'Each land has three stars, kept forever (even through ascension). Each adds 2.5% damage and gold.',
     starReqs: 'Slay the lord · Slay {0} of its Horde · Slay it within {1}s on a fresh try', landLocked: 'Undiscovered', landHere: 'You are here',
-    landKills: '{0}/{1} slain', outerLands: 'Past the Button', bomberPop: 'BOOM', zoneOf: 'Zone {0}/5', slainTotal: '{0} slain',
+    landKills: '{0}/{1} slain', outerLands: 'Past the Button', bomberPop: 'BOOM', zoneOf: 'Zone {0}/3', slainTotal: '{0} slain',
   };
   // 3.0: the town as the hub
   Object.assign(STR, {
@@ -1946,6 +1988,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     gambleHint: 'Magic or better, up to {0} at this depth; {1}% of the time a unique.', gambleNo: 'Not enough shards: break down spare gear at the Forge.',
     seal: 'Seal', sealed: 'SEALED', sealHint: 'Seal one affix ({0} shards): an Orb of Flux rerolls only the others.', equipped: 'equipped',
     buyAll: 'Buy everything I can afford', buyAllDone: 'Bought {0} upgrade level(s)',
+    teamTitle: 'BUILD YOUR TEAM', teamText: 'Your Warden doesn\u2019t have to hold the Button alone. Hire up to three companions at the Tavern and build the team you want.', teamOpen: 'A seat is open now! Tanks draw the bites, healers mend, damage dealers thin the Horde.', teamNext: 'The first seats open at depth {0}. Tanks draw the bites, healers mend, damage dealers thin the Horde.', teamGo: 'Recruit now', later: 'Later', seatOpen: 'An open seat: recruit at the Tavern',
+    holdYouCan: 'YOU CAN', holdKey: 'HOLD SPACE', holdTouch: 'HOLD THE BUTTON', holdWhy: 'No need to mash: hold it and the Button keeps clicking. Steady Hand makes it faster.',
     blessTitle: 'A NEW RUN: CHOOSE A BLESSING', blessHint: 'It holds until the Button falls or you ascend.', blessTwist: 'with a twist', blessOn: 'Blessing:', blessNow: 'This run: {0}',
     fellTitle: 'THE BUTTON FELL', fellText: 'The Horde broke through and the Button went dark. Its light comes back in a new run; what you earned stays.',
     fellDepth: 'Reached depth', fellTime: 'Run time', fellLvl: 'Warden level', fellGold: 'Gold this run', fellTotal: '{0} to spend',
@@ -1983,6 +2027,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     bossGrowth: 2.5,        // boss hp growth per depth
     lordHp: 3,
     bossCall: 3,            // seconds of warning before a ready boss arrives on its own
+    marchTime: 2.4,         // 3.4: after a boss, the party marches on to the next zone for this long (no Horde meanwhile)
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
     // 2.5: the game is balanced for the Button held down (10 clicks a second); faster clicking, or an
@@ -1992,9 +2037,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
-    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25, bossClickK: 0.9,
+    bossMin: 9, bossMinLord: 22, bossMinOld: 0.25, bossClickK: 0.9,
     // 2.3: a boss out of time enrages for this long (s); DOOM from this depth on; Rally per failed try and its cap
-    enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.05, rallyMax: 3,
+    enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.15, rallyMax: 4,
     // boss affixes from this depth; a Shield cracked stays down this long; Regenerating heals this share a second
     affixFrom: 8, shieldDown: 10, bossRegen: 0.008,
     rarityAt: [0, 0, 2, 5, 12, 24, 40], ascFrom: 15,
@@ -2065,7 +2110,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 11,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 10,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -2844,6 +2889,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     else for (let i = 0; i < count; i++) rew.chests.push(openChest(makeChest(tier, null), 'boss'));
     questProgress('boss', 1);
     emit('bossWin', rew, b);
+    // 3.4: on to the next zone: a short march, the ground rolling by
+    if (!R.rift) { R.march = { t: TUNE.marchTime, T: TUNE.marchTime }; emit('marchStart', TUNE.marchTime, realmIndex(S.depth) !== realmIndex(d)); }
     if (realmIndex(S.depth) !== realmIndex(d)) emit('realm', realmIndex(S.depth));
   }
 
@@ -3207,6 +3254,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (G.tutFreeze && G.tutFreeze()) return;
     // 3.0: a cinematic (a relic dropping) holds the whole game still while it plays
     if (R.cine > 0) { R.cine = Math.max(0, R.cine - dt); return; }
+    if (R.march && (R.march.t -= dt) <= 0) { R.march = null; emit('marchEnd'); }
 
     // Buffs
     if (S.buffs.length) {
@@ -3261,8 +3309,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (S.set.autoBoss && !R.inv && !(R.ev && R.ev.k !== 'jackpot') && !(G.tutHold && G.tutHold())) {
         if (R.bossHold > 0) R.bossHold -= dt;
         else R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
-        // (lost here twice: the party farms this ground a minute and a half before it tries again)
-        const wait = S.scar && S.scar.d === S.depth && S.scar.n >= 2 ? 90 : bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
+        // (lost here twice: the party farms this ground half a minute before it tries again)
+        // (3.4: shorter waits: Rally grows faster with each try, so a wall gives way sooner)
+        const wait = S.scar && S.scar.d === S.depth && S.scar.n >= 2 ? 30 : bossOdds() >= 0.6 ? 0 : D.autoBoss ? 12 : 25;
         if (R.bossIn <= -wait) startBoss();
       }
     }
@@ -3510,13 +3559,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     hellstring: { base: 'phoenix_bow',    minD: 31, name: 'Hellstring',            a: [['dmg', 0.6], ['spd', 0.2]], fx: 'Kills explode' },
     voidplate:  { base: 'golden_plate',   minD: 34, name: 'Voidplate',             a: [['hp', 1.2], ['dmg', 0.2]], fx: 'Biting mobs take 10 hits back' },
     reaper:     { base: 'blood_scythe',   minD: 37, name: 'Reaper\u2019s Due',     a: [['dmg', 0.8], ['critd', 0.6]], fx: 'Kills: +2% attack speed for 6s, max +80%' },
-    lastbutton: { base: 'golden_button',  minD: 39, boss: true, name: 'The Last Button', a: [['dmg', 0.5], ['gold', 0.5], ['luck', 0.3], ['xp', 0.3]], fx: 'Clicks strike twice. Mad Button and deep Rifts only' },
+    lastbutton: { base: 'golden_button',  minD: 8 * G.REALM_SIZE - 1, boss: true, name: 'The Last Button', a: [['dmg', 0.5], ['gold', 0.5], ['luck', 0.3], ['xp', 0.3]], fx: 'Clicks strike twice. Mad Button and deep Rifts only' },
     // past the Button
     codex:      { base: 'star_codex',     minD: 44, name: 'The Drowned Codex',     a: [['xp', 0.4], ['dmg', 0.45]], fx: 'Spitters and bombers die to any hit' },
     tyrant:     { base: 'king_crown',     minD: 49, name: 'Crown of the Gear Tyrant', a: [['spd', 0.3], ['dmg', 0.5]], fx: 'Tanks, brutes, champions take 2× damage' },
     ashbringer: { base: 'dragon_sword',   minD: 54, name: 'Ashbringer',            a: [['dmg', 1], ['critd', 0.6]], fx: 'Warden kills explode in flame' },
     othercloak: { base: 'void_cloak',     minD: 59, name: 'The Other Cloak',       a: [['hp', 1.1], ['crit', 0.08]], fx: '1 bite in 3 kills the biter instead' },
-    firsthand:  { base: 'celestial_staff', minD: 64, boss: true, name: 'Palm of the First Hand', a: [['dmg', 1.1], ['spd', 0.3], ['gold', 0.4]], fx: 'Clicks call 3 more bolts. First Hand and deep Rifts only' },
+    firsthand:  { base: 'celestial_staff', minD: 13 * G.REALM_SIZE - 1, boss: true, name: 'Palm of the First Hand', a: [['dmg', 1.1], ['spd', 0.3], ['gold', 0.4]], fx: 'Clicks call 3 more bolts. First Hand and deep Rifts only' },
   };
   G.UNIQUE_IDS = Object.keys(G.UNIQUES);
   // Rift level -> the depth its Horde fights at: Rift N fights like depth N
@@ -3612,7 +3661,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- The party ----------
   // The Warden leads; companions join as you go deeper (after the Crab King, at depth 12 and at depth 20).
-  G.PARTY_AT = [3, 12, 20];
+  G.PARTY_AT = [3, 9, 15]; // 3.4: the team fills up sooner
   G.partySlots = () => G.PARTY_AT.filter(d => (G.S.bestDepth || 0) >= d).length;
   G.recruit = function (cls) {
     const S = G.S, C = G.CLASS_BY_ID[cls];
@@ -4215,7 +4264,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.zoneOf = zoneOf;
   // The share of packs each archetype leads here: the zone's mix, bent by the land's rule
   function zoneMix(d) {
-    const z = G.ZONE_MIX ? G.ZONE_MIX[zoneOf(d)] : null, L = land();
+    const z = G.ZONE_MIX ? G.ZONE_MIX[G.ZONE_LOOK(zoneOf(d))] : null, L = land();
     if (!z) return {};
     return { runner: z.runner * (L.run || 1), spitter: z.spitter * (L.spit || 1), bomber: z.bomber * (L.bomb || 1), tank: z.tank * (L.tanky || 1) };
   }
@@ -4632,8 +4681,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const regen = R.boss ? TUNE.regenBoss : TUNE.regen;
     if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * regen * dt);
     partyTick(dt, regen);
-    // the horde: a steady flow of packs, with a surge every half a minute
-    if (R.stun <= 0) {
+    // the horde: a steady flow of packs, with a surge every half a minute (3.4: none while the party marches on)
+    if (R.stun <= 0 && !R.march) {
       if (R.boss) {
         R.hordeAcc = Math.min(3, R.hordeAcc + dt * TUNE.hordeRate * TUNE.addRate * (R.boss.lord ? 1.6 : 1) * (R.boss.rage ? 2 : 1));
         if (R.hordeAcc >= 1 && aliveWeight(true) < 2) { R.hordeAcc -= 0.5; spawnPack(true); }
@@ -7077,7 +7126,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     champLife: 60,            // seconds to kill it before it gets away
     champSecs: 20,            // its health: about this many seconds of the party's damage and the Hand's clicks...
     champMobsMin: 40, champMobsMax: 200, // ...but never under 40 or over 200 standard mobs of its depth
-    champDelayMin: 40, champDelayMax: 90, // seconds into the land before it comes
+    champDelayMin: 20, champDelayMax: 45, // seconds into the land before it comes (3.4: lands are shorter now)
     champW: 5,                // its weight: clear bar, gold and XP of five brutes
   });
 
@@ -7366,9 +7415,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (R.town || R.cine > 0) return;
     L.t += dt; L.zt += dt;
     if (run()[key] || R.chRetry > 0 || (S.st.playTime || 0) < 150) return;
-    // the second to fourth zone of the land, 40-90 s in; on the land's last zones it comes for sure
+    // past the land's first zone, 20-45 s in; in the lord's zone it comes for sure
     // (and only with the clear bar well short of full, so the fight isn't cut off by the boss)
-    const ok = zone >= 1 && (L.t >= L.delay || (zone >= 3 && L.zt >= 10));
+    const ok = (zone >= 1 && L.t >= L.delay) || (zone >= G.REALM_SIZE - 1 && L.zt >= 8);
     if (!ok || busy() || S.bossMeter > (G.D.bossNeed || 1) * 0.6) return;
     run()[key] = 1;
     spawn(G.realmIndex(S.depth), null, key);
@@ -13786,7 +13835,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       St.flash(0.25, '#fff3a0');
     });
     G.on('realm', r => {
-      groundKey = ''; St.flash(0.3, '#000000');
+      groundKey = ''; if (!march) St.flash(0.3, '#000000');
       // a title card for the new land and its rule
       const R_ = G.REALMS[r];
       cardText(0, G.realmName(G.S.depth).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
@@ -13810,7 +13859,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     cardText(0, G.t('zoneCard', z + 1, G.ZONE_NAME(d)).toUpperCase(), '#ffffff', 5, { life: 2.6, max: 2.6, vy: -3, big: true });
     if (z === G.REALM_SIZE - 1) cardText(10, G.t('zoneLord'), '#ff4f7e', 4, { life: 2.6, max: 2.6, vy: -3 });
     // the kind of mob this zone brings for the first time
-    const now = G.ZONE_MIX[z], before = z ? G.ZONE_MIX[z - 1] : {};
+    const now = G.ZONE_MIX[G.ZONE_LOOK(z)], before = z ? G.ZONE_MIX[G.ZONE_LOOK(z - 1)] : {};
     for (const k in G.ARCHETYPES) if (now[k] > 0 && !(before[k] > 0) && z > 0) {
       const A = G.ARCHETYPES[k];
       const o = z === G.REALM_SIZE - 1 ? 19 : 10;
@@ -13892,6 +13941,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     });
     cv.addEventListener('contextmenu', e => e.preventDefault());
   }
+  St.isHolding = () => holding;
   St.keyClick = function () { G.Audio && G.Audio.unlock(); G.manualClick(); };
   St.keyChest = function () {
     const list = G.S.chests;
@@ -15669,16 +15719,24 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const S_ = G.S, R = G.R;
     const realm = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
     // every zone of a land has its own light and ground (in a Rift, the Rift's)
-    const zone = G.R.rift ? 1 : G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth);
+    const zone = G.R.rift ? 1 : G.ZONE_LOOK(G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth));
     const gk = realm.id + '|' + zone + '|' + W + 'x' + H;
-    if (gk !== groundKey) { if (groundKey.split('|')[0] !== realm.id) St.clearStain(); if (groundKey) zoneFade = 1; groundKey = gk; groundCanvas = buildGround(realm.id, zone); }
+    if (gk !== groundKey) { if (groundKey.split('|')[0] !== realm.id) St.clearStain(); if (groundKey && !march) zoneFade = 1; groundKey = gk; groundCanvas = buildGround(realm.id, zone); }
     buildHeroes();
 
     // hold-to-click
     if (holding) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = 1 / Math.max(0.5, G.D.holdRate || 0); if (G.D.holdRate > 0) G.manualClick(); } }
 
     lctx.imageSmoothingEnabled = false;
-    lctx.drawImage(groundCanvas, 0, 0);
+    // 3.4: the march: the old ground rolls away below and the next zone comes in from ahead (above)
+    if (march) {
+      march.t += dt;
+      const k = Math.min(1, march.t / march.T), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2, off = Math.round(e * H);
+      if (march.prev && march.prev !== groundCanvas) { lctx.drawImage(march.prev, 0, off); lctx.drawImage(groundCanvas, 0, off - H); }
+      else lctx.drawImage(groundCanvas, 0, 0);
+      marchFx(dt, k);
+      if (k >= 1) march = null;
+    } else lctx.drawImage(groundCanvas, 0, 0);
     if (realm.id === 'shore') drawWater();
     drawDecals(dt);
     stepGibs(vdt);
@@ -16005,9 +16063,30 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // weather and light that move: mist at dawn, leaves at dusk, fireflies and a lit circle at night,
   // embers and a red sky on the lord's ground; and a dip to black between zones
   let zoneFade = 0;
+  // 3.4: marching on to the next zone (game.js 'marchStart'): the ground scrolls, dust streams past the party,
+  // speed lines at the edges and a chevron trail ahead
+  let march = null;
+  function marchFx(dt, k) {
+    const sp = Math.sin(Math.PI * k), b = btnPos();
+    // streaks of dust rushing past (the field moves, the party holds the Button and walks on)
+    const n = Math.round(sp * 26 * Math.min(2, dt * 60));
+    for (let i = 0; i < n; i++) part(rand(0, W), rand(-10, H * 0.6), pick(['#ffffff', '#e8e0c8', '#c8c0a8']), { vx: 0, vy: rand(260, 420) * sp, grav: 0, life: rand(0.25, 0.5), size: 1 });
+    for (let i = 0; i < Math.round(sp * 3); i++) part(b.x + rand(-60, 60), b.y + rand(4, 30), pick(['#c8b89a', '#8a7a60', '#a89878']), { vx: rand(-20, 20), vy: rand(30, 70), grav: 0, life: rand(0.3, 0.6) });
+    // chevrons pointing the way, ahead of the Button
+    lctx.globalAlpha = 0.55 * sp; lctx.fillStyle = '#ffd84a';
+    for (let j = 0; j < 3; j++) {
+      const y = ((b.y - 70 - j * 26 - (march.t * 90) % 26) | 0), w = 18 - j * 3;
+      for (let t = 0; t < 4; t++) { lctx.fillRect((b.x - w + t * 2) | 0, y + t * 2, 4, 2); lctx.fillRect((b.x + w - 4 - t * 2) | 0, y + t * 2, 4, 2); }
+    }
+    lctx.globalAlpha = 0.18 * sp; lctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 7; i++) { const x = (i < 4 ? i * 9 : W - (i - 3) * 9) | 0, y = ((time * 700 + i * 97) % (H + 80)) - 80; lctx.fillRect(x, y | 0, 2, 60); }
+    lctx.globalAlpha = 1;
+  }
+  St.marching = () => !!march;
+  G.on('marchStart', (T, newLand) => { march = { t: 0, T, prev: groundCanvas, land: newLand }; St.clearStain(); if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); });
   function drawZoneFx(dt) {
     if (G.R.rift) return;
-    const z = G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth), b = btnPos();
+    const z = G.ZONE_LOOK(G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth)), b = btnPos();
     if (z === 0) {
       // low sun from the east: warm light across the field
       const lg = lctx.createLinearGradient(0, 0, W * 0.8, H);
@@ -16594,13 +16673,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   let phKey = '';
   function updatePartyHud() {
     const el = $('#partyHud'), h = G.S.hero;
-    const units = h && h.cls && G.S.party.length ? G.partyUnits() : [];
-    el.hidden = !units.length;
+    // 3.4: the team is always on show, from the first minute: the Warden, each companion, and the empty seats
+    // (an open one pulses with a +, a locked one says the depth that opens it)
+    const units = h && h.cls ? G.partyUnits() : [];
+    el.hidden = !units.length || (G.S.tut >= 0 && G.S.tut < 3);
     if (!units.length) return;
-    const key = units.map(u => u.cls + JSON.stringify(u.eq && G.SLOTS.map(s => u.eq[s] ? u.eq[s].id + (u.eq[s].q || '') : ''))).join('|');
+    const slots = G.partySlots ? G.partySlots() : 0, seats = [];
+    for (let k = G.S.party.length; k < 3; k++) seats.push(k < slots ? 'open' : 'lock');
+    const key = units.map(u => u.cls + JSON.stringify(u.eq && G.SLOTS.map(s => u.eq[s] ? u.eq[s].id + (u.eq[s].q || '') : ''))).join('|') + '|' + seats.join(',');
     if (key !== phKey) {
       phKey = key;
-      el.innerHTML = units.map(u => `<button class="pchip r_${u.role}" data-who="${u.who}" aria-label="${esc(u.who < 0 ? t('wardenName') : L(G.CLASS_BY_ID[u.cls].name))}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><i><u></u></i><b></b></button>`).join('');
+      el.innerHTML = units.map(u => `<button class="pchip r_${u.role}" data-who="${u.who}" aria-label="${esc(u.who < 0 ? t('wardenName') : L(G.CLASS_BY_ID[u.cls].name))}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><i><u></u></i><b></b></button>`).join('')
+        + seats.map((s, k) => s === 'open' ? `<button class="pseat open" data-seat title="${esc(t('seatOpen'))}">+</button>` : `<button class="pseat lock" data-seatlock title="${esc(t('recruitAt', G.PARTY_AT[G.S.party.length + k]))}">${img('ic_key', '', 2)}<small>D${G.PARTY_AT[G.S.party.length + k] + 1}</small></button>`).join('');
     }
     const chips = el.children, rate = G.reviveRate ? G.reviveRate() : 1;
     el.title = t('partyHint');
@@ -16618,6 +16702,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
   function bindPartyHud() {
     $('#partyHud').addEventListener('click', e => {
+      if (e.target.closest('[data-seat]')) { G.Audio.unlock(); if (G.enterTown()) UI.townOpen('tavern'); else UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
+      if (e.target.closest('[data-seatlock]')) { UI.teamCard(); return; }
       const c = e.target.closest('.pchip'); if (!c) return;
       const who = +c.dataset.who;
       if (G.reviveTap(who)) { G.Audio.click(0, false); return; }
@@ -16699,6 +16785,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         if (tg && tg.tagName === 'BUTTON' && e.code !== 'Space') return;
         e.preventDefault();
         // a held key repeats at Steady Hand's rate (none without it)
+        if (e.repeat) UI._holdKeyT = performance.now();
         if (e.repeat) { const hr = G.D.holdRate || 0; if (!G.S.set.hold || hr <= 0 || performance.now() - (UI._holdT || 0) < 1000 / hr) return; UI._holdT = performance.now(); }
         G.Stage.keyClick();
       } else if (e.code === 'KeyE' || e.code === 'KeyF') { G.Stage.keyChest(); }
@@ -16758,6 +16845,51 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'asc')) UI.update(true); if (kind === 'node' && curTab() === 'stars') UI.render(); });
     G.on('ascend', (g, death) => { if (g && !death) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
+    // 3.4: BUILD YOUR TEAM: when a seat opens (and from a locked seat on the party bar), a big card shows the five
+    // classes and their roles, with a straight way to the Tavern
+    UI.teamCard = function (slot) {
+      if (!$('#modal').hidden || G.R.boss) { setTimeout(() => UI.teamCard(slot), 1500); return; }
+      const S = G.S, n = G.partySlots ? G.partySlots() : 0, open = n > S.party.length;
+      const m = UI.modal(t('teamTitle'), `<div class="teamCard">
+        <p class="story">${esc(t('teamText'))}</p>
+        <div class="teamRow">${G.CLASSES.map((c, i) => `<div class="teamCls" style="animation-delay:${0.08 * i}s">${img(c.spr, '', 6)}<b>${esc(L(c.name))}</b><small class="r_${G.ROLES[c.id]}">${esc(G.ROLE_NAMES[G.ROLES[c.id]])}</small></div>`).join('')}</div>
+        <p class="note">${esc(t(open ? 'teamOpen' : 'teamNext', G.PARTY_AT[Math.min(2, n)] + 1))}</p></div>`,
+        open ? [{ label: t('teamGo'), cls: 'gold', fn: () => { if (G.enterTown()) UI.townOpen('tavern'); } }, { label: t('later') }] : [{ label: t('close') }]);
+      G.Audio && G.Audio.levelUp && G.Audio.levelUp();
+      return m;
+    };
+    G.on('slotOpen', slot => setTimeout(() => UI.teamCard(slot), 1600));
+    // 3.4: a huge plate at the start: YOU CAN HOLD SPACE (on a phone: HOLD THE BUTTON). It goes once the
+    // player has held for a second and a half (or after a while), and comes back each session until they have
+    UI.holdPlate = function () {
+      const S = G.S;
+      if ((S.seen && S.seen.hold) || $('#holdPlate')) return;
+      const touch = matchMedia('(pointer: coarse)').matches;
+      const el = document.createElement('div');
+      el.id = 'holdPlate';
+      el.innerHTML = `<div class="hpIn"><small>${esc(t('holdYouCan'))}</small><b>${esc(t(touch ? 'holdTouch' : 'holdKey'))}</b>
+        <div class="hpArt">${touch ? `<img class="hpFinger" src="${ic('ic_finger', 6)}" alt="">` : `<span class="hpKey">SPACE</span>`}</div>
+        <p>${esc(t('holdWhy'))}</p></div>`;
+      $('#stageWrap').appendChild(el);
+      let held = 0, life = 0;
+      const iv = setInterval(() => {
+        if (!el.isConnected) { clearInterval(iv); return; }
+        const busy = !!(G.uiBusy() || G.R.town);
+        el.classList.toggle('away', busy);
+        if (busy) return;
+        life += 0.1;
+        const on = (G.Stage.isHolding && G.Stage.isHolding()) || performance.now() - (UI._holdKeyT || 0) < 250;
+        held = on ? held + 0.1 : Math.max(0, held - 0.05);
+        el.style.setProperty('--hk', Math.min(1, held / 1.5));
+        el.classList.toggle('on', !!on);
+        if (held >= 1.5 || life > 40) {
+          if (held >= 1.5) { S.seen.hold = 1; G.dirty && G.dirty(); G.Audio && G.Audio.levelUp && G.Audio.levelUp(); el.classList.add('done'); }
+          el.classList.add('out'); clearInterval(iv); setTimeout(() => el.remove(), 600);
+        }
+      }, 100);
+    };
+    G.on('classChosen', () => setTimeout(UI.holdPlate, 1200));
+    setTimeout(() => { if (G.S.hero && G.S.hero.cls) UI.holdPlate(); }, 3000);
     // 3.3: a new run's blessings: three cards, after whatever window is up (the fall, a class pick) closes
     UI.blessCards = function () {
       const S = G.S, o = S.blessOffer;
@@ -16847,7 +16979,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (!open) return head + `<div class="wmRow locked">${img(R_.fodder, '', 3, { dark: true })}<div><b>${esc(t('landLocked'))}</b><small>${esc(t('depth'))} ${i * G.REALM_SIZE + 1}–${(i + 1) * G.REALM_SIZE}</small></div><span class="lstars">${stars}</span></div>`;
       const cleared = S.bestDepth > i * G.REALM_SIZE + G.REALM_SIZE - 1;
       // the land you're in shows where you are now; the others how far you've ever got
-      const zones = R_.zones.map((zn, zi) => { const d = i * G.REALM_SIZE + zi; const cls = i === here ? (zi < G.zoneOf(S.depth) ? 'done' : zi === G.zoneOf(S.depth) ? 'cur' : '') : d < S.bestDepth ? 'done' : ''; return `<span class="${cls} ${zi === G.REALM_SIZE - 1 ? 'lord' : ''}" title="${esc(zn)}"></span>`; }).join('');
+      const zones = Array.from({ length: G.REALM_SIZE }, (_, zi) => R_.zones[G.ZONE_LOOK(zi)]).map((zn, zi) => { const d = i * G.REALM_SIZE + zi; const cls = i === here ? (zi < G.zoneOf(S.depth) ? 'done' : zi === G.zoneOf(S.depth) ? 'cur' : '') : d < S.bestDepth ? 'done' : ''; return `<span class="${cls} ${zi === G.REALM_SIZE - 1 ? 'lord' : ''}" title="${esc(zn)}"></span>`; }).join('');
       return head + `<div class="wmRow ${i === here ? 'here' : ''} ${cleared ? 'clear' : ''}">${img(R_.fodder, '', 3)}<div><b>${esc(R_.name)}${i === here ? ` <em>${esc(t('landHere'))}</em>` : ''}</b>
         <small>${esc(R_.rule)}: ${esc(R_.ruleDesc)}</small>
         <div class="wmZones">${zones}</div>

@@ -467,7 +467,10 @@
   G.GOLDEN_CHANCE = 0.05;
 
   // ---------- Realms & bosses ----------
-  G.REALM_SIZE = 5; // depths per realm; the 5th depth is the realm lord
+  // 3.4: three zones a land (it was five), so the scenery changes twice as often; the last zone holds the land's lord
+  G.REALM_SIZE = 3; // depths per realm; the last depth is the realm lord
+  // each land still has five looks and names (morning ... the lord's lair): a zone takes the ones spread across them
+  G.ZONE_LOOK = z => (G.REALM_SIZE <= 1 ? 4 : Math.round(z * 4 / (G.REALM_SIZE - 1)));
   G.REALMS = [
     { id: 'shore',     name: 'Shoreline',  minion: 'b_crab',   lord: 'l_crab',   fodder: 'f_crab',
       minionName: 'Sand Crab', lordName: 'The Crab King',
@@ -581,7 +584,7 @@
     { runner: 0.2,  spitter: 0.12, bomber: 0.16, tank: 0 },
     { runner: 0.2,  spitter: 0.14, bomber: 0.16, tank: 0.08 },
   ];
-  G.ZONE_NAME = d => { const r = G.REALMS[G.realmIndex(d)]; return r.zones[((d % G.REALM_SIZE) + G.REALM_SIZE) % G.REALM_SIZE]; };
+  G.ZONE_NAME = d => { const r = G.REALMS[G.realmIndex(d)]; return r.zones[G.ZONE_LOOK(((d % G.REALM_SIZE) + G.REALM_SIZE) % G.REALM_SIZE)]; };
 
   // Land mastery: three stars per land, kept forever. Each one: +2.5% damage and gold
   G.STAR_BONUS = 0.025;
@@ -666,6 +669,7 @@
     bossGrowth: 2.5,        // boss hp growth per depth
     lordHp: 3,
     bossCall: 3,            // seconds of warning before a ready boss arrives on its own
+    marchTime: 2.4,         // 3.4: after a boss, the party marches on to the next zone for this long (no Horde meanwhile)
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
     // 2.5: the game is balanced for the Button held down (10 clicks a second); faster clicking, or an
@@ -675,9 +679,9 @@
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
-    bossMin: 12, bossMinLord: 30, bossMinOld: 0.25, bossClickK: 0.9,
+    bossMin: 9, bossMinLord: 22, bossMinOld: 0.25, bossClickK: 0.9,
     // 2.3: a boss out of time enrages for this long (s); DOOM from this depth on; Rally per failed try and its cap
-    enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.05, rallyMax: 3,
+    enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.15, rallyMax: 4,
     // boss affixes from this depth; a Shield cracked stays down this long; Regenerating heals this share a second
     affixFrom: 8, shieldDown: 10, bossRegen: 0.008,
     rarityAt: [0, 0, 2, 5, 12, 24, 40], ascFrom: 15,
@@ -748,7 +752,7 @@
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 11,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 10,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -1527,6 +1531,8 @@
     else for (let i = 0; i < count; i++) rew.chests.push(openChest(makeChest(tier, null), 'boss'));
     questProgress('boss', 1);
     emit('bossWin', rew, b);
+    // 3.4: on to the next zone: a short march, the ground rolling by
+    if (!R.rift) { R.march = { t: TUNE.marchTime, T: TUNE.marchTime }; emit('marchStart', TUNE.marchTime, realmIndex(S.depth) !== realmIndex(d)); }
     if (realmIndex(S.depth) !== realmIndex(d)) emit('realm', realmIndex(S.depth));
   }
 
@@ -1890,6 +1896,7 @@
     if (G.tutFreeze && G.tutFreeze()) return;
     // 3.0: a cinematic (a relic dropping) holds the whole game still while it plays
     if (R.cine > 0) { R.cine = Math.max(0, R.cine - dt); return; }
+    if (R.march && (R.march.t -= dt) <= 0) { R.march = null; emit('marchEnd'); }
 
     // Buffs
     if (S.buffs.length) {
@@ -1944,8 +1951,9 @@
       if (S.set.autoBoss && !R.inv && !(R.ev && R.ev.k !== 'jackpot') && !(G.tutHold && G.tutHold())) {
         if (R.bossHold > 0) R.bossHold -= dt;
         else R.bossIn = (R.bossIn == null ? TUNE.bossCall : R.bossIn) - dt;
-        // (lost here twice: the party farms this ground a minute and a half before it tries again)
-        const wait = S.scar && S.scar.d === S.depth && S.scar.n >= 2 ? 90 : bossOdds() >= 0.6 ? 0 : D.autoBoss ? 20 : 60;
+        // (lost here twice: the party farms this ground half a minute before it tries again)
+        // (3.4: shorter waits: Rally grows faster with each try, so a wall gives way sooner)
+        const wait = S.scar && S.scar.d === S.depth && S.scar.n >= 2 ? 30 : bossOdds() >= 0.6 ? 0 : D.autoBoss ? 12 : 25;
         if (R.bossIn <= -wait) startBoss();
       }
     }
@@ -2193,13 +2201,13 @@
     hellstring: { base: 'phoenix_bow',    minD: 31, name: 'Hellstring',            a: [['dmg', 0.6], ['spd', 0.2]], fx: 'Kills explode' },
     voidplate:  { base: 'golden_plate',   minD: 34, name: 'Voidplate',             a: [['hp', 1.2], ['dmg', 0.2]], fx: 'Biting mobs take 10 hits back' },
     reaper:     { base: 'blood_scythe',   minD: 37, name: 'Reaper\u2019s Due',     a: [['dmg', 0.8], ['critd', 0.6]], fx: 'Kills: +2% attack speed for 6s, max +80%' },
-    lastbutton: { base: 'golden_button',  minD: 39, boss: true, name: 'The Last Button', a: [['dmg', 0.5], ['gold', 0.5], ['luck', 0.3], ['xp', 0.3]], fx: 'Clicks strike twice. Mad Button and deep Rifts only' },
+    lastbutton: { base: 'golden_button',  minD: 8 * G.REALM_SIZE - 1, boss: true, name: 'The Last Button', a: [['dmg', 0.5], ['gold', 0.5], ['luck', 0.3], ['xp', 0.3]], fx: 'Clicks strike twice. Mad Button and deep Rifts only' },
     // past the Button
     codex:      { base: 'star_codex',     minD: 44, name: 'The Drowned Codex',     a: [['xp', 0.4], ['dmg', 0.45]], fx: 'Spitters and bombers die to any hit' },
     tyrant:     { base: 'king_crown',     minD: 49, name: 'Crown of the Gear Tyrant', a: [['spd', 0.3], ['dmg', 0.5]], fx: 'Tanks, brutes, champions take 2× damage' },
     ashbringer: { base: 'dragon_sword',   minD: 54, name: 'Ashbringer',            a: [['dmg', 1], ['critd', 0.6]], fx: 'Warden kills explode in flame' },
     othercloak: { base: 'void_cloak',     minD: 59, name: 'The Other Cloak',       a: [['hp', 1.1], ['crit', 0.08]], fx: '1 bite in 3 kills the biter instead' },
-    firsthand:  { base: 'celestial_staff', minD: 64, boss: true, name: 'Palm of the First Hand', a: [['dmg', 1.1], ['spd', 0.3], ['gold', 0.4]], fx: 'Clicks call 3 more bolts. First Hand and deep Rifts only' },
+    firsthand:  { base: 'celestial_staff', minD: 13 * G.REALM_SIZE - 1, boss: true, name: 'Palm of the First Hand', a: [['dmg', 1.1], ['spd', 0.3], ['gold', 0.4]], fx: 'Clicks call 3 more bolts. First Hand and deep Rifts only' },
   };
   G.UNIQUE_IDS = Object.keys(G.UNIQUES);
   // Rift level -> the depth its Horde fights at: Rift N fights like depth N
@@ -2295,7 +2303,7 @@
 
   // ---------- The party ----------
   // The Warden leads; companions join as you go deeper (after the Crab King, at depth 12 and at depth 20).
-  G.PARTY_AT = [3, 12, 20];
+  G.PARTY_AT = [3, 9, 15]; // 3.4: the team fills up sooner
   G.partySlots = () => G.PARTY_AT.filter(d => (G.S.bestDepth || 0) >= d).length;
   G.recruit = function (cls) {
     const S = G.S, C = G.CLASS_BY_ID[cls];
@@ -2898,7 +2906,7 @@
   G.zoneOf = zoneOf;
   // The share of packs each archetype leads here: the zone's mix, bent by the land's rule
   function zoneMix(d) {
-    const z = G.ZONE_MIX ? G.ZONE_MIX[zoneOf(d)] : null, L = land();
+    const z = G.ZONE_MIX ? G.ZONE_MIX[G.ZONE_LOOK(zoneOf(d))] : null, L = land();
     if (!z) return {};
     return { runner: z.runner * (L.run || 1), spitter: z.spitter * (L.spit || 1), bomber: z.bomber * (L.bomb || 1), tank: z.tank * (L.tanky || 1) };
   }
@@ -3315,8 +3323,8 @@
     const regen = R.boss ? TUNE.regenBoss : TUNE.regen;
     if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * regen * dt);
     partyTick(dt, regen);
-    // the horde: a steady flow of packs, with a surge every half a minute
-    if (R.stun <= 0) {
+    // the horde: a steady flow of packs, with a surge every half a minute (3.4: none while the party marches on)
+    if (R.stun <= 0 && !R.march) {
       if (R.boss) {
         R.hordeAcc = Math.min(3, R.hordeAcc + dt * TUNE.hordeRate * TUNE.addRate * (R.boss.lord ? 1.6 : 1) * (R.boss.rage ? 2 : 1));
         if (R.hordeAcc >= 1 && aliveWeight(true) < 2) { R.hordeAcc -= 0.5; spawnPack(true); }
