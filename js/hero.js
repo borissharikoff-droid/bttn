@@ -12,7 +12,7 @@
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
     // the arena is never empty: lots of small bodies, capped for the frame rate
-    mobMax: 1100, packMul: 2, minCrowd: 90, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
+    mobMax: 1100, packMul: 3, minCrowd: 135, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
@@ -768,7 +768,7 @@
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {
-    fodder: { w: 0.0057, spd: 1.3, gold: 1 },
+    fodder: { w: 0.0038, spd: 1.3, gold: 1 }, // 3.4: lighter, so the Horde comes in half again as many bodies (was 0.0057)
     brute:  { w: 1, spd: 1, gold: 1 },
     magic:  { w: 2, spd: 1.05, gold: 1.25 }, // blue champions, they come in pairs
     rare:   { w: 6, spd: 0.9, gold: 1.5 },   // yellow, named, one modifier, a pack of minions
@@ -944,6 +944,9 @@
   const CARN = [100, 300, 800, 2000];
   const carnTier = () => { let t = 0; while (t < CARN.length && R.carn >= CARN[t]) t++; return t; };
   G.carnage = () => { const t = carnTier(); return { n: R.carn, tier: t, mul: 1 + 0.1 * t, next: CARN[t] || 0 }; };
+  // (3.4: small fry got lighter and more numerous; a kill's share of chests and plunder follows its weight)
+  const FODK = m => (m.kind === 'fodder' ? G.MOB_KINDS.fodder.w / 0.0057 : 1);
+  G.fodK = FODK;
   function killMob(m, src) {
     const S = G.S, D = G.D, h = S.hero, L = land();
     m.dead = true;
@@ -977,13 +980,13 @@
     // a chest spills out of the body now and then, where it fell
     if (!m.add && !R.rift && m.kind !== 'guardian' && G.spawnChest) {
       // by weight, so a pack split into more, smaller bodies drops the same
-      const pc = TUNE.killChest * (G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w * 0.7 : 1 + 20 * Math.min(6, m.w)) * evMul('chest') * (1 + 0.25 * perk('loot'));
+      const pc = TUNE.killChest * (G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w * FODK(m) * 0.7 : 1 + 20 * Math.min(6, m.w)) * evMul('chest') * (1 + 0.25 * perk('loot'));
       if (chance(Math.min(1, pc))) { R.dropAt = m; G.spawnChest(undefined, null, false, true); R.dropAt = null; }
     }
     // about one in two million: the JACKPOT
     if (!m.add && G.jackpotRoll) G.jackpotRoll(m, 'kill');
     // Plunder: a kill now and then pops a chest open on its own
-    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder') * (G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w : 1))) {
+    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder') * (G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w * FODK(m) : 1))) {
       const c = S.chests.find(x => x.mod !== 'mimic' && x.mod !== 'frozen');
       if (c) { emit('plunder', m, c); G.openChest(c, 'plunder'); }
     }

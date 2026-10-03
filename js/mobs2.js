@@ -29,7 +29,7 @@
     // how often a pack of the new kinds comes: every m2Every s at the second land, m2RampPer faster per
     // depth after that (at most m2RampMax times), jittered by m2Jitter; m2Charge of its weight comes off the
     // normal flow (0: they come on top of it); none while the Horde weighs over m2CapMul of its cap
-    m2Every: 13, m2RampPer: 0.035, m2RampMax: 2.6, m2Jitter: 0.35, m2Charge: 0, m2CapMul: 1.3, m2FromLand: 1,
+    m2Every: 9, m2RampPer: 0.035, m2RampMax: 2.6, m2Jitter: 0.35, m2Charge: 0, m2CapMul: 1.3, m2FromLand: 1,
     m2Fodder: [12, 22], // the small fry that come along with each pack
     // leapers: n a pack; crouch s, then airborne for leapAir s over leapDist of the way (never past leapMaxP);
     // a leap every leapEvery s once they are on the field (from leapFrom)

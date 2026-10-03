@@ -10,6 +10,19 @@
 - **Built for holding the Button.** A held Button clicks once a second, Steady Hand takes it up to 10, and nothing counts past 10.
 - **Chase the rare.** Relics drop in a white bag from bosses only, the Lucky Spin pays out from kills, and the JACKPOT hits about one kill in two million.
 
+## 3.4 — Momentum
+
+- **Lands change twice as often.** A land has three zones now instead of five (morning, dusk, and the lord's lair), so you see a new land every few minutes. Lords hit a little softer (they come every third depth now), losing to a boss costs less waiting, and every try rallies the party harder (+15% a try, up to +60%).
+- **The march.** After a boss the party marches on: the ground rolls away under the Button, dust streams past and the next zone comes in from ahead.
+- **Hand Spells.** Fighting charges the Hand, and every few seconds it casts a big spell that really hits: Meteor, Meteor Shower, Firestorm, Blizzard (slows), Tornado, Holy Pillar (mends the Button), Earthquake, Poison Cloud, Arcane Orbs, Sword Rain, Chain Storm, Lava and Shadow Claws. Each land favours its own element, and every click gets that land's flourish: geysers on the Shoreline, vines in the Meadows, hellfire in the Abyss, starfall in the Star Sea, and so on.
+- **Many more mobs.**
+  - 75 new mob looks: three new small fry and two new brutes in every land, each with a walking animation.
+  - Five new kinds: Leapers crouch and jump at the Button, Gnat swarms zig-zag in, Blobs split when slain (twice), Moles tunnel up next to the Button, and Shield walls advance as one line that blocks hits.
+  - Half again as many bodies on the field (same total weight, so loot stays fair).
+- **YOU CAN HOLD SPACE.** A huge plate at the start shows it (on a phone: HOLD THE BUTTON) until you've held for a moment.
+- **Build your team.** The party bar always shows your team: open seats pulse with a + (straight to the Tavern), locked ones say the depth that opens them. When a seat opens, a BUILD YOUR TEAM card shows the five classes and their roles. Seats open at depths 3, 9 and 15.
+- **Fixes.** The intro's Horde slide is a proper siege animation; champions' rings and plates now cover the whole field.
+
 ## 3.3 — Polish & Runs
 
 - **Run blessings.** Every new run (after the Button falls or an ascension, and when the tutorial ends) opens with a choice of one of three blessings that hold for the whole run.

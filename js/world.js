@@ -132,7 +132,7 @@
     const S = S_();
     if (!S.jp || R.rift || !S.hero || !S.hero.cls || S.tut >= 0) return false;
     // small fry count by weight, so a thicker Horde doesn't hand out more of them
-    const k = src === 'chest' ? TUNE.jpChest : TUNE.jpKill * (m && G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w * 0.7 : 3);
+    const k = src === 'chest' ? TUNE.jpChest : TUNE.jpKill * (m && G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w * (G.fodK ? G.fodK(m) : 1) * 0.7 : 3);
     if (!chance(k * jpOdds())) return false;
     G.jackpot(m);
     return true;

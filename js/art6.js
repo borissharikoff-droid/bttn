@@ -1633,6 +1633,9 @@
     const ri = G.REALMS.indexOf(realm), sk = G.MOB_SKINS[ri < 0 ? 0 : ri];
     const list = sk && (m.kind === 'fodder' ? sk.fodder : sk.brute);
     if (!list || !list.length) return m.kind === 'fodder' ? realm.fodder : realm.minion;
+    // a Land Champion, its decoys and its split copies keep the land's own look (decoys must not give it away,
+    // and a burrower comes up with a new id)
+    if (m.champ || m.champKid || m.decoy || m.wl || m.inv) return list[0];
     const u = hash(m.id | 0);
     if (u < G.MOB_SKIN_ORIG || list.length < 2) return list[0];
     return list[1 + Math.floor((u - G.MOB_SKIN_ORIG) / (1 - G.MOB_SKIN_ORIG) * (list.length - 1)) % (list.length - 1)];

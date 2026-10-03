@@ -86,7 +86,7 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
 
 ### 4.5 Lands
 
-- There are 15 lands of 5 zones each, and each land has its own rule, lord and three stars. Corrupted cycles follow.
+- There are 15 lands of 3 zones each (3.4; was 5), and each land has its own rule, lord and three stars. Corrupted cycles follow.
 - A depth needs 11 clear-bar kills. A new run starts at the land at half your best depth.
 
 ### 4.6 Loot
@@ -163,13 +163,18 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
    - a gentler first-run level-up pace.
 4. ✅ Tests, patch notes, build, publish (artifact + Railway).
 
-### 3.4 — Builds
+### 3.4 — Momentum (done)
+
+- Lands of three zones, the march between zones, Hand Spells (13 spells + land flourishes), 75 new mob looks and
+  five new kinds, a denser Horde, the HOLD SPACE plate, the team always on show.
+
+### 3.5 — Builds
 
 - Class talents at ranks: a choice of two.
 - Item sets (2 and 4 pieces).
 - A Hall of Fame tree with rule-changing keystones.
 
-### 3.5 — Friends
+### 3.6 — Friends
 
 - Daily seeded challenge run on the ladder.
 - Ghost runs of friends.

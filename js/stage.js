@@ -963,19 +963,26 @@
       const id = G.SMALL[m.kind] ? V.swarm : V.elite;
       if (SPR.defs[id]) return SPR.get(id, m.kind === 'magic' ? { oc: '#3f7fff' } : m.kind === 'rare' ? { oc: '#ffd84a' } : null);
     }
-    if (m.kind === 'fodder') return SPR.get(realm.fodder);
-    if (G.ARCHETYPES && G.ARCHETYPES[m.kind]) return SPR.arch(m.kind, realm.id);
+    // 3.4 (js/art6.js): each mob wears one of its land's skins, picked by its id, and steps between two frames
+    const fr = id => (G.mobFrame ? G.mobFrame(id, time, m) : id);
+    if (m.kind === 'fodder') return SPR.get(fr(G.mobSkin ? G.mobSkin(m, realm) : realm.fodder));
+    if (G.ARCHETYPES && G.ARCHETYPES[m.kind]) {
+      const aid = 'a_' + m.kind + '_' + realm.id;
+      // a leaper shows its crouch while it gathers itself
+      if (m.kind === 'leaper' && SPR.defs[aid + '_2']) return SPR.get(m.lst === 1 ? aid + '_2' : aid);
+      return SPR.defs[aid] ? SPR.get(fr(aid)) : SPR.arch(m.kind, realm.id);
+    }
     if (m.kind === 'hoard') return SPR.get('m_hoard');
     if (m.kind === 'guardian') return SPR.boss(m.lord || realm.lord, true).canvas;
-    return SPR.get(realm.minion, m.kind === 'magic' ? { oc: '#3f7fff' } : m.kind === 'rare' ? { oc: '#ffd84a' } : null);
+    return SPR.get(fr(G.mobSkin ? G.mobSkin(m, realm) : realm.minion), m.kind === 'magic' ? { oc: '#3f7fff' } : m.kind === 'rare' ? { oc: '#ffd84a' } : null);
   }
-  const MOB_BAR = { brute: '#e84a4a', magic: '#5a9cff', rare: '#ffd84a', tank: '#c8c8d4', spitter: '#b6ff5a', bomber: '#ff7a2e' };
+  const MOB_BAR = { brute: '#e84a4a', magic: '#5a9cff', rare: '#ffd84a', tank: '#c8c8d4', spitter: '#b6ff5a', bomber: '#ff7a2e', leaper: '#b6ff5a', shieldwall: '#9ad8ff', blob: '#5ae8ff', blob1: '#5ae8ff', blob2: '#5ae8ff', mole: '#c8a070' };
   function drawMob(m, q, realm) {
     const spr = mobSprite(m, realm);
     const v = mobVisOf(m);
     const fod = !!G.SMALL[m.kind];
     if (m.kind === 'guardian') { drawGuardian(m, spr, v, q); return; }
-    shadow(q.x, q.y - 1, fod ? 6 : 10);
+    shadow(q.x, q.y - 1, m.fly ? 3 : m.jz > 0 ? Math.max(4, Math.round(10 - 5 * m.jz)) : fod ? 6 : 10);
     if (m.br) glow(q.x, q.y - 5, fod ? 4 : 7, '#b36bff', 0.28);
     if (m.kind === 'hoard') {
       glow(q.x, q.y - 7, 9, '#ffd84a', 0.28 + 0.1 * Math.sin(time * 8));
@@ -998,6 +1005,11 @@
       if (m.fz) glow(q.x, q.y - 6, 6, '#7fc8ff', 0.25);
     }
     let x = q.x, y = q.y;
+    // 3.4 (js/mobs2.js): a leaper in the air, a gnat on the wing, a mole still half underground
+    if (m.jz > 0) y -= Math.round(m.jz * 16);
+    if (m.fly) y -= 7 + Math.round(Math.sin(time * 18 + m.id));
+    if (m.pop > 0) y += Math.round(8 * m.pop / (G.TUNE.molePop || 0.45));
+    if (m.kind === 'shieldwall' && m.blk > 0 && m.wall) glow(q.x + 1, q.y - 7, 6, '#9ad8ff', 0.12 + 0.05 * Math.sin(time * 6 + m.id));
     // a hit knocks it back from the Button for a moment, a small one further
     if (v.hit > 0) { const b = btnPos(), dx = q.x - b.x, dy = q.y - b.y, l = Math.hypot(dx, dy) || 1, k = v.hit * (fod ? 34 : 18); x += Math.round(dx / l * k + rand(-1, 1)); y += Math.round(dy / l * k * 0.6); }
     if (v.lunge > 0) { x += Math.sign(btnPos().x - q.x) * 2; v.lunge -= fdt; }
@@ -1020,6 +1032,14 @@
       lctx.fillRect(q.x - r, y + r, 3, 1); lctx.fillRect(q.x - r, y + r - 2, 1, 3);
       lctx.fillRect(q.x + r - 2, y + r, 3, 1); lctx.fillRect(q.x + r, y + r - 2, 1, 3);
     }
+  }
+  // a burrower's mound moving under the ground, kicking up dirt
+  function drawDig(q, dg) {
+    const w = 5 + Math.round(2 * Math.sin(time * 9 + dg.id));
+    lctx.fillStyle = '#3a2a1a'; lctx.fillRect(q.x - (w >> 1) - 1, q.y - 2, w + 2, 2);
+    lctx.fillStyle = '#7a5a3a'; lctx.fillRect(q.x - (w >> 1), q.y - 3, w, 2);
+    lctx.fillStyle = '#a8845a'; lctx.fillRect(q.x - 1, q.y - 4, 2, 1);
+    if (Math.random() < 0.3) part(q.x + rand(-3, 3), q.y - 3, pick(['#7a5a3a', '#a8845a', '#5a3a22']), { vx: rand(-14, 14), vy: rand(-30, -10), grav: 90, life: 0.35 });
   }
   // Spitters' globs, arcing from the spitter to the Button
   function drawShotsInFlight() {
@@ -1824,7 +1844,7 @@
   // 3.0: where a dangerous pack comes in: a pulsing arrow at the edge of the view, with what it is
   const incoming = [];
   G.on('packIn', (a, k) => { if (incoming.length < 6 && !G.R.town) incoming.push({ a, k, t: 2.2 }); });
-  const IN_COL = { rare: '#ffd84a', magic: '#5a8aff', warded: '#7ab8ff', charger: '#ff7a2e', healer: '#8ae07a', summoner: '#c88aff' };
+  const IN_COL = { rare: '#ffd84a', magic: '#5a8aff', warded: '#7ab8ff', charger: '#ff7a2e', healer: '#8ae07a', summoner: '#c88aff', leaper: '#b6ff5a', gnat: '#ffe27a', blob: '#5ae8ff', mole: '#c8a070', shieldwall: '#9ad8ff' };
   function drawIncoming(dt) {
     for (let i = incoming.length - 1; i >= 0; i--) {
       const n = incoming[i];
@@ -1988,6 +2008,14 @@
       kindAt = at + 3600;
       setTimeout(() => { const A = G.ARCHETYPES[k], R_ = G.REALMS[G.realmIndex(G.S.depth)]; cardText(10, G.t('newKind', (R_.mobs && R_.mobs[k]) || A.name), '#b6ff5a', 4, { life: 3.4, vy: -3 }); cardText(18, A.desc, '#e8f8d0', 3, { life: 3.4, vy: -3 }); }, at - now);
     });
+    // 3.4 (js/mobs2.js): the new kinds show what they're doing
+    G.on('leapCrouch', m => { const q = mobPos(m); text(q.x, q.y - 14, '!', '#b6ff5a', 5, { life: 0.6, max: 0.6, vy: -10 }); });
+    G.on('mobLeap', m => { const q = mobPos(m); burst(q.x, q.y, ['#c8b89a', '#8a7a60'], 6, 35, { grav: 60, life: 0.35 }); });
+    G.on('leapLand', m => { const q = mobPos(m); ring(q.x, q.y - 1, 10, 5, '#c8b89a', 0.35); burst(q.x, q.y, ['#c8b89a', '#8a7a60'], 8, 45, { grav: 80, life: 0.35 }); });
+    G.on('wallBlock', m => { const q = mobPos(m); mobVisOf(m).hit = 0; burst(q.x + 2, q.y - 8, ['#ffffff', '#9ad8ff'], 3, 40, { life: 0.2 }); if (Math.random() < 0.25) text(q.x, q.y - 16, G.t('wallBlock'), '#9ad8ff', 3, { life: 0.5, max: 0.5, vy: -14 }); });
+    G.on('wallShieldBreak', m => { const q = mobPos(m); burst(q.x + 2, q.y - 8, ['#9ad8ff', '#ffffff', '#4f8ad0'], 10, 60, { grav: 60, life: 0.45 }); });
+    G.on('blobSplit', (m, kids) => { const q = mobPos(m); burst(q.x, q.y - 4, ['#5ae8ff', '#ffffff'], 8, 45, { grav: 50, life: 0.4 }); });
+    G.on('molePop', m => { const q = mobPos(m); burst(q.x, q.y - 2, ['#7a5a3a', '#a8845a', '#5a3a22'], 14, 55, { grav: 110, life: 0.5 }); ring(q.x, q.y - 1, 12, 6, '#a8845a', 0.35); });
     G.on('spores', m => { const q = mobPos(m); burst(q.x, q.y - 5, ['#c84ae8', '#ff7ab0', '#f4ecd8'], 10, 40, { grav: -10, life: 0.8 }); });
     G.on('thorns', m => { const q = mobPos(m); burst(q.x, q.y - 6, ['#b36bff', '#ffffff'], 6, 50, { life: 0.3 }); });
     G.on('headhunter', m => { const hp = heroPos(); text(hp.x, hp.y - 34, G.t('headhunter'), '#e8903a', 4, { life: 1.6, max: 1.6, vy: -12 }); ring(hp.x, hp.y - 4, 30, 15, '#e8903a', 0.5); });
@@ -2420,6 +2448,11 @@
       // still walking in from past the edge
       if (q.x < -12 || q.x > W + 12 || q.y < -4 || q.y > H + 20) continue;
       list.push({ y: q.y, draw: () => drawMob(m, q, mrealm) });
+    }
+    if (G.mobs2) for (const dg of G.mobs2.digs()) {
+      const q = mobPos({ id: 0, a: dg.a, p: dg.p });
+      if (q.x < -12 || q.x > W + 12 || q.y < -4 || q.y > H + 20) continue;
+      list.push({ y: q.y, draw: () => drawDig(q, dg) });
     }
     if (G.S.hero && G.S.hero.cls) { const hp = heroPos(); list.push({ y: hp.y, draw: () => drawHero(hp) }); }
     // companions, each at their place
