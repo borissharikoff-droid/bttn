@@ -5219,8 +5219,12 @@ body.lowfx .tw.inR, body.lowfx .tw.inL, body.lowfx .blessCard, body.lowfx .teamC
     A('boss_500', 'Scourge of the Realm', 'Defeat 500 bosses', S => S.st.bossKills >= 500),
 
     A('pet_1', 'Friend Forever', 'Get a pet', S => Object.keys(S.pets).length >= 1),
-    A('pets_all', "They're So Cute!", 'Collect every pet', S => G.PETS.every(p => S.pets[p.id])),
-    A('pets_gold', 'At Last, All of Them', 'Collect every golden pet', S => G.PETS.every(p => S.pets[p.id] && S.pets[p.id].gold)),
+    A('pets_all', "They're So Cute!", 'Collect every pet', S => G.PETS.filter(p => !p.mythic).every(p => S.pets[p.id])),
+    A('pets_gold', 'At Last, All of Them', 'Collect every golden pet', S => G.PETS.filter(p => !p.mythic).every(p => S.pets[p.id] && S.pets[p.id].gold)),
+    // 3.5: the rare surprises (js/rare.js)
+    A('rare_first', 'Once in a Blue Moon', 'See a rare surprise', S => Object.keys((S.st && S.st.rare) || {}).length > 0),
+    A('rare_all', 'Seen It All', 'See every rare surprise', S => (G.RARE_LOG || []).length > 0 && G.RARE_LOG.every(e => ((S.st && S.st.rare) || {})[e.id])),
+    A('mythic_pet', 'Mythical', 'Hatch a mythic pet', S => (G.MYTHIC_PETS || []).some(p => S.pets[p.id])),
     A('pet_max', 'Best Buddy', 'Get a pet to level 25', S => Object.values(S.pets).some(p => p.lvl >= 25)),
 
     A('combo_100', 'Rhythm Machine', 'Reach a 100 combo', S => S.st.maxCombo >= 100),
@@ -8403,6 +8407,933 @@ body.lowfx .tw.inR, body.lowfx .tw.inL, body.lowfx .blessCard, body.lowfx .teamC
     if (!G.S || !G.S.hero || !G.S.hero.cls || R.town) return null;
     return cast(DEFS[kind] ? kind : pickKind(), 'force');
   };
+})(globalThis.G = globalThis.G || {});
+
+/* js/rare.js */
+// BTTN 3.5 — rare: once-in-a-blue-moon surprises. Every few hours of play something happens that
+// most players will only see a handful of times, each with a loud reveal and a codex entry:
+//
+//   merchant  THE LUCKY MERCHANT  a cloaked trader walks onto the field; tap him for a 30 s shop of
+//                                 great deals (a sure top-rarity item, orbs, a shimmering egg, a spin
+//                                 bundle, a Midas draught, now and then a unique or a treasure map).
+//   land      A SECRET LAND       about one march in 300 leads into a bonus zone for 75 s (the Gilded
+//                                 Vault, Candy Hollow or the Upside Land): treasure goblins, a chest
+//                                 rain, gold geysers, a soft and golden Horde; then the party marches back.
+//   pet       A MYTHIC PET        three tier-4 pets (G.PETS, tier 4 'Mythic'): one hatch in 5000, or from
+//                                 the merchant's egg, a secret land, a wish, or the Button of Legends.
+//   fever     FREE-SPIN FEVER     one Lucky Spin in 500 (one triple in 100) sets off 7 free spins on the
+//                                 bonus reel: no misses, rising multipliers (x2 ... x10), a sure triple last.
+//   horde     THE GOLDEN HORDE    one Stampede in 20 turns golden: the Horde pours in from every side
+//                                 and every kill pays eight times the gold.
+//   well      THE WISHING WELL    a well by the Button: toss a coin, pick one of three wishes.
+//   gambler   THE GHOSTLY GAMBLER a ghost stakes its own gold: double or nothing, up to five times.
+//   star      A SHOOTING STAR     streaks over the field for a few seconds: tap it for a wish.
+//   king      THE GOBLIN KING     a huge treasure goblin that spills coins as it bleeds and flees in 24 s.
+//   legend    THE BUTTON OF LEGENDS  one click in a million.
+//
+// Never in the tutorial, in town, in a Rift, during a boss, a cinematic or a march; one at a time,
+// at least TUNE.rareGap seconds of play apart. All rolls go through G.rng. DOM-free like hero.js (it
+// runs in the Node playtests); the show is js/rare_fx.js.
+//
+// Saved: S.st.rare {kind: count}, S.st.rareSeen {kind: play time first seen}, S.st.rareP (pity clocks),
+// S.st.rareMap (a treasure map in hand), S.st.rareLog (the last 30 moments), S.st.rareLuckT.
+// Runtime: R.rare. Events: 'rare' (kind, obj) for every reveal, plus rareSpawn, rareGone, rareShop,
+// rareBuy, rareLandStart, rareLandEnd, rareGeyser, rareFever, rareFeverSpin, rareFeverEnd, rareWish,
+// rareFlip, rareKingCoins, rareKingKill, rareKingEscape, rarePet, rareSeen.
+(function (G) {
+  'use strict';
+  if (!G.hook || !G.makeMob || !G.TUNE || !G.R) return; // needs hero.js
+  const { emit, clamp } = G;
+  const R = G.R, TUNE = G.TUNE;
+  const rng = () => G.rng();
+  const chance = p => rng() < p;
+  const rand = (a, b) => a + rng() * (b - a);
+  const randInt = (a, b) => Math.floor(a + rng() * (b - a + 1));
+  const pickOf = arr => arr[Math.floor(rng() * arr.length)];
+  const S_ = () => G.S;
+
+  Object.assign(TUNE, {
+    rareOn: 1,
+    rareFrom: 300,            // nothing rare in a save's first five minutes of play
+    rareRoll: 10,             // the field surprises roll once every this many seconds of unblocked play (owed rolls wait for a quiet field)...
+    rareGap: 240,             // ...and never closer than this to the last one
+    // per roll; each climbs with the hours since its last (x(1 + pity x hours)) and is sure after `hard` s
+    rareMerchant: 0.0007, rareMerchantPity: 0.8, rareMerchantHard: 4 * 3600,
+    rareWell: 0.0003, rareGambler: 0.0004, rareStar: 0.0005, rareKing: 0.0004, rarePity: 0.5, rareHard: 12 * 3600,
+    rareMerchantWait: 24,     // he waits this long to be tapped, then walks off
+    rareShopTime: 30,         // the shop stays open this long (real seconds in the browser)
+    rareLand: 1 / 300,        // per march to a new zone; doubles after rareLandSoft marches without, sure at rareLandHard...
+    rareLandSoft: 300, rareLandHard: 900, rareLandT: 75, rareLandFrom: 3,
+    rareLandGap: 2 * 3600,    // ...but never within this much play of the last one (a treasure map ignores it)
+    rareHorde: 1 / 20,        // per Stampede
+    rareHordeGold: 8,
+    rareFever: 0.002, rareFeverTriple: 0.01, rareFeverN: 7, // per Lucky Spin (a triple: per triple)...
+    rareFeverGap: 1800,       // ...and not within half an hour of play of the last fever from a spin
+    rarePet: 1 / 5000,        // per egg hatched...
+    rarePetGap: 6 * 3600,     // ...and not within six hours of play of the last one (late-game hatcheries open thousands)
+    rareLegend: 1e-6,         // per click of the Hand (no luck counts here)
+    rareLuckMax: 3,
+    rareStarT: 5.5, rareWellT: 26, rareGamblerT: 22, rareKingT: 24,
+  });
+
+  // ---------- Strings (the UI may translate them; these are the fallbacks) ----------
+  if (G.STR) {
+    const s = G.STR, put = (k, v) => { if (!s[k]) s[k] = v; };
+    put('rareTag', 'ONCE IN A BLUE MOON');
+    put('rareFirst', 'FIRST SIGHTING');
+    put('rareCodex', 'Rare sightings');
+    put('feedRare', '{0}');
+  }
+
+  // ---------- The codex ----------
+  G.RARE_LOG = [
+    { id: 'merchant', feed: 'met the Lucky Merchant', name: 'The Lucky Merchant', col: '#ffd84a', icon: 'ic_coin', odds: 'about once in 1–3 hours', desc: 'A cloaked trader with a pack full of bargains. Tap him before he leaves.' },
+    { id: 'land', feed: 'found a SECRET LAND', name: 'A Secret Land', col: '#ff8ad8', icon: 'ic_star', odds: 'about 1 march in 300', desc: 'A wrong turn into a land of treasure: the Gilded Vault, Candy Hollow or the Upside Land.' },
+    { id: 'pet', feed: 'hatched a MYTHIC pet', name: 'A Mythic Pet', col: '#ff5fd2', icon: 'ic_egg', odds: '1 hatch in 5000', desc: 'Three pets above Divine. Eggs, wishes and secret lands may hold one.' },
+    { id: 'fever', name: 'Free-Spin Fever', col: '#ff3b5c', icon: 'cs_seven', odds: '1 Lucky Spin in 500 (a triple: 1 in 100)', desc: 'Seven free spins on the bonus reel: no misses, rising multipliers.' },
+    { id: 'horde', name: 'The Golden Horde', col: '#ffd84a', icon: 'ev_stampede', odds: '1 Stampede in 20', desc: 'The Stampede turns to gold: every kill pays eight times.' },
+    { id: 'well', name: 'The Wishing Well', col: '#7fe9ff', icon: 'ic_star', odds: 'once in a blue moon (more on a full one)', desc: 'Toss a coin and make one of three wishes.' },
+    { id: 'gambler', name: 'The Ghostly Gambler', col: '#c8d6ff', icon: 'ic_coin', odds: 'every few hours', desc: 'A ghost stakes its own gold. Double or nothing?' },
+    { id: 'star', name: 'A Shooting Star', col: '#fff3a0', icon: 'ic_star', odds: 'every few hours', desc: 'Tap it before it is gone and make a wish.' },
+    { id: 'king', feed: 'met the Goblin King', name: 'The Goblin King', col: '#8ae07a', icon: 'ic_crown', odds: 'every few hours', desc: 'A giant treasure goblin that bleeds coins. Catch him!' },
+    { id: 'legend', feed: 'pressed the BUTTON OF LEGENDS', name: 'The Button of Legends', col: '#ffffff', icon: 'ic_jackpot', odds: '1 click in a million', desc: 'Nobody knows what happens. Nobody has pressed it right.' },
+  ];
+  const LOG_BY_ID = {}; G.RARE_LOG.forEach(e => { LOG_BY_ID[e.id] = e; });
+
+  // ---------- Saved bits ----------
+  function st() { const s = S_().st; if (!s.rare || typeof s.rare !== 'object') s.rare = {}; return s.rare; }
+  function seenOf() { const s = S_().st; if (!s.rareSeen || typeof s.rareSeen !== 'object') s.rareSeen = {}; return s.rareSeen; }
+  function pity() { const s = S_().st; if (!s.rareP || typeof s.rareP !== 'object') s.rareP = { field: 0, land: 0 }; return s.rareP; }
+  function record(kind, sub) {
+    const S = S_(), n = st(), seen = seenOf(), first = !seen[kind];
+    n[kind] = (n[kind] || 0) + 1;
+    if (first) seen[kind] = Math.round(S.st.playTime || 0);
+    if (sub) { const k = kind + ':' + sub; n[k] = (n[k] || 0) + 1; if (!seen[k]) seen[k] = Math.round(S.st.playTime || 0); }
+    if (!Array.isArray(S.st.rareLog)) S.st.rareLog = [];
+    S.st.rareLog.push({ k: kind, s: sub || null, t: Math.round(S.st.playTime || 0), d: S.depth || 0 });
+    if (S.st.rareLog.length > 30) S.st.rareLog.splice(0, S.st.rareLog.length - 30);
+    // the rarest ones go on the friends' feed
+    const L = LOG_BY_ID[kind];
+    if (G.feed && L && L.feed) { try { G.feed('rare', L.feed); } catch (e) { /* the feed is optional */ } }
+    emit('rareSeen', kind, first, sub);
+    return first;
+  }
+  G.rareCodex = () => {
+    const n = S_().st.rare || {}, seen = S_().st.rareSeen || {};
+    return G.RARE_LOG.map(e => Object.assign({}, e, { n: n[e.id] || 0, first: seen[e.id] != null ? seen[e.id] : null }));
+  };
+
+  // ---------- Runtime ----------
+  function fresh() { return { S: G.S, acc: 0, cur: null, land: null, fever: null, gild: null, midas: 0, uid: 0, own: false, pull: false }; }
+  const RR = () => { if (!R.rare || R.rare.S !== G.S) R.rare = fresh(); return R.rare; };
+  RR();
+  G.rareState = RR;
+  const inc = () => Math.max(1, G.casinoIncome ? G.casinoIncome() : (G.D.incomeRef || 1));
+  // gold from a surprise: kept out of the casino's estimate of what the purse takes in (G.casinoIncome),
+  // which every payout here is measured in, so a gold geyser can't feed the next one
+  function addG(g) { if (!(g > 0)) return; if (G.casino) G.casino().own += g; G.addGold(g, 'rare'); }
+  // the odds of the surprises: a Clover Sprite or Golden Buttonling (G.D.rareLuck, up to x2) and a wish of Luck (x2 for an
+  // hour), never more than TUNE.rareLuckMax in all
+  const luck = () => Math.min(TUNE.rareLuckMax, Math.min(2, G.D.rareLuck || 1) * ((S_().st.rareLuckT || 0) > (S_().st.playTime || 0) ? 2 : 1));
+
+  // What keeps every surprise away: no Warden, the tutorial, town, a cinematic, a Rift, a window open
+  function blocked() {
+    const S = S_();
+    if (!TUNE.rareOn || !S || !S.hero || !S.hero.cls) return 'hero';
+    if (G.Tut && S.tut >= 0) return 'tut';
+    if (R.town) return 'town';
+    if (R.cine > 0) return 'cine';
+    if (R.rift) return 'rift';
+    if (G.uiBusy && G.uiBusy()) return 'ui';
+    return null;
+  }
+  G.rareBlocked = blocked;
+  // ...and what keeps a surprise from walking onto the field: a boss, a march, an invasion, a Land Champion,
+  // a sudden event, another surprise (a boss that is only waiting to come waits a little longer: see the tick)
+  function fieldOk() {
+    const r = RR(), S = S_();
+    return !blocked() && !R.boss && !R.march && !R.inv && !R.champ && !R.ev && !r.cur && !r.land
+      && (S.st.playTime || 0) >= TUNE.rareFrom;
+  }
+  G.rareFieldOk = fieldOk;
+
+  // ---------- The rolls ----------
+  // the field surprises: [kind, base odds, pity per hour, sure after]
+  const FIELD = () => [
+    ['merchant', TUNE.rareMerchant, TUNE.rareMerchantPity, TUNE.rareMerchantHard],
+    ['star', TUNE.rareStar, TUNE.rarePity, TUNE.rareHard],
+    ['king', TUNE.rareKing, TUNE.rarePity, TUNE.rareHard],
+    ['gambler', TUNE.rareGambler, TUNE.rarePity, TUNE.rareHard],
+    ['well', TUNE.rareWell * moonK(), TUNE.rarePity, TUNE.rareHard],
+  ];
+  // the Wishing Well comes three times as often on the nights round a full moon (a real one)
+  function moonK() {
+    if (typeof Date === 'undefined') return 1;
+    const days = (Date.now() / 864e5 - 10957.5 + 3.1) % 29.530588; // days since a new moon (2000-01-06)
+    return Math.abs(days - 14.77) < 1.2 ? 3 : 1;
+  }
+  G.rareMoon = () => moonK() > 1;
+  // the clocks (and the rolls owed) run through all of play that isn't blocked, boss fights and marches too;
+  // the rolls themselves wait for a quiet field, so a fast player who is always fighting meets them as often
+  function clockField(dt) {
+    const r = RR(), P = pity();
+    P.field = (P.field || 0) + dt;
+    for (const [k] of FIELD()) P[k] = (P[k] || 0) + dt;
+    r.acc = Math.min(r.acc + dt, TUNE.rareRoll * 90);
+  }
+  function rollField() {
+    const r = RR(), P = pity();
+    while (r.acc >= TUNE.rareRoll) {
+      r.acc -= TUNE.rareRoll;
+      if (P.field < TUNE.rareGap) { r.acc = 0; return; }
+      const L = luck();
+      for (const [k, base, pk, hard] of FIELD()) {
+        const p = base * L * (1 + pk * (P[k] || 0) / 3600);
+        if ((P[k] || 0) >= hard || chance(p)) { r.acc = 0; spawnField(k); return; }
+      }
+    }
+  }
+  function spawnField(k, force) {
+    const r = RR(), P = pity();
+    if (r.cur) clearCur('force');
+    P.field = 0; P[k] = 0;
+    if (k === 'merchant') return spawnMerchant();
+    if (k === 'star') return spawnStar();
+    if (k === 'king') return spawnKing();
+    if (k === 'gambler') return spawnGambler();
+    if (k === 'well') return spawnWell();
+    return null;
+  }
+
+  // ---------- Shared bits ----------
+  const at = (o, dp) => ({ id: -77, a: o.a, p: clamp(o.p + (dp || 0), 0.05, 1) });
+  // where a visitor stands: off to the left or the right of the Button, level with it (a is the angle round the Button:
+  // 0 and 1 are the top corners under the HUD, 0.5 the bottom, where the slot machine and the level-up cards sit)
+  const sideA = () => (chance(0.5) ? rand(0.12, 0.22) : rand(0.78, 0.88));
+  function clearCur(why) {
+    const r = RR(), c = r.cur;
+    if (!c) return;
+    if (c.m) removeMob(c.m);
+    r.cur = null;
+    c.why = why;
+    emit('rareGone', c, why);
+  }
+  function removeMob(m) {
+    const i = R.mobs.indexOf(m);
+    if (i >= 0) { R.mobs.splice(i, 1); m.dead = true; m.gone = true; emit('mobFlee', m); }
+    if (R.focus === m.id) R.focus = null;
+  }
+  function uniqueAny() {
+    const S = S_(), d = G.depthNow ? G.depthNow() : S.depth;
+    const ok = (G.UNIQUE_IDS || []).filter(q => { const U = G.UNIQUES[q]; return U && U.minD <= d && !U.boss; });
+    if (!ok.length) return null;
+    const fresh = ok.filter(q => !S.uq[q]), from = fresh.length && chance(0.6) ? fresh : ok;
+    return pickOf(from);
+  }
+  function orbs(list, o) {
+    if (!G.dropItem) return;
+    list.forEach((k, i) => { if (!G.ORBS || G.ORBS[k]) G.dropItem('orb', k, o && o.m || null, Object.assign({ src: 'rare', wait: 0.2 + i * 0.1, spread: 0.06 }, o || {})); });
+  }
+  function rainChests(n, bump) {
+    let got = 0;
+    for (let i = 0; i < n; i++) {
+      R.rain = 1;
+      const c = G.spawnChest(Math.max(1, Math.min(G.rarityCap(), G.rollTier() + (bump || 0))));
+      R.rain = 0;
+      if (c) got++;
+    }
+    return got;
+  }
+
+  // ================= THE LUCKY MERCHANT =================
+  // His wares. price: [currency, amount]; secs: gold in seconds of income; sh: shards as gamble costs
+  const WARES = {
+    gear:  { name: 'Sealed Masterwork', icon: 'ic_sword', col: '#ff9a3a', cur: 'shards', sh: 2.5, desc: () => 'A sure ' + rarName(G.rarityCap()) + ' item' },
+    orbs:  { name: 'Orb Satchel', icon: 'orb_ascent', col: '#7fe9ff', cur: 'gold', secs: 120, desc: () => '4 Orbs of Ascent + 1 Orb of Grace' },
+    egg:   { name: 'Shimmering Egg', icon: 'ic_egg', col: '#ff5fd2', cur: 'gold', secs: 200, desc: () => 'Hatches Legendary or better · 1 in 10 Mythic' },
+    spins: { name: 'Spin Bundle', icon: 'cs_seven', col: '#ff3b5c', cur: 'gold', secs: 80, desc: () => '5 free spins on the bonus reel' },
+    midas: { name: 'Midas Draught', icon: 'ic_coin', col: '#ffd84a', cur: 'gold', secs: 40, desc: () => 'All gold ×3 for 60 s' },
+    eggs:  { name: 'Nest of Eggs', icon: 'ic_egg', col: '#f1ece0', cur: 'shards', sh: 0.8, desc: () => '3 eggs' },
+    uq:    { name: 'Curio of Legend', icon: 'ic_crown', col: '#e8903a', cur: 'shards', sh: 5, rare: 1, desc: () => 'A unique item' },
+    map:   { name: 'Treasure Map', icon: 'ic_scroll', col: '#ff8ad8', cur: 'gold', secs: 300, rare: 1, desc: () => 'Your next march finds a secret land' },
+  };
+  G.RARE_WARES = WARES;
+  const rarName = r => (G.RARITIES && G.RARITIES[r] ? G.RARITIES[r].name : 'rare');
+  function gambleUnit() { return Math.max(10, G.gambleCost ? G.gambleCost() : 30); }
+  function makeOffers() {
+    const pool = ['orbs', 'egg', 'spins', 'midas', 'eggs'];
+    const out = ['gear'];
+    if (chance(0.3)) out.push(chance(0.5) ? 'uq' : 'map');
+    while (out.length < 4 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    return out.map(k => {
+      const W = WARES[k];
+      const price = W.cur === 'gold' ? Math.ceil(inc() * W.secs) : Math.ceil(gambleUnit() * W.sh);
+      return { k, cur: W.cur, price, was: Math.ceil(price * (3 + Math.floor(rng() * 3))), sold: false, desc: W.desc() };
+    });
+  }
+  function spawnMerchant() {
+    const r = RR();
+    const c = r.cur = { k: 'merchant', id: ++r.uid, a: sideA(), p: -0.06, to: rand(0.42, 0.52), st: 'in', t: 0,
+      wait: TUNE.rareMerchantWait, shopT: 0, offers: makeOffers(), bought: 0, S: G.S };
+    record('merchant');
+    emit('rareSpawn', c);
+    emit('rare', 'merchant', c);
+    return c;
+  }
+  function tickMerchant(c, dt) {
+    c.t += dt;
+    if (c.st === 'in') { c.p = Math.min(c.to, c.p + dt * 0.16); if (c.p >= c.to) c.st = 'wait'; }
+    else if (c.st === 'wait') { if ((c.wait -= dt) <= 0) { c.st = 'out'; emit('rareLeave', c, 'ignored'); } }
+    else if (c.st === 'shop') { if ((c.shopT -= dt) <= 0) closeShop(); }
+    else if (c.st === 'out') { c.p -= dt * 0.2; if (c.p <= -0.08) clearCur(c.bought ? 'done' : 'left'); }
+  }
+  // tap him: the shop opens
+  function openShop() {
+    const c = RR().cur;
+    if (!c || c.k !== 'merchant' || (c.st !== 'wait' && c.st !== 'in')) return null;
+    c.st = 'shop'; c.shopT = TUNE.rareShopTime;
+    // (prices follow what the purse takes in right now)
+    for (const o of c.offers) if (!o.sold && o.cur === 'gold') { const W = WARES[o.k]; o.price = Math.ceil(inc() * W.secs); o.was = Math.max(o.was, o.price * 3); }
+    emit('rareShop', c);
+    return c;
+  }
+  function closeShop() {
+    const c = RR().cur;
+    if (!c || c.k !== 'merchant' || c.st !== 'shop') return false;
+    c.st = 'out';
+    emit('rareShopClose', c);
+    emit('rareLeave', c, c.bought ? 'thanks' : 'shrug');
+    return true;
+  }
+  G.rareShopClose = closeShop;
+  G.rareCanBuy = function (i) {
+    const c = RR().cur, S = S_();
+    if (!c || c.k !== 'merchant' || c.st !== 'shop') return false;
+    const o = c.offers[i];
+    if (!o || o.sold) return false;
+    return o.cur === 'gold' ? S.gold >= o.price : (S.hero.shards || 0) >= o.price;
+  };
+  G.rareBuy = function (i) {
+    const c = RR().cur, S = S_();
+    if (!G.rareCanBuy(i)) return null;
+    const o = c.offers[i];
+    if (o.cur === 'gold') S.gold -= o.price; else S.hero.shards -= o.price;
+    o.sold = true; c.bought++;
+    const got = giveWare(o.k, c);
+    S.st.rareBuys = (S.st.rareBuys || 0) + 1;
+    G.dirty();
+    emit('rareBuy', c, o, got);
+    return got;
+  };
+  function giveWare(k, c) {
+    const S = S_(), spot = at(c, 0.08);
+    if (k === 'gear') {
+      const it = G.pickItem(G.rarityCap());
+      if (G.dropItem) G.dropItem('gear', it, spot, { src: 'merchant', spread: 0.03 });
+      else G.lootItem(it, 'merchant');
+      return { gear: it.r, name: it.name };
+    }
+    if (k === 'orbs') { orbs(['ascent', 'ascent', 'ascent', 'ascent', 'grace'], { m: spot }); return { orbs: 5 }; }
+    if (k === 'egg') { const res = hatch(2, 0.1, 'merchant'); return { pet: res && res.pet.id, mythic: res && res.pet.tier === 4 }; }
+    if (k === 'spins') { startFever(5, 'merchant'); return { spins: 5 }; }
+    if (k === 'midas') { RR().midas = Math.max(RR().midas, 60); G.dirty(); emit('rareMidas', 60); return { midas: 60 }; }
+    if (k === 'eggs') { const n = G.addEggs ? G.addEggs(3) : 0; return { eggs: n }; }
+    if (k === 'uq') { const q = uniqueAny(); if (q && G.dropItem) G.dropItem('uq', q, spot, { src: 'merchant' }); return { uq: q }; }
+    if (k === 'map') { S.st.rareMap = 1; return { map: 1 }; }
+    return {};
+  }
+
+  // ================= A SECRET LAND =================
+  const LANDS = G.RARE_LANDS = {
+    vault:  { name: 'The Gilded Vault', sub: 'Everything here is made of gold', col: '#ffd84a', gold: 10, click: 4, chest: 3, geyser: 8 },
+    candy:  { name: 'Candy Hollow', sub: 'Sweet, sticky and full of eggs', col: '#ff8ad8', gold: 6, click: 3, chest: 4, geyser: 5, eggs: 1 },
+    upside: { name: 'The Upside Land', sub: 'Down is up, and loot rains upward', col: '#7fe9ff', gold: 6, click: 3, chest: 3, geyser: 5, gear: 1 },
+  };
+  G.on('marchStart', () => {
+    const r = RR(), S = S_();
+    if (r.own || r.land) return;
+    if (blocked() || (S.bestDepth || 0) < TUNE.rareLandFrom || (S.st.playTime || 0) < TUNE.rareFrom) return;
+    const P = pity(), now = S.st.playTime || 0;
+    if (!S.st.rareMap && S.st.rareLandAt != null && now - S.st.rareLandAt < TUNE.rareLandGap) return;
+    P.land = (P.land || 0) + 1;
+    const p = TUNE.rareLand * luck() * (P.land >= TUNE.rareLandSoft ? 2 : 1);
+    if (S.st.rareMap || P.land >= TUNE.rareLandHard || chance(p)) {
+      const map = !!S.st.rareMap;
+      S.st.rareMap = 0;
+      startLand(null, map);
+    }
+  });
+  function startLand(k, map) {
+    const r = RR(), P = pity();
+    if (r.land) return r.land;
+    if (r.cur) clearCur('land');
+    k = k && LANDS[k] ? k : pickOf(Object.keys(LANDS));
+    P.land = 0;
+    G.S.st.rareLandAt = Math.round(G.S.st.playTime || 0);
+    const L = LANDS[k];
+    const land = r.land = { k, name: L.name, sub: L.sub, col: L.col, t: TUNE.rareLandT, T: TUNE.rareLandT, on: false, map: !!map,
+      gobT: 1, rainT: 0.4, geyT: 2, eggT: 6, gearT: 4, haul: { gold: 0, chests: 0, eggs: 0, drops: 0, goblins: 0 }, meter: G.S.bossMeter || 0, S: G.S };
+    record('land', k);
+    emit('rareLandStart', land);
+    emit('rare', 'land', land);
+    return land;
+  }
+  function tickLand(land, dt) {
+    const S = S_(), L = LANDS[land.k];
+    if (R.boss || R.rift) { endLand('boss'); return; }
+    // the way in: the march from the boss has to finish first
+    // (its geysers are measured against the purse as it was on the way in, not as the land's own gold swells it)
+    if (!land.on) { if (R.march) return; land.on = true; land.inc = inc(); emit('rareLandOn', land); }
+    // nothing else gets in: no boss calls, no sudden events, no champions
+    R.bossHold = Math.max(R.bossHold || 0, 1);
+    if (R.bossReady && R.bossIn != null) R.bossIn = Math.max(R.bossIn, 1);
+    if (R.evT != null && R.evT < 5) R.evT = 5;
+    R.chRetry = Math.max(R.chRetry || 0, 5);
+    land.t -= dt;
+    // treasure goblins, up to six at once
+    if ((land.gobT -= dt) <= 0) {
+      land.gobT = rand(1.4, 2.4);
+      const n = R.mobs.filter(m => m.rareGob).length;
+      if (n < 6 && R.mobs.length < TUNE.mobMax) {
+        const m = G.makeMob('hoard', rand(0.08, 0.92), rand(0.5, 0.7));
+        m.gob = 1; m.rareGob = 1; m.gild = 1; m.w = 0.4; m.hp = m.max = G.mobHp(G.depthNow()) * 2.5;
+        m.move = 'hoard'; m.life = rand(10, 16); m.dir = chance(0.5) ? 1 : -1; m.ph = rand(0, 6);
+        land.haul.goblins++;
+      }
+    }
+    // a rain of chests, a step better than the depth's own
+    if ((land.rainT -= dt) <= 0) { land.rainT = 0.55; land.haul.chests += rainChests(1, 1); }
+    // gold geysers by the Button
+    if ((land.geyT -= dt) <= 0) {
+      land.geyT = 3;
+      const g = (land.inc || inc()) * L.geyser;
+      addG(g); land.haul.gold += g;
+      emit('rareGeyser', g, land);
+    }
+    if (L.eggs && (land.eggT -= dt) <= 0) { land.eggT = 7; const n = G.addEggs ? G.addEggs(1) : 0; land.haul.eggs += n; if (n) emit('rareCandyEgg', land); }
+    if (L.gear && (land.gearT -= dt) <= 0 && G.lootShower) {
+      land.gearT = 5;
+      G.lootShower(null, 3, Math.min(G.rarityCap(), 2), 0, { at: { a: rand(0.2, 0.8), p: rand(0.55, 0.85) }, floorN: 1, src: 'rare', spread: 0.12 });
+      land.haul.drops += 3;
+    }
+    if (land.t <= 0) endLand('time');
+  }
+  function endLand(why) {
+    const r = RR(), land = r.land;
+    if (!land) return;
+    r.land = null;
+    // the land's last gift: a treasure trove where the party stood
+    if (why === 'time' && G.lootShower) {
+      const cap = G.rarityCap();
+      G.lootShower(null, 8, Math.min(cap, 3), 0.25, { at: { a: 0.5, p: 0.75 }, floorN: 3, src: 'rare', spread: 0.18, rolls: 2 });
+      orbs(['ascent', chance(0.4) ? 'grace' : 'ascent', 'flux'], { at: { a: 0.5, p: 0.75 } });
+      land.haul.drops += 11;
+      if (chance(0.05 * luck())) hatchMythic('land');
+    }
+    // the goblins that are left run home, and the clear bar is where the party left it (the land was a detour)
+    for (const m of R.mobs.slice()) if (m.rareGob) removeMob(m);
+    if (land.S === G.S && !R.boss) G.S.bossMeter = Math.min(G.S.bossMeter || 0, land.meter);
+    land.why = why;
+    emit('rareLandEnd', land, why);
+    // and the party marches back to where it was
+    if (why === 'time' && !R.rift && !R.boss) {
+      R.march = { t: TUNE.marchTime || 2.4, T: TUNE.marchTime || 2.4 };
+      r.own = true; emit('marchStart', R.march.T, false); r.own = false;
+    }
+  }
+  G.rareLandEnd = () => endLand('debug');
+  // every mob born in a secret land or a Golden Horde is made of gold
+  G.on('mobSpawn', m => { const r = R.rare; if (r && (r.land && r.land.on || r.gild)) m.gild = 1; });
+
+  // gold, chests and the Horde's health and bite, through the arena's multiplier (js/events.js, js/casino.js)
+  const baseEv = G.evMul || (() => 1);
+  G.evMul = k => {
+    let v = baseEv(k);
+    const r = R.rare;
+    if (!r) return v;
+    if (r.land && r.land.on) {
+      const L = LANDS[r.land.k];
+      if (k === 'gold') v *= L.gold; else if (k === 'click') v *= L.click; else if (k === 'chest') v *= L.chest;
+      else if (k === 'mobHp') v *= 0.6; else if (k === 'bite') v *= 0.3;
+    }
+    if (r.gild && k === 'gold') v *= TUNE.rareHordeGold;
+    if (r.midas > 0 && (k === 'gold' || k === 'click')) v *= 3;
+    return v;
+  };
+
+  // ================= FREE-SPIN FEVER =================
+  // the bonus reel: no misses, triples far likelier
+  const FEVER_ODDS = [
+    ['seven', 3, 0.02], ['coin', 3, 0.12], ['chest', 3, 0.08], ['gem', 3, 0.06], ['bolt', 3, 0.05], ['skull', 3, 0.05],
+    ['seven', 2, 0.12], ['coin', 2, 0.2], ['chest', 2, 0.12], ['gem', 2, 0.1], ['bolt', 2, 0.05], ['skull', 2, 0.03],
+  ];
+  const FEVER_LAST = [['seven', 0.15], ['coin', 0.35], ['chest', 0.25], ['gem', 0.25]];
+  const MULTS = [2, 2, 3, 3, 5, 5, 10];
+  function feverMult(f, i) { const off = Math.max(0, MULTS.length - f.n); return MULTS[Math.min(MULTS.length - 1, off + i)] * (f.n < MULTS.length && i === f.n - 1 ? 0.5 : 1); }
+  function feverRoll(f) {
+    if (f.left === 1) {
+      let x = rng(), s = 'coin';
+      for (const [k, p] of FEVER_LAST) { if (x < p) { s = k; break; } x -= p; }
+      return [s, 3];
+    }
+    let x = rng();
+    for (const [s, n, p] of FEVER_ODDS) { if (x < p) return [s, n]; x -= p; }
+    return ['coin', 2];
+  }
+  function startFever(n, src) {
+    const r = RR();
+    if (!G.spin || !G.casino) return null;
+    if (r.fever) { r.fever.n += n; r.fever.left += n; emit('rareFeverMore', r.fever, n); return r.fever; }
+    const f = r.fever = { n, left: n, i: 0, src, next: src === 'spin' ? 2.6 : 1.2, cur: null, tot: { gold: 0, chests: 0, orbs: 0, triples: 0, sevens: 0 }, saved: null, S: G.S };
+    record('fever', src);
+    emit('rareFever', f);
+    emit('rare', 'fever', f);
+    return f;
+  }
+  function tickFever(f, dt) {
+    const c = G.casino();
+    if (c.spin || !(G.casinoOn && G.casinoOn())) return;
+    if ((f.next -= dt) > 0) return;
+    if (f.left <= 0) { endFever(f); return; }
+    // a free pull: the machine is made ready, pulled on the bonus reel, and the player's own meter put back
+    const saved = { meter: c.meter, ready: c.ready };
+    f.saved = f.saved || {};
+    if (saved.ready) f.saved.ready = true;
+    c.ready = true; c.readyT = 0;
+    const mult = feverMult(f, f.i);
+    f.cur = { i: f.i + 1, n: f.n, mult };
+    const res = G.spin('free', { force: feverRoll(f) });
+    c.meter = saved.meter; c.ready = false;
+    if (!res) { c.ready = saved.ready; f.next = 1; return; }
+    res.fever = f.cur;
+    f.left--; f.i++;
+    f.next = 99; // until its result lands
+    emit('rareFeverSpin', f, res);
+  }
+  function feverBonus(f, res) {
+    const p = res.paid || {}, m = (res.fever && res.fever.mult) || 1, c = G.casino(), tot = f.tot;
+    const extra = { gold: 0, chests: 0, orbs: 0 };
+    if (m > 1) {
+      if (p.gold) { extra.gold = p.gold * (m - 1); c.own += extra.gold; G.addGold(extra.gold, 'casino'); }
+      const ch = Math.min(10, Math.round(((p.chests || 0) + (p.small || 0) * 0.25) * (m - 1)));
+      if (ch) extra.chests = rainChests(ch, 0);
+      if (p.orbs && p.orbs.length && G.dropItem) {
+        const n = Math.min(6, p.orbs.length * (m - 1));
+        for (let i = 0; i < n; i++) G.dropItem('orb', i === n - 1 && res.n === 3 ? 'grace' : chance(0.5) ? 'ascent' : 'flux', null, { at: { a: 0.5, p: 0.8 }, src: 'casino', wait: 0.3 + i * 0.1 });
+        extra.orbs = n;
+      }
+      if (p.xp && G.gainXp) G.gainXp(p.xp * (m - 1) * 0.5);
+      if (p.boost && G.casinoBoost) G.casinoBoost(p.boost, 2, 6 * m);
+    }
+    tot.gold += (p.gold || 0) + extra.gold; tot.chests += (p.chests || 0) + extra.chests; tot.orbs += (p.orbs ? p.orbs.length : 0) + extra.orbs;
+    if (res.n === 3) tot.triples++;
+    if (res.jackpot) tot.sevens++;
+    res.feverExtra = extra;
+    return extra;
+  }
+  function endFever(f) {
+    const r = RR();
+    if (r.fever !== f) return;
+    r.fever = null;
+    // a spin the player had waiting comes back
+    if (f.saved && f.saved.ready && G.addSpinMeter) G.addSpinMeter(1);
+    emit('rareFeverEnd', f);
+  }
+  G.on('spinResult', res => {
+    const r = RR(), f = r.fever;
+    if (res.how === 'free') {
+      if (f) { const ex = feverBonus(f, res); f.next = res.jackpot ? 4.6 : res.n === 3 ? 3 : 2.3; emit('rareFeverPaid', f, res, ex); }
+      return;
+    }
+    if (f || blocked()) return;
+    const S = S_(), now = S.st.playTime || 0;
+    if (S.st.rareFeverAt != null && now - S.st.rareFeverAt < TUNE.rareFeverGap) return;
+    if (chance((res.n === 3 ? TUNE.rareFeverTriple : TUNE.rareFever) * luck())) { S.st.rareFeverAt = Math.round(now); startFever(TUNE.rareFeverN, 'spin'); }
+  });
+  G.rareFever = () => RR().fever;
+
+  // ================= THE GOLDEN HORDE =================
+  G.on('evStart', (ev, e) => {
+    const r = RR();
+    if (!e || e.id !== 'stampede' || r.gild || blocked()) return;
+    if (r.forceHorde || chance(TUNE.rareHorde * luck())) { r.forceHorde = false; gild(ev); }
+  });
+  function gild(ev) {
+    const r = RR();
+    ev.t += 6; ev.T += 6;
+    const g = r.gild = { ev, acc: 0, t: ev.t, kills: 0, gold: 0, S: G.S };
+    for (const m of R.mobs) m.gild = 1;
+    record('horde');
+    emit('rare', 'horde', g);
+    return g;
+  }
+  G.on('evEnd', ev => {
+    const r = R.rare;
+    if (!r || !r.gild || r.gild.ev !== ev) return;
+    const g = r.gild; r.gild = null;
+    // and the herd leaves a pile of chests behind
+    g.chests = rainChests(6, 1);
+    emit('rareHordeEnd', g);
+  });
+  function tickGild(g, dt) {
+    if (R.ev !== g.ev) { RR().gild = null; emit('rareHordeEnd', g); return; }
+    // packs from every side, not one
+    g.acc += dt;
+    while (g.acc >= 0.45 && R.mobs.length < TUNE.mobMax) { g.acc -= 0.45; G.spawnPack(false, rng()); }
+    if (g.acc >= 0.45) g.acc = 0;
+  }
+
+  // ================= THE WISHING WELL =================
+  const WISHES = {
+    riches:  { name: 'Riches', desc: 'Ten minutes of gold, now', col: '#ffd84a', icon: 'ic_coin' },
+    fortune: { name: 'Fortune', desc: '2 Orbs of Grace and 2 of Ascent', col: '#7fe9ff', icon: 'orb_grace' },
+    kin:     { name: 'Kin', desc: 'A Shimmering Egg and 2 eggs', col: '#ff5fd2', icon: 'ic_egg' },
+    luck:    { name: 'Luck', desc: 'Rare surprises ×3 for an hour', col: '#8ae07a', icon: 'ic_star' },
+    glory:   { name: 'Glory', desc: 'A unique item', col: '#e8903a', icon: 'ic_crown' },
+  };
+  G.RARE_WISHES = WISHES;
+  function spawnWell() {
+    const r = RR();
+    const keys = Object.keys(WISHES), pick3 = [];
+    while (pick3.length < 3) { const k = keys.splice(Math.floor(rng() * keys.length), 1)[0]; pick3.push(k); }
+    const c = r.cur = { k: 'well', id: ++r.uid, a: sideA(), p: rand(0.5, 0.58), t: 0, T: TUNE.rareWellT, open: false, wishes: pick3, moon: moonK() > 1, S: G.S };
+    record('well');
+    emit('rareSpawn', c);
+    emit('rare', 'well', c);
+    return c;
+  }
+  function grantWish(k, src, spot) {
+    const S = S_(), got = { k };
+    spot = spot || { a: 0.5, p: 0.75 };
+    if (k === 'riches') { got.gold = inc() * 600; addG(got.gold); }
+    else if (k === 'fortune') { orbs(['ascent', 'grace', 'ascent', 'grace'], { at: spot }); got.orbs = 4; }
+    else if (k === 'kin') { const res = hatch(2, 0.1, src); got.pet = res && res.pet.id; got.mythic = !!(res && res.pet.tier === 4); got.eggs = G.addEggs ? G.addEggs(2) : 0; }
+    else if (k === 'luck') { S.st.rareLuckT = Math.max(S.st.rareLuckT || 0, S.st.playTime || 0) + 3600; got.luck = 3600; }
+    else if (k === 'glory') { const q = uniqueAny(); if (q && G.dropItem) G.dropItem('uq', q, null, { at: spot, src: 'rare' }); got.uq = q; }
+    else if (k === 'mythic') { const res = hatchMythic(src); got.pet = res && res.pet.id; got.mythic = true; }
+    else if (k === 'fever') { startFever(TUNE.rareFeverN, src); got.spins = TUNE.rareFeverN; }
+    else if (k === 'eggs') { got.eggs = G.addEggs ? G.addEggs(3) : 0; }
+    G.dirty();
+    return got;
+  }
+  G.rareWish = function (i) {
+    const c = RR().cur;
+    if (!c || c.k !== 'well' || !c.open || c.done) return null;
+    const k = c.wishes[i];
+    if (!k) return null;
+    c.done = true;
+    const got = grantWish(k, 'well', at(c, 0.05));
+    emit('rareWish', c, k, got);
+    c.t = Math.max(c.t, c.T - 1.5); // it sinks away
+    return got;
+  };
+
+  // ================= THE GHOSTLY GAMBLER =================
+  function spawnGambler() {
+    const r = RR();
+    const stake = Math.ceil(inc() * 60);
+    const c = r.cur = { k: 'gambler', id: ++r.uid, a: sideA(), p: rand(0.45, 0.55), t: 0, T: TUNE.rareGamblerT, open: false, stake, pot: stake, flips: 0, max: 5, done: false, S: G.S };
+    record('gambler');
+    emit('rareSpawn', c);
+    emit('rare', 'gambler', c);
+    return c;
+  }
+  G.rareFlip = function () {
+    const c = RR().cur;
+    if (!c || c.k !== 'gambler' || !c.open || c.done || c.flips >= c.max) return null;
+    c.flips++;
+    const win = chance(0.55);
+    c.last = win;
+    if (win) c.pot *= 2; else { c.lost = c.pot; c.pot = 0; c.done = true; c.t = Math.max(c.t, c.T - 3); }
+    S_().st.rareFlips = (S_().st.rareFlips || 0) + 1;
+    emit('rareFlip', c, win);
+    if (win && c.flips >= c.max) G.rareCash();
+    return { win, pot: c.pot, flips: c.flips };
+  };
+  G.rareCash = function () {
+    const c = RR().cur;
+    if (!c || c.k !== 'gambler' || !c.open || c.done) return null;
+    c.done = true; c.cashed = c.pot;
+    addG(c.pot);
+    const S = S_(); S.st.rareGhostBest = Math.max(S.st.rareGhostBest || 0, c.flips);
+    emit('rareCash', c, c.pot);
+    c.t = Math.max(c.t, c.T - 2.5);
+    return c.pot;
+  };
+
+  // walk away from the well or the ghost: the well sinks, the ghost hands over what is on the table
+  G.rareDismiss = function () {
+    const c = RR().cur;
+    if (!c || (c.k !== 'well' && c.k !== 'gambler')) return false;
+    if (c.k === 'gambler' && c.open && !c.done && c.pot > 0) G.rareCash();
+    c.open = false; c.done = true; c.t = Math.max(c.t, c.T - 1.2);
+    emit('rareDismiss', c);
+    return true;
+  };
+
+  // ================= A SHOOTING STAR =================
+  // what a wish on a star brings: [wish, weight]
+  const STAR_W = [['riches', 30], ['eggs', 22], ['fortune', 18], ['glory', 14], ['fever', 10], ['luck', 4], ['mythic', 2]];
+  function spawnStar() {
+    const r = RR();
+    const c = r.cur = { k: 'star', id: ++r.uid, t: 0, T: TUNE.rareStarT, dir: chance(0.5) ? 1 : -1, y: rand(0.28, 0.38), caught: false, S: G.S };
+    record('star');
+    emit('rareSpawn', c);
+    emit('rare', 'star', c);
+    return c;
+  }
+  function starWish() {
+    let tot = 0; for (const x of STAR_W) tot += x[1];
+    let v = rng() * tot;
+    for (const [k, w] of STAR_W) { v -= w; if (v < 0) return k; }
+    return 'riches';
+  }
+
+  // ================= THE GOBLIN KING =================
+  function spawnKing() {
+    const r = RR(), d = G.depthNow();
+    const m = G.makeMob('hoard', rand(0.15, 0.85), 0.5);
+    delete m.inv; delete m.br;
+    m.gob = 1; m.gk = 1; m.gild = 1; m.w = 3; m.move = 'gking'; m.life = TUNE.rareKingT; m.dir = chance(0.5) ? 1 : -1; m.ph = rand(0, 6);
+    m.a = sideA(); m.p = 0.3;
+    const eff = G.champEffDps ? G.champEffDps() : Math.max(1, G.D.heroDps || 1);
+    const mh = G.mobHp(d) * (G.torment ? G.torment().mobHp : 1);
+    m.hp = m.max = clamp(eff * 11, mh * 25, mh * 160);
+    if (!R.focus) R.focus = m.id;
+    const c = r.cur = { k: 'king', id: ++r.uid, m, a: m.a, p: m.p, t: 0, T: TUNE.rareKingT, lost: 0, coins: 0, gold: 0, drops: 0, S: G.S };
+    record('king');
+    emit('rareSpawn', c);
+    emit('rare', 'king', c);
+    return c;
+  }
+  // he runs round the upper field, just out of the Horde's way, and bolts for the edge when his time is up
+  const prevMove = G.moveMob;
+  G.moveMob = function (m, dt) {
+    if (m.move !== 'gking') return prevMove ? prevMove(m, dt) : undefined;
+    m.life -= dt; m.ph += dt * 1.6;
+    if (m.life > 1.5) {
+      m.a += m.dir * dt * 0.06;
+      if (m.a > 0.97 || m.a < 0.03) { m.dir = -m.dir; m.a = clamp(m.a, 0.03, 0.97); }
+      m.p += (0.4 + 0.1 * Math.sin(m.ph) - m.p) * Math.min(1, dt * 2);
+    } else m.p -= dt * 0.35;
+    if (m.life <= 0 || m.p < -0.06) {
+      m.dead = true; m.gone = true;
+      const i = R.mobs.indexOf(m); if (i >= 0) R.mobs.splice(i, 1);
+      if (R.focus === m.id) R.focus = null;
+      emit('mobFlee', m);
+    }
+  };
+  G.hook('hit', (m, dmg) => {
+    if (!m.gk) return;
+    const c = R.rare && R.rare.cur;
+    if (!c || c.m !== m || !(dmg > 0)) return;
+    // he bleeds coins: a purse for every 8% of his health, a piece of gear for every 25%
+    const before = c.lost;
+    c.lost = Math.min(1, c.lost + Math.min(dmg, Math.max(0, m.hp)) / m.max);
+    const n8 = Math.floor(c.lost / 0.08) - Math.floor(before / 0.08);
+    for (let i = 0; i < n8; i++) { const g = inc() * 4; addG(g); c.gold += g; c.coins++; emit('rareKingCoins', c, g); }
+    const n25 = Math.floor(c.lost / 0.25) - Math.floor(before / 0.25);
+    for (let i = 0; i < n25 && G.dropItem; i++) { G.dropItem('gear', G.pickItem(Math.min(G.rarityCap(), 2 + (chance(0.3) ? 1 : 0))), m, { src: 'rare', spread: 0.05 }); c.drops++; }
+  });
+  G.hook('kill', m => {
+    if (!m.gk) return;
+    const r = R.rare, c = r && r.cur;
+    if (!c || c.m !== m) return;
+    r.cur = null;
+    c.at = { a: m.a, p: m.p };
+    const cap = G.rarityCap();
+    if (G.lootShower) G.lootShower(m, 12, Math.min(cap, 3), 0.35, { floorN: 4, spread: 0.12, src: 'rare', rolls: 2 });
+    orbs(['ascent', 'ascent', chance(0.5) ? 'grace' : 'ruin'], { m });
+    const ch = rainChests(5, 1);
+    const g = inc() * 120; addG(g); c.gold += g;
+    S_().st.rareKings = (S_().st.rareKings || 0) + 1;
+    c.rew = { drops: 12 + c.drops, chests: ch, gold: c.gold };
+    emit('rareKingKill', c, c.rew);
+  });
+
+  // ================= MYTHIC PETS =================
+  if (G.PET_TIERS && !G.PET_TIERS[4]) G.PET_TIERS[4] = { name: 'Mythic', color: '#ff5fd2', rate: 0 };
+  const MYTHIC = G.MYTHIC_PETS = [
+    { id: 'goldling', tier: 4, mythic: 1, cps: 6, name: 'Golden Buttonling', desc: 'Gold, auto clicks, a little rare luck',
+      fx: (p, D) => { D.goldMult *= 1 + 0.2 * p; D.rareLuck = (D.rareLuck || 1) * (1 + Math.min(0.5, 0.05 * p)); } },
+    { id: 'voidkit', tier: 4, mythic: 1, cps: 0, name: 'Void Kitten', desc: 'Crit chance, crit power, boss damage',
+      fx: (p, D) => { D.crit += 0.012 * p; D.critMult += 0.8 * p; D.bossMult *= 1 + 0.12 * p; } },
+    { id: 'clover', tier: 4, mythic: 1, cps: 2, name: 'Clover Sprite', desc: 'Luck, eggs and rare surprises',
+      fx: (p, D) => { D.luck += 0.03 * p; D.eggMult *= 1 + 0.12 * p; D.rareLuck = (D.rareLuck || 1) * (1 + Math.min(1, 0.1 * p)); } },
+  ];
+  if (G.PETS && G.PET_BY_ID) for (const p of MYTHIC) if (!G.PET_BY_ID[p.id]) { G.PETS.push(p); G.PET_BY_ID[p.id] = p; }
+
+  function petInto(pet, golden) {
+    const S = S_(), D = G.D;
+    let s = S.pets[pet.id];
+    const isNew = !s, newGold = golden && (!s || !s.gold);
+    if (!s) s = S.pets[pet.id] = { lvl: 1, n: 1, gold: !!golden };
+    else { s.n++; s.lvl = Math.min(G.PET_MAX_LEVEL || 25, s.lvl + 1); if (golden) s.gold = true; }
+    if (S.active.length < (D.petSlots || 2) && !S.active.includes(pet.id)) S.active.push(pet.id);
+    // a mythic takes a seat at once: it pushes out the weakest
+    else if (pet.tier === 4 && !S.active.includes(pet.id) && S.active.length) {
+      let lo = 0; S.active.forEach((id, i) => { if ((G.PET_BY_ID[id] || { tier: 9 }).tier < (G.PET_BY_ID[S.active[lo]] || { tier: 9 }).tier) lo = i; });
+      if ((G.PET_BY_ID[S.active[lo]] || { tier: 9 }).tier < 4) S.active[lo] = pet.id;
+    }
+    G.dirty(); G.recalc();
+    return { pet, golden: !!golden, isNew, newGold, lvl: s.lvl };
+  }
+  function showPull(res) { const r = RR(); r.pull = true; try { emit('pull', [res]); } finally { r.pull = false; } }
+  // a hatch of at least minTier, with a chance at a mythic (the merchant's egg, the well)
+  function hatch(minTier, mythP, src) {
+    if (chance(mythP * luck())) return hatchMythic(src);
+    const T = G.PET_TIERS.slice(0, 4);
+    let tot = 0; T.forEach((t, i) => { if (i >= minTier) tot += t.rate; });
+    let v = rng() * tot, tier = 3;
+    for (let i = minTier; i < 4; i++) { v -= T[i].rate; if (v < 0) { tier = i; break; } }
+    const pool = G.PETS.filter(p => p.tier === tier);
+    const res = petInto(pickOf(pool), chance(G.D.goldenChance || 0.05));
+    S_().pulls = (S_().pulls || 0) + 1;
+    showPull(res);
+    return res;
+  }
+  function hatchMythic(src) {
+    const S = S_();
+    const fresh = MYTHIC.filter(p => !S.pets[p.id]);
+    const pet = pickOf(fresh.length ? fresh : MYTHIC);
+    const res = petInto(pet, chance((G.D.goldenChance || 0.05) * 2));
+    res.mythic = true; res.src = src;
+    S.st.rarePetAt = Math.round(S.st.playTime || 0);
+    record('pet', pet.id);
+    emit('rarePet', res);
+    emit('rare', 'pet', res);
+    showPull(res);
+    return res;
+  }
+  // every hatch in the Hatchery: one in five thousand, a mythic hatches with it
+  G.on('pull', res => {
+    const r = RR();
+    if (r.pull || !Array.isArray(res)) return;
+    const S = S_(), n = res.length;
+    for (let i = 0; i < n; i++) {
+      if (S.st.rarePetAt != null && (S.st.playTime || 0) - S.st.rarePetAt < TUNE.rarePetGap) return;
+      if (!chance(TUNE.rarePet)) continue;
+      const fresh = MYTHIC.filter(p => !S.pets[p.id]), pet = pickOf(fresh.length ? fresh : MYTHIC);
+      const m = petInto(pet, chance((G.D.goldenChance || 0.05) * 2));
+      m.mythic = true; m.src = 'hatch';
+      S.st.rarePetAt = Math.round(S.st.playTime || 0);
+      record('pet', pet.id);
+      res.push(m); // into the Hatchery's own card
+      emit('rarePet', m);
+      emit('rare', 'pet', m);
+    }
+  });
+
+  // ================= THE BUTTON OF LEGENDS =================
+  G.hook('click', () => {
+    if (!chance(TUNE.rareLegend) || blocked()) return;
+    legend();
+  });
+  function legend() {
+    const S = S_();
+    const gold = inc() * 3000;
+    addG(gold);
+    const q = uniqueAny();
+    if (q && G.dropItem) G.dropItem('uq', q, null, { at: { a: 0.5, p: 0.8 }, src: 'rare', wait: 1.2 });
+    orbs(['grace', 'grace', 'grace', 'ascent', 'ascent'], { at: { a: 0.5, p: 0.8 }, wait: 1.4 });
+    const o = { gold, uq: q };
+    record('legend');
+    S.st.rareLegendAt = Math.round(S.st.playTime || 0);
+    emit('rare', 'legend', o);
+    o.pet = hatchMythic('legend');
+    startFever(TUNE.rareFeverN, 'legend');
+    return o;
+  }
+
+  // ================= Taps =================
+  // tap the surprise on the field (the merchant, the well, the gambler, the star)
+  G.rareTap = function () {
+    const r = RR(), c = r.cur;
+    if (!c) return null;
+    if (c.k === 'merchant') return openShop();
+    if ((c.k === 'well' || c.k === 'gambler') && !c.open && !c.done) { c.open = true; c.T = Math.max(c.T, c.t + 20); emit('rareOpen', c); return c; }
+    if (c.k === 'star' && !c.caught) {
+      c.caught = true;
+      const k = starWish();
+      const got = grantWish(k, 'star', { a: 0.5, p: 0.7 });
+      c.wish = k; c.got = got;
+      S_().st.rareStars = (S_().st.rareStars || 0) + 1;
+      emit('rareStarWish', c, k, got);
+      clearCur('caught');
+      return got;
+    }
+    return null;
+  };
+
+  // ================= The clock =================
+  function tickCur(c, dt) {
+    if (c.k === 'merchant') { tickMerchant(c, dt); return; }
+    if (c.k === 'king') {
+      const m = c.m; c.a = m.a; c.p = m.p; c.t += dt;
+      if (!R.mobs.includes(m)) { RR().cur = null; c.at = { a: m.a, p: m.p }; emit('rareKingEscape', c); emit('rareGone', c, 'fled'); }
+      return;
+    }
+    c.t += dt;
+    if (c.k === 'star' && c.t >= c.T) { clearCur('missed'); return; }
+    if ((c.k === 'well' || c.k === 'gambler') && c.t >= c.T) {
+      // a gambler walked away from with a pot on the table still pays it
+      if (c.k === 'gambler' && c.open && !c.done && c.flips > 0) G.rareCash();
+      clearCur(c.done ? 'done' : 'left');
+    }
+  }
+  G.hook('tick', dt => {
+    const r = RR(), S = S_();
+    if (r.midas > 0 && (r.midas -= dt) <= 0) { r.midas = 0; G.dirty(); emit('rareMidasEnd'); }
+    if (r.cur) {
+      // a surprise on the field holds back a boss that would come on its own (one called with the sword still sweeps it away)
+      if (R.bossReady && !R.boss) R.bossHold = Math.max(R.bossHold || 0, 0.5);
+      // a boss, a Rift or a load sweeps a surprise away (the king and the merchant leave)
+      if (r.cur.S !== G.S) { r.cur = null; }
+      else if ((R.boss || R.rift) && r.cur.k !== 'merchant') clearCur('boss');
+      else if ((R.boss || R.rift) && r.cur.st !== 'shop' && r.cur.st !== 'out') { r.cur.st = 'out'; emit('rareLeave', r.cur, 'boss'); }
+      if (r.cur) tickCur(r.cur, dt);
+    }
+    if (r.land) tickLand(r.land, dt);
+    if (r.fever) tickFever(r.fever, dt);
+    if (r.gild) tickGild(r.gild, dt);
+    if (S.st.rareLuckT && S.st.rareLuckT < (S.st.playTime || 0)) S.st.rareLuckT = 0;
+    if (!blocked() && (S.st.playTime || 0) >= TUNE.rareFrom) clockField(dt);
+    if (fieldOk()) rollField();
+  });
+  G.on('ascend', () => {
+    const r = RR();
+    if (r.cur) clearCur('run');
+    if (r.land) endLand('run');
+    r.gild = null; r.midas = 0;
+  });
+
+  // ================= For testing (and the UI) =================
+  // G.forceRare('merchant' | 'land' [, 'vault'|'candy'|'upside'] | 'pet' | 'fever' | 'horde' | 'well' | 'gambler' | 'star' | 'king' | 'legend')
+  G.forceRare = function (kind, sub) {
+    const S = S_();
+    if (!S.hero || !S.hero.cls) return null;
+    const r = RR();
+    if (['merchant', 'well', 'gambler', 'star', 'king'].includes(kind)) return spawnField(kind, true);
+    if (kind === 'land') {
+      if (r.land) endLand('force');
+      const land = startLand(sub);
+      R.march = { t: TUNE.marchTime || 2.4, T: TUNE.marchTime || 2.4 };
+      r.own = true; emit('marchStart', R.march.T, false); r.own = false;
+      return land;
+    }
+    if (kind === 'pet') return hatchMythic('force');
+    if (kind === 'fever') return startFever(sub || TUNE.rareFeverN, 'force');
+    if (kind === 'horde') {
+      if (R.ev && R.ev.k === 'stampede') return gild(R.ev);
+      r.forceHorde = true;
+      const ev = G.startEvent ? G.startEvent('stampede') : null;
+      r.forceHorde = false;
+      return ev && r.gild;
+    }
+    if (kind === 'legend') return legend();
+    return null;
+  };
+  G.rareClear = function () { const r = RR(); if (r.cur) clearCur('debug'); if (r.land) endLand('debug'); if (r.fever) endFever(r.fever); r.gild = null; };
 })(globalThis.G = globalThis.G || {});
 
 /* js/net.js */
@@ -19830,6 +20761,7 @@ body.lowfx .tw.inR, body.lowfx .tw.inL, body.lowfx .blessCard, body.lowfx .teamC
       let held = 0, life = 0;
       const iv = setInterval(() => {
         if (!el.isConnected) { clearInterval(iv); return; }
+        if (S.seen && S.seen.hold) { el.classList.add('out'); clearInterval(iv); setTimeout(() => el.remove(), 600); return; }
         const busy = !!(G.uiBusy() || G.R.town);
         el.classList.toggle('away', busy);
         if (busy) return;
@@ -20746,6 +21678,7 @@ body.lowfx .tw.inR, body.lowfx .tw.inL, body.lowfx .blessCard, body.lowfx .teamC
     ];
     body.innerHTML = `
       <p class="note">${esc(t('achSummary', got, G.ACH.length, got))}</p>
+      ${G.rareFx ? `<button class="btn" data-rarecodex>${esc((G.STR && G.STR.rfCodex) || 'Rare surprises')}</button>` : ''}
       <div class="sect">${esc(t('skins'))}</div>
       <div class="skinRow">${G.SKINS.map(s => {
         const ok = !s.unlock || S.ach[s.unlock];
@@ -20760,6 +21693,7 @@ body.lowfx .tw.inR, body.lowfx .tw.inL, body.lowfx .blessCard, body.lowfx .teamC
       }).join('')}</div>
       <div class="sect">${esc(t('stats'))}</div>
       <div class="statList">${stats.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('')}</div>`;
+    const rc = body.querySelector('[data-rarecodex]'); if (rc) rc.addEventListener('click', () => G.rareFx && G.rareFx.openCodex());
     body.querySelector('.skinRow').addEventListener('click', e => {
       const b = e.target.closest('.skin'); if (!b || b.classList.contains('no')) return;
       G.S.skin = b.dataset.s; UI.render();
@@ -25399,6 +26333,940 @@ body.lowfx .tw.inR, body.lowfx .tw.inL, body.lowfx .blessCard, body.lowfx .teamC
 
   // for testing: the current overlay pieces
   G.spellFx = { sfx: SFX, flourish: (el, x, y) => { if (!ensure()) return; layout(); idle = false; if (FLOUR[el]) FLOUR[el](x, y); }, size: () => ({ Wl, Hl, u }), at: (x, y) => { if (!ensure()) return null; layout(); const q = P(x, y), r = cv.getBoundingClientRect(); return { x: r.left + ox + q.x * u, y: r.top + oy + q.y * u }; }, state: () => ({ fx: fxs.length, parts: parts.length, decals: decals.length, quick: quick.length, words: words.map(w => w.str) }) };
+  requestAnimationFrame(frame);
+})(globalThis.G = globalThis.G || {});
+
+/* js/rare_fx.js */
+// BTTN 3.5 — rare_fx: the show for the rare surprises (js/rare.js).
+//   * the art: the Lucky Merchant, the Wishing Well, the Ghostly Gambler and the three mythic pets
+//     (G.SPR.def, drawn like every other sprite);
+//   * an overlay canvas over the stage (under the HUD) for the visitors on the field, the shooting
+//     star, the Goblin King's crown, a secret land's weather, gold geysers and the Golden Horde's glitter;
+//   * the reveals: queued into the game's big banner (G.UI.bannerShow) so they never stack with loot
+//     banners, and held back while a relic cinematic, a window or the town is up;
+//   * the merchant's shop, the well's wishes and the ghost's coin (they hold the field still while open,
+//     through G.uiBusy), the free-spin counter over the Lucky Spin, the secret land's tint and timer;
+//   * a codex of what has been seen (G.rareFx.openCodex()).
+// Browser only; strings sit in G.STR with fallbacks here.
+(function (G) {
+  'use strict';
+  if (typeof document === 'undefined' || !G.forceRare) return;
+  const R = G.R;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const fmt = v => (G.fmt ? G.fmt(v) : String(Math.round(v)));
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const FONT = '"Press Start 2P", "BTTN Body", monospace';
+  const BODY = '"BTTN Body", "Press Start 2P", monospace';
+  const St = () => G.Stage || null;
+  const $ = s => document.querySelector(s);
+
+  // ================= Strings =================
+  const STR = {
+    rfTag: 'ONCE IN A BLUE MOON', rfFirst: 'FIRST SIGHTING!', rfNth: 'sighting #{0}',
+    rfMerchant: 'THE LUCKY MERCHANT', rfMerchantSub: 'Tap him before he leaves!', rfMerchantName: 'Lucky Merchant',
+    rfShopHi: 'Psst, friend. Bargains. Only for you, only now.', rfShopBuy: 'BUY', rfShopSold: 'SOLD', rfShopLeave: 'LEAVE', rfShopBye: 'Pleasure doing business!',
+    rfShopNo: 'Not enough {0}', rfShards: 'shards', rfGold: 'gold',
+    rfLandTag: 'A WRONG TURN...', rfLandBack: 'BACK ON THE ROAD', rfLandHaul: '+{0} gold · {1} chests · {2} drops',
+    rfFever: 'FREE-SPIN FEVER!', rfFeverSub: '{0} free spins on the bonus reel · up to ×10', rfFeverPill: 'FREE SPIN {0}/{1}', rfFeverEnd: 'FEVER OVER', rfFeverTot: '+{0} gold · {1} chests · {2} orbs',
+    rfHorde: 'THE GOLDEN HORDE!', rfHordeSub: 'The Stampede turned to gold: every kill pays ×8',
+    rfWell: 'THE WISHING WELL', rfWellSub: 'Toss a coin, make a wish', rfWellPick: 'Toss a coin and make one wish:',
+    rfGambler: 'THE GHOSTLY GAMBLER', rfGamblerSub: '“My gold, your luck. Double or nothing?”', rfGhostPot: 'On the table', rfFlip: 'FLIP ×2', rfTake: 'TAKE IT', rfWin: 'HEADS! ×2', rfLose: 'TAILS... gone', rfGhostBye: 'The ghost tips its hat.',
+    rfStar: 'MAKE A WISH!', rfStarMissed: 'The star is gone...', rfWishGranted: 'WISH GRANTED',
+    rfKing: 'THE GOBLIN KING!', rfKingSub: 'He bleeds coins. Catch him before he flees!', rfKingSlain: 'THE KING IS DEAD', rfKingFled: 'THE KING ESCAPED',
+    rfPet: 'MYTHIC PET!', rfLegend: 'THE BUTTON OF LEGENDS', rfLegendSub: 'One click in a million. That was it.',
+    rfMidas: 'MIDAS ×3', rfLuck: 'LUCK ×3', rfCodex: 'Rare sightings', rfUnseen: '???', rfSeenN: 'seen ×{0}',
+  };
+  if (G.STR) for (const k in STR) if (!G.STR[k]) G.STR[k] = STR[k];
+  const T = function (k) {
+    let s = (G.STR && G.STR[k]) || STR[k] || k;
+    for (let i = 1; i < arguments.length; i++) s = s.replace('{' + (i - 1) + '}', arguments[i]);
+    return s;
+  };
+
+  // ================= Art =================
+  function art() {
+    const SPR = G.SPR;
+    if (!SPR || SPR.defs.rare_merchant) return;
+    const fix = (rows, w) => rows.map(r => (r + '.'.repeat(w)).slice(0, w));
+    const D = (id, pal, rows) => { const w = Math.max.apply(null, rows.map(r => r.length)); SPR.def(id, Object.assign({ k: '#1a1a22' }, pal), fix(rows, w)); };
+    // the Lucky Merchant: a hooded purple cloak with gold trim, eyes glinting in the hood, a pack of
+    // wares on his back and a lantern held out
+    D('rare_merchant', { c: '#6a42a8', C: '#432a70', t: '#ffd84a', T: '#c98f10', e: '#fff3a0', b: '#9a6a36', B: '#6a4422', p: '#ff5fd2', g: '#6ee06e', l: '#fff3a0', L: '#c98f10', s: '#d49b72' }, [
+      '......cccc.......',
+      '.....cccccc..bbb.',
+      '....cccccccc.bpbB',
+      '....cckkkkcc.bbbB',
+      '....ckekkekc.bgbB',
+      '....ckkkkkkc.BbbB',
+      '.....tcccct..BBB.',
+      '...ccccccccccbbB.',
+      '..cccctcctcccBB..',
+      '..ccctccccccc....',
+      '.scccccccccccc...',
+      'LLccccctcccccc...',
+      'LlLcccccccccccc..',
+      'LlL.cccctccccccc.',
+      '.L..cccccccccccc.',
+      '...tttttttttttt..',
+      '....CC.....CC....',
+      '....kk.....kk....',
+    ]);
+    D('rare_well', { r: '#c8503a', R: '#8a3022', w: '#8a5a2e', s: '#a9a2b9', S: '#6e6880', b: '#5ae8ff', B: '#2a8ac8', y: '#ffd84a' }, [
+      '...rrrrrrrrrr...',
+      '..rRRRRRRRRRRr..',
+      '.rrrrrrrrrrrrrr.',
+      '...w........w...',
+      '...w...yy...w...',
+      '...w...ww...w...',
+      '...w........w...',
+      '.ssssssssssssss.',
+      'sSsSsSsSsSsSsSsS',
+      'sbBbbBbbBbbBbbBs',
+      'SsSsSsSsSsSsSsSs',
+      'sSsSsSsSsSsSsSsS',
+      '.SSSSSSSSSSSSSS.',
+    ]);
+    D('rare_ghost', { w: '#e8f0ff', W: '#a8b8e0', h: '#2a2440', H: '#5a4a8a', e: '#5ae8ff', y: '#ffd84a', Y: '#c98f10', m: '#ffffff' }, [
+      '....hhhh....',
+      '....hhhh....',
+      '...HHHHHH...',
+      '...wwwwww...',
+      '..wwwwwwww..',
+      '..wekwwekw..',
+      '..wwwwwwww..',
+      '.wwwwmmwwww.',
+      'yywwwwwwwwww',
+      'YywwwwwwwWww',
+      '.wwwwwwwwwW.',
+      '.wWwwWwwWwW.',
+      '.w.W.w.W.w..',
+    ]);
+    D('rare_star', { w: '#ffffff', y: '#fff3a0', Y: '#ffd84a' }, [
+      '....w....',
+      '....y....',
+      '...yYy...',
+      'wyyYwYyyw',
+      '..yYwYy..',
+      '...yYy...',
+      '..yY.Yy..',
+      '.yY...Yy.',
+      '.w.....w.',
+    ]);
+    // the mythic pets (8x8 like every pet)
+    D('p_goldling', { y: '#ffd84a', Y: '#c98f10', w: '#fffbe0', o: '#a86a10', r: '#ff5fd2' }, [
+      'y.y..y.y',
+      '.yyrryy.',
+      '.ywwyyy.',
+      'yywyyyyy',
+      'yykyykyy',
+      'oYYYYYYo',
+      '.oooooo.',
+      '.k....k.',
+    ]);
+    D('p_voidkit', { v: '#3a2460', V: '#1e1238', p: '#c88aff', s: '#5ae8ff', w: '#ffffff' }, [
+      '.v....v.',
+      '.vp..pv.',
+      '.vvvvvv.',
+      'vswvvswv',
+      'vvvppvvv',
+      '.vVvvVv.',
+      '.vvvvvvp',
+      '.V.VV.p.',
+    ]);
+    D('p_clover', { g: '#4fd65b', G: '#2a8a34', w: '#ffffff', y: '#ffd84a', e: '#1a1a22', b: '#8a5a2e' }, [
+      '.gg..gg.',
+      'gGgggGgg',
+      '.ggyygg.',
+      'gweggewg',
+      'gGggggGg',
+      '.gg..gg.',
+      '....b...',
+      '...b....',
+    ]);
+  }
+  art();
+
+  // ================= Styles =================
+  const css = `
+#rareFx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; max-width: none; pointer-events: none; }
+#stage.rfVault { filter: sepia(.72) saturate(2.3) hue-rotate(-14deg) brightness(1.06); }
+#stage.rfCandy { filter: hue-rotate(285deg) saturate(1.5) brightness(1.1); }
+#stage.rfUpside { filter: invert(.88) hue-rotate(180deg) saturate(1.3); }
+#stage.rfGild { filter: sepia(.35) saturate(1.6) brightness(1.04); }
+.rfHot { position: absolute; z-index: 5; width: 64px; height: 72px; margin: -72px 0 0 -32px; padding: 0; border: 0; background: transparent;
+  cursor: pointer; pointer-events: auto; touch-action: manipulation; -webkit-tap-highlight-color: transparent; border-radius: 12px; }
+.rfHot:focus-visible { outline: 2px dashed #ffd84a; }
+.rfHot[hidden] { display: none; }
+#rfChips { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); z-index: 4; display: flex; gap: 6px; pointer-events: none; flex-wrap: wrap; justify-content: center; width: max-content; max-width: 94%; }
+#rfChips[hidden] { display: none; }
+.rfChip { --c: #ffd84a; font: 9px/1 ${FONT}; color: var(--c); padding: 6px 9px 5px; background: rgba(10,9,16,.86); border: 2px solid #0a0910;
+  box-shadow: inset 0 0 0 2px var(--c), 0 0 14px -3px var(--c); letter-spacing: .06em; text-shadow: 1px 1px 0 #0a0910; white-space: nowrap; }
+.rfChip i { font-style: normal; color: #f1ece0; margin-left: 6px; }
+#banner .inner.rfB { position: relative; --c: #ffd84a; color: var(--c); padding: 26px 34px 22px; max-width: min(92vw, 560px); }
+#banner .inner.rfB::before { content: ''; position: absolute; left: 50%; top: 50%; width: 520px; height: 520px; margin: -260px 0 0 -260px; z-index: -1; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--c) 60%, transparent) 0deg 8deg, transparent 8deg 20deg);
+  -webkit-mask: radial-gradient(circle, #000 0 22%, transparent 66%); mask: radial-gradient(circle, #000 0 22%, transparent 66%); animation: rfSpin 9s linear infinite; z-index: -2; }
+#banner .inner.rfB::after { content: ''; position: absolute; inset: -14% -18%; z-index: -1; background: radial-gradient(ellipse closest-side, rgba(10,9,16,.86), rgba(10,9,16,.6) 55%, rgba(10,9,16,0)); }
+#banner .inner.rfB .rfTag { font: 9px/1.4 ${FONT}; letter-spacing: .22em; color: #f1ece0; opacity: .85; margin-bottom: 8px; }
+#banner .inner.rfB h2 { font-size: 20px; color: var(--c); margin: 0 0 12px; text-shadow: 3px 3px 0 #0a0910, 0 0 18px var(--c); }
+#banner .inner.rfB .rfIco { width: 112px; height: 112px; image-rendering: pixelated; filter: drop-shadow(0 0 16px var(--c)) drop-shadow(3px 3px 0 #0a0910); animation: rfBob 1.2s ease-in-out infinite; }
+#banner .inner.rfB p { color: #f1ece0; }
+#banner .inner.rfB .rfFirst { display: inline-block; margin-top: 10px; font: 9px/1 ${FONT}; color: #0a0910; background: var(--c); padding: 6px 8px 5px; transform: rotate(-4deg); box-shadow: 2px 2px 0 #0a0910; letter-spacing: .1em; }
+#banner .inner.rfB .rfNth { display: block; margin-top: 8px; font: 13px/1 ${BODY}; color: #a9a2b9; }
+#banner .inner.rfB.legend h2 { font-size: 24px; animation: rfRainbow 1.6s linear infinite; }
+#banner .inner.rfB.mythic .rfIco { animation: rfBob 1.2s ease-in-out infinite, rfHue 2.4s linear infinite; }
+@keyframes rfSpin { to { transform: rotate(360deg); } }
+@keyframes rfBob { 50% { transform: translateY(-6px) scale(1.04); } }
+@keyframes rfHue { 0%, 100% { filter: drop-shadow(0 0 18px #ff5fd2) drop-shadow(3px 3px 0 #0a0910); } 33% { filter: drop-shadow(0 0 18px #ffd84a) drop-shadow(3px 3px 0 #0a0910); } 66% { filter: drop-shadow(0 0 18px #5ae8ff) drop-shadow(3px 3px 0 #0a0910); } }
+@keyframes rfRainbow { 0% { color: #ff5f5f; } 20% { color: #ffd84a; } 40% { color: #6ee06e; } 60% { color: #5ae8ff; } 80% { color: #c88aff; } 100% { color: #ff5f5f; } }
+.rfPanel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 20; width: min(94%, 560px); max-height: 92%; overflow: auto;
+  --c: #ffd84a; background: #14111e; border: 3px solid #0a0910; box-shadow: inset 0 0 0 2px var(--c), 0 0 40px -6px var(--c), 0 6px 0 #0a0910;
+  padding: 14px 14px 12px; pointer-events: auto; animation: rfIn .4s cubic-bezier(.2,1.6,.4,1); color: #f1ece0; font: 15px/1.25 ${BODY}; }
+.rfPanel.out { animation: rfOut .3s ease-in forwards; }
+.rfBack { position: absolute; inset: 0; z-index: 19; background: rgba(6,5,10,.45); pointer-events: auto; animation: rfFade .3s ease-out; }
+.rfBack.out { opacity: 0; transition: opacity .3s; }
+@keyframes rfFade { from { opacity: 0; } }
+#stageWrap.rfPanelOn #banner .inner.rfB { visibility: hidden; }
+@keyframes rfIn { from { transform: translate(-50%, -50%) scale(.5); opacity: 0; } }
+@keyframes rfOut { to { transform: translate(-50%, -46%); opacity: 0; } }
+.rfPanel .rfHead { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.rfPanel .rfHead img { width: 54px; height: 60px; image-rendering: pixelated; object-fit: contain; filter: drop-shadow(0 0 10px var(--c)); flex: none; }
+.rfPanel .rfHead b { display: block; font: 12px/1.4 ${FONT}; color: var(--c); letter-spacing: .04em; text-shadow: 2px 2px 0 #0a0910; }
+.rfPanel .rfHead small { display: block; font: 14px/1.25 ${BODY}; color: #d8d2e6; margin-top: 4px; }
+.rfPanel .rfTime { height: 5px; background: #2a2440; border: 1px solid #0a0910; margin: 0 0 10px; }
+.rfPanel .rfTime i { display: block; height: 100%; background: var(--c); width: 100%; }
+.rfOffers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.rfOffer { --o: #ffd84a; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 8px 6px; background: #1d1929;
+  border: 2px solid #0a0910; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--o) 55%, transparent); min-width: 0; }
+.rfOffer img { width: 40px; height: 40px; image-rendering: pixelated; filter: drop-shadow(0 0 8px var(--o)); }
+.rfOffer b { font: 8px/1.45 ${FONT}; color: var(--o); }
+.rfOffer small { font: 13px/1.15 ${BODY}; color: #d8d2e6; min-height: 30px; }
+.rfOffer s { font: 12px/1 ${BODY}; color: #8a8298; }
+.rfOffer .rfPrice { font: 14px/1 ${BODY}; color: #ffd84a; display: flex; align-items: center; gap: 3px; }
+.rfOffer .rfPrice img { width: 12px; height: 12px; filter: none; }
+.rfOffer button, .rfBtns button, .rfWish { font: 9px/1 ${FONT}; padding: 8px 10px 7px; border: 2px solid #0a0910; background: #ffd84a; color: #0a0910; cursor: pointer;
+  box-shadow: inset -2px -2px 0 rgba(0,0,0,.25), 0 2px 0 #0a0910; touch-action: manipulation; letter-spacing: .04em; }
+.rfOffer button { width: 100%; margin-top: auto; }
+.rfOffer button:disabled { background: #3a3448; color: #8a8298; cursor: default; }
+.rfOffer.sold { opacity: .55; }
+.rfOffer.sold button { background: #6ee06e; }
+.rfBtns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.rfBtns button.ghost { background: #2a2440; color: #f1ece0; }
+.rfWishes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.rfWish { --o: #7fe9ff; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 6px; background: #1d1929; color: var(--o);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--o) 55%, transparent), 0 2px 0 #0a0910; text-align: center; }
+.rfWish img { width: 36px; height: 36px; image-rendering: pixelated; filter: drop-shadow(0 0 8px var(--o)); }
+.rfWish span { display: flex; flex-direction: column; gap: 5px; }
+.rfWish small { display: block; font: 13px/1.15 ${BODY}; color: #d8d2e6; letter-spacing: 0; }
+.rfWish:hover, .rfOffer button:not(:disabled):hover, .rfBtns button:hover { filter: brightness(1.15); }
+.rfPot { text-align: center; margin: 4px 0 6px; }
+.rfPot small { display: block; font: 9px/1.4 ${FONT}; color: #a9a2b9; letter-spacing: .1em; }
+.rfPot b { display: block; font: 18px/1.4 ${FONT}; color: #ffd84a; text-shadow: 2px 2px 0 #0a0910; }
+.rfPot .rfRes { display: block; min-height: 18px; font: 15px/1.2 ${BODY}; }
+.rfPot .rfRes.win { color: #6ee06e; } .rfPot .rfRes.lose { color: #ff6a6a; }
+.rfCoin { width: 34px; height: 34px; image-rendering: pixelated; margin: 2px auto; display: block; }
+.rfCoin.flip { animation: rfFlip .6s ease-in-out; }
+@keyframes rfFlip { 0% { transform: rotateY(0) translateY(0); } 50% { transform: rotateY(900deg) translateY(-26px); } 100% { transform: rotateY(1800deg) translateY(0); } }
+.csM.rfFev .csCab { box-shadow: 0 0 0 3px #ffd84a, 0 0 26px 6px #ff3b5c; animation: rfFevGlow .5s ease-in-out infinite alternate; }
+@keyframes rfFevGlow { to { box-shadow: 0 0 0 3px #fff3a0, 0 0 34px 10px #ffd84a; } }
+#rfFever { position: absolute; z-index: 5; transform: translate(-50%, -100%); pointer-events: none; font: 9px/1 ${FONT}; color: #0a0910; background: #ffd84a;
+  padding: 6px 9px 5px; border: 2px solid #0a0910; box-shadow: 0 0 16px #ff3b5c, 0 2px 0 #0a0910; white-space: nowrap; letter-spacing: .05em; }
+#rfFever b { color: #a8102c; margin-left: 6px; }
+#rfFever[hidden] { display: none; }
+.rfCodex { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; text-align: left; }
+.rfCodex > div { display: flex; gap: 8px; align-items: center; padding: 8px; background: #1d1929; border: 2px solid #0a0910; }
+.rfCodex img { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
+.rfCodex b { display: block; font: 8px/1.4 var(--font-display, ${FONT}); }
+.rfCodex small { display: block; font: 13px/1.2 ${BODY}; color: #a9a2b9; }
+.rfCodex .no img { filter: brightness(0) opacity(.5); }
+@media (max-width: 860px) {
+  /* a phone: the window takes the screen, the wares stack as rows */
+  .rfPanel { position: fixed; z-index: 40; width: min(96vw, 520px); max-height: 92vh; padding: 10px; font-size: 14px; }
+  .rfBack { position: fixed; z-index: 39; }
+  .rfPanel .rfHead img { width: 44px; height: 48px; }
+  .rfOffers { grid-template-columns: 1fr; gap: 6px; }
+  .rfOffer { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 8px; row-gap: 3px; align-items: center; text-align: left; padding: 7px 8px; }
+  .rfOffer > img { grid-row: 1 / span 2; grid-column: 1; width: 36px; height: 36px; }
+  .rfOffer b { grid-row: 1; grid-column: 2; }
+  .rfOffer small { grid-row: 2; grid-column: 2; min-height: 0; }
+  .rfOffer s { display: none; }
+  .rfOffer .rfPrice { grid-row: 1; grid-column: 3; justify-self: end; }
+  .rfOffer button { grid-row: 2; grid-column: 3; width: auto; margin: 0; }
+  .rfPanel .rfHead b { font-size: 10px; }
+  #banner .inner.rfB { padding: 18px 14px 16px; }
+  #banner .inner.rfB h2 { font-size: 14px; }
+  #banner .inner.rfB.legend h2 { font-size: 15px; }
+  #banner .inner.rfB .rfIco { width: 84px; height: 84px; }
+  #banner .inner.rfB::before { width: 380px; height: 380px; margin: -190px 0 0 -190px; }
+  #rfChips { top: 74px; }
+  .rfChip { font-size: 8px; }
+  .rfCodex { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) { .rfWishes { grid-template-columns: 1fr; } .rfWish { flex-direction: row; text-align: left; } }
+`;
+  const styleEl = document.createElement('style');
+  styleEl.id = 'rareFxStyle';
+  styleEl.textContent = css;
+  (document.head || document.documentElement).appendChild(styleEl);
+
+  // ================= Sound =================
+  const Snd = {
+    ac: null,
+    on() { const s = G.S && G.S.set; return !!(s && s.sound && !(s.vol <= 0)); },
+    ctx() {
+      if (!this.on()) return null;
+      if (!this.ac) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; try { this.ac = new AC(); } catch (e) { return null; } }
+      if (this.ac.state === 'suspended') { try { this.ac.resume(); } catch (e) { /* not yet allowed */ } }
+      return this.ac;
+    },
+    vol() { return Math.min(1, G.S.set.vol == null ? 0.6 : G.S.set.vol) * 0.3; },
+  };
+  let noiseBuf = null;
+  function tone(type, f0, f1, t, dur, v) {
+    const ac = Snd.ctx(); if (!ac) return;
+    const T0 = ac.currentTime + 0.02 + t, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, T0);
+    if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, T0 + dur);
+    g.gain.setValueAtTime(0.0001, T0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, v * Snd.vol()), T0 + Math.min(0.03, dur * 0.3));
+    g.gain.exponentialRampToValueAtTime(0.0001, T0 + dur);
+    o.connect(g); g.connect(ac.destination); o.start(T0); o.stop(T0 + dur + 0.05);
+  }
+  function noise(t, dur, v, f0, f1) {
+    const ac = Snd.ctx(); if (!ac) return;
+    if (!noiseBuf) { noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    const T0 = ac.currentTime + 0.02 + t, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noiseBuf; s.loop = true; f.type = 'lowpass'; f.frequency.setValueAtTime(f0 || 2000, T0);
+    if (f1) f.frequency.exponentialRampToValueAtTime(f1, T0 + dur);
+    g.gain.setValueAtTime(Math.max(0.0002, v * Snd.vol()), T0); g.gain.exponentialRampToValueAtTime(0.0001, T0 + dur);
+    s.connect(f); f.connect(g); g.connect(ac.destination); s.start(T0); s.stop(T0 + dur + 0.05);
+  }
+  const arp = (fs, step, type, v, dur) => fs.forEach((f, i) => tone(type || 'square', f, f, i * step, dur || 0.2, v || 0.18));
+  const SFX = {
+    // a rising shimmer and a bright chord: something special is here
+    reveal() { noise(0, 0.6, 0.35, 8000, 1500); arp([523, 659, 784, 1047, 1319, 1568], 0.06, 'triangle', 0.22, 0.35); tone('square', 262, 262, 0.4, 0.7, 0.12); tone('square', 392, 392, 0.4, 0.7, 0.1); },
+    bell() { [1568, 2093, 1568, 2637].forEach((f, i) => tone('sine', f, f, i * 0.1, 0.5, 0.2)); },
+    coin() { tone('square', 988, 988, 0, 0.06, 0.12); tone('square', 1319, 1319, 0.06, 0.18, 0.12); },
+    buy() { arp([784, 988, 1175, 1568], 0.05, 'square', 0.16, 0.16); },
+    fever() { arp([392, 523, 659, 784, 1047, 784, 1047, 1319], 0.07, 'square', 0.18, 0.18); noise(0, 0.5, 0.3, 6000, 1200); },
+    land() { noise(0, 1.4, 0.5, 300, 4000); tone('sine', 110, 440, 0, 1.4, 0.25); arp([440, 554, 659, 880], 0.18, 'triangle', 0.2, 0.5); },
+    wish() { arp([1047, 1319, 1568, 2093, 2637], 0.07, 'sine', 0.2, 0.6); },
+    flip() { [0, 0.07, 0.14, 0.21, 0.28].forEach(t => tone('square', 1800, 2400, t, 0.04, 0.06)); },
+    win() { arp([659, 784, 1047], 0.08, 'square', 0.2, 0.2); },
+    lose() { [392, 370, 349, 262].forEach((f, i) => tone('sawtooth', f, f * 0.97, i * 0.22, 0.3, 0.12)); },
+    king() { tone('sawtooth', 220, 330, 0, 0.3, 0.2); tone('sawtooth', 165, 247, 0.12, 0.3, 0.18); noise(0, 0.4, 0.4, 1200, 300); arp([523, 659, 784], 0.1, 'square', 0.16, 0.25); },
+    legend() { noise(0, 2.2, 0.6, 200, 9000); [262, 330, 392, 523, 659, 784, 1047].forEach((f, i) => tone('triangle', f, f, 0.1 * i, 2.2 - 0.1 * i, 0.18)); tone('sine', 55, 55, 0, 2.4, 0.5); },
+    star() { [2637, 3136, 2637, 3520].forEach((f, i) => tone('sine', f, f * 1.01, i * 0.08, 0.3, 0.1)); },
+    sad() { arp([523, 440, 349], 0.12, 'triangle', 0.16, 0.3); },
+  };
+
+  // ================= Layers =================
+  let cv = null, ctx = null, W = 0, H = 0, DPR = 1, rect = null, wrap = null, hot = null, chips = null, feverEl = null;
+  function ensure() {
+    if (cv && cv.isConnected) return true;
+    const stage = document.getElementById('stage');
+    wrap = document.getElementById('stageWrap');
+    if (!stage || !wrap) return false;
+    cv = document.createElement('canvas'); cv.id = 'rareFx';
+    stage.insertAdjacentElement('afterend', cv);
+    ctx = cv.getContext('2d');
+    hot = document.createElement('button'); hot.type = 'button'; hot.className = 'rfHot'; hot.hidden = true; hot.setAttribute('aria-label', 'Rare visitor');
+    hot.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); tapHot(); });
+    hot.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+    wrap.appendChild(hot);
+    chips = document.createElement('div'); chips.id = 'rfChips'; chips.hidden = true; wrap.appendChild(chips);
+    feverEl = document.createElement('div'); feverEl.id = 'rfFever'; feverEl.hidden = true; wrap.appendChild(feverEl);
+    return true;
+  }
+  function resize() {
+    const r = cv.getBoundingClientRect();
+    rect = r;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (Math.round(r.width * dpr) !== cv.width || Math.round(r.height * dpr) !== cv.height || dpr !== DPR) { DPR = dpr; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
+    W = r.width; H = r.height;
+  }
+  function px() { const s = St(); if (!s || !s.toScreen) return 3; const a = s.toScreen(0, 0), b = s.toScreen(1, 0); return Math.max(1, b.x - a.x); }
+  function feetOf(o, u) {
+    const s = St(); if (!s || !s.mobPoint || !rect) return null;
+    const q = s.mobPoint({ id: o.id || -77, a: o.a, p: o.p, kind: 'brute' });
+    return { x: q.x - rect.left, y: q.y - rect.top + 18 * u };
+  }
+  function btnXY(u) {
+    const s = St(); if (!s || !s.buttonPoint || !rect) return { x: W / 2, y: H * 0.54 };
+    const b = s.buttonPoint(); return { x: b.x - rect.left, y: b.y - rect.top + 24 * u };
+  }
+
+  // ================= Particles =================
+  const parts = [], rings = [], floats = [];
+  function burst(x, y, cols, n, sp, o) {
+    for (let i = 0; i < n && parts.length < 600; i++) {
+      const a = Math.random() * Math.PI * 2, s = rnd(sp * 0.35, sp);
+      const p = Object.assign({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - sp * 0.3, life: rnd(0.5, 1), col: cols[i % cols.length], sz: 2, grav: 220 }, o || {});
+      p.max = p.life; parts.push(p);
+    }
+  }
+  function ring(x, y, r0, r1, col, life, w) { rings.push({ x, y, r0, r1, col, life, max: life, w: w || 2 }); }
+  function floatText(x, y, str, col, size, life) { floats.push({ x, y, str, col, size, life: life || 1.2, max: life || 1.2 }); }
+  function label(str, x, y, size, col) {
+    ctx.font = size + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.lineWidth = Math.max(2, size * 0.35); ctx.strokeStyle = '#0a0910'; ctx.lineJoin = 'round';
+    ctx.strokeText(str, x, y); ctx.fillStyle = col; ctx.fillText(str, x, y);
+  }
+  function glow(x, y, r, col, a) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(1, r));
+    g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = a; ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalAlpha = 1;
+  }
+  function sprite(id, x, y, u, o) {
+    const SPR = G.SPR; if (!SPR) return null;
+    const c = SPR.get(id, o && o.gold ? { gold: true } : null); if (!c) return null;
+    const w = c.width * u, h = c.height * u;
+    if (o && o.flip) { ctx.save(); ctx.translate(Math.round(x), 0); ctx.scale(-1, 1); ctx.drawImage(c, Math.round(-w / 2), Math.round(y - h), Math.round(w), Math.round(h)); ctx.restore(); }
+    else ctx.drawImage(c, Math.round(x - w / 2), Math.round(y - h), Math.round(w), Math.round(h));
+    return { w, h };
+  }
+  function bar(x, y, w, h, k, col) {
+    ctx.fillStyle = '#0a0910'; ctx.fillRect(Math.round(x - w / 2) - 1, Math.round(y) - 1, Math.round(w) + 2, Math.round(h) + 2);
+    ctx.fillStyle = '#2a2440'; ctx.fillRect(Math.round(x - w / 2), Math.round(y), Math.round(w), Math.round(h));
+    ctx.fillStyle = col; ctx.fillRect(Math.round(x - w / 2), Math.round(y), Math.max(1, Math.round(w * clamp(k, 0, 1))), Math.round(h));
+  }
+  const CROWN = ['y.y.y.y', 'yyyyyyy', 'yrybyry', 'yyyyyyy', 'YYYYYYY'];
+  const CROWN_COL = { y: '#ffd84a', Y: '#c99a2a', r: '#ff4f6a', b: '#5ae8ff' };
+  function crown(x, y, s) {
+    s = Math.max(1, Math.round(s));
+    const w = CROWN[0].length, h = CROWN.length, ox = Math.round(x - w * s / 2), oy = Math.round(y - h * s);
+    for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) if (CROWN[r][c] !== '.') { ctx.fillStyle = '#0a0910'; ctx.fillRect(ox + c * s - 1, oy + r * s - 1, s + 2, s + 2); }
+    for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) { const k = CROWN[r][c]; if (k === '.') continue; ctx.fillStyle = CROWN_COL[k]; ctx.fillRect(ox + c * s, oy + r * s, s, s); }
+  }
+
+  // ================= The reveals =================
+  // queued here while something bigger is on (a relic, a window, the town), then handed to the game's banner queue
+  const queue = [];
+  let uid = 0, live = null;
+  const LOG = id => (G.RARE_LOG || []).find(e => e.id === id) || { id, name: id, col: '#ffd84a' };
+  const icoUrl = (id, sc, o) => (G.SPR ? G.SPR.url(id, sc || 6, o) : '');
+  function reveal(o) { queue.push(Object.assign({ id: ++uid, ms: 2800, t0: performance.now() }, o)); }
+  function heldBack() {
+    return !!(R.cine > 0 || (G.relicShow && G.relicShow()) || R.town || (G.uiBusy && G.uiBusy()) || !(G.UI && G.UI.bannerShow));
+  }
+  function pumpReveals() {
+    // a stale one (its moment long gone) is dropped
+    while (queue.length && ((queue[0].stale && performance.now() - queue[0].t0 > queue[0].stale) || (queue[0].ok && !queue[0].ok()))) queue.shift();
+    if (!queue.length || heldBack()) return;
+    const o = queue.shift();
+    const n = o.kind && G.S.st.rare ? G.S.st.rare[o.kind] || 0 : 0;
+    const first = o.kind && n === 1;
+    const html = `<div class="inner rfB ${o.cls || ''}" data-rf="${o.id}" style="--c:${o.col || '#ffd84a'}">` +
+      `<div class="rfTag">${esc(o.tag || T('rfTag'))}</div><h2>${esc(o.title)}</h2>` +
+      (o.icon ? `<img class="rfIco" src="${o.icon}" alt="">` : '') +
+      (o.sub ? `<p>${esc(o.sub)}</p>` : '') +
+      (first ? `<span class="rfFirst">${esc(T('rfFirst'))}</span>` : n > 1 && !o.noCount ? `<span class="rfNth">${esc(T('rfNth', n))}</span>` : '') + '</div>';
+    live = o;
+    G.UI.bannerShow(html, o.ms);
+  }
+  // the moment the banner actually shows it: the sting, the flash, the shake
+  function watchLive() {
+    if (!live) return;
+    const b = document.getElementById('banner');
+    if (!b || b.hidden || !b.querySelector('[data-rf="' + live.id + '"]')) { if (performance.now() - live.t0 > 30000) live = null; return; }
+    const o = live; live = null;
+    (SFX[o.sfx || 'reveal'] || SFX.reveal)();
+    const s = St();
+    if (s) { s.flash && s.flash(o.flash || 0.45, o.col || '#ffd84a'); s.shake && s.shake(o.shake || 5); }
+    if (rect) { const u = px(); burst(W / 2, H * 0.45, [o.col || '#ffd84a', '#ffffff', '#fff3a0'], o.big ? 140 : 70, o.big ? 420 : 300, { sz: 3, grav: 160 }); ring(W / 2, H * 0.45, 10 * u, 120 * u, o.col || '#ffd84a', 0.9, 4); }
+  }
+  const toast = (html, icon) => { if (G.UI && G.UI.toast) G.UI.toast(html, 'ach', icon); };
+
+  // ================= What each one looks like =================
+  // a visitor's reveal only while it is still there and nobody has tapped it yet
+  const still = c => () => { const k = G.rareState().cur; return !!k && k === c && !k.open && k.st !== 'shop' && k.st !== 'out'; };
+  G.on('rare', (kind, o) => {
+    ensure();
+    const L = LOG(kind);
+    if (kind === 'merchant') { SFX.bell(); reveal({ kind, title: T('rfMerchant'), sub: T('rfMerchantSub'), col: L.col, icon: icoUrl('rare_merchant', 5), stale: 14000, ok: still(o), ms: 2400 }); }
+    else if (kind === 'land') reveal({ kind, tag: T('rfLandTag'), title: o.name.toUpperCase(), sub: o.sub, col: o.col, icon: icoUrl('ic_star', 7), sfx: 'land', ms: 3200, big: true, flash: 0.7, shake: 7 });
+    else if (kind === 'fever') reveal({ kind, title: T('rfFever'), sub: T('rfFeverSub', o.n), col: '#ff3b5c', icon: icoUrl('cs_seven', 9), sfx: 'fever', ms: 2600 });
+    else if (kind === 'horde') reveal({ kind, title: T('rfHorde'), sub: T('rfHordeSub'), col: '#ffd84a', icon: icoUrl('ev_stampede', 6, { gold: true }), ms: 2600, big: true });
+    else if (kind === 'well') reveal({ kind, title: T('rfWell'), sub: T('rfWellSub'), col: L.col, icon: icoUrl('rare_well', 5), stale: 16000, ok: still(o), ms: 2400 });
+    else if (kind === 'gambler') reveal({ kind, title: T('rfGambler'), sub: T('rfGamblerSub'), col: L.col, icon: icoUrl('rare_ghost', 6), stale: 14000, ok: still(o), ms: 2400 });
+    else if (kind === 'star') SFX.star();
+    else if (kind === 'king') { SFX.king(); reveal({ kind, title: T('rfKing'), sub: T('rfKingSub'), col: L.col, icon: icoUrl('m_thief', 7, { gold: true }), stale: 12000, ok: () => G.rareState().cur === o, ms: 2200 }); }
+    else if (kind === 'pet') {
+      const P = o.pet;
+      reveal({ kind, title: T('rfPet'), sub: P.name + ' · ' + P.desc, col: '#ff5fd2', icon: icoUrl('p_' + P.id, 12, o.golden ? { gold: true } : null), cls: 'mythic', ms: 3600, big: true, flash: 0.7, shake: 6 });
+    }
+    else if (kind === 'legend') {
+      reveal({ kind, title: T('rfLegend'), sub: T('rfLegendSub') + ' +' + fmt(o.gold) + ' gold', col: '#ffffff', icon: icoUrl('ic_jackpot', 7), cls: 'legend', sfx: 'legend', ms: 4800, big: true, flash: 1, shake: 12 });
+    }
+  });
+
+  // ---------- The merchant's shop ----------
+  let panel = null, panelKind = null, panelT0 = 0, panelTimer = null, back = null;
+  function closePanel() {
+    if (!panel) return;
+    const p = panel, b = back; panel = null; panelKind = null; back = null; clearInterval(panelTimer); panelTimer = null;
+    p.classList.add('out'); setTimeout(() => p.remove(), 320);
+    if (b) { b.classList.add('out'); setTimeout(() => b.remove(), 320); }
+    if (wrap) wrap.classList.remove('rfPanelOn');
+  }
+  function openPanel(kind, col, html) {
+    if (!ensure()) return null;
+    closePanel();
+    // a dim backdrop that swallows taps meant for the field
+    back = document.createElement('div'); back.className = 'rfBack';
+    back.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
+    wrap.appendChild(back);
+    wrap.classList.add('rfPanelOn');
+    const p = document.createElement('div');
+    p.className = 'rfPanel ' + kind; p.style.setProperty('--c', col);
+    p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', kind);
+    p.innerHTML = html;
+    p.addEventListener('pointerdown', e => e.stopPropagation());
+    wrap.appendChild(p);
+    panel = p; panelKind = kind; panelT0 = performance.now();
+    return p;
+  }
+  function shopHtml(c) {
+    const S = G.S;
+    const offers = c.offers.map((o, i) => {
+      const W = G.RARE_WARES[o.k], can = G.rareCanBuy(i);
+      return `<div class="rfOffer ${o.sold ? 'sold' : ''}" style="--o:${W.col}"><img src="${icoUrl(W.icon, 4)}" alt=""><b>${esc(W.name)}</b><small>${esc(o.desc)}</small>` +
+        `<s>${fmt(o.was)}</s><span class="rfPrice"><img src="${icoUrl(o.cur === 'gold' ? 'ic_coin' : 'ic_shard', 2)}" alt="">${fmt(o.price)} ${esc(o.cur === 'gold' ? T('rfGold') : T('rfShards'))}</span>` +
+        `<button type="button" data-buy="${i}" ${o.sold || !can ? 'disabled' : ''}>${esc(o.sold ? T('rfShopSold') : T('rfShopBuy'))}</button></div>`;
+    }).join('');
+    return `<div class="rfHead"><img src="${icoUrl('rare_merchant', 4)}" alt=""><div><b>${esc(T('rfMerchant'))}</b><small>${esc(T('rfShopHi'))}</small>` +
+      `<small style="color:#ffd84a">${img('ic_coin')} ${fmt(S.gold)} · ${img('ic_shard')} ${fmt(S.hero.shards || 0)}</small></div></div>` +
+      `<div class="rfTime"><i></i></div><div class="rfOffers">${offers}</div>` +
+      `<div class="rfBtns"><button type="button" class="ghost" data-leave>${esc(T('rfShopLeave'))}</button></div>`;
+  }
+  const img = id => `<img src="${icoUrl(id, 2)}" alt="" style="width:12px;height:12px;vertical-align:-1px;image-rendering:pixelated">`;
+  function openShop(c) {
+    const p = openPanel('shop', '#ffd84a', shopHtml(c));
+    if (!p) return;
+    SFX.bell();
+    const total = (G.TUNE.rareShopTime || 30) * 1000;
+    const bind = () => {
+      p.querySelectorAll('[data-buy]').forEach(b => b.addEventListener('click', e => {
+        e.stopPropagation();
+        const i = +b.dataset.buy, o = c.offers[i];
+        const got = G.rareBuy(i);
+        if (!got) { SFX.sad(); return; }
+        SFX.buy();
+        afterBuy(c, o, got);
+        const keep = p.querySelector('.rfTime i').style.width;
+        p.innerHTML = shopHtml(c); p.querySelector('.rfTime i').style.width = keep; bind();
+      }));
+      const lv = p.querySelector('[data-leave]');
+      if (lv) lv.addEventListener('click', e => { e.stopPropagation(); leaveShop(); });
+    };
+    bind();
+    panelTimer = setInterval(() => {
+      if (panel !== p) return;
+      const k = 1 - (performance.now() - panelT0) / total;
+      const bar = p.querySelector('.rfTime i'); if (bar) bar.style.width = Math.max(0, k * 100) + '%';
+      if (k <= 0) leaveShop();
+    }, 100);
+  }
+  function leaveShop() {
+    const st = G.rareState(), c = st.cur;
+    closePanel();
+    if (c && c.k === 'merchant') { if (c.bought) toast(`<b>${esc(T('rfShopBye'))}</b>`, 'rare_merchant'); G.rareShopClose(); }
+  }
+  function afterBuy(c, o, got) {
+    const W = G.RARE_WARES[o.k];
+    const u = px(), f = feetOf(c, u);
+    if (f) { burst(f.x, f.y - 20 * u, [W.col, '#ffffff', '#ffd84a'], 30, 200, { sz: 3 }); ring(f.x, f.y, 6 * u, 34 * u, W.col, 0.6, 3); }
+    toast(`<span>${esc(W.name)}: <b style="color:${W.col}">${esc(o.desc)}</b></span>`, W.icon);
+  }
+  G.on('rareShop', c => openShop(c));
+  G.on('rareShopClose', () => { if (panelKind === 'shop') closePanel(); });
+
+  // ---------- The well and the ghost ----------
+  function wellHtml(c) {
+    const ws = c.wishes.map((k, i) => { const X = G.RARE_WISHES[k]; return `<button type="button" class="rfWish" data-wish="${i}" style="--o:${X.col}"><img src="${icoUrl(X.icon, 4)}" alt=""><span>${esc(X.name.toUpperCase())}<small>${esc(X.desc)}</small></span></button>`; }).join('');
+    return `<div class="rfHead"><img src="${icoUrl('rare_well', 4)}" alt=""><div><b>${esc(T('rfWell'))}</b><small>${esc(T('rfWellPick'))}</small></div></div>` +
+      `<div class="rfTime"><i></i></div><div class="rfWishes">${ws}</div><div class="rfBtns"><button type="button" class="ghost" data-leave>${esc(T('rfShopLeave'))}</button></div>`;
+  }
+  function ghostHtml(c, res) {
+    const can = !c.done && c.flips < c.max;
+    return `<div class="rfHead"><img src="${icoUrl('rare_ghost', 4)}" alt=""><div><b>${esc(T('rfGambler'))}</b><small>${esc(T('rfGamblerSub'))}</small></div></div>` +
+      `<div class="rfTime"><i></i></div><div class="rfPot"><img class="rfCoin" src="${icoUrl('ic_coin', 4)}" alt=""><small>${esc(T('rfGhostPot'))} · ${c.flips}/${c.max}</small><b>${fmt(c.pot)}</b>` +
+      `<span class="rfRes ${res ? (res.win ? 'win' : 'lose') : ''}">${res ? esc(res.win ? T('rfWin') : T('rfLose')) : ''}</span></div>` +
+      `<div class="rfBtns">${c.done ? `<button type="button" class="ghost" data-leave>OK</button>` : `<button type="button" class="ghost" data-take>${esc(T('rfTake'))} · ${fmt(c.pot)}</button>${can ? `<button type="button" data-flip>${esc(T('rfFlip'))}</button>` : ''}`}</div>`;
+  }
+  function timed(p, ms, onEnd) {
+    panelTimer = setInterval(() => {
+      if (panel !== p) return;
+      const k = 1 - (performance.now() - panelT0) / ms;
+      const bar = p.querySelector('.rfTime i'); if (bar) bar.style.width = Math.max(0, k * 100) + '%';
+      if (k <= 0) onEnd();
+    }, 100);
+  }
+  function openWell(c) {
+    const p = openPanel('well', '#7fe9ff', wellHtml(c));
+    if (!p) return;
+    p.querySelectorAll('[data-wish]').forEach(b => b.addEventListener('click', e => {
+      e.stopPropagation();
+      const i = +b.dataset.wish, k = c.wishes[i], got = G.rareWish(i);
+      closePanel();
+      if (got) wishShow(k, got, 'well');
+    }));
+    p.querySelector('[data-leave]').addEventListener('click', e => { e.stopPropagation(); closePanel(); G.rareDismiss(); });
+    timed(p, 20000, () => { closePanel(); G.rareDismiss(); });
+  }
+  function openGhost(c, res) {
+    const p = openPanel('ghost', '#c8d6ff', ghostHtml(c, res));
+    if (!p) return;
+    if (res) { const coin = p.querySelector('.rfCoin'); if (coin) coin.classList.add('flip'); }
+    const fl = p.querySelector('[data-flip]'), tk = p.querySelector('[data-take]'), lv = p.querySelector('[data-leave]');
+    if (fl) fl.addEventListener('click', e => {
+      e.stopPropagation();
+      SFX.flip();
+      fl.disabled = true; if (tk) tk.disabled = true;
+      const coin = p.querySelector('.rfCoin'); if (coin) { coin.classList.remove('flip'); void coin.offsetWidth; coin.classList.add('flip'); }
+      setTimeout(() => {
+        const r = G.rareFlip();
+        if (!r) { closePanel(); return; }
+        const cc = G.rareState().cur || c;
+        if (r.win) SFX.win(); else SFX.sad();
+        const keepT = panelT0;
+        if (c.cashed != null) { closePanel(); ghostCashed(c); return; }
+        openGhost(c, r); panelT0 = keepT;
+        if (!r.win) setTimeout(() => { if (panelKind === 'ghost') closePanel(); }, 1800);
+      }, 600);
+    });
+    if (tk) tk.addEventListener('click', e => { e.stopPropagation(); const g = G.rareCash(); closePanel(); if (g) ghostCashed(c); });
+    if (lv) lv.addEventListener('click', e => { e.stopPropagation(); closePanel(); });
+    timed(p, 20000, () => { closePanel(); G.rareDismiss(); });
+  }
+  function ghostCashed(c) {
+    SFX.coin();
+    const u = px(), f = feetOf(c, u);
+    if (f) { burst(f.x, f.y - 20 * u, ['#ffd84a', '#fff3a0', '#ffffff'], 40, 240, { sz: 3 }); floatText(f.x, f.y - 40 * u, '+' + fmt(c.cashed), '#ffd84a', Math.round(clamp(u * 3.2, 9, 13)), 1.6); }
+    if (c.flips >= 3 && G.UI && G.UI.bannerShow) reveal({ title: '+' + fmt(c.cashed), tag: T('rfGambler'), sub: T('rfGhostBye') + ' ×' + Math.pow(2, c.flips), col: '#ffd84a', icon: icoUrl('ic_coin', 7), ms: 2200, noCount: 1, sfx: 'win' });
+    else toast(`<span>${esc(T('rfGhostBye'))} <b style="color:#ffd84a">+${fmt(c.cashed)}</b></span>`, 'rare_ghost');
+  }
+  G.on('rareOpen', c => { if (c.k === 'well') openWell(c); else if (c.k === 'gambler') openGhost(c); });
+  function wishShow(k, got, src) {
+    const X = G.RARE_WISHES[k] || { name: k === 'mythic' ? 'A mythic pet' : k === 'fever' ? 'Free spins' : k === 'eggs' ? 'Eggs' : k, col: '#fff3a0', icon: 'ic_star' };
+    const bits = [];
+    if (got.gold) bits.push('+' + fmt(got.gold) + ' gold');
+    if (got.orbs) bits.push(got.orbs + ' orbs');
+    if (got.eggs) bits.push(got.eggs + ' eggs');
+    if (got.pet && G.PET_BY_ID[got.pet]) bits.push(G.PET_BY_ID[got.pet].name);
+    if (got.uq && G.UNIQUES[got.uq]) bits.push(G.UNIQUES[got.uq].name);
+    if (got.luck) bits.push('rare surprises ×3 for an hour');
+    if (got.spins) bits.push(got.spins + ' free spins');
+    SFX.wish();
+    reveal({ tag: T('rfWishGranted'), title: X.name.toUpperCase(), sub: bits.join(' · '), col: X.col, icon: icoUrl(X.icon, 7), ms: 2400, noCount: 1, sfx: 'wish' });
+  }
+  G.on('rareStarWish', (c, k, got) => {
+    const u = px();
+    if (c._x != null) { burst(c._x, c._y, ['#fff3a0', '#ffffff', '#ffd84a', '#7fe9ff'], 80, 320, { sz: 3, grav: 120 }); ring(c._x, c._y, 4 * u, 60 * u, '#fff3a0', 0.8, 3); }
+    wishShow(k, got, 'star');
+  });
+  G.on('rareGone', (c, why) => {
+    if (c.k === 'star' && why === 'missed') { const u = px(); floatText(W / 2, H * 0.22, T('rfStarMissed'), '#a9a2b9', Math.round(clamp(u * 3, 9, 12)), 1.6); }
+    if ((c.k === 'well' || c.k === 'gambler') && panelKind && (panelKind === 'well' || panelKind === 'ghost')) closePanel();
+    if (c.k === 'merchant' && panelKind === 'shop') closePanel();
+  });
+  G.on('rareLeave', (c, why) => {
+    const u = px(), f = feetOf(c, u);
+    if (f && why === 'ignored') floatText(f.x, f.y - 46 * u, 'Hmph.', '#d8d2e6', Math.round(clamp(u * 2.8, 8, 11)), 1.4);
+  });
+
+  // ---------- The Goblin King ----------
+  G.on('rareKingCoins', (c, g) => {
+    const u = px(), f = feetOf(c.m, u);
+    if (!f) return;
+    burst(f.x, f.y - 14 * u, ['#ffd84a', '#fff3a0', '#c98f10'], 14, 200, { sz: 3, grav: 320 });
+    if (Math.random() < 0.6) SFX.coin();
+  });
+  G.on('rareKingKill', (c, rew) => {
+    const u = px(), f = feetOf(c.at, u);
+    if (f) { burst(f.x, f.y - 14 * u, ['#ffd84a', '#fff3a0', '#ffffff', '#8ae07a'], 120, 360, { sz: 3 }); ring(f.x, f.y, 6 * u, 80 * u, '#ffd84a', 0.9, 4); }
+    reveal({ tag: T('rfKing'), title: T('rfKingSlain'), sub: '+' + fmt(rew.gold) + ' gold · ' + rew.drops + ' drops · ' + rew.chests + ' chests', col: '#8ae07a', icon: icoUrl('ic_crown', 7), ms: 2600, noCount: 1, sfx: 'win', big: true });
+  });
+  G.on('rareKingEscape', c => {
+    SFX.sad();
+    reveal({ tag: T('rfKing'), title: T('rfKingFled'), sub: c.coins ? '+' + fmt(c.gold) + ' gold shaken loose' : 'Next time...', col: '#a9a2b9', icon: icoUrl('m_thief', 6), ms: 2000, noCount: 1, sfx: 'sad', flash: 0.1, shake: 1 });
+  });
+
+  // ---------- A secret land ----------
+  const LAND_CLS = { vault: 'rfVault', candy: 'rfCandy', upside: 'rfUpside' };
+  G.on('rareLandEnd', (land, why) => {
+    if (why === 'force' || why === 'debug' || why === 'run') return;
+    const h = land.haul;
+    reveal({ tag: land.name.toUpperCase(), title: T('rfLandBack'), sub: T('rfLandHaul', fmt(h.gold), h.chests, h.drops) + (h.eggs ? ' · ' + h.eggs + ' eggs' : ''), col: land.col, icon: icoUrl('ic_chest', 7), ms: 2800, noCount: 1, sfx: 'win' });
+  });
+  G.on('rareGeyser', g => {
+    const u = px(), b = btnXY(u);
+    for (let i = 0; i < 26; i++) parts.push({ x: b.x + rnd(-6, 6) * u, y: b.y - 6 * u, vx: rnd(-90, 90), vy: rnd(-420, -220), life: rnd(0.8, 1.3), max: 1.3, col: i % 3 ? '#ffd84a' : '#fff3a0', sz: 3, grav: 520 });
+    floatText(b.x, b.y - 60 * u, '+' + fmt(g), '#ffd84a', Math.round(clamp(u * 3, 9, 12)), 1.2);
+    if (Math.random() < 0.5) SFX.coin();
+  });
+  G.on('rareCandyEgg', () => { const u = px(), b = btnXY(u); floatText(b.x + rnd(-40, 40), b.y - 40 * u, '+1 EGG', '#ff8ad8', Math.round(clamp(u * 3, 9, 12)), 1.4); });
+
+  // ---------- Free-spin fever ----------
+  G.on('rareFeverPaid', (f, res, ex) => {
+    if (!ex || !(ex.gold || ex.chests || ex.orbs)) return;
+    const m = res.fever ? res.fever.mult : 1, el = $('#csRoot .csM');
+    if (!el || !rect) return;
+    const r = el.getBoundingClientRect(), u = px();
+    floatText(r.left + r.width / 2 - rect.left, r.top - rect.top - 30, '×' + m + (ex.gold ? ' +' + fmt(ex.gold) : ''), '#ffd84a', Math.round(clamp(u * 3.4, 10, 14)), 1.6);
+    burst(r.left + r.width / 2 - rect.left, r.top - rect.top + 10, ['#ffd84a', '#ff3b5c', '#ffffff'], 30, 260, { sz: 3 });
+  });
+  G.on('rareFeverEnd', f => {
+    const t = f.tot;
+    const sub = ['+' + fmt(t.gold) + ' gold'].concat(t.chests ? [t.chests + ' chests'] : [], t.orbs ? [t.orbs + ' orbs'] : [], t.sevens ? ['777 ×' + t.sevens] : []).join(' · ');
+    reveal({ tag: T('rfFever'), title: T('rfFeverEnd'), sub, col: '#ff3b5c', icon: icoUrl('cs_seven', 7), ms: 2400, noCount: 1, sfx: 'win' });
+  });
+  G.on('rareMidas', () => { SFX.coin(); });
+
+  // ================= Taps =================
+  function tapHot() {
+    if (G.Audio && G.Audio.unlock) G.Audio.unlock();
+    if (G.rareState().cur) G.rareTap();
+  }
+
+  // ================= The frame =================
+  let last = 0, idle = true, filterCls = '';
+  function setFilter(cls) {
+    if (cls === filterCls) return;
+    const stage = document.getElementById('stage');
+    if (!stage) return;
+    if (filterCls) stage.classList.remove(filterCls);
+    if (cls) stage.classList.add(cls);
+    filterCls = cls;
+  }
+  function wrapBusy() {
+    // a window of ours over the field holds it still, like the game's own windows
+    if (G.uiBusy && !G.uiBusy._rare) { const prev = G.uiBusy; const f = () => !!panel || prev(); f._rare = 1; G.uiBusy = f; }
+  }
+  function chipsUpdate(r, now) {
+    const S = G.S, out = [];
+    if (r.land && r.land.on) out.push(`<span class="rfChip" style="--c:${r.land.col}">${img('ic_star')} ${esc(r.land.name.toUpperCase())}<i>${Math.ceil(Math.max(0, r.land.t))}s</i></span>`);
+    if (r.gild) out.push(`<span class="rfChip" style="--c:#ffd84a">${esc(T('rfHorde').replace('!', ''))}<i>×${G.TUNE.rareHordeGold}</i></span>`);
+    if (r.midas > 0) out.push(`<span class="rfChip" style="--c:#ffd84a">${esc(T('rfMidas'))}<i>${Math.ceil(r.midas)}s</i></span>`);
+    if ((S.st.rareLuckT || 0) > (S.st.playTime || 0)) out.push(`<span class="rfChip" style="--c:#8ae07a">${esc(T('rfLuck'))}<i>${Math.ceil((S.st.rareLuckT - S.st.playTime) / 60)}m</i></span>`);
+    const html = out.join('');
+    if (chips._h !== html) { chips.innerHTML = html; chips._h = html; }
+    chips.hidden = !out.length || !!R.town;
+    // on a narrow field: under the land's name box, not over it
+    if (!chips.hidden && wrap) {
+      const wr = wrap.getBoundingClientRect(), rb = $('.hud.top .realm');
+      chips.style.top = wr.width < 600 && rb ? Math.round(rb.getBoundingClientRect().bottom - wr.top + 6) + 'px' : '';
+    }
+  }
+  function feverUpdate(r) {
+    const f = r.fever, el = $('#csRoot .csM');
+    if (el) el.classList.toggle('rfFev', !!f);
+    if (!f || !el || el.hidden || R.town || !rect) { feverEl.hidden = true; return; }
+    const b = el.getBoundingClientRect();
+    if (!b.width) { feverEl.hidden = true; return; }
+    const cur = f.cur || { i: 0, n: f.n, mult: 0 };
+    const txt = `${esc(T('rfFeverPill', Math.min(f.n, Math.max(1, cur.i)), f.n))}${cur.mult ? `<b>×${cur.mult}</b>` : ''}`;
+    if (feverEl._h !== txt) { feverEl.innerHTML = txt; feverEl._h = txt; }
+    feverEl.style.left = Math.round(b.left + b.width / 2 - rect.left) + 'px';
+    feverEl.style.top = Math.round(b.top - rect.top - 4) + 'px';
+    feverEl.hidden = false;
+  }
+  function frame(now) {
+    requestAnimationFrame(frame);
+    try { step(now); } catch (e) { if (!frame.err) { frame.err = 1; console.error(e); } }
+  }
+  function step(now) {
+    const dt = Math.min(0.05, (now - (last || now)) / 1000); last = now;
+    if (!G.S || !ensure()) return;
+    wrapBusy();
+    pumpReveals(); watchLive();
+    const r = G.rareState(), c = r.cur;
+    resize();
+    // the secret land's (or the Golden Horde's) colours on the stage itself
+    setFilter(R.town ? '' : r.land && r.land.on ? LAND_CLS[r.land.k] : r.gild ? 'rfGild' : '');
+    chipsUpdate(r, now);
+    feverUpdate(r);
+    const busy = c || r.land || r.gild || r.midas > 0 || parts.length || rings.length || floats.length;
+    // the hot spot over a visitor
+    placeHot(c);
+    if (!busy) { if (!idle) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); } idle = true; return; }
+    idle = false;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.imageSmoothingEnabled = false;
+    if (R.town) return;
+    const t = now / 1000, u = px();
+    if (r.land && r.land.on) drawLand(r.land, dt, u, t);
+    if (r.gild) drawGild(dt, u, t);
+    if (r.midas > 0) { const a = 0.18 + 0.08 * Math.sin(t * 6); ctx.globalAlpha = a; ctx.strokeStyle = '#ffd84a'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, W - 6, H - 6); ctx.globalAlpha = 1; }
+    if (c) drawCur(c, dt, u, t);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i]; p.life -= dt;
+      if (p.life <= 0) { parts.splice(i, 1); continue; }
+      p.vy += p.grav * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      ctx.globalAlpha = Math.min(1, p.life / p.max * 1.6); ctx.fillStyle = p.col;
+      const s = Math.max(1, Math.round(p.sz * (u / 2.5)));
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), s, s);
+    }
+    ctx.globalAlpha = 1;
+    for (let i = rings.length - 1; i >= 0; i--) {
+      const q = rings[i]; q.life -= dt;
+      if (q.life <= 0) { rings.splice(i, 1); continue; }
+      const k = 1 - q.life / q.max, rr = q.r0 + (q.r1 - q.r0) * k;
+      ctx.globalAlpha = (1 - k) * 0.8; ctx.strokeStyle = q.col; ctx.lineWidth = q.w;
+      ctx.beginPath(); ctx.ellipse(q.x, q.y, Math.max(1, rr), Math.max(1, rr * 0.45), 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    for (let i = floats.length - 1; i >= 0; i--) {
+      const f = floats[i]; f.life -= dt;
+      if (f.life <= 0) { floats.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.min(1, f.life / f.max * 2);
+      label(f.str, f.x, f.y - (1 - f.life / f.max) * 18, f.size, f.col);
+      ctx.globalAlpha = 1;
+    }
+  }
+  // where a visitor stands on the screen, and the button over it
+  function curSpot(c, u, t) {
+    if (c.k === 'star') {
+      const k = clamp(c.t / c.T, 0, 1), x = c.dir > 0 ? -30 + (W + 60) * k : W + 30 - (W + 60) * k;
+      return { x, y: H * c.y + Math.sin(k * Math.PI) * -H * 0.05 + (k * H * 0.08) };
+    }
+    if (c.k === 'king') return null;
+    return feetOf(c, u);
+  }
+  function placeHot(c) {
+    if (!hot) return;
+    const tappable = c && !R.town && ((c.k === 'merchant' && (c.st === 'in' || c.st === 'wait')) || ((c.k === 'well' || c.k === 'gambler') && !c.open && !c.done) || (c.k === 'star' && !c.caught));
+    if (!tappable || !rect) { hot.hidden = true; return; }
+    const u = px(), f = curSpot(c, u, performance.now() / 1000);
+    if (!f || f.x < 8 || f.x > W - 8 || f.y < 16 || f.y > H) { hot.hidden = true; return; }
+    const big = c.k === 'star' ? 1.4 : 1;
+    const w = Math.round(clamp(20 * u, 52, 84) * big), h = Math.round(clamp(24 * u, 60, 96) * (c.k === 'star' ? 0.9 : 1));
+    hot.style.width = w + 'px'; hot.style.height = h + 'px';
+    hot.style.margin = (c.k === 'star' ? -h / 2 : -h + 6) + 'px 0 0 ' + (-w / 2) + 'px';
+    hot.style.left = Math.round(f.x) + 'px'; hot.style.top = Math.round(f.y) + 'px';
+    hot.hidden = false;
+  }
+  function plate(name, x, y, u, col, k, kc) {
+    const size = Math.round(clamp(u * 2.6, 8, 11)), bw = clamp(40 * u, 60, 120);
+    ctx.font = size + 'px ' + FONT;
+    const half = Math.max(bw, ctx.measureText(name).width) / 2 + 4;
+    x = clamp(x, half, Math.max(half, W - half)); y = Math.max(size + 4, y);
+    label(name, x, y, size, col);
+    if (k != null) bar(x, y + 3, bw, Math.max(2, Math.round(u * 0.8)), k, kc || '#f1ece0');
+    return x;
+  }
+  function drawCur(c, dt, u, t) {
+    if (c.k === 'king') {
+      const m = c.m; if (!R.mobs.includes(m)) return;
+      const f = feetOf(m, u); if (!f) return;
+      glow(f.x, f.y - 12 * u, 30 * u, 'rgba(255,216,74,0.9)', 0.32 + 0.12 * Math.sin(t * 6));
+      ctx.globalAlpha = 0.4; ctx.fillStyle = '#0a0910'; ctx.beginPath(); ctx.ellipse(f.x, f.y, 13 * u, 4 * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+      const fr = Math.floor(t * 8) % 2 && G.SPR.defs.m_thief_1 ? 'm_thief_1' : 'm_thief';
+      const sp = sprite(fr, f.x, f.y + Math.round(Math.abs(Math.sin(t * 10)) * -u), u * 2, { gold: true, flip: m.dir < 0 });
+      const top = f.y - (sp ? sp.h : 30 * u);
+      crown(f.x, top + 1 * u + Math.sin(t * 4) * u, Math.max(1, u * 1.2));
+      const px0 = plate(T('rfKing').replace('!', ''), f.x, top - 9 * u, u, '#ffd84a', clamp(m.hp / m.max, 0, 1), '#ff4f5e');
+      bar(px0, Math.max(Math.round(clamp(u * 2.6, 8, 11)) + 4, top - 9 * u) + 3 + Math.max(2, Math.round(u * 0.8)) + 2, clamp(40 * u, 60, 120), Math.max(2, Math.round(u * 0.6)), clamp((m.life || 0) / c.T, 0, 1), '#b36bff');
+      if (Math.random() < 0.4) burst(f.x + rnd(-8, 8) * u, f.y - rnd(4, 16) * u, ['#ffd84a', '#fff3a0'], 1, 40, { grav: 120, life: 0.5, sz: 3 });
+      return;
+    }
+    const f = curSpot(c, u, t); if (!f) return;
+    if (c.k === 'star') {
+      c._x = f.x; c._y = f.y;
+      // the tail, then the star
+      const dir = c.dir > 0 ? -1 : 1;
+      for (let i = 0; i < 18; i++) { ctx.globalAlpha = (1 - i / 18) * 0.8; ctx.fillStyle = i % 3 ? '#fff3a0' : '#ffffff'; const s = Math.max(2, Math.round(u * (1.6 - i / 14))); ctx.fillRect(Math.round(f.x + dir * i * 5 * u * 0.6), Math.round(f.y - i * 0.9 * u), s, s); }
+      ctx.globalAlpha = 1;
+      glow(f.x, f.y, 34 * u, 'rgba(255,243,160,0.95)', 0.6 + 0.25 * Math.sin(t * 14));
+      ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(t * 3);
+      sprite('rare_star', 0, 5.5 * u * 1.4, u * 1.4);
+      ctx.restore();
+      const sz = Math.round(clamp(u * 3.2, 9, 14));
+      label(T('rfStar'), clamp(f.x, 70, W - 70), f.y + 16 * u + sz + (Math.sin(t * 10) > 0 ? 1 : 0), sz, '#fff3a0');
+      if (Math.random() < 0.7) burst(f.x, f.y, ['#fff3a0', '#ffffff', '#7fe9ff'], 1, 30, { grav: 40, life: 0.8, sz: 2 });
+      return;
+    }
+    const bob = Math.round(Math.sin(t * 3) * u * 0.8);
+    if (c.k === 'merchant') {
+      const walking = c.st === 'in' || c.st === 'out';
+      const step = walking ? Math.round(Math.abs(Math.sin(t * 9)) * u) : 0;
+      // the lantern's light, and the man himself
+      glow(f.x - 7 * u, f.y - 9 * u, 22 * u, 'rgba(255,226,122,0.9)', 0.32 + 0.1 * Math.sin(t * 7));
+      ctx.globalAlpha = 0.35; ctx.fillStyle = '#0a0910'; ctx.beginPath(); ctx.ellipse(f.x, f.y, 10 * u, 3 * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+      const s = sprite('rare_merchant', f.x, f.y - step + (walking ? 0 : bob), u * 1.5, { flip: c.st === 'out' });
+      const top = f.y - (s ? s.h : 24 * u) - 4 * u;
+      if (c.st === 'wait' || c.st === 'in') {
+        // a "!" over his head, and how long he will wait
+        const ex = Math.round(clamp(u * 4.4, 12, 18));
+        label('!', f.x, top + Math.sin(t * 8) * 2 * u - 6, ex, '#ffd84a');
+        plate(T('rfMerchantName').toUpperCase(), f.x, top - ex - 4, u, '#ffd84a', c.st === 'wait' ? c.wait / (G.TUNE.rareMerchantWait || 24) : 1, '#ffd84a');
+        if (Math.random() < 0.15) burst(f.x + rnd(-10, 10) * u, f.y - rnd(4, 20) * u, ['#ffd84a', '#fff3a0'], 1, 20, { grav: -20, life: 0.8, sz: 2 });
+      }
+      return;
+    }
+    if (c.k === 'well') {
+      const sink = c.done ? clamp((c.t - (c.T - 1.2)) / 1.2, 0, 1) : 0;
+      ctx.globalAlpha = 1 - sink;
+      glow(f.x, f.y - 8 * u, 26 * u, 'rgba(90,232,255,0.9)', 0.25 + 0.1 * Math.sin(t * 4));
+      sprite('rare_well', f.x, f.y + sink * 10 * u, u * 1.3);
+      ctx.globalAlpha = 1;
+      if (Math.random() < 0.2) burst(f.x + rnd(-8, 8) * u, f.y - rnd(6, 18) * u, ['#7fe9ff', '#ffffff', '#ffd84a'], 1, 20, { grav: -30, life: 1, sz: 2 });
+      if (!c.open && !c.done) plate(T('rfWell'), f.x, f.y - 26 * u, u, '#7fe9ff', 1 - c.t / c.T, '#7fe9ff');
+      return;
+    }
+    if (c.k === 'gambler') {
+      const fade = c.done ? clamp((c.t - (c.T - 2.5)) / 2.5, 0, 1) : 0;
+      ctx.globalAlpha = (0.72 + 0.2 * Math.sin(t * 5)) * (1 - fade);
+      sprite('rare_ghost', f.x, f.y - 6 * u + Math.sin(t * 2.2) * 3 * u, u * 1.3);
+      ctx.globalAlpha = 1;
+      if (Math.random() < 0.2) burst(f.x + rnd(-8, 8) * u, f.y - rnd(4, 20) * u, ['#c8d6ff', '#ffffff'], 1, 16, { grav: -40, life: 0.9, sz: 2 });
+      if (!c.open && !c.done) plate(T('rfGambler'), f.x, f.y - 30 * u, u, '#c8d6ff', 1 - c.t / c.T, '#c8d6ff');
+    }
+  }
+  // a secret land's weather: gold dust, candy confetti, loot bubbles rising
+  function drawLand(land, dt, u, t) {
+    const col = land.col;
+    // a tinted edge round the field
+    const g = ctx.createRadialGradient(W / 2, H * 0.5, Math.min(W, H) * 0.35, W / 2, H * 0.5, Math.max(W, H) * 0.75);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, land.k === 'vault' ? 'rgba(255,190,40,0.35)' : land.k === 'candy' ? 'rgba(255,110,210,0.32)' : 'rgba(90,232,255,0.3)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    const n = land.k === 'candy' ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      if (parts.length > 500) break;
+      if (land.k === 'vault') parts.push({ x: rnd(0, W), y: -6, vx: rnd(-10, 10), vy: rnd(40, 90), life: rnd(3, 6), max: 6, col: Math.random() < 0.6 ? '#ffd84a' : '#fff3a0', sz: 2, grav: 0 });
+      else if (land.k === 'candy') parts.push({ x: rnd(0, W), y: -6, vx: rnd(-30, 30), vy: rnd(50, 110), life: rnd(3, 6), max: 6, col: ['#ff8ad8', '#7fe9ff', '#ffd84a', '#b6ff5a', '#c88aff'][Math.floor(Math.random() * 5)], sz: 3, grav: 0 });
+      else parts.push({ x: rnd(0, W), y: H + 6, vx: rnd(-8, 8), vy: -rnd(40, 100), life: rnd(3, 6), max: 6, col: Math.random() < 0.5 ? '#7fe9ff' : '#ffffff', sz: 2, grav: 0 });
+    }
+    // gilded goblins sparkle
+    let k = 0;
+    for (const m of R.mobs) { if (!m.rareGob || k++ > 8) continue; if (Math.random() < 0.3) { const f = feetOf(m, u); if (f) burst(f.x + rnd(-6, 6) * u, f.y - rnd(4, 14) * u, [col, '#ffffff'], 1, 30, { grav: 60, life: 0.5, sz: 2 }); } }
+  }
+  function drawGild(dt, u, t) {
+    // a gold glint on a handful of the Horde each frame
+    const ms = R.mobs; if (!ms.length) return;
+    for (let i = 0; i < 6; i++) {
+      const m = ms[Math.floor(Math.random() * ms.length)];
+      if (!m || !m.gild) continue;
+      const f = feetOf(m, u); if (!f || f.x < 0 || f.x > W || f.y < 0 || f.y > H) continue;
+      burst(f.x + rnd(-4, 4) * u, f.y - rnd(4, 12) * u, ['#ffd84a', '#fff3a0', '#ffffff'], 1, 30, { grav: 40, life: 0.5, sz: 2 });
+    }
+  }
+
+  // ================= The codex =================
+  function codexHtml() {
+    const rows = G.rareCodex().map(e => {
+      const seen = e.n > 0, ic = { merchant: 'rare_merchant', well: 'rare_well', gambler: 'rare_ghost', star: 'rare_star', king: 'm_thief', fever: 'cs_seven', horde: 'ev_stampede', pet: 'p_goldling', land: 'ic_star', legend: 'ic_jackpot' }[e.id] || e.icon;
+      return `<div class="${seen ? '' : 'no'}"><img src="${icoUrl(ic, 3, e.id === 'horde' || e.id === 'king' ? { gold: true } : null)}" alt=""><span><b style="color:${seen ? e.col : '#6d6784'}">${esc(seen ? e.name : T('rfUnseen'))}</b><small>${esc(seen ? T('rfSeenN', e.n) + ' · ' + e.desc : e.odds)}</small></span></div>`;
+    }).join('');
+    return `<div class="rfCodex">${rows}</div>`;
+  }
+  G.rareFx = {
+    sfx: SFX, reveal, codexHtml,
+    openCodex() { if (G.UI && G.UI.modal) G.UI.modal(T('rfCodex'), codexHtml(), [{ label: 'OK', cls: 'gold' }]); },
+    state: () => ({ queue: queue.length, panel: panelKind, filter: filterCls, hot: hot && !hot.hidden, parts: parts.length }),
+  };
   requestAnimationFrame(frame);
 })(globalThis.G = globalThis.G || {});
 

@@ -9,7 +9,7 @@
 //                                 rain, gold geysers, a soft and golden Horde; then the party marches back.
 //   pet       A MYTHIC PET        three tier-4 pets (G.PETS, tier 4 'Mythic'): one hatch in 5000, or from
 //                                 the merchant's egg, a secret land, a wish, or the Button of Legends.
-//   fever     FREE-SPIN FEVER     one Lucky Spin in 200 (one triple in 50) sets off 7 free spins on the
+//   fever     FREE-SPIN FEVER     one Lucky Spin in 500 (one triple in 100) sets off 7 free spins on the
 //                                 bonus reel: no misses, rising multipliers (x2 ... x10), a sure triple last.
 //   horde     THE GOLDEN HORDE    one Stampede in 20 turns golden: the Horde pours in from every side
 //                                 and every kill pays eight times the gold.
@@ -43,11 +43,11 @@
   Object.assign(TUNE, {
     rareOn: 1,
     rareFrom: 300,            // nothing rare in a save's first five minutes of play
-    rareRoll: 10,             // the field surprises roll once every this many seconds of eligible play...
+    rareRoll: 10,             // the field surprises roll once every this many seconds of unblocked play (owed rolls wait for a quiet field)...
     rareGap: 240,             // ...and never closer than this to the last one
     // per roll; each climbs with the hours since its last (x(1 + pity x hours)) and is sure after `hard` s
-    rareMerchant: 0.001, rareMerchantPity: 1, rareMerchantHard: 4 * 3600,
-    rareWell: 0.0004, rareGambler: 0.0006, rareStar: 0.0008, rareKing: 0.0006, rarePity: 0.5, rareHard: 12 * 3600,
+    rareMerchant: 0.0007, rareMerchantPity: 0.8, rareMerchantHard: 4 * 3600,
+    rareWell: 0.0003, rareGambler: 0.0004, rareStar: 0.0005, rareKing: 0.0004, rarePity: 0.5, rareHard: 12 * 3600,
     rareMerchantWait: 24,     // he waits this long to be tapped, then walks off
     rareShopTime: 30,         // the shop stays open this long (real seconds in the browser)
     rareLand: 1 / 300,        // per march to a new zone; doubles after rareLandSoft marches without, sure at rareLandHard...
@@ -55,7 +55,8 @@
     rareLandGap: 2 * 3600,    // ...but never within this much play of the last one (a treasure map ignores it)
     rareHorde: 1 / 20,        // per Stampede
     rareHordeGold: 8,
-    rareFever: 0.005, rareFeverTriple: 0.02, rareFeverN: 7,
+    rareFever: 0.002, rareFeverTriple: 0.01, rareFeverN: 7, // per Lucky Spin (a triple: per triple)...
+    rareFeverGap: 1800,       // ...and not within half an hour of play of the last fever from a spin
     rarePet: 1 / 5000,        // per egg hatched...
     rarePetGap: 6 * 3600,     // ...and not within six hours of play of the last one (late-game hatcheries open thousands)
     rareLegend: 1e-6,         // per click of the Hand (no luck counts here)
@@ -77,7 +78,7 @@
     { id: 'merchant', feed: 'met the Lucky Merchant', name: 'The Lucky Merchant', col: '#ffd84a', icon: 'ic_coin', odds: 'about once in 1–3 hours', desc: 'A cloaked trader with a pack full of bargains. Tap him before he leaves.' },
     { id: 'land', feed: 'found a SECRET LAND', name: 'A Secret Land', col: '#ff8ad8', icon: 'ic_star', odds: 'about 1 march in 300', desc: 'A wrong turn into a land of treasure: the Gilded Vault, Candy Hollow or the Upside Land.' },
     { id: 'pet', feed: 'hatched a MYTHIC pet', name: 'A Mythic Pet', col: '#ff5fd2', icon: 'ic_egg', odds: '1 hatch in 5000', desc: 'Three pets above Divine. Eggs, wishes and secret lands may hold one.' },
-    { id: 'fever', name: 'Free-Spin Fever', col: '#ff3b5c', icon: 'cs_seven', odds: '1 Lucky Spin in 200', desc: 'Seven free spins on the bonus reel: no misses, rising multipliers.' },
+    { id: 'fever', name: 'Free-Spin Fever', col: '#ff3b5c', icon: 'cs_seven', odds: '1 Lucky Spin in 500 (a triple: 1 in 100)', desc: 'Seven free spins on the bonus reel: no misses, rising multipliers.' },
     { id: 'horde', name: 'The Golden Horde', col: '#ffd84a', icon: 'ev_stampede', odds: '1 Stampede in 20', desc: 'The Stampede turns to gold: every kill pays eight times.' },
     { id: 'well', name: 'The Wishing Well', col: '#7fe9ff', icon: 'ic_star', odds: 'once in a blue moon (more on a full one)', desc: 'Toss a coin and make one of three wishes.' },
     { id: 'gambler', name: 'The Ghostly Gambler', col: '#c8d6ff', icon: 'ic_coin', odds: 'every few hours', desc: 'A ghost stakes its own gold. Double or nothing?' },
@@ -533,7 +534,9 @@
       return;
     }
     if (f || blocked()) return;
-    if (chance((res.n === 3 ? TUNE.rareFeverTriple : TUNE.rareFever) * luck())) startFever(TUNE.rareFeverN, 'spin');
+    const S = S_(), now = S.st.playTime || 0;
+    if (S.st.rareFeverAt != null && now - S.st.rareFeverAt < TUNE.rareFeverGap) return;
+    if (chance((res.n === 3 ? TUNE.rareFeverTriple : TUNE.rareFever) * luck())) { S.st.rareFeverAt = Math.round(now); startFever(TUNE.rareFeverN, 'spin'); }
   });
   G.rareFever = () => RR().fever;
 

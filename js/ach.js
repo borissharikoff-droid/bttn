@@ -63,8 +63,12 @@
     A('boss_500', 'Scourge of the Realm', 'Defeat 500 bosses', S => S.st.bossKills >= 500),
 
     A('pet_1', 'Friend Forever', 'Get a pet', S => Object.keys(S.pets).length >= 1),
-    A('pets_all', "They're So Cute!", 'Collect every pet', S => G.PETS.every(p => S.pets[p.id])),
-    A('pets_gold', 'At Last, All of Them', 'Collect every golden pet', S => G.PETS.every(p => S.pets[p.id] && S.pets[p.id].gold)),
+    A('pets_all', "They're So Cute!", 'Collect every pet', S => G.PETS.filter(p => !p.mythic).every(p => S.pets[p.id])),
+    A('pets_gold', 'At Last, All of Them', 'Collect every golden pet', S => G.PETS.filter(p => !p.mythic).every(p => S.pets[p.id] && S.pets[p.id].gold)),
+    // 3.5: the rare surprises (js/rare.js)
+    A('rare_first', 'Once in a Blue Moon', 'See a rare surprise', S => Object.keys((S.st && S.st.rare) || {}).length > 0),
+    A('rare_all', 'Seen It All', 'See every rare surprise', S => (G.RARE_LOG || []).length > 0 && G.RARE_LOG.every(e => ((S.st && S.st.rare) || {})[e.id])),
+    A('mythic_pet', 'Mythical', 'Hatch a mythic pet', S => (G.MYTHIC_PETS || []).some(p => S.pets[p.id])),
     A('pet_max', 'Best Buddy', 'Get a pet to level 25', S => Object.values(S.pets).some(p => p.lvl >= 25)),
 
     A('combo_100', 'Rhythm Machine', 'Reach a 100 combo', S => S.st.maxCombo >= 100),

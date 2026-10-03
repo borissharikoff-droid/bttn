@@ -432,6 +432,7 @@
       let held = 0, life = 0;
       const iv = setInterval(() => {
         if (!el.isConnected) { clearInterval(iv); return; }
+        if (S.seen && S.seen.hold) { el.classList.add('out'); clearInterval(iv); setTimeout(() => el.remove(), 600); return; }
         const busy = !!(G.uiBusy() || G.R.town);
         el.classList.toggle('away', busy);
         if (busy) return;
@@ -1348,6 +1349,7 @@
     ];
     body.innerHTML = `
       <p class="note">${esc(t('achSummary', got, G.ACH.length, got))}</p>
+      ${G.rareFx ? `<button class="btn" data-rarecodex>${esc((G.STR && G.STR.rfCodex) || 'Rare surprises')}</button>` : ''}
       <div class="sect">${esc(t('skins'))}</div>
       <div class="skinRow">${G.SKINS.map(s => {
         const ok = !s.unlock || S.ach[s.unlock];
@@ -1362,6 +1364,7 @@
       }).join('')}</div>
       <div class="sect">${esc(t('stats'))}</div>
       <div class="statList">${stats.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('')}</div>`;
+    const rc = body.querySelector('[data-rarecodex]'); if (rc) rc.addEventListener('click', () => G.rareFx && G.rareFx.openCodex());
     body.querySelector('.skinRow').addEventListener('click', e => {
       const b = e.target.closest('.skin'); if (!b || b.classList.contains('no')) return;
       G.S.skin = b.dataset.s; UI.render();

@@ -22,6 +22,13 @@
   - Upgrades: ×1 / ×10 / MAX, cheapest first, time until affordable, hold to keep buying.
   - Settings → Play: auto-equip, auto-perks, auto-cast, auto-Overdrive, auto-scrap, instant spins, reduce effects, number format. Tap the gold rate for a breakdown.
 - On phones the Lucky Spin meter sits in the corner, off the party.
+- **Rare surprises.** Ten once-in-a-blue-moon moments, each with a loud reveal, logged in a codex (Achievements → Rare surprises):
+  - **The Lucky Merchant** walks in now and then (about 0.07% a roll, sure within a few hours): tap him for a 30-second shop of real bargains — a sure top-rarity item, uniques, orbs, a Shimmering Egg, bonus spins, Midas gold.
+  - **Secret lands** (about 1 march in 300): the Gilded Vault, Candy Hollow and the Upside Land — 75 seconds of treasure goblins, chest rain and gold geysers, then a trove and the march back.
+  - **Mythic pets** (about 1 hatch in 5000): the Golden Buttonling, the Void Kitten and the Clover Sprite.
+  - **Free-Spin Fever** on the Lucky Spin: seven free spins with rising multipliers, the last a sure triple.
+  - **The Golden Horde** (1 stampede in 20), **the Wishing Well**, **the Ghostly Gambler** (double or nothing), **Shooting Stars**, **the Goblin King** and, once in a million clicks, **the Button of Legends**.
+  - Three new achievements for them.
 
 ## 3.4 — Momentum
 

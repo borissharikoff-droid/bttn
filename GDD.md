@@ -123,6 +123,8 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
   - Portal Storm, Warlord, High Stakes;
   - jackpot frenzy.
 - Invasions arrive about every 7 minutes.
+- **Rare surprises** (3.5, js/rare.js): the Lucky Merchant, secret lands, mythic pets, Free-Spin Fever, the Golden Horde,
+  the Wishing Well, the Ghostly Gambler, Shooting Stars, the Goblin King and the Button of Legends, with pity timers and a codex.
 
 ### 4.10 Social
 

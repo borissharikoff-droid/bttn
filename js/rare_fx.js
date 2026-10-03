@@ -680,7 +680,8 @@
   });
   G.on('rareFeverEnd', f => {
     const t = f.tot;
-    reveal({ tag: T('rfFever'), title: T('rfFeverEnd'), sub: T('rfFeverTot', fmt(t.gold), t.chests, t.orbs), col: '#ff3b5c', icon: icoUrl('cs_seven', 7), ms: 2400, noCount: 1, sfx: 'win' });
+    const sub = ['+' + fmt(t.gold) + ' gold'].concat(t.chests ? [t.chests + ' chests'] : [], t.orbs ? [t.orbs + ' orbs'] : [], t.sevens ? ['777 ×' + t.sevens] : []).join(' · ');
+    reveal({ tag: T('rfFever'), title: T('rfFeverEnd'), sub, col: '#ff3b5c', icon: icoUrl('cs_seven', 7), ms: 2400, noCount: 1, sfx: 'win' });
   });
   G.on('rareMidas', () => { SFX.coin(); });
 
