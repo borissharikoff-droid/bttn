@@ -192,7 +192,7 @@
     // a full bag gives up its weakest piece, never a unique or a relic
     while (h.bag.length > G.TUNE.bagMax) {
       let worst = null, ws = Infinity;
-      for (const x of h.bag) { if (x.q) continue; const p = G.powerWith(G.slotOf(x.id), x); if (p < ws) { ws = p; worst = x; } }
+      for (const x of h.bag) { if (x.q) continue; const p = G.powerWith(G.slotOf(x.id), x) + (x.keep ? 1e299 : 0); if (p < ws) { ws = p; worst = x; } }
       if (!worst) break;
       G.salvage(worst, true);
     }

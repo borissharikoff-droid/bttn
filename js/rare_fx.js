@@ -183,8 +183,12 @@
 @keyframes rfRainbow { 0% { color: #ff5f5f; } 20% { color: #ffd84a; } 40% { color: #6ee06e; } 60% { color: #5ae8ff; } 80% { color: #c88aff; } 100% { color: #ff5f5f; } }
 .rfPanel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 20; width: min(94%, 560px); max-height: 92%; overflow: auto;
   --c: #ffd84a; background: #14111e; border: 3px solid #0a0910; box-shadow: inset 0 0 0 2px var(--c), 0 0 40px -6px var(--c), 0 6px 0 #0a0910;
-  padding: 14px 14px 12px; pointer-events: auto; outline: 9999px solid rgba(6,5,10,.42); animation: rfIn .4s cubic-bezier(.2,1.6,.4,1); color: #f1ece0; font: 15px/1.25 ${BODY}; }
+  padding: 14px 14px 12px; pointer-events: auto; animation: rfIn .4s cubic-bezier(.2,1.6,.4,1); color: #f1ece0; font: 15px/1.25 ${BODY}; }
 .rfPanel.out { animation: rfOut .3s ease-in forwards; }
+.rfBack { position: absolute; inset: 0; z-index: 19; background: rgba(6,5,10,.45); pointer-events: auto; animation: rfFade .3s ease-out; }
+.rfBack.out { opacity: 0; transition: opacity .3s; }
+@keyframes rfFade { from { opacity: 0; } }
+#stageWrap.rfPanelOn #banner .inner.rfB { visibility: hidden; }
 @keyframes rfIn { from { transform: translate(-50%, -50%) scale(.5); opacity: 0; } }
 @keyframes rfOut { to { transform: translate(-50%, -46%); opacity: 0; } }
 .rfPanel .rfHead { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
@@ -240,6 +244,7 @@
 @media (max-width: 860px) {
   /* a phone: the window takes the screen, the wares stack as rows */
   .rfPanel { position: fixed; z-index: 40; width: min(96vw, 520px); max-height: 92vh; padding: 10px; font-size: 14px; }
+  .rfBack { position: fixed; z-index: 39; }
   .rfPanel .rfHead img { width: 44px; height: 48px; }
   .rfOffers { grid-template-columns: 1fr; gap: 6px; }
   .rfOffer { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; column-gap: 8px; row-gap: 3px; align-items: center; text-align: left; padding: 7px 8px; }
@@ -458,16 +463,22 @@
   });
 
   // ---------- The merchant's shop ----------
-  let panel = null, panelKind = null, panelT = 0, panelT0 = 0, panelTimer = null;
-  function closePanel(silent) {
+  let panel = null, panelKind = null, panelT0 = 0, panelTimer = null, back = null;
+  function closePanel() {
     if (!panel) return;
-    const p = panel; panel = null; panelKind = null; clearInterval(panelTimer); panelTimer = null;
+    const p = panel, b = back; panel = null; panelKind = null; back = null; clearInterval(panelTimer); panelTimer = null;
     p.classList.add('out'); setTimeout(() => p.remove(), 320);
-    if (!silent) { /* nothing */ }
+    if (b) { b.classList.add('out'); setTimeout(() => b.remove(), 320); }
+    if (wrap) wrap.classList.remove('rfPanelOn');
   }
   function openPanel(kind, col, html) {
     if (!ensure()) return null;
-    closePanel(true);
+    closePanel();
+    // a dim backdrop that swallows taps meant for the field
+    back = document.createElement('div'); back.className = 'rfBack';
+    back.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
+    wrap.appendChild(back);
+    wrap.classList.add('rfPanelOn');
     const p = document.createElement('div');
     p.className = 'rfPanel ' + kind; p.style.setProperty('--c', col);
     p.setAttribute('role', 'dialog'); p.setAttribute('aria-label', kind);
@@ -477,7 +488,6 @@
     panel = p; panelKind = kind; panelT0 = performance.now();
     return p;
   }
-  const curIcon = c => (c === 'gold' ? 'ic_coin' : G.SPR && G.SPR.defs.ic_shard ? 'ic_shard' : 'ic_shard');
   function shopHtml(c) {
     const S = G.S;
     const offers = c.offers.map((o, i) => {
@@ -677,11 +687,7 @@
   // ================= Taps =================
   function tapHot() {
     if (G.Audio && G.Audio.unlock) G.Audio.unlock();
-    const c = G.rareState().cur;
-    if (!c) return;
-    if (c.k === 'star' && rect) { c._tapped = 1; }
-    const r = G.rareTap();
-    if (!r && c.k === 'merchant' && c.st === 'out') return;
+    if (G.rareState().cur) G.rareTap();
   }
 
   // ================= The frame =================
@@ -707,6 +713,11 @@
     const html = out.join('');
     if (chips._h !== html) { chips.innerHTML = html; chips._h = html; }
     chips.hidden = !out.length || !!R.town;
+    // on a narrow field: under the land's name box, not over it
+    if (!chips.hidden && wrap) {
+      const wr = wrap.getBoundingClientRect(), rb = $('.hud.top .realm');
+      chips.style.top = wr.width < 600 && rb ? Math.round(rb.getBoundingClientRect().bottom - wr.top + 6) + 'px' : '';
+    }
   }
   function feverUpdate(r) {
     const f = r.fever, el = $('#csRoot .csM');
@@ -789,7 +800,7 @@
     const tappable = c && !R.town && ((c.k === 'merchant' && (c.st === 'in' || c.st === 'wait')) || ((c.k === 'well' || c.k === 'gambler') && !c.open && !c.done) || (c.k === 'star' && !c.caught));
     if (!tappable || !rect) { hot.hidden = true; return; }
     const u = px(), f = curSpot(c, u, performance.now() / 1000);
-    if (!f) { hot.hidden = true; return; }
+    if (!f || f.x < 8 || f.x > W - 8 || f.y < 16 || f.y > H) { hot.hidden = true; return; }
     const big = c.k === 'star' ? 1.4 : 1;
     const w = Math.round(clamp(20 * u, 52, 84) * big), h = Math.round(clamp(24 * u, 60, 96) * (c.k === 'star' ? 0.9 : 1));
     hot.style.width = w + 'px'; hot.style.height = h + 'px';
@@ -798,9 +809,13 @@
     hot.hidden = false;
   }
   function plate(name, x, y, u, col, k, kc) {
-    const size = Math.round(clamp(u * 2.6, 8, 11));
+    const size = Math.round(clamp(u * 2.6, 8, 11)), bw = clamp(40 * u, 60, 120);
+    ctx.font = size + 'px ' + FONT;
+    const half = Math.max(bw, ctx.measureText(name).width) / 2 + 4;
+    x = clamp(x, half, Math.max(half, W - half)); y = Math.max(size + 4, y);
     label(name, x, y, size, col);
-    if (k != null) bar(x, y + 3, clamp(40 * u, 60, 120), Math.max(2, Math.round(u * 0.8)), k, kc || '#f1ece0');
+    if (k != null) bar(x, y + 3, bw, Math.max(2, Math.round(u * 0.8)), k, kc || '#f1ece0');
+    return x;
   }
   function drawCur(c, dt, u, t) {
     if (c.k === 'king') {
@@ -812,8 +827,8 @@
       const sp = sprite(fr, f.x, f.y + Math.round(Math.abs(Math.sin(t * 10)) * -u), u * 2, { gold: true, flip: m.dir < 0 });
       const top = f.y - (sp ? sp.h : 30 * u);
       crown(f.x, top + 1 * u + Math.sin(t * 4) * u, Math.max(1, u * 1.2));
-      plate(T('rfKing').replace('!', ''), f.x, top - 9 * u, u, '#ffd84a', clamp(m.hp / m.max, 0, 1), '#ff4f5e');
-      bar(f.x, top - 9 * u + 3 + Math.max(2, Math.round(u * 0.8)) + 2, clamp(40 * u, 60, 120), Math.max(2, Math.round(u * 0.6)), clamp((m.life || 0) / c.T, 0, 1), '#b36bff');
+      const px0 = plate(T('rfKing').replace('!', ''), f.x, top - 9 * u, u, '#ffd84a', clamp(m.hp / m.max, 0, 1), '#ff4f5e');
+      bar(px0, Math.max(Math.round(clamp(u * 2.6, 8, 11)) + 4, top - 9 * u) + 3 + Math.max(2, Math.round(u * 0.8)) + 2, clamp(40 * u, 60, 120), Math.max(2, Math.round(u * 0.6)), clamp((m.life || 0) / c.T, 0, 1), '#b36bff');
       if (Math.random() < 0.4) burst(f.x + rnd(-8, 8) * u, f.y - rnd(4, 16) * u, ['#ffd84a', '#fff3a0'], 1, 40, { grav: 120, life: 0.5, sz: 3 });
       return;
     }

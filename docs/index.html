@@ -1101,6 +1101,110 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .teamCls b { font: 8px/1.2 var(--font-display); color: #fff; }
 .teamCls small { font-size: 13px; }
 .teamCls small.r_tank { color: #8fc8ff; } .teamCls small.r_heal { color: #7aff8a; } .teamCls small.r_dps { color: #ff9a5a; }
+/* ---------- 3.5 QoL: the town's quick bar, the Forge's sorting and locks, buy amounts, the to-do list ---------- */
+.twNav { display: flex; gap: 4px; padding: 5px 8px; background: #15131f; border-bottom: 2px solid var(--ink); overflow-x: auto; scrollbar-width: thin; flex: none; }
+.twGo { position: relative; flex: none; display: grid; justify-items: center; align-content: center; gap: 2px; min-width: 52px; height: 48px; padding: 2px 4px; border: 2px solid var(--ink); background: var(--panel2); color: var(--text); cursor: pointer; font: 7px/1 var(--font-display); }
+.twGo .pic { width: 34px; height: 26px; display: grid; place-items: center; overflow: hidden; }
+.twGo .pic img { max-width: 34px; max-height: 26px; image-rendering: pixelated; }
+.twGo small { font: 7px/1 var(--font-display); color: var(--dim); white-space: nowrap; }
+.twGo:hover { background: var(--slot-hi); }
+.twGo.on { background: #3a3014; box-shadow: inset 0 0 0 2px #ffd84a; }
+.twGo.on small { color: #ffe27a; }
+.twGo.field { min-width: 64px; grid-auto-flow: row; background: #1c3a2a; box-shadow: inset 0 0 0 2px #7fe9ff66; }
+.twGo.field b { font: 8px/1 var(--font-display); color: #b8f4ff; }
+.twGo.field img { width: 20px; height: 20px; image-rendering: pixelated; }
+.twGo .dot { position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; background: var(--bad); border: 2px solid var(--ink); }
+.twGo .up { position: absolute; top: 13px; right: 2px; color: #ffd84a; font-style: normal; font-size: 10px; text-shadow: 1px 1px 0 var(--ink); }
+.twGo kbd { position: absolute; top: 1px; left: 3px; font: 7px/1 var(--font-display); color: #6d6784; }
+.tw.inR { animation: twInR .22s ease-out; } .tw.inL { animation: twInL .22s ease-out; }
+@keyframes twInR { from { transform: translateX(28px); opacity: .4; } }
+@keyframes twInL { from { transform: translateX(-28px); opacity: .4; } }
+.twWho { flex-wrap: wrap; }
+.twWho button { position: relative; min-height: 40px; }
+.twWho .upN, .twMem .upN { font: 8px/1 var(--font-display); font-style: normal; color: var(--good); }
+.twWho .upN { margin-left: 2px; }
+.twSort { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; }
+.twSort small { color: var(--dim); font-size: 13px; }
+.flt button { min-height: 28px; }
+.twTile i.dn { position: absolute; right: 1px; top: 0; color: #ff7a7a; font: 8px/1 var(--font-display); font-style: normal; text-shadow: 1px 1px 0 var(--ink); pointer-events: none; opacity: .8; }
+.twTile i.oth { position: absolute; right: 2px; bottom: 1px; color: #7fe9ff; font: 9px/1 var(--font-display); font-style: normal; text-shadow: 1px 1px 0 var(--ink); pointer-events: none; }
+.twTile i.new { position: absolute; left: 50%; top: -4px; transform: translateX(-50%); padding: 1px 3px; background: #ffd84a; color: #2a1a04; border: 1px solid var(--ink); font: 6px/1 var(--font-display); font-style: normal; pointer-events: none; z-index: 1; }
+.twTile.kept .gear { box-shadow: inset 0 0 0 2px #ffd84a88; }
+.gear .gk { position: absolute; left: 2px; top: 2px; width: 10px; height: 10px; display: grid; place-items: center; pointer-events: none; }
+.gear .gk img { width: 10px !important; height: 10px !important; filter: drop-shadow(1px 1px 0 var(--ink)); }
+.twBagHead b.full, [data-bagn].full { color: var(--bad) !important; }
+.bagFull { margin: 0 0 6px; padding: 5px 8px; background: #3a1418; border: 2px solid var(--ink); color: #ffb0b0; font-size: 13px; }
+.btn.on { box-shadow: inset 0 0 0 2px #ffd84a, 0 3px 0 var(--ink); color: #ffe27a; }
+.twActs .btn img { width: 14px; height: 14px; }
+.scrapSeg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+.scrapSeg button { min-height: 40px; padding: 6px 4px; border: 2px solid var(--ink); background: var(--panel2); color: var(--rc); font: 8px/1.2 var(--font-display); cursor: pointer; }
+.scrapSeg button.on { background: #2a2214; box-shadow: inset 0 0 0 2px var(--rc); }
+.scrapSum { font-size: 15px; }
+.scrapSum b { color: #bfe8ff; }
+.twTeam { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 10px 0; }
+.twTeam span { font: 9px/1.2 var(--font-display); color: var(--dim); }
+.twTeam span b { color: #ffe27a; font-size: 12px; }
+.twMem .mStat { font-size: 12px; color: var(--text); text-align: center; }
+.twMem .mStat b { color: #ffe27a; }
+.mGear { display: flex; gap: 3px; }
+.mGear .mg { width: 26px; height: 26px; display: grid; place-items: center; background: var(--slot); border: 2px solid var(--rc, var(--ink)); font-style: normal; }
+.mGear .mg.none { border-color: var(--ink); opacity: .5; }
+.mGear .mg img { width: 18px; height: 18px; image-rendering: pixelated; }
+.todo { display: grid; gap: 4px; margin: 0 0 10px; }
+.todoRow { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 10px; border: 2px solid var(--ink); background: #2a2214; color: var(--text); text-align: left; cursor: pointer; font: 14px/1.2 var(--font-body); box-shadow: inset 0 0 0 1px #ffd84a44; }
+.todoRow:hover { background: #3a3014; }
+.todoRow img { width: 20px; height: 20px; image-rendering: pixelated; flex: none; }
+.todoRow span { flex: 1; }
+.todoRow i { font-style: normal; color: #ffd84a; font: 12px/1 var(--font-display); }
+.todoRow.warn { background: #3a1418; box-shadow: inset 0 0 0 1px #ff6a6a66; }
+.btn.dim { opacity: .5; }
+.upgBar { display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; }
+.upgBar .seg button, [data-seg] button { min-height: 32px; }
+.row .cost { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; }
+.row .cost .eta { flex-basis: 100%; text-align: right; font: 12px/1 var(--font-body); color: var(--dim); }
+.row .cost .eta:empty { display: none; }
+.row { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+.row.held { box-shadow: inset 0 0 0 2px #ffd84a !important; }
+.setRow > span small { display: block; color: var(--dim); font-size: 12px; }
+.setRow .seg { flex-wrap: wrap; justify-content: flex-end; }
+.setRow .seg button { min-height: 32px; }
+#panel .rates { cursor: pointer; }
+#panel .rates:hover b { text-decoration: underline dotted; }
+.gbList { display: grid; gap: 6px; margin: 8px 0; }
+.gbRow { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: 14px; }
+.gbRow i { height: 8px; background: #2a2838; border: 1px solid var(--ink); }
+.gbRow u { display: block; height: 100%; background: var(--gold, #ffd84a); }
+.gbRow b { font: 9px/1 var(--font-display); color: #ffe27a; white-space: nowrap; }
+.gbRow small { color: var(--dim); min-width: 32px; text-align: right; }
+.gbTot b { color: #ffe27a; }
+.helpBars { display: grid; gap: 4px; }
+.helpBars p { margin: 0; font-size: 14px; }
+@media (max-width: 700px) {
+  /* the quick bar stays on top while the window scrolls, so FIELD and the next building are always one tap away */
+  #townWin .tw:not(.host) .twNav { position: sticky; top: 0; z-index: 4; }
+  #townWin .tw.tavern .twHead { position: static; }
+  .twGo { min-width: 48px; height: 46px; }
+  .twWho button { flex: 1 1 30%; justify-content: flex-start; }
+  .twMem { min-width: 0; flex: 1 1 44%; }
+  .twMem img { width: 48px; }
+  .gbRow { grid-template-columns: minmax(0, 1fr) 60px auto; }
+  .gbRow small { display: none; }
+}
+@media (hover: none) { .twGo kbd { display: none; } }
+/* Settings → Reduce effects: the page's decorative pulses rest */
+body.lowfx .row.can, body.lowfx .btn.pulse, body.lowfx .townBtn.glow, body.lowfx #btnTown.ping, body.lowfx .pseat.open, body.lowfx .gear.r6,
+body.lowfx .tw.inR, body.lowfx .tw.inL, body.lowfx .blessCard, body.lowfx .teamCls, body.lowfx #holdPlate b, body.lowfx #holdPlate .hpKey, body.lowfx #holdPlate .hpFinger { animation: none !important; }
+@media (pointer: coarse) { .flt button, .upgBar .seg button, .setRow .seg button, [data-seg] button, .twSubs button { min-height: 40px; } .flt button { padding: 3px 9px; } }
+@media (max-width: 700px) {
+  /* a phone's window keeps its chrome short: one line of the building's note (the quick bar sits right under it) */
+  .twHead { padding: 4px 8px; gap: 8px; }
+  .twHead > div { min-width: 0; }
+  .twHead small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  .twNav { padding: 4px 6px; }
+  .twSubs { padding: 4px 6px; }
+  .twWho { padding: 4px 6px; }
+}
+@media (max-width: 700px) { .twHead.open small { white-space: normal; } .twHead > div { cursor: pointer; } }
 
 </style>
 </head>
@@ -1883,7 +1987,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     autoBoss: 'Auto-call bosses', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code, then Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Deletes everything forever',
     saved: 'Game saved', badSave: 'Save code didn\u2019t load. Copied all of it?', imported: 'Save loaded',
-    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · V overdrive · R spin · T town · 1 2 3 perks',
+    keysHint: 'Keys: Space click · E best chest · Q ability · Z X C Smite, Ward, Mend · B boss · V overdrive · R spin · T town (1–0 buildings, ← → next) · 1 2 3 perks',
     welcomeBack: 'Welcome back!', awayFor: 'Away {0}. Your garrison:', earned: 'earned', foundChests: 'found chests',
     divineLoot: 'DIVINE LOOT', legendLoot: 'LEGENDARY LOOT', mythicLoot: 'MYTHIC LOOT', newLands: 'New land: {0}',
     unlocked: 'Unlocked: {0}', achievement: 'Achievement', questDone: 'Quest complete!', potionDrink: 'Potion drunk: {0}',
@@ -1971,7 +2075,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     wipeWhy_boss: 'Bosses hit hard: tap the glowing weak point, Ward its big blows, Mend when low.',
     wipeWhy_up: 'Get stronger: Upgrades, the Forge, building up the town, or a lower Torment.',
     dirBuildAll: 'Build up everything I can afford', dirBuilt: 'Built up {0} time(s)',
-    goTown: 'That is in town: tap TOWN (T).', chipTown: 'Gear and party live in town: tap TOWN (T), then the Forge.',
+    goTown: 'That is in town: tap TOWN (T).', chipTown: 'Mid-fight! Tap them again after it, or TOWN (T) for the Forge.',
     rk_tg: 'attacks hit +{0} mob', rk_spd: 'attacks {0}% faster', rk_hp: 'party health +{0}%', rk_cd: 'crits +{0}× damage', rk_dmg: 'party damage +{0}%',
     chTitle: 'Chapter {0}: {1} is free', chNext: 'Next: {0}, lord of {1} (depth {2})', chEnd: 'Every land is free. Now raise the Torment.', chOpen: 'Opened', chGo: 'Onward',
     ch_0: 'The Crab King\u2019s claws fall silent. Inland, goblin drums answer the Button\u2019s hum.',
@@ -2009,6 +2113,31 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     pkCrushTxt: 'CRUSH!', pkWindTxt: 'SECOND WIND!',
     relic: 'RELIC', feedRelic: 'found the RELIC {0}!', relicBook: 'Relics',
     relicHint: 'White-bag drops from bosses only: about 1 in 600 bosses, 1 in 200 lords, more at higher Torment. Never in Rifts.',
+  });
+  // v3.5 QoL: the town's quick bar, the Forge's sorting and locks, buy amounts, the to-do list, the gold breakdown
+  Object.assign(STR, {
+    twNavLbl: 'Buildings', twShort_forge: 'Forge', twShort_enchant: 'Enchant', twShort_alch: 'Alchemy', twShort_tavern: 'Tavern', twShort_barracks: 'Barracks',
+    twShort_museum: 'Museum', twShort_quests: 'Quests', twShort_stars: 'Stars', twShort_pets: 'Nest', twShort_temple: 'Temple', twShort_rift: 'Rift',
+    dirKeys: 'Keys in town: 1–9, 0, − open a building · ← → next · Shift+← → its tabs · Esc closes, Esc again: field.',
+    dirSwipe: 'In a building, swipe left or right for the next one.',
+    newTag: 'NEW', sortBy: 'Sort', sort_slot: 'Slot', sort_rar: 'Rarity', sort_pow: 'Upgrade', sort_new: 'Newest',
+    twBetterFor: 'An upgrade for {0}', twUpsFor: '{0} upgrade(s) in the bag', twUpsShort: 'in bag',
+    lockItem: 'Lock', unlockItem: 'Unlock', lockedTip: 'Locked: never scrapped', lockedNoScrap: 'Locked: unlock it to scrap it.',
+    bagFullHint: 'Bag full: each new drop scraps the weakest piece. Scrap or lock now.', bagFullT: 'BAG FULL.', bagFullToast: 'New drops scrap the weakest. Visit the Forge.',
+    scrapMany: 'Scrap many…', scrapTitle: 'Scrap everything below', scrapHint: 'Locked items, uniques and worn gear always stay.',
+    scrapSum: '{0} item(s) below {1}:', scrapKept: 'Kept: {0} locked or unique.', scrapGo: 'Scrap {0}', cancel: 'Cancel',
+    teamPower: 'Team power',
+    todoTitle: 'Needs you', todoPerk: 'Level up! Pick a perk on the field', todoBest: 'Equip best: {0} upgrade(s) in the bag', todoBag: 'Bag full ({0}): new drops get scrapped',
+    todoSeat: 'A party seat is open: recruit', todoQuests: '{0} reward(s) to claim', todoEggs: '{0} egg(s) to hatch', todoStars: 'A star to learn',
+    todoFame: 'Fame to spend', todoUpg: '{0} upgrade(s) affordable', todoBuild: '{0} building(s) can be built up',
+    etaIn: 'in {0}', upgSort_def: 'List', upgSort_cost: 'Cheapest', holdBuyHint: 'Hold a row to keep buying.',
+    setPlay: 'Play', autoOd: 'Auto-Overdrive', autoOdHint: 'Fires on its own when full for a while', autoSpin: 'Spin at once', autoSpinHint: 'A ready Lucky Spin pulls itself right away',
+    lowfx: 'Reduce effects', lowfxHint: 'Fewer particles and pulses, for slower phones', numFmt: 'Numbers', numFmt0: 'Letters', numFmt1: 'Science',
+    gpsTip: 'Where your gold comes from', gbTitle: 'Gold per second', gbHint: 'Measured over the last {0} s.', gbWait: 'Play a few seconds to measure.',
+    gsrc_gps: 'Garrison', gsrc_mob: 'The Horde', gsrc_click: 'Clicks', gsrc_chest: 'Chests', gsrc_boss: 'Bosses and champions', gsrc_drop: 'Coins on the ground', gsrc_other: 'Events, spins and luck',
+    gbGarrisonNow: 'Garrison now', gbGold: 'All gold', gbDepth: 'Depth', gbGarrison: 'Garrison', gbFrenzy: 'Frenzy',
+    gbMore: 'More gold: Upgrades, the Barracks (Garrison), deeper depths, Torment, fame and achievements.',
+    help_bars: 'The bars', help_barsT: 'What each bar at the bottom means.',
   });
   G.STR = STR;
   G.t = function (key) {
@@ -2118,7 +2247,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 10,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 8,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -3440,18 +3569,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   const TUNE = G.TUNE;
   Object.assign(TUNE, {
     mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.22,
-    mobWalk: 7, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
+    mobWalk: 5, opFrom: 2.5, opHpPow: 0.8, kbPush: 0.045, kbEvery: 0.6, hordeRate: 0.6, hordeRef: 2.2, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
     // the arena is never empty: lots of small bodies, capped for the frame rate
     mobMax: 1100, packMul: 3, minCrowd: 135, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
-    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
+    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.8,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002, biteFloor: 0.037,
+    killChest: 0.03, plunder: 0.002, biteFloor: 0.042,
     // 3.0: the bigger mobs (not the small fry) take this many times longer to bring down
-    bigHp: 1.8,
+    bigHp: 2.4,
     // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
     // regen out of and in a boss fight (share of health a second)
     hsMin: 1, earlyHp: 3, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
@@ -3965,7 +4094,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     while (h.bag.length > TUNE.bagMax) {
       // Drop the weakest item in the bag into shards, uniques last
       let worst = null, ws = Infinity;
-      for (const b of h.bag) { const s = powerWith(G.slotOf(b.id), b) + (b.q ? 1e300 : 0); if (s < ws) { ws = s; worst = b; } }
+      for (const b of h.bag) { const s = powerWith(G.slotOf(b.id), b) + (b.q ? 1e300 : 0) + (b.keep ? 1e299 : 0); if (s < ws) { ws = s; worst = b; } }
       salvage(worst, true);
     }
     emit('gear', g, equipped);
@@ -4012,7 +4141,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   G.salvageBelow = function (r) {
     const h = G.S.hero;
     let n = 0, v = 0;
-    for (const g of h.bag.slice()) if (g.r < r && !g.q) { v += salvage(g, true); n++; }
+    for (const g of h.bag.slice()) if (g.r < r && !g.q && !g.keep) { v += salvage(g, true); n++; }
     emit('salvage', null, v);
     return { n, v };
   };
@@ -4196,7 +4325,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // the second land: from then on a boss needs a Warden strong for this depth.
   G.bossHp = d => mobHp(d) * Math.min(TUNE.bossHpMobs, 40 + 30 * d) * (G.isLord(d) ? TUNE.lordHp : 1);
   // (3.3: the first levels cost more, so the opening isn't a blur of level-up cards)
-  function xpNeed(l) { return Math.floor(10 * Math.pow(1.2, l - 1) + 14 * l); }
+  function xpNeed(l) { return Math.floor(10 * Math.pow(1.21, l - 1) + 14 * l); }
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {
@@ -4247,7 +4376,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
     const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : kind === 'guardian' ? 1 : TUNE.bigHp) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
-    const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
+    const m = { id: ++R.mobUid, kind, w, hp: hp * (R.rift ? 1 : R.opHp || 1), max: hp * (R.rift ? 1 : R.opHp || 1), p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
       m.name = pick(RARE_A) + ' ' + pick(RARE_B);
@@ -4537,7 +4666,16 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (!ts.length) return true;
     const splash = around(ts, aoe);
     emit('heroAttack', { ids: ts.map(m => m.id), splash: splash.map(m => m.id), aoe, crit, src, dmg });
-    if (src === 'click') for (const m of ts.concat(splash)) if (m.p > -0.05) m.p = Math.max(-0.05, m.p - 0.05 / Math.sqrt(Math.max(0.03, m.w)));
+    // the Hand's knock-back: a nudge, lighter on the heavy ones and on the splash, and once in a while per mob,
+    // so fast clicking slows the Horde but can't pin it away from the Button (3.5: it was a shove of up to 29%)
+    if (src === 'click') {
+      const now = G.S.st.playTime || 0;
+      for (const m of ts.concat(splash)) {
+        if (m.p <= -0.05 || now - (m.kbAt || -9) < TUNE.kbEvery) continue;
+        m.kbAt = now;
+        m.p = Math.max(-0.05, m.p - TUNE.kbPush / Math.sqrt(Math.max(0.25, m.w)) * (ts.includes(m) ? 1 : 0.5));
+      }
+    }
     for (const m of ts) dealHit(m, dmg, src, crit);
     for (const m of splash) dealHit(m, dmg * sp, src, crit);
     // Stormcaller: a bolt on another mob with every swing
@@ -4704,6 +4842,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen * (land().surge || 1); emit('surge'); }
         const surging = R.surge > 0;
         R.hs = hordeScale();
+        // 3.5: past the Horde's biggest size, an outgrown depth's mobs get tougher with the party, so they still reach the Button
+        R.opHp = Math.pow(Math.max(1, mightRatio() / (TUNE.hordeRef * TUNE.opFrom)), TUNE.opHpPow);
         const thick = om().horde * (R.rift ? 1.5 : G.torment().horde) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
         R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * thick);
         const cap = hordeCap(dnow()) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1) * (R.rift || shrine('slaughter') ? 1.5 : 1);
@@ -6996,7 +7136,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // a full bag gives up its weakest piece, never a unique or a relic
     while (h.bag.length > G.TUNE.bagMax) {
       let worst = null, ws = Infinity;
-      for (const x of h.bag) { if (x.q) continue; const p = G.powerWith(G.slotOf(x.id), x); if (p < ws) { ws = p; worst = x; } }
+      for (const x of h.bag) { if (x.q) continue; const p = G.powerWith(G.slotOf(x.id), x) + (x.keep ? 1e299 : 0); if (p < ws) { ws = p; worst = x; } }
       if (!worst) break;
       G.salvage(worst, true);
     }
@@ -15232,10 +15372,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     ctx.putImageData(img, 0, 0);
   }
 
-  let cacheKey = '', cache = new Map();
+  // one frame cache per gear set (3.5: a party of differently-geared heroes used to rebuild sprites every draw)
+  const caches = new Map();
   function frame(h, legs, pose, bob) {
     const gk = gearKey(h);
-    if (gk !== cacheKey) { cacheKey = gk; cache = new Map(); }
+    let cache = caches.get(gk);
+    if (!cache) { if (caches.size > 12) caches.clear(); cache = new Map(); caches.set(gk, cache); }
     const k = legs + pose + bob;
     let f = cache.get(k);
     if (!f) { f = build(h, legs, pose, bob); cache.set(k, f); }
@@ -15721,6 +15863,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // The Button is a spring: every click squashes it and it bounces back
   const btnSpring = { s: 1, v: 0 };
   const MAXP = 700, MAXG = 650;
+  // 3.5: blows are drawn a size up where the field's pixels are small (a phone), so they read at arm's length
+  let FXK = 1;
 
   St.init = function (canvas) {
     cv = canvas; ctx = cv.getContext('2d');
@@ -15745,6 +15889,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     groundKey = '';
     computeSlots();
     heroKey = '';
+    FXK = clamp(2.2 / S, 1, 1.4);
   };
 
   // ---------- Layout ----------
@@ -15822,11 +15967,14 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       p.vy += p.grav * vdt; p.x += p.vx * vdt; p.y += p.vy * vdt;
       lctx.globalAlpha = Math.min(1, p.life / p.max * 1.6);
       lctx.fillStyle = p.col;
-      lctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      if (p.plus) { const x = Math.round(p.x), y = Math.round(p.y); lctx.fillRect(x - 1, y, 3, 1); lctx.fillRect(x, y - 1, 1, 3); }
+      else lctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
     }
     lctx.globalAlpha = 1;
   }
   function part(x, y, col, o) {
+    // Settings → Reduce effects: about half the particles (for weak phones)
+    if (G.S.set && G.S.set.lowfx && Math.random() < 0.55) return;
     if (parts.length > MAXP) parts.shift();
     parts.push(Object.assign({ x, y, vx: rand(-40, 40), vy: rand(-70, -20), life: rand(0.4, 0.9), max: 0, col, size: 1, grav: 120 }, o || {}));
     parts[parts.length - 1].max = parts[parts.length - 1].life;
@@ -16013,7 +16161,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       shots.push({ x: q.x, y: q.y - 6, sx: q.x, sy: q.y - 6, tx: v.x, ty: v.y - 4, t: 0, dur: 0.22, col: '#ffd84a' });
     });
     G.on('heroAttack', onHeroAttack);
-    G.on('mobDie', gore);
+    G.on('mobDie', onMobDie);
     G.on('mobFlee', m => { const q = mobPos(m); burst(q.x, q.y - 6, '#6e6e7c', 6, 30); mobVis.delete(m.id); });
     G.on('mobBite', m => {
       btnHurtT = 0.15; mobVisOf(m).lunge = 0.12;
@@ -16157,7 +16305,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       cardText(0, G.realmName(d).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
       cardText(11, G.t('zoneCard', G.zoneOf(d) + 1, G.ZONE_NAME(d)), '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
     }, 700));
-    G.on('ascend', () => { groundKey = ''; vis.clear(); mobVis.clear(); St.clearStain(); gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
+    G.on('ascend', () => { pfx.length = 0; pend.clear(); late.length = 0; groundKey = ''; vis.clear(); mobVis.clear(); St.clearStain(); gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
     G.on('buy', (kind) => { if (kind === 'hero') heroKey = ''; });
     worldListen();
   }
@@ -16312,12 +16460,17 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // ---------- Hero & mobs ----------
   const mobVis = new Map();
   let btnHurtT = 0;
-  // The Warden's animation state: position, facing, walk cycle and the current move
-  const hero = { x: null, y: null, face: 1, walk: 0, moving: false, atk: null, cast: 0, tgt: null, tgtT: 9, hand: null, top: null };
-  // (a Warden who is the party's tank or healer takes that place; damage Wardens keep the left)
+  // The Warden's animation state. 3.5: the Warden and every companion share one shape (newVis):
+  // a position and a velocity (they run, speeding up and easing into place), the stride of their feet,
+  // where they face, the current move, and the dash, aim and heal-run timers that pick where they go.
+  const newVis = () => ({ x: null, y: null, vx: 0, vy: 0, face: 1, stride: 0, legs: 0, moving: false, atk: null, cast: 0,
+    hand: null, top: null, hurt: 0, heal: 0, ph: Math.random() * 6, dashT: 0, dashTo: null, aimT: 0, aimX: 0, aimY: 0,
+    ghosts: [], ghostT: 0, swings: 0, flk: 0, flkT: 0, flkP: 0.9, healT: 0, healTo: null, chargeT: 0 });
+  const hero = newVis();
+  // where the Warden first stands (a Warden who is the party's tank or healer takes that place)
   function heroBase() {
     const b = btnPos(), r = G.S.hero && G.S.hero.cls ? G.ROLES[G.S.hero.cls] : 'dps';
-    if (r === 'tank' || r === 'heal') { const ti = G.tankInfo && G.tankInfo(); if (r === 'heal' || (ti && ti.who === -1)) return roleGoal(-1, r, null); }
+    if (r === 'tank' || r === 'heal') { const ti = G.tankInfo && G.tankInfo(); if (r === 'heal' || (ti && ti.who === -1)) return unitGoal(-1, { role: r }, hero, null); }
     return { x: b.x - 30, y: b.y + 16 };
   }
   function heroPos() {
@@ -16325,38 +16478,14 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     return { x: Math.round(hero.x), y: Math.round(hero.y) };
   }
   const ATTACK = { sword: ['swing', 0.24], katana: ['swing', 0.2], scythe: ['swing', 0.3], dagger: ['stab', 0.15], bow: ['shot', 0.3], staff: ['cast', 0.3], wand: ['cast', 0.22] };
-  // Melee Wardens step out to meet the crowd and fall back to the Button
-  function stepHero(dt) {
-    const base = heroBase();
-    if (hero.x == null) { hero.x = base.x; hero.y = base.y; }
-    const wt = G.D.hero ? G.D.hero.wtype : 'dagger';
-    let gx = base.x, gy = base.y;
-    hero.tgtT += dt;
-    if (MELEE[wt] && hero.tgt && hero.tgtT < 0.9 && !bossVis) {
-      const dx = hero.tgt.x - base.x, dy = hero.tgt.y - base.y, d = Math.hypot(dx, dy);
-      const go = clamp(d - 11, 0, 26);
-      if (d > 0) { gx = base.x + dx / d * go; gy = base.y + dy / d * go; }
-    }
-    gy = clamp(gy, 30, H - Math.ceil(70 / S));
-    const dx = gx - hero.x, dy = gy - hero.y, d = Math.hypot(dx, dy);
-    hero.moving = d > 0.7;
-    if (hero.moving) {
-      const st = Math.min(d, 80 * dt);
-      hero.x += dx / d * st; hero.y += dy / d * st; hero.walk += dt;
-      if (!hero.atk && Math.abs(dx) > 0.5) hero.face = dx > 0 ? 1 : -1;
-    }
-    if (hero.atk && (hero.atk.t += dt) >= hero.atk.dur) hero.atk = null;
-    if (hero.cast > 0) hero.cast -= dt;
-  }
   St.heroPos = heroPos;
 
   // ---------- The party on the field ----------
-  // Companions hold places around the Button; the Warden keeps the left.
   const allyVis = [];
-  const aVis = i => allyVis[i] || (allyVis[i] = { atk: null, face: 1, hurt: 0, heal: 0, ph: Math.random() * 6 });
+  const aVis = i => allyVis[i] || (allyVis[i] = newVis());
   // clear of the chest ring by the Button
   const SLOTS_AT = [[34, 14], [0, 36], [-34, -4]];
-  // 3.0: companions move as their roles want (stepAllies): allySlot is where each one is right now
+  // allySlot is where each companion is right now
   function allySlot(i) { const v = aVis(i); if (v.x == null) { const b = btnPos(), o = SLOTS_AT[i] || [0, 40]; v.x = b.x + o[0]; v.y = b.y + o[1]; } return { x: Math.round(v.x), y: Math.round(v.y) }; }
   // a point on the line a mob walks: angle a (0-1, as mobs use it), p from the edge (0) to the Button (1)
   function ringPos(a, p) {
@@ -16364,29 +16493,131 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const sx = b.x + Math.cos(th) * W * 0.6, sy = b.y + Math.sin(th) * H * 0.56, ex = b.x + Math.cos(th) * 26, ey = b.y + Math.sin(th) * 14 + 4;
     return { x: sx + (ex - sx) * p, y: sy + (ey - sy) * p };
   }
-  // where a member of the party wants to be: the tank on its line, the healer behind the Button or at the
-  // side of whoever it's mending, damage on the flanks either side of the tank, a melee one lunging at its target
-  function roleGoal(who, role, wt) {
-    const ti = G.tankInfo && G.tankInfo(), ta = ti ? ti.a : 0.5, b = btnPos(), v = who < 0 ? hero : aVis(who);
-    if (role === 'tank' && ti && ti.who === who) return ringPos(ta, G.TUNE.tankP - 0.03);
-    if (role === 'heal') {
-      if (v.healT > 0 && v.healTo != null) { v.healT -= fdt; const q = unitPos(v.healTo); return { x: q.x + (q.x < b.x ? 12 : -12), y: q.y + 4 }; }
-      const o = ringPos(ta, 0.5), dx = b.x - o.x, dy = b.y - o.y, d = Math.hypot(dx, dy) || 1;
-      return { x: b.x + dx / d * 30 + Math.sin(time * 0.7 + (who + 2)) * 4, y: b.y + dy / d * 16 + 10 };
+  // which side of the line each hero flanks: the Warden and the companions take turns
+  const SIDE = { '-1': -1, 0: 1, 1: -1, 2: 1 };
+  // how fast each runs (logical px/s): a tank strides, a healer hurries, a dash is a blur
+  const RUN = { tank: 56, heal: 92, dps: 80, lunge: 170, dash: 250 };
+  // 3.5: where the Horde presses hardest (0-1 as mobs use it): the line the party forms on when no tank holds one
+  const threat = { a: 0.5, go: 0.5, t: 0, bins: new Float32Array(12) };
+  function stepThreat(dt) {
+    if ((threat.t -= dt) <= 0) {
+      threat.t = 0.5;
+      const B = threat.bins; B.fill(0);
+      for (const m of G.R.mobs || []) if (!m.dead && m.p > 0.35) B[Math.min(11, Math.max(0, Math.floor(m.a * 12)))] += (m.w || 1) * m.p;
+      let bi = -1, bv = 0; for (let i = 0; i < 12; i++) if (B[i] > bv) { bv = B[i]; bi = i; }
+      if (bi >= 0) threat.go = (bi + 0.5) / 12;
     }
-    if (v.lunge > 0 && v.lungeTo) { v.lunge -= fdt; return v.lungeTo; }
-    if (!v.flk || (v.flkT = (v.flkT || 0) - fdt) <= 0) { v.flkT = rand(3, 6); v.flk = (who % 2 ? 1 : -1) * rand(0.1, 0.2); v.flkP = rand(0.86, 0.94); }
-    return ringPos(clamp(ta + v.flk, 0.03, 0.97), MELEE[wt] ? 0.84 : v.flkP);
+    const d = threat.go - threat.a; threat.a += Math.sign(d) * Math.min(Math.abs(d), 0.3 * dt);
   }
-  function stepAllies(dt) {
+  // where a member of the party wants to be: the tank on its line, the healer behind the Button or at the
+  // side of whoever it's mending, damage on the flanks either side of the line; a melee hero dashes at its
+  // target and back, a shooter steps out toward what it shoots and falls back to the Button
+  function unitGoal(who, u, v, wt) {
+    const ti = G.tankInfo && G.tankInfo(), ta = ti ? ti.a : threat.a, b = btnPos(), melee = MELEE[wt];
+    if (v.dashT > 0 && v.dashTo) return v.dashTo;
+    if (u.role === 'tank' && ti && ti.who === who) {
+      if (bossVis) return bossSideSpot(v, who);
+      return ringPos(ta, G.TUNE.tankP - 0.03);
+    }
+    if (u.role === 'heal') {
+      if (v.healT > 0 && v.healTo != null) { const q = unitPos(v.healTo); return { x: q.x + (q.x < b.x ? 13 : -13), y: q.y + 3 }; }
+      const o = ringPos(ta, 0.5), dx = b.x - o.x, dy = b.y - o.y, d = Math.hypot(dx, dy) || 1;
+      return { x: b.x + dx / d * 30 + Math.sin(time * 0.7 + (who + 2)) * 5, y: b.y + dy / d * 16 + 10 };
+    }
+    if (v.flkT <= 0) { v.flkT = rand(2.5, 4.5); v.flk = (SIDE[who] || 1) * rand(0.08, 0.2); v.flkP = rand(0.66, 0.8); }
+    if (bossVis) {
+      if (melee) return bossSideSpot(v, who);
+      return ringPos(clamp(ta + v.flk * 1.8, 0.03, 0.97), 0.74);
+    }
+    const home = ringPos(clamp(ta + v.flk, 0.03, 0.97), melee ? 0.78 : v.flkP);
+    if (!melee && v.aimT > 0) {
+      const dx = v.aimX - home.x, dy = v.aimY - home.y, d = Math.hypot(dx, dy) || 1, go = clamp(d - 40, 0, 34);
+      return { x: home.x + dx / d * go, y: home.y + dy / d * go };
+    }
+    return home;
+  }
+  // in a boss fight melee heroes stand at its flanks: each keeps the side it came in on
+  function bossSide(v) { if (v.bFor !== bossVis) { v.bFor = bossVis; v.bSide = (v.x == null ? 0 : v.x) < bossPos().x ? -1 : 1; } return v.bSide; }
+  function bossSideSpot(v, who) { const bp = bossPos(), hh = bossHalf(), s = bossSide(v); return { x: bp.x + s * (hh.w + 5), y: bp.y - 1 + (who + 1) * 4 }; }
+  // a little physics for a run: speed up, ease into place, and no twitching on the spot
+  function moveUnit(v, gx, gy, top, dt) {
+    const dx = gx - v.x, dy = gy - v.y, d = Math.hypot(dx, dy);
+    const want = d < 0.75 ? 0 : top * Math.min(1, d / 12);
+    const tx = d > 0 ? dx / d * want : 0, ty = d > 0 ? dy / d * want : 0;
+    const ax = tx - v.vx, ay = ty - v.vy, a = Math.hypot(ax, ay), lim = (top > 120 ? 1600 : 650) * dt;
+    if (a > lim) { v.vx += ax / a * lim; v.vy += ay / a * lim; } else { v.vx = tx; v.vy = ty; }
+    v.x += v.vx * dt; v.y += v.vy * dt;
+  }
+  const DUST = ['#d8ccb2', '#b8a888', '#ece2cc'];
+  function dust(v, sp) {
+    if (parts.length > MAXP - 80) return;
+    const n = sp > 140 ? 2 : 1;
+    for (let i = 0; i < n; i++) part(v.x - v.face * rand(1, 4), v.y - 1, pick(DUST), { vx: -v.vx * 0.15 + rand(-6, 6), vy: -rand(5, 13), grav: 22, life: rand(0.25, 0.42), size: Math.random() < 0.6 ? 2 : 1 });
+  }
+  function stepUnit(u, dt) {
+    const who = u.who, v = who < 0 ? hero : aVis(who);
+    if (who < 0) heroPos(); else allySlot(who);
+    if (v.dashT > 0) v.dashT -= dt;
+    if (v.aimT > 0) v.aimT -= dt;
+    if (v.healT > 0) v.healT -= dt;
+    if (v.chargeT > 0) v.chargeT -= dt;
+    v.flkT -= dt;
+    if (v.atk && (v.atk.t += dt) >= v.atk.dur) v.atk = null;
+    if (v.cast > 0) v.cast -= dt;
+    if (u.down > 0) { v.vx = v.vy = 0; v.moving = false; v.legs = 0; v.dashT = 0; v.ghosts.length = 0; return; }
+    const wt = u.eq.weapon ? G.ITEM_TYPE[u.eq.weapon.id] : null;
+    const g = unitGoal(who, u, v, wt);
+    let gx = clamp(g.x, 10, W - 10), gy = clamp(g.y, 30, H - Math.ceil(70 / S));
+    // never stand on (or hide behind) the Button or the boss: a goal inside it moves out to its rim
+    const o = keepOut(gx, gy, v.x < btnPos().x ? -1 : 1); gx = o.x; gy = o.y;
+    const top = v.dashT > 0 ? (u.cls === 'rogue' ? RUN.dash : RUN.lunge) : RUN[u.role] || RUN.dps;
+    moveUnit(v, gx, gy, top, dt);
+    // and on the way, it goes round the Button (or the boss), never through it
+    const ko = keepOut(v.x, v.y, v.vx < 0 ? -1 : 1);
+    if (ko.x !== v.x || ko.y !== v.y) { const k = Math.min(1, dt * 10); v.x += (ko.x - v.x) * k; v.y += (ko.y - v.y) * k; }
+    const sp = Math.hypot(v.vx, v.vy);
+    v.moving = sp > 8;
+    if (v.moving) {
+      // a frame of the run every 4.5 px of ground, never faster than about 20 a second
+      v.stride += Math.min(sp, 92) * dt / 4.5;
+      const lg = Math.floor(v.stride) % 4;
+      if (lg !== v.legs && (lg === 1 || lg === 3) && sp > 26) dust(v, sp);
+      v.legs = lg;
+    } else { v.legs = 0; v.stride = 0; }
+    // face what it hits while it fights, else where it runs (with a dead zone, so it never flickers)
+    if (v.atk || v.aimT > 0 || v.dashT > 0) { if (Math.abs(v.aimX - v.x) > 2) v.face = v.aimX > v.x ? 1 : -1; }
+    else if (Math.abs(v.vx) > 12) v.face = v.vx > 0 ? 1 : -1;
+    // a rogue's dash leaves afterimages
+    if (v.dashT > 0 && u.cls === 'rogue' && sp > 60 && (v.ghostT -= dt) <= 0) { v.ghostT = 0.028; if (v.ghosts.length < 7) v.ghosts.push({ x: v.x, y: v.y, face: v.face, legs: v.legs, t: 0.22 }); }
+  }
+  // the Button's footprint (and the bit above it its top hides), or the boss's
+  const KO = { x: 0, y: 0 };
+  function keepOut(x, y, side) {
+    const b = btnPos();
+    let cx = b.x, cy = b.y - 7, rx = 27, ry = 17;
+    if (bossVis) { const hh = bossHalf(); cy = b.y - 2 - hh.h * 0.7; rx = hh.w + 3; ry = hh.h * 0.75 + 4; }
+    let ex = (x - cx) / rx, ey = (y - cy) / ry, e = Math.hypot(ex, ey);
+    KO.x = x; KO.y = y;
+    if (e >= 1) return KO;
+    if (e < 0.05) { ex = side; ey = 0.3; e = Math.hypot(ex, ey); }
+    // out through the nearer side or the bottom, never up behind it
+    if (ey < 0 && Math.abs(ex) < 0.6) ey = -ey;
+    KO.x = cx + ex / e * rx; KO.y = cy + ey / e * ry;
+    return KO;
+  }
+  function stepParty(dt) {
     if (!G.partyUnits) return;
-    for (const u of G.partyUnits()) {
-      if (u.who < 0 || u.down > 0) continue;
-      const v = aVis(u.who), q = allySlot(u.who), wt = u.eq.weapon ? G.ITEM_TYPE[u.eq.weapon.id] : null;
-      const g = roleGoal(u.who, u.role, wt), gx = clamp(g.x, 8, W - 8), gy = clamp(g.y, 30, H - Math.ceil(70 / S));
-      const dx = gx - v.x, dy = gy - v.y, d = Math.hypot(dx, dy);
-      v.moving = d > 1;
-      if (v.moving) { const sp = (u.role === 'tank' ? 50 : v.lunge > 0 ? 140 : 65) * dt, k = Math.min(1, sp / d); v.x += dx * k; v.y += dy * k; if (!v.atk && Math.abs(dx) > 0.5) v.face = dx > 0 ? 1 : -1; }
+    stepThreat(dt);
+    const us = G.partyUnits();
+    for (const u of us) stepUnit(u, dt);
+    // heroes standing on top of each other step apart
+    for (let i = 0; i < us.length; i++) for (let j = i + 1; j < us.length; j++) {
+      const a = unitVis(us[i].who), c = unitVis(us[j].who);
+      if (us[i].down > 0 || us[j].down > 0 || a.dashT > 0 || c.dashT > 0 || a.x == null || c.x == null) continue;
+      const dx = c.x - a.x, dy = (c.y - a.y) * 1.6, d = Math.hypot(dx, dy);
+      if (d >= 12) continue;
+      const k = (12 - d) / 2 * Math.min(1, dt * 5) / (d || 1), px = d ? dx * k : k, py = d ? dy * k / 1.6 : 0;
+      a.x -= px; a.y -= py; c.x += px; c.y += py;
     }
   }
   St.ringPos = ringPos;
@@ -16410,28 +16641,114 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     lctx.strokeStyle = '#ffd84a'; lctx.lineWidth = 1; lctx.beginPath(); lctx.arc(q.x, q.y - 6, 9, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); lctx.stroke();
     if (Math.random() < 0.08) part(q.x + rand(-4, 4), q.y - 10, '#c8c8d4', { vx: 0, vy: -8, grav: 0, life: 0.6 });
   }
-  function drawAlly(i, u, q) {
-    const v = aVis(i);
-    if (u.down > 0) { drawDowned(u, q); return; }
-    const w = u.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
-    shadow(q.x, q.y - 1, 12);
-    if (v.heal > 0) { glow(q.x, q.y - 8, 9, '#8ae07a', v.heal * 2); v.heal -= fdt; }
-    // the tank wears a shield-glow while it is holding a line of mobs
-    if (u.role === 'tank' && G.R.mobs.some(m => m.held)) glow(q.x, q.y - 8, 13, '#7ab8ff', 0.16 + 0.07 * Math.sin(time * 4));
+  // 3.5: the Warden and the companions are drawn the same way: running feet, the move in hand, the swing's smear
+  const POSE = { pose: 'rest', ang: 0, draw: 0 };
+  function unitPose(v, wt) {
     let pose = 'rest', ang = G.Doll.restAngle(wt), draw = 0;
     const a = v.atk;
     if (a) {
       const k = a.t / a.dur;
-      if (a.kind === 'swing') { if (k < 0.3) { pose = 'up'; ang = -2.4; } else { pose = 'fwd'; ang = G.lerp(-2.4, 0.8, Math.min(1, (k - 0.3) / 0.4)); } }
-      else if (a.kind === 'stab') { if (k > 0.3) { pose = 'fwd'; ang = 0; } }
-      else if (a.kind === 'shot') { pose = 'fwd'; draw = k < 0.5 ? k / 0.5 : 0; }
-      else if (a.kind === 'cast') { if (k < 0.4) { pose = 'up'; ang = -1.9; } else { pose = 'fwd'; ang = -0.55; } }
-      if ((a.t += fdt) >= a.dur) v.atk = null;
+      if (a.kind === 'swing') {
+        if (k < 0.25) { pose = 'up'; ang = -2.4; }
+        else if (k < 0.6) { pose = 'fwd'; ang = G.lerp(-2.4, 0.8, (k - 0.25) / 0.35); }
+        else ang = G.lerp(0.8, ang, (k - 0.6) / 0.4);
+      } else if (a.kind === 'stab') {
+        if (k < 0.35) ang = -0.3; else if (k < 0.8) { pose = 'fwd'; ang = 0; }
+      } else if (a.kind === 'shot') { pose = 'fwd'; draw = k < 0.5 ? k / 0.5 : 0; }
+      else if (a.kind === 'cast') {
+        if (k < 0.4) { pose = 'up'; ang = -1.9; } else if (k < 0.85) { pose = 'fwd'; ang = -0.55; }
+      }
     }
-    const bob = a ? 0 : Math.floor(time * 1.6 + v.ph) % 2;
-    G.Doll.draw(lctx, u, q.x, q.y, { face: v.face, pose, bob, ang, draw, time: time + v.ph });
-    if (v.hurt > 0) { lctx.globalAlpha = Math.min(0.6, v.hurt * 4); lctx.fillStyle = '#ff3b3b'; lctx.fillRect(q.x - 6, q.y - 20, 12, 20); lctx.globalAlpha = 1; v.hurt -= fdt; }
-    hpBar(q.x, q.y - 24, u.hp / u.max, 14, ROLE_COL[u.role]);
+    if (v.cast > 0) { pose = 'up'; ang = -1.7; }
+    POSE.pose = pose; POSE.ang = ang; POSE.draw = draw;
+    return POSE;
+  }
+  // a dash's afterimages: the body as a flat tinted shadow, one cached canvas per hero look
+  const ghostCache = new Map();
+  function ghostOf(u) {
+    const key = u.cls + '|' + (u.eq.weapon ? u.eq.weapon.id : '-') + '|' + (u.eq.armor ? u.eq.armor.id : '-');
+    let c = ghostCache.get(key);
+    if (c) return c;
+    if (ghostCache.size > 12) ghostCache.clear();
+    const f = G.Doll.frame(u, 1, 'fwd', 0).canvas;
+    c = SPR.makeCanvas(f.width, f.height);
+    const x = c.getContext('2d');
+    x.drawImage(f, 0, 0); x.globalCompositeOperation = 'source-in';
+    x.fillStyle = (CFX[u.cls] || CFX.rogue)[0]; x.fillRect(0, 0, c.width, c.height);
+    ghostCache.set(key, c);
+    return c;
+  }
+  function drawGhosts(u, v) {
+    if (!v.ghosts.length) return;
+    const c = ghostOf(u);
+    for (let i = v.ghosts.length - 1; i >= 0; i--) {
+      const g = v.ghosts[i];
+      if ((g.t -= fdt) <= 0) { v.ghosts.splice(i, 1); continue; }
+      lctx.globalAlpha = 0.5 * g.t / 0.22;
+      const ox = Math.round(g.x - 13), oy = Math.round(g.y - 23);
+      if (g.face > 0) lctx.drawImage(c, ox, oy);
+      else { lctx.save(); lctx.translate(ox + 26, oy); lctx.scale(-1, 1); lctx.drawImage(c, 0, 0); lctx.restore(); }
+    }
+    lctx.globalAlpha = 1;
+  }
+  function footRing(x, y, rx, col, a) {
+    const ry = Math.max(2, Math.round(rx * 0.38)), n = Math.round(rx * 4);
+    lctx.fillStyle = col;
+    for (let j = 0; j < n; j++) {
+      const t = j / n * Math.PI * 2, sy = Math.sin(t);
+      lctx.globalAlpha = a * (sy > 0 ? 1 : 0.45);
+      lctx.fillRect(Math.round(x + Math.cos(t) * rx), Math.round(y - 1 + sy * ry), 1, 1);
+    }
+    lctx.globalAlpha = 1;
+  }
+  function drawUnit(u, v, q) {
+    const warden = u.who < 0;
+    if (u.down > 0) { drawDowned(u, q); return; }
+    const w = u.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
+    drawGhosts(u, v);
+    if (v.hurt > 0) v.hurt -= fdt;
+    if (v.heal > 0) { glow(q.x, q.y - 8, 9, '#8ae07a', v.heal * 2); v.heal -= fdt; }
+    if (warden && w && w.r >= 3) glow(q.x, q.y - 6, 10, G.RARITIES[w.r].color, 0.16 + 0.06 * Math.sin(time * 4));
+    if (warden && G.R.hb && G.R.hb.wing > 0) glow(q.x, q.y - 12, 12, '#ffffff', 0.25);
+    // the tank wears a shield-glow while it is holding a line of mobs
+    if (u.role === 'tank' && G.tankInfo && (G.tankInfo() || {}).who === u.who && G.R.mobs.some(m => m.held)) glow(q.x, q.y - 8, 13, '#7ab8ff', 0.16 + 0.07 * Math.sin(time * 4));
+    // a staff or wand glows as a spell gathers
+    if (v.chargeT > 0 && v.hand) { const c = CFX[fxKey(u.cls, wt)] || CFX.wizard; glow(v.hand.x, v.hand.y - 3, 4, c[0], 0.45 * v.chargeT / 0.2); }
+    shadow(q.x, q.y - 1, warden ? 14 : 12);
+    // a ring of the role's colour at its feet, to find each hero in the crowd
+    footRing(q.x, q.y, warden ? 9 : 8, ROLE_COL[u.role], warden ? 0.75 : 0.55);
+    const P = unitPose(v, wt), a = v.atk;
+    const bob = v.moving || a ? 0 : Math.floor(time * 1.6 + v.ph) % 2;
+    const lunge = a && a.kind !== 'shot' && P.pose === 'fwd' ? v.face : 0;
+    const r = G.Doll.draw(lctx, u, q.x + lunge, q.y, { face: v.face, legs: v.legs, pose: P.pose, bob, ang: P.ang, draw: P.draw, time: time + (warden ? 0 : v.ph) });
+    if (!v.hand) v.hand = { x: 0, y: 0 };
+    v.hand.x = r.hx; v.hand.y = r.hy; v.top = r.top;
+    // a smear behind the blade, and a flash ahead of a stab
+    if (a && w) {
+      const k = a.t / a.dur, col = G.WEAPONS[wt].col;
+      if (a.kind === 'swing' && k >= 0.25 && k < 0.8) {
+        const cur = k < 0.6 ? P.ang : 0.8, from = Math.max(-2.4, cur - 2.2);
+        lctx.fillStyle = col;
+        for (let t = from; t <= cur; t += 0.1) {
+          lctx.globalAlpha = 0.25 + 0.6 * (t - from) / Math.max(0.01, cur - from);
+          lctx.fillRect(Math.round(r.hx + v.face * Math.cos(t) * 9), Math.round(r.hy + Math.sin(t) * 9), 1, 1);
+          lctx.fillRect(Math.round(r.hx + v.face * Math.cos(t) * 11), Math.round(r.hy + Math.sin(t) * 11), 1, 1);
+        }
+        lctx.globalAlpha = 1;
+      } else if (a.kind === 'stab' && k >= 0.35 && k < 0.8) {
+        lctx.fillStyle = '#ffffff';
+        for (let j = 10; j < 15; j++) { lctx.globalAlpha = 1 - (j - 10) / 5; lctx.fillRect(Math.round(r.hx + v.face * j), Math.round(r.hy), 1, 1); }
+        lctx.globalAlpha = 1;
+      }
+    }
+    if (a && a.kind === 'cast' && !a.flash && a.t / a.dur >= 0.4 && w) {
+      a.flash = true;
+      const tp = G.Doll.tip(w, r.hx, r.hy, v.face, -0.55);
+      burst(tp.x, tp.y, [G.WEAPONS[wt].col, '#ffffff'], 5, 40, { grav: 0, life: 0.22 });
+    }
+    if (v.hurt > 0) { lctx.globalAlpha = Math.min(0.6, v.hurt * 4); lctx.fillStyle = '#ff3b3b'; lctx.fillRect(q.x - 6, q.y - 20, 12, 20); lctx.globalAlpha = 1; }
+    if (warden) { if (G.D.wardenHp) hpBar(q.x, q.y - 26, G.S.hero.whp / G.D.wardenHp, 16, ROLE_COL[u.role]); }
+    else hpBar(q.x, q.y - 24, u.hp / u.max, 14, ROLE_COL[u.role]);
   }
   // heals, bites and boss shots between the party, the Button and the Horde
   const beamsFx = [];
@@ -16452,22 +16769,368 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       }
     }
   }
+  // ---------- 3.5: the party's blows ----------
+  // One attack of a hero, made visible. The hit has already landed in the game; the blow is drawn landing a
+  // moment later (a swing in about 0.07 s, an arrow or a spell in 0.15-0.3 s), and a mob it killed stays
+  // standing until the blow reaches it (late), so the arrow, not the number, is what kills it.
+  // Knobs: G.Stage.partyFx.cap (live blows), .q (0-1: trail sparkle and sparks; drops by itself on a slow frame)
+  const PFX = St.partyFx = { cap: 180, q: 1, lateMax: 80 };
+  // each class's look: [main, light, dark]
+  const CFX = {
+    knight: ['#c8d4e4', '#ffffff', '#5a8adf'],
+    archer: ['#9be15d', '#f0ffd8', '#3d7f2b'],
+    wizard: ['#7fa8ff', '#eef4ff', '#8a4aef'],
+    fire: ['#ff7a2e', '#ffe27a', '#c8321a'],
+    rogue: ['#c8a8ff', '#ffffff', '#6a3aaa'],
+    cleric: ['#ffd84a', '#fffbe0', '#d89a2a'],
+  };
+  // the style of a blow goes by the weapon in hand (any class may carry any weapon), the colours of a spell by who casts it
+  const fxKey = (cls, wt) => (wt === 'bow' ? 'archer' : wt === 'dagger' ? 'rogue' : MELEE[wt] || !wt ? 'knight' : cls === 'cleric' ? 'cleric' : cls === 'wizard' && wt === 'staff' ? 'fire' : 'wizard');
+  const pfx = [];          // live blows: projectiles, swings, slashes, sparks, beams
+  const pend = new Map();  // mob id -> the blow on its way to it
+  const late = [];         // mobs killed by a blow still on its way: drawn where they stood until it lands
+  let idMap = new Map(), idMapT = -1;
+  function mobById(id) {
+    if (idMapT !== time) { idMapT = time; idMap.clear(); for (const m of G.R.mobs) idMap.set(m.id, m); }
+    return idMap.get(id);
+  }
+  function bossSpot() { const bp = bossPos(), hh = bossHalf(); return { x: bp.x + rand(-0.8, 0.8) * hh.w, y: bp.y - hh.h * rand(0.55, 1.45) }; }
+  const unitVis = who => (who < 0 ? hero : aVis(who));
+  function blow(o) {
+    if (pfx.length >= PFX.cap) {
+      if (!o.hits && !o.boss) return null;     // a spark or a mark: skip it
+      o.t = o.dur; land(o); return null;       // a hit: land it now
+    }
+    o.t = -(o.delay || 0);
+    pfx.push(o);
+    if (o.hits) for (const m of o.hits) pend.set(m.id, o);
+    return o;
+  }
+  function onMobDie(m, gold, chest, src) {
+    const f = pend.get(m.id);
+    if (f && !f.done && late.length < PFX.lateMax) { late.push({ m, q: mobPos(m), gold, chest, src, f, t: 0 }); return; }
+    gore(m, gold, chest, src);
+  }
+  function flushLate(f) {
+    for (let i = late.length - 1; i >= 0; i--) {
+      const L = late[i];
+      if (f ? L.f === f : true) { late.splice(i, 1); gore(L.m, L.gold, L.chest, L.src); }
+    }
+  }
+  function stepLate(dt, list, realm) {
+    for (let i = late.length - 1; i >= 0; i--) {
+      const L = late[i];
+      if ((L.t += dt) > 0.45 || L.f.done) { late.splice(i, 1); gore(L.m, L.gold, L.chest, L.src); continue; }
+      list.push({ y: L.q.y, draw: () => drawMob(L.m, L.q, realm) });
+    }
+  }
+  // where a blow is aimed right now: its mob (alive or waiting in late), else the spot it was sent to
+  function aimOf(f) {
+    if (f.m) { const q = mobPos(f.m); f.tx = q.x + (f.ox || 0); f.ty = q.y - 7 + (f.oy || 0); }
+  }
+  // the blow arrives
+  function land(f) {
+    if (f.done) return;
+    f.done = true;
+    aimOf(f);
+    if (f.hits) for (const m of f.hits) { if (pend.get(m.id) === f) pend.delete(m.id); if (!m.dead) { const v = mobVisOf(m); v.hit = Math.max(v.hit, m === f.m ? 0.1 : 0.07); } }
+    if (f.boss) bossHitT = Math.max(bossHitT, 0.07);
+    const C = f.C, x = f.tx, y = f.ty, big = f.crit ? 1.5 : 1, q = PFX.q;
+    switch (f.k) {
+      case 'arrow':
+        blow({ k: 'spark', x, y, C, crit: f.crit, sc: f.sc * 0.8, dur: 0.12 });
+        if (f.m && !f.m.dead) blow({ k: 'stuck', m: f.m, ox: f.ox || 0, oy: (f.oy || 0) + rand(-2, 2), ux: f.ux, uy: f.uy, C, dur: 0.55 });
+        else burst(x, y, [C[0], '#ffffff', '#c8a870'], 3, 50, { life: 0.22 });
+        break;
+      case 'missile':
+        ring(x, y + 2, 6 * big, 4 * big, C[0], 0.2);
+        blow({ k: 'spark', x, y, C, crit: f.crit, sc: f.sc, dur: 0.14 });
+        if (q > 0.5) burst(x, y, [C[0], C[1], C[2]], f.crit ? 8 : 4, 55, { grav: 0, life: 0.25 });
+        break;
+      case 'fire': {
+        const rx = Math.max(8, f.rx || 10) * big, ry = Math.max(5, f.ry || 6) * big;
+        blow({ k: 'flash', x, y: y + 3, r: rx * 0.7, col: '#ffe27a', dur: 0.16 });
+        ring(x, y + 4, rx, ry, '#ff7a2e', 0.26); ring(x, y + 4, rx * 0.6, ry * 0.6, '#ffe27a', 0.2);
+        burst(x, y, ['#ffe27a', '#ff7a2e', '#ff3b1a', '#ffffff'], Math.round((f.crit ? 16 : 9) * (0.4 + 0.6 * q)), 85, { life: 0.32, grav: 60 });
+        for (let i = 0; i < 3 * q; i++) part(x + rand(-4, 4), y + rand(-2, 2), pick(['#3a3440', '#5a5260']), { vx: rand(-8, 8), vy: -rand(14, 26), grav: -8, life: rand(0.4, 0.6), size: 2 });
+        if (f.crit) St.shake(1.5);
+        break;
+      }
+      case 'holy':
+        blow({ k: 'cross', x, y, C, crit: f.crit, sc: f.sc, dur: 0.16 }); ring(x, y + 2, 5 * big, 3 * big, C[0], 0.18);
+        if (q > 0.5) burst(x, y, [C[0], C[1]], f.crit ? 7 : 4, 40, { grav: -20, life: 0.3 });
+        break;
+      case 'hit': // a swing or a stab connecting
+        if (f.mark === 'cut') blow({ k: 'cut', x, y, C, sc: f.sc, flip: f.flip, dur: 0.16 });
+        else if (f.mark === 'x') { blow({ k: 'xcut', x, y, C, sc: f.sc, dur: 0.34 }); burst(x, y, ['#ff3b3b', '#ffffff', '#ff8a8a'], 8, 70, { life: 0.3 }); St.shake(1); }
+        else blow({ k: 'spark', x, y, C, crit: f.crit, sc: f.sc, dur: 0.14 });
+        break;
+    }
+    flushLate(f);
+  }
+  // the moves, by class (and, for a wizard, by staff or wand)
+  function unitAttack(who, ev, wt) {
+    const u = who < 0 ? G.S.hero : G.S.party[who];
+    if (!u || !u.cls || !lctx) return;
+    const v = unitVis(who), q = who < 0 ? heroPos() : allySlot(who);
+    const key = fxKey(u.cls, wt), C = CFX[key], sc = (who < 0 ? 1.25 : 1) * FXK, crit = !!ev.crit;
+    const tg = [], spl = [];
+    if (ev.ids) for (const id of ev.ids) { if (tg.length >= 5) break; const m = mobById(id); if (m) tg.push(m); }
+    if (ev.splash) for (const id of ev.splash) { if (spl.length >= 10) break; const m = mobById(id); if (m) spl.push(m); }
+    const onBoss = !tg.length && !!ev.boss && !!bossVis;
+    if (!tg.length && !onBoss) return;
+    const p0 = tg.length ? mobPos(tg[0]) : bossSpot();
+    v.aimX = p0.x; v.aimY = p0.y; v.aimT = 0.9;
+    v.face = p0.x >= q.x ? 1 : -1;
+    const at = ATTACK[wt] || ATTACK.sword;
+    if (!v.atk || v.atk.t > v.atk.dur * 0.5) v.atk = { kind: at[0], t: 0, dur: at[1] };
+    const hx = v.hand ? v.hand.x : q.x + v.face * 7, hy = v.hand ? v.hand.y - 1 : q.y - 11;
+    const tpt = (m, i) => { if (m) { const p = mobPos(m); return { x: p.x, y: p.y - 7 }; } const s = bossSpot(); return s; };
+    const n = onBoss ? 1 : tg.length;
+    if (MELEE[wt]) {
+      let tp = tpt(tg[0], 0);
+      // on a boss, a melee hero strikes from its flank
+      if (onBoss) { const sp = bossSideSpot(v, who), hh = bossHalf(); tp = { x: sp.x - bossSide(v) * 7, y: sp.y - 9 }; tp.hx = bossPos().x + bossSide(v) * hh.w * 0.55; tp.hy = bossPos().y - hh.h * rand(0.5, 1.2); }
+      const dx = tp.x - q.x, dy = tp.y + 7 - q.y, d = Math.hypot(dx, dy) || 1;
+      const tank = u.role === 'tank' && G.tankInfo && (G.tankInfo() || {}).who === who;
+      if (key === 'rogue') {
+        // a blink to the target, afterimages behind, two quick cuts (a red X on a crit)
+        let reach = 0;
+        if (d > 9) { v.dashT = Math.min(0.32, d / RUN.dash + 0.08); v.dashTo = { x: tp.x - v.face * 7, y: tp.y + 8 }; v.ghostT = 0; reach = Math.min(0.12, d / RUN.dash * 0.6); }
+        for (let i = 0; i < n; i++) {
+          const t = tg[i] ? tpt(tg[i]) : onBoss ? { x: tp.hx, y: tp.hy } : tp;
+          blow({ k: 'hit', m: tg[i] || null, boss: onBoss, tx: t.x, ty: t.y, hits: tg[i] ? (i === 0 ? [tg[i]].concat(spl) : [tg[i]]) : null, C, sc, crit, dur: reach + 0.04 + i * 0.03, mark: crit && i === 0 ? 'x' : 'cut', flip: false });
+          if (!crit || i > 0) blow({ k: 'cut', m: tg[i] || null, x: t.x + 3, y: t.y - 1, C, sc, flip: true, dur: 0.16, delay: reach + 0.1 + i * 0.03 });
+        }
+      } else {
+        // a knight's (or any blade's) crescent; the tank leans into it, anyone else lunges out to meet the mob
+        if (tank) { v.dashT = 0.12; v.dashTo = { x: q.x + dx / d * 5, y: q.y + dy / d * 3 }; }
+        else if (d > 12) { v.dashT = 0.3; v.dashTo = { x: tp.x - v.face * 9, y: tp.y + 9 }; }
+        const dir = Math.atan2((tp.y - (q.y - 9)) / 0.75, tp.x - q.x);
+        blow({ k: 'arc', who, dir, face: v.face, C, col: G.WEAPONS[wt].col, sc: sc * (crit ? 1.3 : 1), crit, dur: crit ? 0.24 : 0.19, delay: tank || d <= 12 ? 0.02 : Math.min(0.14, d / RUN.lunge * 0.7) });
+        const all = tg.concat(spl);
+        const nn = onBoss ? 1 : Math.min(all.length, 6);
+        for (let i = 0; i < nn; i++) {
+          const t = all[i] ? tpt(all[i]) : onBoss ? { x: tp.hx, y: tp.hy } : tp;
+          blow({ k: 'hit', m: all[i] || null, boss: onBoss && i === 0, tx: t.x, ty: t.y, hits: all[i] ? [all[i]] : null, C, sc, crit: crit && i === 0, dur: 0.07 + i * 0.025 + (tank || d <= 12 ? 0 : Math.min(0.14, d / RUN.lunge * 0.7)), mark: 'spark' });
+        }
+        // the shield: every fourth swing (and on a crit) a bash that rings out round the knight
+        if (u.cls === 'knight' && (++v.swings % 4 === 0 || crit)) blow({ k: 'wave', who, C, sc, dur: 0.3, delay: 0.05 });
+      }
+      return;
+    }
+    // ranged: the shot leaves the bow, wand or staff a beat after the draw
+    if (key !== 'archer') v.chargeT = 0.2;
+    const kind = key === 'archer' ? 'arrow' : key === 'fire' ? 'fire' : key === 'cleric' ? 'holy' : 'missile';
+    const speed = kind === 'arrow' ? 330 : kind === 'fire' ? 200 : kind === 'holy' ? 250 : 230;
+    const lead = kind === 'arrow' ? 0.06 : 0.05;
+    const area = ev.aoe ? aoePx(ev.aoe) : null;
+    const per = kind === 'arrow' && crit ? 3 : 1;
+    for (let i = 0; i < n; i++) {
+      const m = tg[i] || null, t = tpt(m, i);
+      for (let j = 0; j < per; j++) {
+        const dx = t.x - hx, dy = t.y - hy, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+        // a crit volley fans out a little either side of the mark
+        const off = per > 1 ? (j - 1) * 4 : 0;
+        const f = { k: kind, m: j === 0 ? m : m, boss: onBoss, sx: hx, sy: hy, tx: t.x - uy * off, ty: t.y + ux * off, ox: -uy * off, oy: ux * off, ux, uy,
+          C, sc, crit, dur: clamp(d / speed, 0.1, 0.32), delay: lead + i * 0.03 + j * 0.035, arc: kind === 'arrow' ? Math.min(7, d * 0.05) : kind === 'fire' ? Math.min(12, d * 0.09) : kind === 'holy' ? Math.min(8, d * 0.06) : 0,
+          wob: kind === 'missile' ? (Math.random() < 0.5 ? -1 : 1) * (crit ? 5 : 4) : 0,
+          hits: m && j === 0 ? (i === 0 ? [m].concat(spl) : [m]) : null };
+        if (kind === 'fire' && area) { f.rx = area.rx; f.ry = area.ry; }
+        if (!m) { f.ox = f.oy = 0; }
+        blow(f);
+      }
+    }
+  }
+  // a cleric's mend: a golden beam from the staff to whoever it heals, and + motes rising off them
+  function healFx(i, who) {
+    if (i == null || !lctx) return;
+    const v = unitVis(i);
+    v.cast = Math.max(v.cast, 0.25); v.chargeT = 0.25;
+    blow({ k: 'beam', from: i, to: who, C: CFX.cleric, dur: 0.5 });
+  }
+  function unitChest(who) { if (who === 'button') { const b = btnPos(); return { x: b.x, y: b.y - 8 }; } const q = unitPos(who); return { x: q.x, y: q.y - 10 }; }
+  // a few points back along a projectile's path, for its trail
+  function pathAt(f, k) {
+    const e = k, x = f.sx + (f.tx - f.sx) * e, y = f.sy + (f.ty - f.sy) * e - Math.sin(e * Math.PI) * f.arc;
+    if (!f.wob) { PT.x = x; PT.y = y; return PT; }
+    const w = Math.sin(e * Math.PI) * f.wob * Math.sin(e * Math.PI * 2), d = Math.hypot(f.tx - f.sx, f.ty - f.sy) || 1;
+    PT.x = x - (f.ty - f.sy) / d * w; PT.y = y + (f.tx - f.sx) / d * w; return PT;
+  }
+  const PT = { x: 0, y: 0 }, ARC_COLS = ['', '', '', '', ''];
+  // a round-ish pixel blob: a square with its corners off
+  function blob(x, y, s) { if (s < 4) { px(x, y, s); return; } const X = Math.round(x - (s >> 1)), Y = Math.round(y - (s >> 1)); lctx.fillRect(X + 1, Y, s - 2, s); lctx.fillRect(X, Y + 1, s, s - 2); }
+  function px(x, y, s) { lctx.fillRect(Math.round(x - (s >> 1)), Math.round(y - (s >> 1)), s, s); }
+  function drawPfx(dt) {
+    // a slow frame thins the sparkle
+    PFX.q = clamp(PFX.q + (fdt > 0.024 ? -dt * 2 : dt * 0.5), 0.35, 1);
+    for (let i = pfx.length - 1; i >= 0; i--) {
+      const f = pfx[i];
+      f.t += dt;
+      if (f.t < 0) continue;
+      if (f.hits !== undefined || f.boss) {
+        // a projectile or a connecting swing
+        if (f.t >= f.dur) { pfx.splice(i, 1); land(f); continue; }
+        if (f.k === 'hit') continue;
+        aimOf(f);
+        drawShot(f, f.t / f.dur);
+        continue;
+      }
+      if (f.t >= f.dur) { pfx.splice(i, 1); continue; }
+      drawMark(f, f.t / f.dur);
+    }
+    lctx.globalAlpha = 1;
+  }
+  function drawShot(f, k) {
+    const C = f.C, q = PFX.q, s = f.sc * (f.crit ? 1.35 : 1);
+    if (f.k === 'arrow') {
+      const p = pathAt(f, k), x = p.x, y = p.y, b = pathAt(f, Math.max(0, k - 0.06)), bx = b.x, by = b.y;
+      let ux = x - bx, uy = y - by; const l = Math.hypot(ux, uy) || 1; ux /= l; uy /= l;
+      f.ux = ux; f.uy = uy;
+      const len = Math.round(6 * s);
+      // a fading streak behind it
+      lctx.fillStyle = f.crit ? '#ffe27a' : C[1];
+      for (let j = 1; j <= 6; j++) { lctx.globalAlpha = 0.4 * (1 - j / 7); lctx.fillRect(Math.round(x - ux * (len + j * 2)), Math.round(y - uy * (len + j * 2)), 1, 1); }
+      lctx.globalAlpha = 1;
+      lctx.fillStyle = '#0c0b12'; line(x - ux * len + 0.5, y - uy * len + 1, x + 0.5, y + 1);
+      lctx.fillStyle = '#d8b880'; line(x - ux * len, y - uy * len, x, y);
+      lctx.fillStyle = f.crit ? '#fff3a0' : C[0]; lctx.fillRect(Math.round(x - ux * len) - 1, Math.round(y - uy * len), 2, 1);
+      lctx.fillStyle = '#ffffff'; px(x, y, f.crit ? 3 : 2);
+      if (f.crit) glow(x, y, 3, '#ffe27a', 0.35);
+      return;
+    }
+    if (f.k === 'missile' || f.k === 'holy' || f.k === 'fire') {
+      const fire = f.k === 'fire', holy = f.k === 'holy';
+      const head = fire ? 4 : 3, n = fire ? 6 : 5;
+      for (let j = n; j >= 1; j--) {
+        const p = pathAt(f, Math.max(0, k - j * 0.045));
+        lctx.globalAlpha = 0.7 * (1 - j / (n + 1));
+        lctx.fillStyle = fire ? (j < 3 ? '#ff7a2e' : j < 5 ? '#c8321a' : '#5a4a50') : j < 3 ? C[0] : C[2];
+        px(p.x, p.y, Math.max(1, Math.round((head - j * 0.5) * s)));
+      }
+      lctx.globalAlpha = 1;
+      const p = pathAt(f, k), x = p.x, y = p.y;
+      glow(x, y, Math.round((fire ? 5 : 4) * s), fire ? '#ff9a3a' : C[0], 0.3);
+      lctx.fillStyle = '#0c0b12'; blob(x, y + 1, Math.round(head * s) + 1);
+      lctx.fillStyle = fire ? '#ff7a2e' : C[0]; blob(x, y, Math.round(head * s));
+      lctx.fillStyle = fire ? '#ffe27a' : C[1]; px(x, y, Math.max(1, Math.round((head - 2) * s)));
+      if (holy) { lctx.fillStyle = C[1]; lctx.fillRect(Math.round(x) - Math.round(2 * s), Math.round(y), Math.round(4 * s) + 1, 1); lctx.fillRect(Math.round(x), Math.round(y) - Math.round(2 * s), 1, Math.round(4 * s) + 1); }
+      if (f.crit) { lctx.fillStyle = '#ffffff'; px(x, y, 1 + (fire ? 1 : 0)); }
+      if (Math.random() < (fire ? 0.5 : 0.28) * q) part(x + rand(-1, 1), y + rand(-1, 1), fire ? pick(['#ffe27a', '#ff7a2e', '#ff3b1a']) : pick([C[0], C[1]]), { vx: rand(-10, 10), vy: rand(-14, 4), grav: fire ? -20 : 0, life: rand(0.15, 0.3) });
+    }
+  }
+  function drawMark(f, k) {
+    const C = f.C, fade = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5;
+    switch (f.k) {
+      case 'arc': { // a crescent of steel round the swinger
+        const u = f.who < 0 ? hero : aVis(f.who); if (u.x == null) return;
+        const cx = u.x + f.face * 2, cy = u.y - 9, r = (f.crit ? 17 : 14) * f.sc;
+        const a0 = f.dir - 1.35 * f.face, a1 = f.dir + 1.35 * f.face;
+        const hk = 1 - Math.pow(1 - Math.min(1, k / 0.45), 2), tk = Math.max(0, (k - 0.2) / 0.8);
+        const ah = a0 + (a1 - a0) * hk, at = a0 + (a1 - a0) * tk, span = ah - at;
+        if (Math.abs(span) < 0.02) return;
+        const steps = Math.max(6, Math.round(Math.abs(span) * r));
+        const rows = f.crit ? 5 : 4, cols = ARC_COLS;
+        cols[0] = '#ffffff'; cols[1] = f.crit ? '#ffe27a' : C[1]; cols[2] = f.crit ? '#ffb347' : C[0]; cols[3] = f.col === '#ffffff' ? C[2] : f.col; cols[4] = C[2];
+        // an ink rim outside, then row by row (one colour each), thick in the middle of the sweep and thin at its ends
+        lctx.fillStyle = '#0c0b12';
+        for (let j = 0; j <= steps; j += 2) { const s = j / steps, a = at + span * s; lctx.globalAlpha = fade * 0.5 * s; lctx.fillRect(Math.round(cx + Math.cos(a) * (r + 1)), Math.round(cy + Math.sin(a) * 0.75 * (r + 1)), 1, 1); }
+        for (let row = 0; row < rows; row++) {
+          lctx.fillStyle = cols[row];
+          const rr = r - row;
+          for (let j = 0; j <= steps; j++) {
+            const s = j / steps;
+            if (Math.sin(s * Math.PI) * rows + 0.7 <= row) continue;
+            const a = at + span * s;
+            lctx.globalAlpha = fade * (0.3 + 0.7 * s) * (row > 2 ? 0.7 : 1);
+            lctx.fillRect(Math.round(cx + Math.cos(a) * rr), Math.round(cy + Math.sin(a) * 0.75 * rr), 1, 1);
+          }
+        }
+        return;
+      }
+      case 'wave': { // the shield bash: a ring of force rolling out along the ground
+        const u = f.who < 0 ? hero : aVis(f.who); if (u.x == null) return;
+        if (!f.fx) { f.fx = u.x; f.fy = u.y; for (let i = 0; i < 6 * PFX.q; i++) dust({ x: u.x + rand(-6, 6), y: u.y, face: rand(-1, 1) < 0 ? -1 : 1, vx: rand(-60, 60) }, 100); glow(u.x + u.face * 6, u.y - 9, 6, '#ffffff', 0.6); }
+        const e = 1 - Math.pow(1 - k, 2), rx = (5 + 20 * e) * f.sc, ry = rx * 0.5;
+        const n = Math.max(24, Math.round(rx * 4.6));
+        for (let row = 0; row < 3; row++) {
+          lctx.globalAlpha = (1 - k) * (row === 0 ? 0.95 : row === 1 ? 0.7 : 0.45); lctx.fillStyle = row === 0 ? '#ffffff' : row === 1 ? C[0] : C[2];
+          const rr = rx - row, ryy = ry - row * 0.5;
+          for (let j = 0; j < n; j++) { const a = j / n * Math.PI * 2; lctx.fillRect(Math.round(f.fx + Math.cos(a) * rr), Math.round(f.fy - 2 + Math.sin(a) * ryy), 1, 1); }
+        }
+        return;
+      }
+      case 'spark': { // an impact star
+        const l = (2 + 4 * Math.min(1, k * 2.5)) * f.sc * (f.crit ? 1.5 : 1), x = Math.round(f.x), y = Math.round(f.y);
+        lctx.globalAlpha = fade;
+        lctx.fillStyle = f.crit ? '#ffe27a' : C[0];
+        lctx.fillRect(x - Math.round(l), y, Math.round(l * 2) + 1, 1); lctx.fillRect(x, y - Math.round(l * 0.8), 1, Math.round(l * 1.6) + 1);
+        const dl = Math.round(l * 0.6);
+        for (let j = 1; j <= dl; j++) { lctx.fillRect(x + j, y + j, 1, 1); lctx.fillRect(x - j, y - j, 1, 1); lctx.fillRect(x + j, y - j, 1, 1); lctx.fillRect(x - j, y + j, 1, 1); }
+        lctx.fillStyle = '#ffffff'; lctx.fillRect(x - 1, y - 1, 3, 3);
+        return;
+      }
+      case 'cross': { // a holy bolt's flash
+        const l = Math.round((2 + 2.5 * Math.min(1, k * 3)) * f.sc * (f.crit ? 1.6 : 1)), x = Math.round(f.x), y = Math.round(f.y);
+        lctx.globalAlpha = fade;
+        lctx.fillStyle = C[0]; lctx.fillRect(x - l, y - 1, l * 2 + 1, 3); lctx.fillRect(x - 1, y - l, 3, l * 2 + 1);
+        lctx.fillStyle = C[1]; lctx.fillRect(x - l + 1, y, l * 2 - 1, 1); lctx.fillRect(x, y - l + 1, 1, l * 2 - 1);
+        return;
+      }
+      case 'cut': case 'xcut': { // a rogue's dagger cuts: two quick slashes, or a big red X
+        if (f.m && !f.m.dead) { const q = mobPos(f.m); f.x = q.x + (f.flip ? 3 : 0); f.y = q.y - 8; }
+        const x = f.x, y = f.y, X = f.k === 'xcut', L = (X ? 8 : 5) * f.sc, g = Math.min(1, k / 0.3);
+        const lines = X ? 2 : 1;
+        for (let j = 0; j < lines; j++) {
+          const gj = X ? clamp((k - j * 0.15) / 0.3, 0, 1) : g; if (gj <= 0) continue;
+          const sx = X ? (j ? 1 : -1) : f.flip ? -1 : 1;
+          const x0 = x - sx * L, y0 = y - L, x1 = x0 + sx * 2 * L * gj, y1 = y0 + 2 * L * gj;
+          lctx.globalAlpha = fade;
+          lctx.fillStyle = '#0c0b12'; line(x0, y0 + 1, x1, y1 + 1);
+          lctx.fillStyle = X ? '#ff3b3b' : C[0]; line(x0 + 1, y0, x1 + 1, y1); if (X) { line(x0 - 1, y0, x1 - 1, y1); }
+          lctx.fillStyle = '#ffffff'; line(x0, y0, x1, y1);
+        }
+        return;
+      }
+      case 'stuck': { // an arrow left standing in its mob
+        if (f.m && !f.m.dead) { const q = mobPos(f.m); f.x = q.x + f.ox; f.y = q.y - 7 + f.oy; } else if (f.x == null) return;
+        const ux = f.ux || 1, uy = f.uy || 0;
+        lctx.globalAlpha = fade;
+        lctx.fillStyle = '#d8b880'; line(f.x - ux * 4, f.y - uy * 4, f.x - ux, f.y - uy);
+        lctx.fillStyle = C[0]; lctx.fillRect(Math.round(f.x - ux * 4), Math.round(f.y - uy * 4), 1, 1);
+        return;
+      }
+      case 'flash':
+        glow(f.x, f.y, Math.max(2, Math.round(f.r * (0.6 + 0.4 * k))), f.col, 0.55 * (1 - k));
+        lctx.globalAlpha = 1;
+        return;
+      case 'beam': { // a cleric's mend
+        const a = unitPos(f.from), A = { x: a.x + (f.from < 0 ? hero : aVis(f.from)).face * 6, y: a.y - 16 }, B = unitChest(f.to);
+        const hk = Math.min(1, k / 0.28), mx = (A.x + B.x) / 2, my = Math.min(A.y, B.y) - 12 - Math.hypot(B.x - A.x, B.y - A.y) * 0.12;
+        const d = Math.hypot(B.x - A.x, B.y - A.y), n = Math.max(6, Math.round(d / 1.5)), al = k < 0.55 ? 1 : 1 - (k - 0.55) / 0.45;
+        for (let j = 0; j <= n * hk; j++) {
+          const s = j / n, u1 = 1 - s, x = u1 * u1 * A.x + 2 * u1 * s * mx + s * s * B.x, y = u1 * u1 * A.y + 2 * u1 * s * my + s * s * B.y;
+          lctx.globalAlpha = al * (0.55 + 0.45 * Math.sin(s * 12 - time * 30) * 0.5 + 0.2);
+          lctx.fillStyle = C[2]; lctx.fillRect(Math.round(x) - 1, Math.round(y), 3, 1);
+          lctx.fillStyle = C[0]; lctx.fillRect(Math.round(x), Math.round(y) - 1, 1, 3);
+          if (j % 2 === 0) { lctx.fillStyle = C[1]; lctx.fillRect(Math.round(x), Math.round(y), 1, 1); }
+        }
+        if (hk >= 1 && !f.hit) {
+          f.hit = true;
+          ring(B.x, B.y + 6, 9, 5, C[0], 0.35);
+          for (let j = 0; j < 6; j++) part(B.x + rand(-7, 7), B.y + rand(-4, 6), pick(['#8ae07a', '#ffd84a', '#ffffff']), { vx: rand(-6, 6), vy: -rand(14, 28), grav: -6, life: rand(0.5, 0.8), size: 1, plus: true });
+          glow(B.x, B.y, 7, '#fff3a0', 0.5);
+        }
+        if (hk < 1) { const s = hk, u1 = 1 - s; lctx.globalAlpha = 1; lctx.fillStyle = '#ffffff'; px(u1 * u1 * A.x + 2 * u1 * s * mx + s * s * B.x, u1 * u1 * A.y + 2 * u1 * s * my + s * s * B.y, 3); }
+        return;
+      }
+    }
+  }
   function partyListen() {
     G.on('allyAttack', ev => {
-      const v = aVis(ev.i), q = allySlot(ev.i), m = G.S.party[ev.i];
+      const m = G.S.party[ev.i];
       if (!m) return;
-      const wt = ev.wt || (m.eq.weapon ? G.ITEM_TYPE[m.eq.weapon.id] : 'sword'), at = ATTACK[wt] || ['swing', 0.24];
-      v.atk = { kind: at[0], t: 0, dur: at[1] };
-      const t0 = ev.ids && G.R.mobs.find(x => x.id === ev.ids[0]);
-      const tp = t0 ? mobPos(t0) : ev.boss && bossVis ? bossPos() : null;
-      if (!tp) return;
-      v.face = tp.x >= q.x ? 1 : -1;
-      // a melee companion (not the tank, who holds its line) lunges at its target and comes back
-      if (MELEE[wt] && G.ROLES[m.cls] !== 'tank' && t0) { v.lunge = 0.35; v.lungeTo = { x: tp.x - v.face * 7, y: tp.y + 2 }; }
-      if (shots.length < 110 && !MELEE[wt]) shots.push({ x: q.x, y: q.y - 10, sx: q.x, sy: q.y - 10, tx: tp.x, ty: tp.y - 6, t: 0, dur: 0.2, col: G.WEAPONS[wt] ? G.WEAPONS[wt].col : '#ffffff', arrow: wt === 'bow', flat: wt === 'bow', big: wt === 'staff' });
-      else if (MELEE[wt]) burst(tp.x, tp.y - 5, ['#ffffff', G.WEAPONS[wt].col], 3, 40, { life: 0.2 });
-      for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
-      for (const id of ev.ids || []) mobVisOf({ id }).hit = 0.09;
+      unitAttack(ev.i, ev, ev.wt || (m.eq.weapon ? G.ITEM_TYPE[m.eq.weapon.id] : 'sword'));
     });
     // 3.1 OVERDRIVE: a white-out and a shockwave, then the Button lashes every mob with lightning
     G.on('odReady', () => { const b = btnPos(); ring(b.x, b.y - 4, 30, 15, '#7fe9ff', 0.6); text(b.x, b.y - 46, G.t('odReady'), '#7fe9ff', 4, { life: 1.8, vy: -8 }); if (G.Audio && G.Audio.achievement) G.Audio.achievement(); });
@@ -16495,11 +17158,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     });
     G.on('odEnd', n => { const b = btnPos(); ring(b.x, b.y - 4, 120, 60, '#ffffff', 0.7); St.flash(0.3, '#7fe9ff'); text(b.x, b.y - 40, G.t('odEnd', n), '#7fe9ff', 5, { life: 1.6, vy: -10 }); });
     G.on('heal', (i, who) => {
-      beamsFx.push({ kind: 'heal', from: i, to: who, t: 0, dur: 0.35 });
+      healFx(i, who);
       // the healer runs to whoever it mends (not to the Button: it mends that from where it stands)
       if (i != null && who !== 'button' && who !== i) { const hv = aVisOf(i); hv.healTo = who; hv.healT = 1.2; }
-      const q = unitPos(who);
-      burst(q.x, q.y - 12, ['#8ae07a', '#ffffff'], 5, 30, { grav: -20, life: 0.5 });
       if (who !== 'button') aVisOf(who).heal = 0.3;
     });
     G.on('unitHurt', (who, dmg, src) => {
@@ -16761,64 +17422,6 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (v.hit > 0) { blit(white(spr), x, q.y, sc, Math.min(0.6, v.hit * 8)); v.hit -= fdt; }
     if (Math.random() < 0.4) part(q.x + rand(-10, 10), q.y - rand(0, spr.height * sc), pick(['#b36bff', '#ff3b5c']), { vx: 0, vy: -20, grav: 0, life: 0.5 });
   }
-  function drawHero(hp) {
-    const h = G.S.hero;
-    if (!h || !h.cls) return;
-    if (h.wdown > 0) { drawDowned({ cls: h.cls, eq: h.eq, down: h.wdown }, hp); return; }
-    if (hero.hurt > 0) hero.hurt -= fdt;
-    if (hero.heal > 0) { glow(hp.x, hp.y - 8, 9, '#8ae07a', hero.heal * 2); hero.heal -= fdt; }
-    const w = h.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
-    if (w && w.r >= 3) glow(hp.x, hp.y - 6, 10, G.RARITIES[w.r].color, 0.16 + 0.06 * Math.sin(time * 4));
-    if (G.R.hb && G.R.hb.wing > 0) glow(hp.x, hp.y - 12, 12, '#ffffff', 0.25);
-    shadow(hp.x, hp.y - 1, 14);
-    let pose = 'rest', ang = G.Doll.restAngle(wt), draw = 0;
-    const a = hero.atk;
-    if (a) {
-      const k = a.t / a.dur;
-      if (a.kind === 'swing') {
-        if (k < 0.25) { pose = 'up'; ang = -2.4; }
-        else if (k < 0.6) { pose = 'fwd'; ang = G.lerp(-2.4, 0.8, (k - 0.25) / 0.35); }
-        else ang = G.lerp(0.8, ang, (k - 0.6) / 0.4);
-      } else if (a.kind === 'stab') {
-        if (k < 0.35) ang = -0.3; else if (k < 0.8) { pose = 'fwd'; ang = 0; }
-      } else if (a.kind === 'shot') { pose = 'fwd'; draw = k < 0.5 ? k / 0.5 : 0; }
-      else if (a.kind === 'cast') {
-        if (k < 0.4) { pose = 'up'; ang = -1.9; } else if (k < 0.85) { pose = 'fwd'; ang = -0.55; }
-      }
-    }
-    if (hero.cast > 0) { pose = 'up'; ang = -1.7; }
-    const legs = hero.moving ? Math.floor(hero.walk * 11) % 4 : 0;
-    const bob = hero.moving || a ? 0 : Math.floor(time * 1.6) % 2;
-    const lunge = a && a.kind !== 'shot' && pose === 'fwd' ? hero.face : 0;
-    const r = G.Doll.draw(lctx, h, hp.x + lunge, hp.y, { face: hero.face, legs, pose, bob, ang, draw, time });
-    hero.hand = { x: r.hx, y: r.hy }; hero.top = r.top;
-    // a crescent smear behind the blade, and a flash ahead of a stab
-    if (a && w) {
-      const k = a.t / a.dur, col = G.WEAPONS[wt].col;
-      if (a.kind === 'swing' && k >= 0.25 && k < 0.8) {
-        const cur = k < 0.6 ? ang : 0.8, from = Math.max(-2.4, cur - 2.2);
-        lctx.fillStyle = col;
-        for (let t = from; t <= cur; t += 0.1) {
-          lctx.globalAlpha = 0.25 + 0.6 * (t - from) / Math.max(0.01, cur - from);
-          for (const rr of [9, 11]) lctx.fillRect(Math.round(r.hx + hero.face * Math.cos(t) * rr), Math.round(r.hy + Math.sin(t) * rr), 1, 1);
-        }
-        lctx.globalAlpha = 1;
-      } else if (a.kind === 'stab' && k >= 0.35 && k < 0.8) {
-        lctx.fillStyle = '#ffffff';
-        for (let j = 10; j < 15; j++) { lctx.globalAlpha = 1 - (j - 10) / 5; lctx.fillRect(Math.round(r.hx + hero.face * j), Math.round(r.hy), 1, 1); }
-        lctx.globalAlpha = 1;
-      }
-    }
-    if (a && a.kind === 'cast' && !a.flash && a.t / a.dur >= 0.4 && w) {
-      a.flash = true;
-      const tp = G.Doll.tip(w, r.hx, r.hy, hero.face, -0.55);
-      burst(tp.x, tp.y, [G.WEAPONS[wt].col, '#ffffff'], 7, 45, { grav: 0, life: 0.25 });
-      ring(tp.x, tp.y, 5, 4, G.WEAPONS[wt].col, 0.18);
-    }
-    if (hero.moving && Math.random() < 0.3) part(hp.x + rand(-3, 3), hp.y, pick(['#c8b89a', '#8a7a60']), { vx: -hero.face * rand(5, 15), vy: rand(-10, -2), grav: 20, life: 0.3 });
-    if (hero.hurt > 0) { lctx.globalAlpha = Math.min(0.6, hero.hurt * 4); lctx.fillStyle = '#ff3b3b'; lctx.fillRect(hp.x - 6, hp.y - 20, 12, 20); lctx.globalAlpha = 1; }
-    if (G.D.wardenHp) hpBar(hp.x, hp.y - 26, h.whp / G.D.wardenHp, 16, ROLE_COL[G.ROLES[h.cls]]);
-  }
   const MELEE = { dagger: 1, sword: 1, katana: 1, scythe: 1 };
   // The Warden's hits on a boss add up into floating numbers a few times a second
   const bossDmg = { acc: 0, t: 0, crit: false };
@@ -16827,13 +17430,18 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (!h || !h.cls) return;
     if (ev.boss) { bossDmg.acc += ev.dmg * (G.D.bossMult || 1); bossDmg.crit = bossDmg.crit || ev.crit; }
     const D = G.D, wt = D.hero ? D.hero.wtype : 'dagger';
-    const col = G.WEAPONS[wt].col;
-    const find = id => { const m = G.R.mobs.find(q => q.id === id); return m ? Object.assign(mobPos(m), { m }) : null; };
-    const pts = ev.boss ? [Object.assign({}, bossPos(), { y: bossPos().y - 12 })] : (ev.ids || []).map(find).filter(Boolean);
-    if (!pts.length) return;
-    for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
     // The Hand: a click calls lightning down from above the screen
-    if (ev.src === 'click') {
+    if (ev.src === 'click' || ev.src === 'pet') {
+      const find = id => { const m = mobById(id); return m ? Object.assign(mobPos(m), { m }) : null; };
+      const pts = ev.boss ? [Object.assign({}, bossPos(), { y: bossPos().y - 12 })] : (ev.ids || []).map(find).filter(Boolean);
+      if (!pts.length) return;
+      for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
+      if (ev.src === 'pet') {
+        if (shots.length > 90) return;
+        const t = pts[0], pp = petPos(Math.floor(Math.random() * Math.max(1, G.S.active.length)));
+        if (G.S.active.length) shots.push({ x: pp.x, y: pp.y, sx: pp.x, sy: pp.y, tx: t.x, ty: t.y - 6, t: 0, dur: 0.22, col: '#fff3a0' });
+        return;
+      }
       if (ev.boss) { bossHitT = 0.07; return; }
       const t = pts[0], ty = t.y - 6;
       if (t.m) mobVisOf(t.m).hit = 0.1;
@@ -16849,36 +17457,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (ev.crit) text(t.x, ty - 8, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 });
       return;
     }
-    const hp = heroPos();
-    const src = hero.hand ? { x: hero.hand.x, y: hero.hand.y - 1 } : { x: hp.x + hero.face * 9, y: hp.y - 12 };
-    if (ev.src === 'pet') {
-      if (shots.length > 90) return;
-      const t = pts[0], pp = petPos(Math.floor(Math.random() * Math.max(1, G.S.active.length)));
-      if (G.S.active.length) shots.push({ x: pp.x, y: pp.y, sx: pp.x, sy: pp.y, tx: t.x, ty: t.y - 6, t: 0, dur: 0.22, col: '#fff3a0' });
-      return;
-    }
-    hero.face = pts[0].x >= hp.x ? 1 : -1;
-    const kind = ATTACK[wt] || ATTACK.dagger;
-    if (!hero.atk || hero.atk.t > hero.atk.dur * 0.5) hero.atk = { kind: kind[0], t: 0, dur: kind[1] };
-    if (!ev.boss) { hero.tgt = { x: pts[0].x, y: pts[0].y }; hero.tgtT = 0; }
-    if (shots.length > 110) return;
-    const melee = MELEE[wt];
-    const area = ev.aoe ? aoePx(ev.aoe) : null;
-    pts.forEach((t, i) => {
-      const ty = t.y - 7;
-      if (t.m) mobVisOf(t.m).hit = 0.08;
-      const dur = melee ? 0.1 : wt === 'bow' ? 0.16 : 0.22;
-      if (!melee) shots.push({ x: src.x, y: src.y, sx: src.x, sy: src.y, tx: t.x, ty, t: 0, dur, col: ev.crit ? '#ff7a2e' : col, flat: wt === 'bow', big: wt === 'staff' || ev.crit, arrow: wt === 'bow', boom: area && !ev.boss ? { x: t.x, y: t.y - 3, rx: area.rx, ry: area.ry, col } : null });
-      else if (ev.boss) shots.push({ x: src.x, y: src.y, sx: src.x, sy: src.y, tx: t.x, ty, t: 0, dur, col: ev.crit ? '#ff7a2e' : col, flat: true, key: true });
-      if (wt === 'staff') shots.push({ x: src.x, y: src.y + 2, sx: src.x, sy: src.y + 2, tx: t.x, ty: ty + 3, t: 0, dur: dur * 1.1, col, flat: false });
-      if (melee && !ev.boss) { // a crescent sweep through the pack
-        const a = Math.atan2(t.y - hp.y, t.x - hp.x);
-        ring(t.x, t.y - 4, area ? area.rx : 8, area ? area.ry : 5, ev.crit ? '#ff7a2e' : col, 0.14, [a - 1.2, a + 1.2]);
-      } else if (melee) {
-        for (let j = 0; j < 5; j++) { const a = -1 + j * 0.5; part(t.x + Math.cos(a) * 6 * hero.face, ty + Math.sin(a) * 6, col, { vx: 0, vy: 0, grav: 0, life: 0.14 }); }
-      }
-      if (ev.crit && i === 0) text(t.x, ty - 8, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 });
-    });
+    // 3.5: the Warden's own blows are drawn like a companion's, in its class's style and a size up
+    unitAttack(-1, ev, wt);
+    if (ev.crit && !ev.boss && ev.ids && ev.ids.length) { const m = mobById(ev.ids[0]); if (m) { const q = mobPos(m); text(q.x, q.y - 16, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 }); } }
   }
 
   // ---------- Horde FX: the crunch ----------
@@ -18016,7 +18597,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   St.frame = function (dt) {
     time += dt; fdt = dt || 1 / 60;
-    if (G.R.town) { drawTown(dt); return; }
+    if (G.R.town) { if (late.length) flushLate(); pfx.length = 0; pend.clear(); drawTown(dt); return; }
     // several kills in one frame weigh more
     // the Horde dies in heaps all the time now: only a real heap stops the frame
     if (multiCd > 0) multiCd -= dt;
@@ -18135,7 +18716,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       } });
     });
     // Mobs and the hero
-    if (G.S.hero && G.S.hero.cls) { stepHero(dt); stepAllies(dt); }
+    if (G.S.hero && G.S.hero.cls) stepParty(dt);
     const mrealm = realm;
     for (const m of R.mobs || []) {
       const v = mobVisOf(m);
@@ -18150,9 +18731,10 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (q.x < -12 || q.x > W + 12 || q.y < -4 || q.y > H + 20) continue;
       list.push({ y: q.y, draw: () => drawDig(q, dg) });
     }
-    if (G.S.hero && G.S.hero.cls) { const hp = heroPos(); list.push({ y: hp.y, draw: () => drawHero(hp) }); }
-    // companions, each at their place
-    if (G.partyUnits && G.S.hero && G.S.hero.cls) for (const u of G.partyUnits()) if (u.who >= 0) { const q = allySlot(u.who); list.push({ y: q.y, draw: () => drawAlly(u.who, u, q) }); }
+    // the Warden and the companions, each where it has run to
+    if (G.partyUnits && G.S.hero && G.S.hero.cls) for (const u of G.partyUnits()) { const q = u.who < 0 ? heroPos() : allySlot(u.who), v = unitVis(u.who); list.push({ y: q.y, draw: () => drawUnit(u, v, q) }); }
+    // mobs a blow in the air has killed stand until it lands
+    stepLate(dt, list, mrealm);
     if (mobVis.size > (R.mobs || []).length + 20) { const ids = new Set((R.mobs || []).map(m => m.id)); for (const k of [...mobVis.keys()]) if (!ids.has(k)) mobVis.delete(k); }
     // Button or boss
     if (bossVis && bossDmg.acc > 0 && (bossDmg.t -= dt) <= 0) {
@@ -18296,6 +18878,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     // Particles
     stepDrawParts(vdt);
     drawGibs(false);
+    // the party's blows go over the gore, so they read in the thick of it
+    drawPfx(vdt);
 
     // Buff tint
     if (G.hasBuff('frenzy')) { lctx.globalAlpha = 0.07 + 0.03 * Math.sin(time * 6); lctx.fillStyle = '#ffd84a'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; }
@@ -18879,7 +19463,24 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const tip = (T.n ? t('tormentTip', T.n, '×' + T.mobHp.toFixed(2), '×' + T.bite.toFixed(2), '×' + T.bossHp.toFixed(2), '×' + T.gold.toFixed(2), '×' + T.xp.toFixed(2), '+' + Math.round((T.drop - 1) * 100) + '%') + (T.rarity ? ' ' + t('tormentRar', T.rarity) : '') : t('tormentZero')) + ' ' + t('tormentMore') + (busy ? ' ' + t('tormentBusy') : '');
     if (el.title !== tip) el.title = tip;
   }
+  // QoL: numbers in letters (1.23Qa) or in science (1.23e15), as the player likes (Settings). Every file calls
+  // G.fmt when it draws, so wrapping it here reaches the field's numbers too.
+  if (G.fmt && !G.fmt._qol) {
+    const fmt0 = G.fmt;
+    G.fmt = function (n, small) {
+      const s = G.S && G.S.set;
+      if (s && s.sci && typeof n === 'number' && Number.isFinite(n) && Math.abs(n) >= 1e6) {
+        const a = Math.abs(n), ex = Math.floor(Math.log10(a)), m = Math.floor(a / Math.pow(10, ex) * 100) / 100;
+        return (n < 0 ? '-' : '') + m.toFixed(2) + 'e' + ex;
+      }
+      return fmt0(n, small);
+    };
+    G.fmt._qol = 1;
+  }
   const fmt = G.fmt, t = G.t, L = G.L;
+  // the player's interface choices (last tabs, sorts, buy amount…), kept in the save with the settings
+  const PF = () => { const s = G.S.set; if (!s.ui || typeof s.ui !== 'object') s.ui = {}; return s.ui; };
+  UI.prefs = PF;
 
   let tab = 'upg', buyAmt = 1, selNode = 'spark', selItem = null, ascArm = 0, resetArm = 0, selWho = -1;
   let refs = {}, lastText = new WeakMap();
@@ -18926,6 +19527,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const S = G.S;
     S.seen = S.seen || {};
     S.seen.tabs = S.seen.tabs || {};
+    // (what's in the bag on the first look isn't news; gold is counted by source for the breakdown)
+    if (PF().seenU == null && S.hero) bagSeen();
+    if (!G.goldBySrc) G.goldBySrc = {};
     $('#goldIco').src = ic('ic_coin', 4);
     $('#essIco').src = ic('ic_ess', 3);
     $('#eggIco').src = ic('ic_egg', 3);
@@ -19043,14 +19647,15 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   }
   function bindPartyHud() {
     $('#partyHud').addEventListener('click', e => {
-      if (e.target.closest('[data-seat]')) { G.Audio.unlock(); if (G.enterTown()) UI.townOpen('tavern'); else UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
+      if (e.target.closest('[data-seat]')) { G.Audio.unlock(); if (G.enterTown()) UI.townOpen('tavern', 'tavern'); else UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
       if (e.target.closest('[data-seatlock]')) { UI.teamCard(); return; }
       const c = e.target.closest('.pchip'); if (!c) return;
       const who = +c.dataset.who;
       if (G.reviveTap(who)) { G.Audio.click(0, false); return; }
       // a standing unit: open their page in the Party tab
       selWho = who; selGear = null; tw.who = who;
-      if (G.R.town) UI.townOpen('forge'); else UI.toast(esc(t('chipTown')), '', 'ic_sword');
+      // (QoL: between fights a tap walks straight to their gear at the Forge)
+      if (G.R.town || (!G.R.boss && !G.R.inv && G.enterTown())) UI.townOpen('forge'); else UI.toast(esc(t('chipTown')), '', 'ic_sword');
     });
     $('#btnFold').addEventListener('click', () => { $('#app').classList.toggle('fold'); $('#btnFold').textContent = $('#app').classList.contains('fold') ? '▴' : '▾'; setTimeout(() => G.Stage && G.Stage.resize && G.Stage.resize(), 0); });
   }
@@ -19098,8 +19703,19 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (window.innerWidth < 700) G.TUNE.mobMax = Math.min(G.TUNE.mobMax, 750);
     bindTown();
     $('#btnTown').addEventListener('click', () => { G.Audio.unlock(); if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } });
-    G.on('town', on => { if (!on) UI.townClose(true); document.getElementById('app').classList.toggle('inTown', on); if (tab === 'set') tab = 'upg'; UI.render(); });
-    $('#torment').addEventListener('click', e => { const b = e.target.closest('[data-tm]'); if (!b) return; G.Audio.unlock(); if (G.setTorment((G.S.torment || 0) + +b.dataset.tm)) { G.Audio.buy(); updateTorment(); } else G.Audio.error(); });
+    G.on('town', on => {
+      // QoL: leave town from inside a building and the next visit opens it again (not while the tutorial walks you)
+      if (!on) { PF().resume = tw.id || null; UI.townClose(true); }
+      document.getElementById('app').classList.toggle('inTown', on); if (tab === 'set') tab = 'upg'; UI.render();
+      if (on && PF().resume && G.S.tut < 0 && bldOpen(PF().resume)) { const id = PF().resume; setTimeout(() => { if (G.R.town && !tw.id && $('#modal').hidden) UI.townOpen(id); }, 0); }
+    });
+    bindSwipe();
+    // a finger down on the panel: nothing there re-sorts or rebuilds under it
+    $('#panel').addEventListener('pointerdown', () => { UI._panelDown = true; });
+    window.addEventListener('pointerup', () => { UI._panelDown = false; });
+    window.addEventListener('pointercancel', () => { UI._panelDown = false; });
+    // the gold rate opens where the gold comes from
+    const rt = $('#panel .rates'); if (rt) { rt.setAttribute('role', 'button'); rt.tabIndex = 0; rt.title = t('gpsTip'); rt.addEventListener('click', () => UI.goldBreakdown()); rt.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); UI.goldBreakdown(); } }); }    $('#torment').addEventListener('click', e => { const b = e.target.closest('[data-tm]'); if (!b) return; G.Audio.unlock(); if (G.setTorment((G.S.torment || 0) + +b.dataset.tm)) { G.Audio.buy(); updateTorment(); } else G.Audio.error(); });
     $('#realmBox').addEventListener('click', () => { if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#realmBox').addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); e.stopPropagation(); if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#btnSound').addEventListener('click', () => { G.S.set.sound = G.S.set.sound ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.update(true); });
@@ -19122,6 +19738,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.isContentEditable)) return;
       // Ctrl+C copies, it doesn't Mend
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // QoL, in town: 1–9, 0, − open a building; ← → the next one; Shift+← → its tabs
+      if (G.R.town && !G.uiBusy() && !(tg && tg.tagName === 'SELECT')) {
+        const ki = e.code === 'Minus' || e.code === 'NumpadSubtract' ? 10 : /^(Digit|Numpad)[0-9]$/.test(e.code) ? (+e.code.slice(-1) + 9) % 10 : -1;
+        if (ki >= 0 && !e.repeat) { const id = BLD_ORDER[ki]; if (id) { e.preventDefault(); G.Audio.unlock(); if (tw.id !== id) UI.townOpen(id); } return; }
+        if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') { e.preventDefault(); const d = e.code === 'ArrowRight' ? 1 : -1; if (e.shiftKey && tw.id) UI.townSub(d); else UI.townStep(d); return; }
+      }
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') {
         if (tg && tg.tagName === 'BUTTON' && e.code !== 'Space') return;
         e.preventDefault();
@@ -19139,6 +19761,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       else if (e.code === 'KeyV') { if (!G.uiBusy() && G.overdrive && !G.overdrive('key')) G.Audio.error(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
       else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } }
+      else if (e.code === 'Escape' && !$('#modal').hidden && $('#modal').dataset.locked !== '1') { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; }
       else if (e.code === 'Escape' && G.R.town && !G.uiBusy()) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
       else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
       else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
@@ -19195,7 +19818,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         <p class="story">${esc(t('teamText'))}</p>
         <div class="teamRow">${G.CLASSES.map((c, i) => `<div class="teamCls" style="animation-delay:${0.08 * i}s">${img(c.spr, '', 6)}<b>${esc(L(c.name))}</b><small class="r_${G.ROLES[c.id]}">${esc(G.ROLE_NAMES[G.ROLES[c.id]])}</small></div>`).join('')}</div>
         <p class="note">${esc(t(open ? 'teamOpen' : 'teamNext', G.PARTY_AT[Math.min(2, n)] + 1))}</p></div>`,
-        open ? [{ label: t('teamGo'), cls: 'gold', fn: () => { if (G.enterTown()) UI.townOpen('tavern'); } }, { label: t('later') }] : [{ label: t('close') }]);
+        open ? [{ label: t('teamGo'), cls: 'gold', fn: () => { if (G.enterTown()) UI.townOpen('tavern', 'tavern'); } }, { label: t('later') }] : [{ label: t('close') }]);
       G.Audio && G.Audio.levelUp && G.Audio.levelUp();
       return m;
     };
@@ -19296,11 +19919,59 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     });
     G.on('rival', ev => UI.toast(esc(ev.up ? t('rivalUp', ev.name, ev.cat, ev.rank) : t('rivalDown', ev.name, ev.cat)), ev.up ? 'ach' : '', 'ic_crown'));
     G.on('gear', (g, equipped) => { if (equipped && (g.r >= 2 || g.q)) UI.toast(`<span>${esc(t('equipped'))}: <b style="color:${gearCol(g)}">${esc(gearName(g))}</b></span>`, '', G.gearSpr(g)); });
+    // QoL: the bag filling up says so once (and again only after it's had room), since a full bag scraps the weakest
+    G.on('gear', () => {
+      const h = G.S.hero, full = h.bag.length >= G.TUNE.bagMax;
+      if (full && !UI._bagFullSaid) { UI._bagFullSaid = true; setTimeout(() => UI.toast(`<span><b>${esc(t('bagFullT'))}</b> ${esc(t('bagFullToast'))}</span>`, '', 'ic_bag'), 600); }
+      else if (h.bag.length < G.TUNE.bagMax - 3) UI._bagFullSaid = false;
+    });
     G.on('levelUp', () => { const xb = $('#xpBar'); xb.classList.remove('up'); void xb.offsetWidth; xb.classList.add('up'); });
     G.on('buttonBreak', () => UI.toast(`<b>${esc(t('overload'))}</b> ${esc(t('overloadHint'))}`, '', 'ic_skull'));
   }
   const dirty = {};
   function dirtyTab(id) { dirty[id] = true; }
+
+  // ---------- QoL: swipe between buildings on a phone ----------
+  function bindSwipe() {
+    const el = twEl(); if (!el) return;
+    let sx = 0, sy = 0, st = 0, ok = false;
+    el.addEventListener('touchstart', e => {
+      const p = e.touches[0];
+      // (not on anything that scrolls or slides sideways itself)
+      ok = e.touches.length === 1 && !e.target.closest('.twNav, .twSubs, .seg, .flt, input, select, textarea, .starmap, .scrapSeg, .orbBar, .gmbSlots');
+      if (ok) { sx = p.clientX; sy = p.clientY; st = performance.now(); }
+    }, { passive: true });
+    el.addEventListener('touchend', e => {
+      if (!ok || !tw.id) return; ok = false;
+      const p = e.changedTouches[0], dx = p.clientX - sx, dy = p.clientY - sy;
+      if (performance.now() - st < 700 && Math.abs(dx) > 70 && Math.abs(dy) < Math.abs(dx) * 0.5) UI.townStep(dx < 0 ? 1 : -1);
+    }, { passive: true });
+  }
+  // ---------- QoL: where the gold comes from ----------
+  // the game counts every coin by its source (G.goldBySrc); a sample a second gives the last half minute's split
+  const srcHist = [];
+  const SRC_GROUP = { gps: 'gps', mob: 'mob', click: 'click', auto: 'click', chest: 'chest', spill: 'chest', boss: 'boss', champion: 'boss', drop: 'drop' };
+  function sampleGold() {
+    if (!G.goldBySrc) G.goldBySrc = {};
+    const now = performance.now() / 1000;
+    if (srcHist.length && now - srcHist[srcHist.length - 1].t < 1) return;
+    srcHist.push({ t: now, v: Object.assign({}, G.goldBySrc) });
+    while (srcHist.length > 31) srcHist.shift();
+  }
+  G.on('ascend', () => { srcHist.length = 0; });
+  UI.goldBreakdown = function () {
+    const D = G.D, a = srcHist[0], b = srcHist[srcHist.length - 1];
+    const secs = a && b ? Math.max(1, b.t - a.t) : 0, by = {};
+    let tot = 0;
+    if (secs) for (const k in b.v) { const d = (b.v[k] || 0) - ((a.v[k]) || 0); if (d > 0) { const gk = SRC_GROUP[k] || 'other'; by[gk] = (by[gk] || 0) + d / secs; tot += d / secs; } }
+    const rows = Object.keys(by).sort((x, y) => by[y] - by[x]).map(k => `<div class="gbRow"><span>${esc(t('gsrc_' + k))}</span><i><u style="width:${Math.max(2, Math.round(by[k] / tot * 100))}%"></u></i><b>${fmt(by[k], true)}${esc(t('perSec'))}</b><small>${Math.round(by[k] / tot * 100)}%</small></div>`).join('');
+    const mul = [['gbGold', D.goldMult], ['gbDepth', D.depthMult], ['gbGarrison', D.gpsMult], ['gbFrenzy', D.buffGold]].filter(([, v]) => v && Math.abs(v - 1) > 1e-6)
+      .map(([k, v]) => `<span>${esc(t(k))}</span><b>×${v >= 100 ? fmt(v) : v.toFixed(2)}</b>`).join('') + (G.odActive && G.odActive() ? `<span>${esc(t('odName'))}</span><b>×3</b>` : '');
+    UI.modal(t('gbTitle'), `<p class="note">${esc(secs ? t('gbHint', Math.round(secs)) : t('gbWait'))}</p>
+      ${rows ? `<div class="gbList">${rows}</div><p class="gbTot">${esc(t('total'))}: <b>${fmt(tot, true)}${esc(t('perSec'))}</b></p>` : ''}
+      <div class="statList"><span>${esc(t('gbGarrisonNow'))}</span><b>${fmt(D.gps * (D.buffGold || 1), true)}${esc(t('perSec'))}</b><span>${esc(t('perClick'))}</span><b>${fmt(D.click, true)}</b>${mul}</div>
+      <p class="note">${esc(t('gbMore'))}</p>`, [{ label: t('close'), cls: 'gold' }]);
+  };
 
   // ---------- Update loop ----------
   let goalKey = '';
@@ -19384,6 +20055,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   UI.update = function (force) {
     const S = G.S, D = G.D, R = G.R;
     if (performance.now() - snapT > 250) { snapT = performance.now(); snapPixels(); }
+    sampleGold();
+    // Settings → Reduce effects: the page's own pulses and glows rest (the field reads S.set.lowfx too)
+    setClass(document.body, 'lowfx', !!S.set.lowfx);
+    // Settings → Spin at once: a ready Lucky Spin pulls itself after a beat instead of waiting
+    if (S.set.autoSpin && G.spinReady && G.spinReady() && !G.uiBusy() && G.casino && (G.casino().readyT || 0) > 0.6 && !(G.casinoHold && G.casinoHold('auto'))) G.spin('auto');
     // the Town button: into town between fights, back to the field from it
     { const tb = $('#btnTown'); if (tb) { setText(tb.querySelector('b'), R.town ? t('townBack') : t('townBtn')); tb.classList.toggle('dim', !R.town && !G.townOk()); tb.classList.toggle('on', !!R.town);
       // it glows when the bag holds something better than what someone wears (checked once a second)
@@ -19402,7 +20078,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const nowS = performance.now() / 1000;
     if (!goldHist.length || nowS - goldHist[goldHist.length - 1][0] >= 1) { goldHist.push([nowS, S.goldTotal]); while (goldHist.length > 11) goldHist.shift(); }
     const g0 = goldHist[0], rate = goldHist.length > 2 && S.goldTotal >= g0[1] ? (S.goldTotal - g0[1]) / Math.max(1, nowS - g0[0]) : 0;
-    setText($('#gpsNum'), fmt(Math.max(D.gps, rate), true));
+    UI._rate = Math.max(D.gps, rate);
+    setText($('#gpsNum'), fmt(UI._rate, true));
     setText($('#clickNum'), fmt(D.click, true));
     setText($('#essNum'), fmt(S.essence, true));
     setText($('#eggNum'), fmt(S.eggs));
@@ -19561,7 +20238,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (id === 'quests') return S.quests.some(q => q.done) || G.dailyAvailable();
     if (id === 'tavern') return !!(S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length);
     if (id === 'pets') return S.eggs >= 1;
-    if (id === 'forge') return G.S.hero.bag.some(g => G.powerWith(G.slotOf(g.id), g, -1) > G.powerWith(G.slotOf(g.id), G.S.hero.eq[G.slotOf(g.id)], -1));
+    // (an upgrade in the bag for anyone in the party, or a full bag)
+    if (id === 'forge') return bagUpsC().total > 0 || G.S.hero.bag.length >= G.TUNE.bagMax;
     return false;
   }
   const bldCanBuild = id => bldOpen(id) && G.bldLvl(id) < G.BLD_MAX && G.S.gold >= G.bldCost(id);
@@ -19596,17 +20274,63 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   };
 
   // Upgrades
+  // QoL: buy ×1, ×10 or as many as you can afford; sort cheapest first; each row says how long until you can
+  // afford it at this income; hold a row to keep buying
+  function upgPlan(u, amt) {
+    const S = G.S, L0 = S.upg[u.id] || 0, room = u.max ? Math.max(0, u.max - L0) : Infinity;
+    if (!room) return { n: 0, c: 0 };
+    let n = 0, c = 0;
+    const want = amt === 'max' ? room : Math.min(room, amt);
+    for (let i = 0; i < want && i < 1000; i++) {
+      const ci = u.base * Math.pow(u.growth, L0 + i);
+      if (amt === 'max' && n >= 1 && c + ci > S.gold) break;
+      c += ci; n++;
+      if (amt === 'max' && c > S.gold) break;
+    }
+    return { n, c };
+  }
+  function buyUpgN(id, n) { let k = 0; while (k < n && G.buyUpgrade(id)) k++; return k; }
+  // how long until a price is in reach at this income ('' when it already is, or would take days)
+  function eta(c) {
+    const S = G.S, r = UI._rate || 0;
+    if (S.gold >= c || r <= 0) return '';
+    const s = (c - S.gold) / r;
+    return s > 72 * 3600 ? '' : t('etaIn', G.fmtTime(Math.ceil(s)));
+  }
+  // hold a row: after a moment it buys again and again until it can't (a scroll or a lifted finger stops it)
+  function holdBuy(list, sel, buy) {
+    let tm = 0, iv = 0, row = null, did = false;
+    const stop = () => { clearTimeout(tm); clearInterval(iv); tm = iv = 0; if (row) row.classList.remove('held'); row = null; };
+    list.addEventListener('pointerdown', e => {
+      const r = e.target.closest(sel); if (!r || e.button > 0) return;
+      stop(); did = false; row = r;
+      tm = setTimeout(() => { iv = setInterval(() => { if (!row || !row.isConnected) { stop(); return; } if (buy(row)) { did = true; row.classList.add('held'); } else stop(); }, 85); }, 420);
+    });
+    for (const k of ['pointerup', 'pointercancel', 'pointerleave']) list.addEventListener(k, stop);
+    list.addEventListener('contextmenu', e => { if (e.target.closest(sel)) e.preventDefault(); });
+    // (the click that ends a hold doesn't buy once more)
+    list.addEventListener('click', e => { if (did) { did = false; e.stopPropagation(); } }, true);
+  }
   renderers.upg = function (body) {
-    const S = G.S;
-    const list = G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (!u.req || S.upg[u.req] > 0) && (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger'));
-    body.innerHTML = `<button class="btn gold buyAll" data-buyall>${esc(t('buyAll'))}</button><div class="list">${list.map(u => `
+    const S = G.S, pf = PF(), amt = pf.upgAmt || 1, srt = pf.upgSort || 'def';
+    let list = visUpg(S);
+    if (srt === 'cost') {
+      const k = u => (u.max && (S.upg[u.id] || 0) >= u.max ? Infinity : upgPlan(u, amt === 'max' ? 1 : amt).c);
+      list = list.slice().sort((a, b) => k(a) - k(b));
+    }
+    body.innerHTML = `<button class="btn gold buyAll" data-buyall>${esc(t('buyAll'))}</button>
+      <div class="upgBar"><span class="seg" data-uamt>${[1, 10, 'max'].map(a => `<button data-a="${a}" class="${a === amt ? 'on' : ''}">${a === 'max' ? 'MAX' : '×' + a}</button>`).join('')}</span>
+        <span class="seg" data-usort>${['def', 'cost'].map(k => `<button data-s="${k}" class="${k === srt ? 'on' : ''}">${esc(t('upgSort_' + k))}</button>`).join('')}</span></div>
+      <div class="list">${list.map(u => `
       <button class="row" data-u="${u.id}">
         <span class="ico">${img(u.icon, '', 4)}</span>
         <span class="info"><span class="name">${esc(L(u.name))}<span class="lv" data-lv></span></span><span class="desc">${esc(L(u.desc))}</span></span>
-        <span class="cost">${img('ic_coin', '', 2)}<span data-cost></span></span>
+        <span class="cost">${img('ic_coin', '', 2)}<span data-cost></span><small class="eta" data-eta></small></span>
       </button>`).join('')}</div>
+      <p class="note">${esc(t('holdBuyHint'))}</p>
       <p class="note keys">${esc(t('keysHint'))}</p>`;
-    refs.rows = $$('.row', body).map(el => ({ el, u: G.UPGRADES.find(x => x.id === el.dataset.u), lv: el.querySelector('[data-lv]'), cost: el.querySelector('[data-cost]') }));
+    refs.rows = $$('.row', body).map(el => ({ el, u: G.UPGRADES.find(x => x.id === el.dataset.u), lv: el.querySelector('[data-lv]'), cost: el.querySelector('[data-cost]'), eta: el.querySelector('[data-eta]') }));
+    refs.order = list.map(u => u.id).join();
     // 3.3: buy the cheapest affordable upgrade again and again until nothing's affordable
     body.querySelector('[data-buyall]').addEventListener('click', () => {
       G.Audio.unlock(); let n = 0;
@@ -19616,28 +20340,41 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       }
       if (n) { G.Audio.buy(); UI.toast(esc(t('buyAllDone', n)), '', 'ic_coin'); UI.update(true); } else G.Audio.error();
     });
-    body.querySelector('.list').addEventListener('click', e => {
+    body.querySelector('[data-uamt]').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b) return; pf.upgAmt = b.dataset.a === 'max' ? 'max' : +b.dataset.a; if (srt === 'cost') { UI.render(); return; } $$('[data-uamt] button', body).forEach(x => x.classList.toggle('on', x === b)); UI.update(true); });
+    body.querySelector('[data-usort]').addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (!b) return; pf.upgSort = b.dataset.s; UI.render(); });
+    const lst = body.querySelector('.list');
+    const buyRow = r => { const u = G.UPGRADES.find(x => x.id === r.dataset.u), p = upgPlan(u, PF().upgAmt || 1); return p.n > 0 && G.S.gold >= p.c && buyUpgN(u.id, p.n) > 0; };
+    holdBuy(lst, '.row', buyRow);
+    lst.addEventListener('click', e => {
       const r = e.target.closest('.row'); if (!r) return;
-      if (!G.buyUpgrade(r.dataset.u)) { shakeRow(r); }
+      if (!buyRow(r)) shakeRow(r);
     });
     refs.count = list.length;
   };
   updaters.upg = function () {
     const S = G.S;
     if (!refs.rows) return;
-    const visible = G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (!u.req || S.upg[u.req] > 0) && (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger')).length;
-    if (visible !== refs.count) { UI.render(); return; }
+    if (visUpg(S).length !== refs.count) { UI.render(); return; }
+    const amt = PF().upgAmt || 1;
     for (const r of refs.rows) {
       const L_ = S.upg[r.u.id] || 0;
       const maxed = r.u.max && L_ >= r.u.max;
-      const c = G.upgCost(r.u);
+      const p = upgPlan(r.u, amt), can = !maxed && p.n > 0 && S.gold >= p.c;
       setText(r.lv, t('lvl') + ' ' + L_ + (r.u.max ? '/' + r.u.max : ''));
-      setText(r.cost, maxed ? t('max') : fmt(c));
+      setText(r.cost, maxed ? t('max') : (p.n > 1 ? p.n + '× ' : '') + fmt(p.c));
+      setText(r.eta, maxed || can ? '' : eta(p.c));
       setClass(r.el, 'maxed', maxed);
-      setClass(r.el, 'can', !maxed && S.gold >= c);
-      setClass(r.el, 'cant', !maxed && S.gold < c);
+      setClass(r.el, 'can', can);
+      setClass(r.el, 'cant', !maxed && !can);
     }
     const ba = $('[data-buyall]'); if (ba) setClass(ba, 'dim', !refs.rows.some(r => r.el.classList.contains('can')));
+    // cheapest first: the order follows the prices, but never moves a row under a finger
+    if ((PF().upgSort || 'def') === 'cost' && !UI._panelDown && performance.now() - (refs.ordT || 0) > 800) {
+      refs.ordT = performance.now();
+      const k = u => (u.max && (S.upg[u.id] || 0) >= u.max ? Infinity : upgPlan(u, amt === 'max' ? 1 : amt).c);
+      const ord = visUpg(S).slice().sort((a, b) => k(a) - k(b)).map(u => u.id).join();
+      if (ord !== refs.order) { const y = $('#tabBody').scrollTop; UI.render(); $('#tabBody').scrollTop = y; }
+    }
   };
   function shakeRow(r) { r.classList.remove('shake'); void r.offsetWidth; r.classList.add('shake'); G.Audio.error(); }
 
@@ -19650,6 +20387,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const S = G.S;
     const vis = G.HEROES.filter(heroVisible);
     const next = G.HEROES[vis.length];
+    if (PF().hireAmt) buyAmt = PF().hireAmt;
     body.innerHTML = `
       <div class="sect">${esc(t('statsTitle'))}</div>
       <div class="statGrid">${G.POTIONS.map(p => `<div class="stat" data-p="${p.id}" title="${esc(L(p.name) + ': ' + L(p.desc))}">${img('pot_' + p.id, '', 2)}<b>${p.short}</b><span></span></div>`).join('')}</div>
@@ -19661,20 +20399,22 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
           <span class="ico">${img('h_' + h.id, '', 4)}</span>
           <span class="info"><span class="name">${esc(L(h.name))}<span class="count" data-n></span></span>
             <span class="desc" data-d></span><span class="bar"><i data-bar></i></span></span>
-          <span class="cost">${img('ic_coin', '', 2)}<span data-cost></span></span>
+          <span class="cost">${img('ic_coin', '', 2)}<span data-cost></span><small class="eta" data-eta></small></span>
         </button>`).join('')}
         ${next ? `<div class="row locked"><span class="ico">${img('h_' + next.id, '', 4)}</span><span class="info"><span class="name">${esc(t('heroLocked'))}</span><span class="desc">${esc(t('heroLockedHint', fmt(next.cost * 0.35)))}</span></span><span></span></div>` : ''}
       </div>`;
-    refs.rows = $$('.row[data-h]', body).map(el => ({ el, h: G.HEROES.find(x => x.id === el.dataset.h), n: el.querySelector('[data-n]'), d: el.querySelector('[data-d]'), bar: el.querySelector('[data-bar]'), cost: el.querySelector('[data-cost]') }));
+    refs.rows = $$('.row[data-h]', body).map(el => ({ el, h: G.HEROES.find(x => x.id === el.dataset.h), n: el.querySelector('[data-n]'), d: el.querySelector('[data-d]'), bar: el.querySelector('[data-bar]'), cost: el.querySelector('[data-cost]'), eta: el.querySelector('[data-eta]') }));
     refs.stats = $$('.stat', body).map(el => ({ el, p: el.dataset.p, v: el.querySelector('span') }));
     refs.potHint = body.querySelector('[data-pothint]');
     refs.count = vis.length;
     body.querySelector('[data-seg]').addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
-      buyAmt = b.dataset.a === 'max' ? 'max' : +b.dataset.a;
+      buyAmt = b.dataset.a === 'max' ? 'max' : +b.dataset.a; PF().hireAmt = buyAmt;
       $$('[data-seg] button', body).forEach(x => x.classList.toggle('on', x === b));
       UI.update(true);
     });
+    // (hold a row to keep hiring)
+    holdBuy(body.querySelector('.list'), '.row[data-h]', r => !!G.buyHero(r.dataset.h, buyAmt));
     body.querySelector('.list').addEventListener('click', e => {
       const r = e.target.closest('.row[data-h]'); if (!r) return;
       if (!G.buyHero(r.dataset.h, buyAmt)) shakeRow(r);
@@ -19696,6 +20436,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       setText(r.d, fmt(each, true) + t('perSec') + ' ' + t('each') + (n ? ' · ' + t('total') + ' ' + fmt(total, true) + t('perSec') : '') + (nextM ? ' · ' + t('toMilestone', nextM - n) : ''));
       r.bar.style.width = nextM ? ((n - prevM) / (nextM - prevM) * 100) + '%' : '100%';
       setText(r.cost, (amt > 1 ? amt + '× ' : '') + fmt(c));
+      setText(r.eta, S.gold >= c ? '' : eta(c));
       setClass(r.el, 'can', S.gold >= c);
       setClass(r.el, 'cant', S.gold < c);
     }
@@ -20118,7 +20859,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     return `<li>${esc(L(d.name))} <b>${d.x ? '+' + a[1].toFixed(2) + '×' : G.fmtPct(a[1])}</b>${tag}</li>`;
   }
   function gearTile(g, extra) {
-    return `<button class="gear r${g.r} ${g.q ? 'uq' : ''} ${G.isRelic && G.isRelic(g) ? 'relic' : ''} ${g.c ? 'corr' : ''} ${extra || ''}" data-g="${g.u}" style="--rc:${gearCol(g)}" aria-label="${esc(gearName(g))}">${img(G.gearSpr(g), '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u></button>`;
+    return `<button class="gear r${g.r} ${g.q ? 'uq' : ''} ${G.isRelic && G.isRelic(g) ? 'relic' : ''} ${g.c ? 'corr' : ''} ${extra || ''}" data-g="${g.u}" style="--rc:${gearCol(g)}" aria-label="${esc(gearName(g))}">${img(G.gearSpr(g), '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u>${g.keep ? `<i class="gk" title="${esc(t('lockedTip'))}">${img('ic_key', '', 1)}</i>` : ''}</button>`;
   }
   // The currency strip: tap an orb to use it on the selected item
   function orbBar(g) {
@@ -20191,7 +20932,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       const sb = e.target.closest('[data-salv] button');
       if (sb) { h.salv = +sb.dataset.r; $$('[data-salv] button', body).forEach(x => x.classList.toggle('on', x === sb)); return; }
       if (e.target.closest('[data-salvall]')) {
-        const r = G.salvageBelow(Math.max(1, h.salv || 2));
+        // (locked items, uniques and worn gear stay)
+        const r = scrapBelow(Math.max(1, h.salv || 2));
         UI.toast(esc(t('salvaged', r.n, fmt(r.v))), '', 'ic_shard'); refs.hero.key = ''; return;
       }
       if (e.target.closest('[data-bestall]')) { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); refs.hero.key = ''; refs.hero.dollKey = ''; updaters.hero(true); return; }
@@ -20217,7 +20959,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         if (a === 'equip') G.equip(f.g, false, selWho);
         else if (a === 'unequip') G.unequip(f.worn, f.who);
         else if (a === 'enchant') { if (!G.enchant(f.g)) G.Audio.error(); }
-        else if (a === 'salvage') { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_shard'); selGear = null; } }
+        else if (a === 'salvage') { if (f.g.keep) { G.Audio.error(); UI.toast(esc(t('lockedNoScrap')), '', 'ic_key'); } else { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_shard'); selGear = null; } } }
+        else if (a === 'lock') { if (f.g.keep) delete f.g.keep; else f.g.keep = 1; G.dirty(); }
         refs.hero.key = ''; updaters.hero(true);
       }
     });
@@ -20259,6 +21002,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     setText(rf.pow, fmt(P ? P.c.power : D.power));
     setText(rf.shards, fmt(h.shards));
     setText(rf.bagn, h.bag.length + '/' + G.TUNE.bagMax);
+    setClass(rf.bagn, 'full', h.bag.length >= G.TUNE.bagMax);
     setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
     // what the Warden is doing for you right now
     const c0 = D.hero, critEV = 1 + c0.crit * (c0.critMult - 1);
@@ -20272,7 +21016,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     ];
     const roleHtml = role.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('') + (alone > limit * 2 ? `<p class="note warn">${esc(t('roleWeak'))}</p>` : '');
     if (rf.role.innerHTML !== roleHtml) rf.role.innerHTML = roleHtml;
-    const key = JSON.stringify([eqS, selWho, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks, h.orbs]);
+    const key = JSON.stringify([eqS, selWho, h.bag.length, h.bag.map(g => g.u + ':' + g.e + (g.keep ? 'k' : '')).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks, h.orbs]);
     if (key === rf.key && !force) return;
     const pk = Object.keys(h.perks || {}).filter(k => h.perks[k] > 0);
     rf.perks.innerHTML = pk.length ? pk.map(k => {
@@ -20326,7 +21070,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       <div class="act">
         ${f.worn ? `<button class="btn" data-act="unequip">${esc(t('unequip'))}</button>` : `<button class="btn gold" data-act="equip">${esc(t('equip'))}</button>`}
         <button class="btn ${canE ? 'gold' : ''}" data-act="enchant" ${g.e >= G.ENCHANT_MAX ? 'disabled' : ''}>${esc(t('enchant'))} ${g.e >= G.ENCHANT_MAX ? t('max') : `${img('ic_shard', '', 2)}${fmt(ec.shards)} ${img('ic_coin', '', 2)}${fmt(ec.gold)}`}</button>
-        ${f.worn ? '' : `<button class="btn red" data-act="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))}</button>`}
+        ${f.worn ? '' : `<button class="btn red" data-act="salvage" ${g.keep ? `disabled title="${esc(t('lockedNoScrap'))}"` : ''}>${esc(t('salvage'))} +${fmt(G.salvageValue(g))}</button>`}
+        <button class="btn ${g.keep ? 'on' : ''}" data-act="lock" aria-pressed="${g.keep ? 'true' : 'false'}">${img('ic_key', '', 2)} ${esc(t(g.keep ? 'unlockItem' : 'lockItem'))}</button>
       </div>`;
   };
   // ---------- The Town (2.4): one window per building, over the field ----------
@@ -20341,7 +21086,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (!BLDS[id] && TAB_BLD[id]) { sub = id; id = TAB_BLD[id]; }
     const B = BLDS[id]; if (!B) return;
     if (!bldOpen(id)) { G.Audio.error(); UI.toast(esc(t('bldOpens', t('lock_' + id))), '', 'ic_scroll'); return; }
+    // QoL: a building opens on the tab it was left on
+    const pf = PF(); pf.sub = pf.sub && typeof pf.sub === 'object' ? pf.sub : {};
+    if (!sub && pf.sub[id]) sub = pf.sub[id];
     if (!sub || !B.subs.includes(sub) || !subOpen(sub)) sub = B.subs.find(subOpen);
+    pf.sub[id] = sub;
+    if (tw.id && tw.id !== id && (tw.id === 'forge' || tw.id === 'enchant')) bagSeen();
     tw.id = id; tw.sub = sub; tw.sel = null;
     if (tab === 'set') tab = 'upg';
     wtab = CUSTOM[sub] ? null : sub;
@@ -20354,10 +21104,55 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   };
   UI.townClose = function (quiet) {
     const had = !!wtab;
+    if (tw.id === 'forge' || tw.id === 'enchant') bagSeen();
     tw.id = null; wtab = null;
     const el = twEl(); if (el) { el.hidden = true; el.innerHTML = ''; }
     if (had && !quiet) UI.render(); else if (!quiet && G.R.town) UI.render();
   };
+  // ---------- QoL: the town's quick bar ----------
+  // Every window carries a row of the buildings that are open (one tap to the next, a dot where something wants
+  // you, a ▲ where a build-up is affordable) and a FIELD button, so a phone's full-screen window is never a dead end.
+  // Keys: 1–9, 0, − open a building; ← → step through them; Shift+← → the building's tabs; Esc closes.
+  const BLD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'];
+  const bldSpr = id => (G.SPR.defs[BLD_SPR[id]] ? BLD_SPR[id] : 'ic_scroll');
+  function twNav() {
+    const keys = !matchMedia('(hover: none)').matches;
+    return `<nav class="twNav" aria-label="${esc(t('twNavLbl'))}"><button class="twGo field" data-twgo="field" title="${esc(t('townBackTip'))}" aria-label="${esc(t('townBack'))}">${img(G.SPR.defs.ic_town ? 'ic_town' : 'ic_tomb', '', 2)}<b>${esc(t('townBack'))}</b></button>${BLD_ORDER.filter(bldOpen).map(id => {
+      const k = BLD_KEYS[BLD_ORDER.indexOf(id)];
+      return `<button class="twGo ${id === tw.id ? 'on' : ''}" data-twgo="${id}" title="${esc(t('town_' + id) + (keys ? ' (' + k + ')' : ''))}" aria-label="${esc(t('town_' + id))}"><span class="pic">${img(bldSpr(id), '', 1)}</span><small>${esc(t('twShort_' + id))}</small><i class="dot" hidden></i><i class="up" hidden>▲</i>${keys ? `<kbd class="hint">${k}</kbd>` : ''}</button>`;
+    }).join('')}</nav>`;
+  }
+  let navT = 0;
+  function twNavLive(force) {
+    const el = twEl(); if (!el || el.hidden) return;
+    const now = performance.now(); if (!force && now - navT < 400) return; navT = now;
+    for (const b of el.querySelectorAll('.twGo[data-twgo]')) {
+      const id = b.dataset.twgo; if (id === 'field') continue;
+      const d = b.querySelector('.dot'), u = b.querySelector('.up'), p = id !== tw.id && bldPing(id), c = bldCanBuild(id);
+      if (d && d.hidden === !!p) d.hidden = !p;
+      if (u && u.hidden === !!c) u.hidden = !c;
+    }
+  }
+  // the next (dir 1) or the previous (-1) open building; from the square, the first or the last
+  UI.townStep = function (dir) {
+    if (!G.R.town) return;
+    const open = BLD_ORDER.filter(bldOpen); if (!open.length) return;
+    let i = open.indexOf(tw.id);
+    i = i < 0 ? (dir > 0 ? 0 : open.length - 1) : (i + dir + open.length) % open.length;
+    G.Audio && G.Audio.unlock && G.Audio.unlock();
+    UI.townOpen(open[i]);
+    const w = twEl().querySelector('.tw'); if (w && !G.S.set.lowfx) w.classList.add(dir > 0 ? 'inR' : 'inL');
+    // (the bar keeps the open building in view)
+    const on = twEl().querySelector('.twGo.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  };
+  UI.townSub = function (dir) {
+    const B = BLDS[tw.id]; if (!B || B.subs.length < 2) return;
+    const subs = B.subs.filter(subOpen), i = subs.indexOf(tw.sub);
+    if (subs.length > 1) UI.townOpen(tw.id, subs[(i + dir + subs.length) % subs.length]);
+  };
+  // gear the player has looked at: anything newer shows a NEW tag in the Forge
+  const bagMaxU = () => (G.S.hero && G.S.hero.bag || []).reduce((m, g) => Math.max(m, g.u || 0), 0);
+  function bagSeen() { const pf = PF(); pf.seenU = Math.max(pf.seenU || 0, bagMaxU()); }
   // a building's tabs (the Tavern: party, character, ladder; the Museum: collection, trophies)
   function twSubRow(id) {
     const B = BLDS[id]; if (!B || B.subs.length < 2) return '';
@@ -20376,10 +21171,46 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     const b = twEl().querySelector('[data-twbuild]'); if (!b) return;
     setClass(b, 'gold', G.S.gold >= G.bldCost(b.dataset.twbuild));
   }
+  // ---------- QoL: what wants you, in one list ----------
+  // The town's panel and the welcome-back card both show it: each line is one tap to where it's done.
+  const visUpg = S => G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (!u.req || S.upg[u.req] > 0) && (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger'));
+  function todoList() {
+    const S = G.S, h = S.hero, out = [];
+    if (!h || !h.cls) return out;
+    // (the level-up cards wait on the field while you're in town)
+    if (G.R.town && h.offer) out.push({ k: 'perk', icon: 'ic_star', txt: t('todoPerk') });
+    const ups = bagUpsC().total;
+    if (ups) out.push({ k: 'best', icon: 'ic_sword', txt: t('todoBest', ups) });
+    if (h.bag.length >= G.TUNE.bagMax) out.push({ k: 'forge', icon: 'ic_bag', txt: t('todoBag', h.bag.length), warn: 1 });
+    if (G.partySlots && G.partySlots() > S.party.length) out.push({ k: 'tavern', icon: 'h_knight', txt: t('todoSeat') });
+    const qd = S.quests.filter(q => q.done).length + (G.dailyAvailable() ? 1 : 0);
+    if (qd && bldOpen('quests')) out.push({ k: 'quests', icon: 'ic_scroll', txt: t('todoQuests', qd) });
+    if (S.eggs >= 1 && bldOpen('pets')) out.push({ k: 'pets', icon: 'ic_egg', txt: t('todoEggs', fmt(S.eggs)) });
+    if (bldOpen('stars') && G.NODES.some(n => (S.nodes[n.id] || 0) < n.max && G.nodeAvailable(n) && S.essence >= G.nodeCost(n))) out.push({ k: 'stars', icon: 'ic_ess', txt: t('todoStars') });
+    if (bldOpen('temple') && G.LEGACY.some(l => (S.legacy[l.id] || 0) < l.max && S.fame >= G.legacyCost(l))) out.push({ k: 'temple', icon: 'ic_fame', txt: t('todoFame') });
+    const nu = visUpg(S).filter(u => !(u.max && (S.upg[u.id] || 0) >= u.max) && S.gold >= G.upgCost(u)).length;
+    if (nu) out.push({ k: 'upg', icon: 'ic_rune', txt: t('todoUpg', nu) });
+    const nb = BLD_ORDER.filter(bldCanBuild).length;
+    if (nb) out.push({ k: 'build', icon: G.SPR.defs.ic_town ? 'ic_town' : 'ic_tomb', txt: t('todoBuild', nb) });
+    return out;
+  }
+  UI.todoList = todoList;
+  function todoGo(k) {
+    G.Audio && G.Audio.unlock && G.Audio.unlock();
+    if (k === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); pingT = 0; if (G.R.town && tw.id) renderTown(); UI.render(); return; }
+    if (k === 'upg') { if (G.R.town) G.leaveTown(); tab = 'upg'; UI.render(); return; }
+    if (k === 'perk') { if (G.R.town) G.leaveTown(); return; }
+    if (!G.R.town && !G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
+    if (k === 'build') { const id = BLD_ORDER.filter(bldCanBuild).sort((x, y) => G.bldCost(x) - G.bldCost(y))[0]; if (id) UI.townOpen(id); return; }
+    UI.townOpen(k, k === 'tavern' ? 'tavern' : undefined);
+  }
+  UI.todoGo = todoGo;
+  const todoHtml = list => list.length ? `<div class="todo">${list.map(x => `<button class="todoRow ${x.warn ? 'warn' : ''}" data-todo="${x.k}">${img(G.SPR.defs[x.icon] ? x.icon : 'ic_star', '', 2)}<span>${esc(x.txt)}</span><i>›</i></button>`).join('')}</div>` : '';
   // the panel, in town: every building, what it does, how built up it is, what opens it
   renderers.towndir = function (body) {
-    const S = G.S;
-    body.innerHTML = `<p class="note">${esc(t('dirHint'))}</p>
+    const S = G.S, todo = todoList(), canB = BLD_ORDER.filter(bldCanBuild);
+    refs.todoKey = todo.map(x => x.k + x.txt).join('|');
+    body.innerHTML = `${todo.length ? `<div class="sect">${esc(t('todoTitle'))}</div>${todoHtml(todo)}` : ''}<p class="note">${esc(t('dirHint'))}</p>
       <div class="dirLvl">${esc(t('dirLvl', G.townLvl()))} <small>/ ${G.BLD.length * G.BLD_MAX}</small></div>
       <div class="dirList">${BLD_ORDER.map(id => {
         const open = bldOpen(id), L = G.bldLvl(id), sp = G.SPR.defs[BLD_SPR[id]] ? BLD_SPR[id] : 'ic_scroll';
@@ -20388,9 +21219,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
           <span class="txt"><b>${esc(t('town_' + id))}</b><small>${open ? esc(t('bldLvl', L, G.BLD_MAX) + ' · ' + (L ? '' : t('bldNext') + ': ') + t('bldFx_' + id, bldVal(id, Math.max(1, L)))) : esc(t('bldLocked') + ': ' + t('bldOpens', t('lock_' + id)))}</small></span>
           <span class="dot" hidden></span><i class="up" hidden>▲</i></button>`;
       }).join('')}</div>
-      <button class="btn gold" data-dirall>${esc(t('dirBuildAll'))}</button>
-      <button class="btn big" data-dirback>${esc(t('dirBack'))}</button>`;
+      <button class="btn gold ${canB.length ? '' : 'dim'}" data-dirall>${esc(t('dirBuildAll'))}${canB.length ? ` · ${canB.length}` : ''}</button>
+      <button class="btn big" data-dirback>${esc(t('dirBack'))}</button>
+      ${matchMedia('(hover: none)').matches ? `<p class="note">${esc(t('dirSwipe'))}</p>` : `<p class="note keys">${esc(t('dirKeys'))}</p>`}`;
     body.addEventListener('click', e => {
+      const td = e.target.closest('[data-todo]');
+      if (td) { todoGo(td.dataset.todo); return; }
       const r = e.target.closest('[data-dir]');
       if (r) { G.Audio.unlock(); G.Audio.buy && G.Audio.buy(); UI.townOpen(r.dataset.dir); return; }
       if (e.target.closest('[data-dirback]')) { G.Audio.unlock(); G.leaveTown(); }
@@ -20404,6 +21238,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   };
   updaters.towndir = function () {
     const rf = refs.dir; if (!rf) return;
+    // (the to-do list follows what changes, checked twice a second; never while a finger is down on the panel)
+    if (performance.now() - (rf.tdT || 0) > 500 && !UI._panelDown) { rf.tdT = performance.now(); const k = todoList().map(x => x.k + x.txt).join('|'); if (k !== refs.todoKey) { UI.render(); return; } }
     for (const r of rf.rows) {
       const id = r.dataset.dir, d = r.querySelector('.dot'), u = r.querySelector('.up'), p = bldPing(id), c = bldCanBuild(id);
       if (d.hidden === p) d.hidden = !p;
@@ -20436,9 +21272,65 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   function twHeader(npc, title, sub) {
     return `<header class="twHead">${img(npc, '', 4)}<div><b>${esc(title)}</b><small>${esc(sub)}</small></div><button class="twX" data-tw="close" aria-label="${esc(t('close'))}">✕</button></header>`;
   }
+  const whoName = w => (w < 0 ? (G.S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(w)].name));
+  // QoL: what in the bag is an upgrade for whom: the count per member, the total, and for each item the first
+  // member it would suit (companions keep to their class's weapons and leave uniques to the Warden, as EQUIP BEST does)
+  function bagUps() {
+    const S = G.S, h = S.hero, n = {}, whoFor = new Map();
+    if (!h || !h.cls) return { total: 0, n, whoFor };
+    for (const w of [-1].concat((S.party || []).map((_, i) => i))) {
+      n[w] = 0; const eq = G.eqOf(w), base = {};
+      for (const g of h.bag) {
+        // (a unique the Warden wears stays on unless another unique beats it, as EQUIP BEST has it)
+        const sl = G.slotOf(g.id); if (!canWear(g, w) || (w >= 0 && g.q) || (w < 0 && eq[sl] && eq[sl].q && !g.q)) continue;
+        if (base[sl] == null) base[sl] = G.powerWith(sl, eq[sl], w);
+        if (G.powerWith(sl, g, w) > base[sl]) { n[w]++; if (!whoFor.has(g.u)) whoFor.set(g.u, whoName(w)); }
+      }
+    }
+    // (total: the items that would go on someone, each counted once)
+    return { total: whoFor.size, n, whoFor };
+  }
+  UI.bagUps = bagUps;
+  // (the badges ask often: a fresh answer at most every 400 ms)
+  let upsC = null, upsT = 0;
+  function bagUpsC() { const now = performance.now(); if (!upsC || now - upsT > 400) { upsC = bagUps(); upsT = now; } return upsC; }
+  // QoL: breaking down many at once never takes a locked item, a unique or anything someone wears
+  const scrapList = r => G.S.hero.bag.filter(g => g.r < r && !g.q && !g.keep && !G.isWorn(g));
+  function scrapBelow(r) {
+    const list = scrapList(r); let v = 0;
+    for (const g of list) v += G.salvage(g, true);
+    if (list.length) { G.emit('salvage', null, v); G.dirty(); G.recalc(); }
+    return { n: list.length, v };
+  }
+  UI.scrapBelow = scrapBelow;
+  // pick the rarity, see how many go and the shards they give, then confirm
+  UI.scrapAsk = function () {
+    const pf = PF(); let r = Math.min(6, Math.max(1, pf.salv || 2));
+    const html = `<p class="note">${esc(t('scrapHint'))}</p>
+      <div class="scrapSeg">${[1, 2, 3, 4, 5, 6].map(i => `<button data-sr="${i}" style="--rc:${G.RARITIES[i].color}" class="${i === r ? 'on' : ''}">${esc(L(G.RARITIES[i].name))}</button>`).join('')}</div>
+      <p class="scrapSum" data-ssum></p>`;
+    const m = UI.modal(t('scrapTitle'), html, [{ label: t('salvage'), cls: 'red', fn: () => {
+      const res = scrapBelow(r);
+      if (res.n) { G.Audio.buy(); UI.toast(esc(t('salvaged', res.n, fmt(res.v))), '', 'ic_shard'); } else G.Audio.error();
+      if (G.R.town && tw.id) renderTown(); UI.update(true);
+    } }, { label: t('cancel') }]);
+    const upd = () => {
+      const list = scrapList(r), v = list.reduce((a, g) => a + G.salvageValue(g), 0), kept = G.S.hero.bag.filter(g => g.r < r && (g.keep || g.q)).length;
+      const sm = m.querySelector('[data-ssum]'); if (sm) sm.innerHTML = `${esc(t('scrapSum', list.length, L(G.RARITIES[r].name)))} ${img('ic_shard', 'inl', 2)} <b>+${fmt(v)}</b>${kept ? `<br><small>${esc(t('scrapKept', kept))}</small>` : ''}`;
+      const go = m.querySelector('[data-a="0"]'); if (go) { go.textContent = t('scrapGo', list.length); go.disabled = !list.length; }
+    };
+    m.querySelector('.scrapSeg').addEventListener('click', e => {
+      const b = e.target.closest('[data-sr]'); if (!b) return;
+      r = +b.dataset.sr; pf.salv = r;
+      m.querySelectorAll('[data-sr]').forEach(x => x.classList.toggle('on', x === b)); upd();
+    });
+    upd();
+    return m;
+  };
   function twWhoRow() {
     const S = G.S, units = [{ who: -1, cls: S.hero.cls, eq: S.hero.eq }].concat((S.party || []).map((m, i) => ({ who: i, cls: m.cls, eq: m.eq })));
-    return `<div class="twWho">${units.map(u => `<button class="${u.who === tw.who ? 'on' : ''}" data-twwho="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small>${esc(u.who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[u.cls].name))}</small></button>`).join('')}</div>`;
+    const ups = bagUps();
+    return `<div class="twWho">${units.map(u => `<button class="${u.who === tw.who ? 'on' : ''}" data-twwho="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small>${esc(whoName(u.who))}</small>${ups.n[u.who] ? `<em class="upN" title="${esc(t('twUpsFor', ups.n[u.who]))}">▲${ups.n[u.who]}</em>` : ''}</button>`).join('')}</div>`;
   }
   function renderForge(el) {
     const S = G.S, h = S.hero, who = tw.who, m = memOf(who), eq = m ? m.eq : h.eq, enchant = tw.id === 'enchant';
@@ -20452,11 +21344,19 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         <span class="row">${g ? gearTile(g) : `<span class="empty">${img(SLOT_ICON[s], '', 3, { dark: true })}</span>`}
         <span class="nm" style="color:${g ? gearCol(g) : 'var(--dim)'}">${g ? esc(gearName(g)) : esc(t('twEmpty'))}</span></span></div>`;
     }).join('');
-    const bag = h.bag.filter(g => tw.filter === 'all' || G.slotOf(g.id) === tw.filter)
-      .sort((a, b) => G.SLOTS.indexOf(G.slotOf(a.id)) - G.SLOTS.indexOf(G.slotOf(b.id)) || b.r - a.r || b.il - a.il);
+    // QoL: the bag sorts by slot, rarity, power (for whoever is picked) or newest; each tile says ▲ better / ▼ worse
+    // for them, ◆ when it would suit someone else in the party, NEW when it came since the last look, and a key when locked
+    const srt = PF().sort || 'slot', seenU = PF().seenU || 0, ups = bagUps();
+    const gain = g => { const sl = G.slotOf(g.id); return canWear(g, who) ? G.powerWith(sl, g, who) - G.powerWith(sl, eq[sl], who) : -Infinity; };
+    const gn = new Map(h.bag.map(g => [g, gain(g)]));
+    const bySlot = (a, b) => G.SLOTS.indexOf(G.slotOf(a.id)) - G.SLOTS.indexOf(G.slotOf(b.id));
+    const SORTS = { slot: (a, b) => bySlot(a, b) || b.r - a.r || b.il - a.il, rar: (a, b) => (b.q ? 9 : b.r) - (a.q ? 9 : a.r) || b.il - a.il || bySlot(a, b),
+      pow: (a, b) => gn.get(b) - gn.get(a) || b.r - a.r, new: (a, b) => b.u - a.u };
+    const bag = h.bag.filter(g => tw.filter === 'all' || G.slotOf(g.id) === tw.filter).sort(SORTS[srt] || SORTS.slot);
     const tiles = bag.map(g => {
-      const sl = G.slotOf(g.id), ok = canWear(g, who), d = ok ? G.powerWith(sl, g, who) - G.powerWith(sl, eq[sl], who) : 0;
-      return `<span class="twTile ${ok ? '' : 'no'} ${d > 0 ? 'better' : ''} ${tw.sel === g.u ? 'sel' : ''}" data-twg="${g.u}">${gearTile(g)}${d > 0 ? '<i class="up">▲</i>' : ''}</span>`;
+      const ok = canWear(g, who), d = gn.get(g), oth = !(d > 0) && ups.whoFor.get(g.u);
+      const mark = d > 0 ? '<i class="up">▲</i>' : ok && d < 0 ? '<i class="dn">▼</i>' : '';
+      return `<span class="twTile ${ok ? '' : 'no'} ${d > 0 ? 'better' : ''} ${tw.sel === g.u ? 'sel' : ''} ${g.keep ? 'kept' : ''}" data-twg="${g.u}">${gearTile(g)}${mark}${oth ? `<i class="oth" title="${esc(t('twBetterFor', oth))}">◆</i>` : ''}${g.u > seenU ? `<i class="new">${esc(t('newTag'))}</i>` : ''}</span>`;
     }).join('');
     // the item card
     let card = `<div class="twCard empty"><p>${esc(t(enchant ? 'twPickEnchant' : 'twPick'))}</p></div>`;
@@ -20475,14 +21375,16 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         <div class="twActs">
           ${f.worn ? `<button class="btn" data-twa="unequip">${esc(t('unequip'))}</button>` : `<button class="btn gold" data-twa="equip" ${canWear(g, who) ? '' : 'disabled'}>${esc(t('twEquipOn', who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(who)].name)))}</button>`}
           <button class="btn ${canE ? 'gold' : ''}" data-twa="enchant" ${g.e >= G.ENCHANT_MAX ? 'disabled' : ''}>${esc(t('twUpgrade', g.e + 1))} ${g.e >= G.ENCHANT_MAX ? t('max') : `${img('ic_shard', '', 2)}${fmt(ec.shards)} ${img('ic_coin', '', 2)}${fmt(ec.gold)}`}</button>
-          ${f.worn ? '' : `<button class="btn red" data-twa="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))} ${img('ic_shard', '', 2)}</button>`}
+          ${f.worn ? '' : `<button class="btn red" data-twa="salvage" ${g.keep ? `disabled title="${esc(t('lockedNoScrap'))}"` : ''}>${esc(t('salvage'))} +${fmt(G.salvageValue(g))} ${img('ic_shard', '', 2)}</button>`}
+          <button class="btn ${g.keep ? 'on' : ''}" data-twa="lock" aria-pressed="${g.keep ? 'true' : 'false'}">${img('ic_key', '', 2)} ${esc(t(g.keep ? 'unlockItem' : 'lockItem'))}</button>
         </div>
         <p class="hint">${esc(t('twUpgradeHint', g.e, G.ENCHANT_MAX))}</p>
         <div class="twOrbs"><small>${esc(t('twOrbs'))}</small>${orbBar(g)}</div>
       </div>`;
     }
     const filters = ['all'].concat(G.SLOTS).map(k => `<button class="${tw.filter === k ? 'on' : ''}" data-twflt="${k}">${esc(k === 'all' ? t('twAll') : t('slot_' + k))}</button>`).join('');
-    const better = h.bag.some(g => { const sl = G.slotOf(g.id); return canWear(g, who) && G.powerWith(sl, g, who) > G.powerWith(sl, eq[sl], who); });
+    const better = ups.total > 0, full = h.bag.length >= G.TUNE.bagMax;
+    const sorts = ['slot', 'rar', 'pow', 'new'].map(k => `<button class="${srt === k ? 'on' : ''}" data-twsort="${k}">${esc(t('sort_' + k))}</button>`).join('');
     el.innerHTML = `<div class="tw forge ${enchant ? 'ench' : ''}">
       ${twHeader(enchant ? 'npc_witch' : 'npc_smith', t(enchant ? 'town_enchant' : 'town_forge'), t(enchant ? 'twEnchSub' : 'twForgeSub'))}
       ${twWhoRow()}
@@ -20495,11 +21397,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
           <label class="twAuto"><input type="checkbox" data-twauto ${h.auto ? 'checked' : ''}> ${esc(t('twAutoEq'))}</label>
         </div>
         <div class="twBag">
-          <div class="twBagHead"><b>${esc(t('twBag', h.bag.length, G.TUNE.bagMax))}</b><span class="flt">${filters}</span></div>
+          <div class="twBagHead"><b class="${full ? 'full' : ''}">${esc(t('twBag', h.bag.length, G.TUNE.bagMax))}</b><span class="flt">${filters}</span></div>
+          ${full ? `<p class="bagFull">${esc(t('bagFullHint'))}</p>` : ''}
+          <div class="twSort"><small>${esc(t('sortBy'))}</small><span class="flt">${sorts}</span></div>
           <div class="twGrid">${tiles || `<p class="note">${esc(t('bagEmpty'))}</p>`}</div>
           <div class="twSalv">${img('ic_shard', '', 2)} <b>${fmt(h.shards)}</b> ${esc(t('twShards'))}
-            <button class="btn red" data-twa="salvall">${esc(t('twSalvAll', L(G.RARITIES[tw.salv].name)))}</button>
-            <select data-twsalv>${G.RARITIES.slice(1, 6).map((r, i) => `<option value="${i + 1}" ${tw.salv === i + 1 ? 'selected' : ''}>${esc(L(r.name))}</option>`).join('')}</select></div>
+            <button class="btn red" data-twa="salvask">${esc(t('scrapMany'))}</button></div>
         </div>
         ${card}
       </div></div>`;
@@ -20526,13 +21429,29 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     }).join('');
     el.innerHTML = `<div class="tw alch">${twHeader('npc_alch', t('town_alch'), t('twAlchSub'))}<div class="twPots">${rows}</div></div>`;
   }
+  // QoL: the whole team at a glance: each one's power, damage, health, the four things they wear and how many
+  // upgrades wait in the bag for them, the team's power, and EQUIP BEST right here
+  function memStats(who) {
+    const m = memOf(who), eq = m ? m.eq : G.S.hero.eq;
+    return G.heroCombat(eq, G.D, m ? { cls: m.cls, lvl: G.S.hero.lvl } : undefined);
+  }
+  function memGear(who) {
+    const eq = G.eqOf(who);
+    return `<span class="mGear">${G.SLOTS.map(sl => { const g = eq[sl]; return g ? `<i class="mg" style="--rc:${gearCol(g)}" title="${esc(gearName(g))}">${img(G.gearSpr(g), '', 2)}</i>` : `<i class="mg none" title="${esc(t('slot_' + sl) + ': ' + t('twEmpty'))}">${img(SLOT_ICON[sl], '', 2, { dark: true })}</i>`; }).join('')}</span>`;
+  }
+  function memLine(who, ups) {
+    const c = memStats(who);
+    return `<span class="mStat"><b>${fmt(c.power)}</b> ${esc(t('power').toLowerCase())} · ${fmt(c.dps, true)}${esc(t('perSec'))} · ${fmt(c.hp)} ${esc(t('twHp').toLowerCase())}</span>${memGear(who)}${ups.n[who] ? `<em class="upN">▲${ups.n[who]} ${esc(t('twUpsShort'))}</em>` : ''}`;
+  }
   function renderTavern(el) {
-    const S = G.S, slots = G.partySlots(), party = S.party || [];
-    const mem = party.map((m, i) => `<div class="twMem"><img src="${G.Doll.portrait({ cls: m.cls, eq: m.eq }, 3, true)}" alt=""><b>${esc(L(G.CLASS_BY_ID[m.cls].name))}</b><small class="r_${G.ROLES[m.cls]}">${esc(G.ROLE_NAMES[G.ROLES[m.cls]])}</small><button class="btn" data-twgear="${i}">${esc(t('twGearUp'))}</button></div>`).join('');
+    const S = G.S, slots = G.partySlots(), party = S.party || [], ups = bagUps();
+    const teamPow = [-1].concat(party.map((_, i) => i)).reduce((a, w) => a + memStats(w).power, 0);
+    const mem = party.map((m, i) => `<div class="twMem"><img src="${G.Doll.portrait({ cls: m.cls, eq: m.eq }, 3, true)}" alt=""><b>${esc(L(G.CLASS_BY_ID[m.cls].name))}</b><small class="r_${G.ROLES[m.cls]}">${esc(G.ROLE_NAMES[G.ROLES[m.cls]])}</small>${memLine(i, ups)}<button class="btn" data-twgear="${i}">${esc(t('twGearUp'))}</button></div>`).join('');
+    const team = `<div class="twTeam"><span>${esc(t('teamPower'))} <b>${fmt(teamPow)}</b></span><button class="btn gold ${ups.total ? 'pulse' : ''}" data-twa="best">${esc(t('twBest'))}${ups.total ? ` · ▲${ups.total}` : ''}</button></div>`;
     const open = slots - party.length;
     const recruits = open > 0 ? `<p>${esc(t('twRecruitN', open))}</p><div class="twRecruit">${G.CLASSES.map(c => `<button class="clsCard" data-twrec="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><small class="r_${G.ROLES[c.id]}">${esc(G.ROLE_NAMES[G.ROLES[c.id]])}</small></button>`).join('')}</div>` : `<p class="note">${esc(t(slots >= 3 ? 'twPartyFull' : 'twNextSlot', (G.PARTY_AT || [])[slots] || ''))}</p>`;
     el.innerHTML = `<div class="tw tavern">${twHeader('npc_keeper', t('town_tavern'), t('twTavernSub'))}
-      <div class="twParty"><div class="twMem lead"><img src="${G.Doll.portrait(S.hero, 3)}" alt=""><b>${esc(S.profile.name || t('wardenName'))}</b><small>${esc(L(G.CLASS_BY_ID[S.hero.cls].name))} · ${esc(t('lvl'))} ${S.hero.lvl}</small><button class="btn" data-twgear="-1">${esc(t('twGearUp'))}</button></div>${mem}</div>
+      ${team}<div class="twParty"><div class="twMem lead"><img src="${G.Doll.portrait(S.hero, 3)}" alt=""><b>${esc(S.profile.name || t('wardenName'))}</b><small>${esc(L(G.CLASS_BY_ID[S.hero.cls].name))} · ${esc(t('lvl'))} ${S.hero.lvl}</small>${memLine(-1, ups)}<button class="btn" data-twgear="-1">${esc(t('twGearUp'))}</button></div>${mem}</div>
       ${recruits}</div>`;
   }
   function renderTown(full) {
@@ -20540,26 +21459,34 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     if (!G.S.hero || !G.S.hero.cls) { UI.townClose(); return; }
     if (tw.who >= (G.S.party || []).length) { tw.who = -1; tw.sel = null; }
     const B = BLDS[tw.id];
+    const nv0 = el.querySelector('.twNav'), navX = nv0 ? nv0.scrollLeft : 0;
     if (!CUSTOM[tw.sub]) {
       // a page hosted here: its renderer draws it once (full), its updater keeps it live
       if (!full) { twFootLive(); return; }
       const old = el.querySelector('.twTabBody'), y = old ? old.scrollTop : 0;
-      el.innerHTML = `<div class="tw host">${twHeader(B.npc, t('town_' + tw.id), t(B.sub || 'twTavernSub'))}${twSubRow(tw.id)}
+      el.innerHTML = `<div class="tw host">${twHeader(B.npc, t('town_' + tw.id), t(B.sub || 'twTavernSub'))}${twNav()}${twSubRow(tw.id)}
         <div class="twTabHead"><b>${esc(tw.sub === 'hero' ? t('twSubChar') : t('tab_' + tw.sub))}</b><small id="tabSub"></small></div><div class="tabBody twTabBody"></div>${twBldFoot(tw.id)}</div>`;
       const body = el.querySelector('.twTabBody');
       (renderers[tw.sub] || (() => {}))(body);
       body.scrollTop = y;
+      const nv = el.querySelector('.twNav'); if (nv) nv.scrollLeft = navX;
+      twNavLive(true);
       return;
     }
     const sc = el.querySelector('.twBody, .twPots, .tw.tavern'), y = sc ? sc.scrollTop : 0, gy = el.querySelector('.twGrid') ? el.querySelector('.twGrid').scrollTop : 0;
+    // (on a phone the whole window scrolls: a tap deep in the bag must not jump back to the top)
+    const w0 = el.querySelector('.tw'), wy = w0 && w0.dataset.b === tw.id + tw.sub ? w0.scrollTop : 0;
     if (tw.id === 'forge' || (tw.id === 'enchant' && tw.sub !== 'gamble')) renderForge(el);
     else if (tw.sub === 'gamble') renderGamble(el);
     else if (tw.id === 'alch') renderAlch(el);
     else if (tw.id === 'tavern') renderTavern(el);
-    const head = el.querySelector('.twHead'); if (head) head.insertAdjacentHTML('afterend', twSubRow(tw.id));
+    const head = el.querySelector('.twHead'); if (head) head.insertAdjacentHTML('afterend', twNav() + twSubRow(tw.id));
     const root = el.querySelector('.tw'); if (root) root.insertAdjacentHTML('beforeend', twBldFoot(tw.id));
     const sc2 = el.querySelector('.twBody, .twPots, .tw.tavern'); if (sc2) sc2.scrollTop = y;
     const g2 = el.querySelector('.twGrid'); if (g2) g2.scrollTop = gy;
+    const nv = el.querySelector('.twNav'); if (nv) nv.scrollLeft = navX;
+    const w1 = el.querySelector('.tw'); if (w1) { w1.dataset.b = tw.id + tw.sub; if (wy) w1.scrollTop = wy; }
+    twNavLive(true);
   }
   UI.townRender = renderTown;
   function bindTown() {
@@ -20573,11 +21500,16 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     el.addEventListener('click', e => {
       // (a page hosted here handles its own clicks)
       if (e.target.closest('.twTabBody')) return;
-      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb],[data-twsub],[data-twbuild],[data-twgamb],[data-twseal]');
+      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb],[data-twsub],[data-twbuild],[data-twgamb],[data-twseal],[data-twgo],[data-twsort]');
+      // (a phone shows the building's note on one line: a tap on it shows the whole of it)
+      if (!b && e.target.closest('.twHead > div')) { e.target.closest('.twHead').classList.toggle('open'); return; }
       if (!b) { if (e.target === el) UI.townClose(); return; }
       G.Audio.unlock();
       const h = G.S.hero;
       if (b.dataset.tw === 'close') { UI.townClose(); return; }
+      if (b.dataset.twgo) { if (b.dataset.twgo === 'field') G.leaveTown(); else if (b.dataset.twgo !== tw.id) { G.Audio.buy && G.Audio.buy(); UI.townOpen(b.dataset.twgo); } return; }
+      if (b.dataset.twsort) { PF().sort = b.dataset.twsort; renderTown(); return; }
+      if (b.dataset.twa === 'salvask') { UI.scrapAsk(); return; }
       if (b.dataset.twsub) { UI.townOpen(tw.id, b.dataset.twsub); return; }
       if (b.dataset.twgamb) {
         const r = G.gamble(b.dataset.twgamb);
@@ -20612,13 +21544,16 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       } else if (b.dataset.twa) {
         const a = b.dataset.twa, f = tw.sel != null ? twFind(tw.sel) : null;
         if (a === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); }
-        else if (a === 'salvall') { const r = G.salvageBelow(tw.salv); if (r.n) G.Audio.buy(); }
+        else if (a === 'salvall') { const r = scrapBelow(PF().salv || 2); if (r.n) G.Audio.buy(); }
+        else if (f && a === 'lock') { if (f.g.keep) delete f.g.keep; else f.g.keep = 1; G.Audio.click && G.Audio.click(0, false); }
         else if (f && a === 'equip') { if (canWear(f.g, tw.who)) { G.equip(f.g, false, tw.who); G.Audio.buy(); } }
         else if (f && a === 'unequip') { G.unequip(f.worn, f.who); }
         else if (f && a === 'enchant') { if (G.enchant(f.g)) G.Audio.buy(); else G.Audio.error(); }
-        else if (f && a === 'salvage') { G.salvage(f.g); tw.sel = null; G.Audio.buy(); }
+        else if (f && a === 'salvage') { if (f.g.keep) { G.Audio.error(); UI.toast(esc(t('lockedNoScrap')), '', 'ic_key'); return; } G.salvage(f.g); tw.sel = null; G.Audio.buy(); }
       }
       G.dirty(); G.recalc(); renderTown(); UI.update(true);
+      // (on a phone the item card sits under the bag: bring it into view after a pick)
+      if (b.dataset.twg != null && innerWidth < 860) { const c = el.querySelector('.twCard'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'nearest', behavior: G.S.set.lowfx ? 'auto' : 'smooth' }); }
     });
   }
 
@@ -20870,14 +21805,25 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // Settings
   renderers.set = function (body) {
-    const s = G.S.set;
-    const tg = (k, label) => `<div class="setRow"><span>${esc(label)}</span><button class="toggle ${s[k] ? 'on' : ''}" data-t="${k}" aria-pressed="${s[k] ? 'true' : 'false'}" aria-label="${esc(label)}"></button></div>`;
+    const s = G.S.set, h = G.S.hero;
+    const row = (on, attr, label, hint) => `<div class="setRow"><span>${esc(label)}${hint ? `<small>${esc(hint)}</small>` : ''}</span><button class="toggle ${on ? 'on' : ''}" ${attr} aria-pressed="${on ? 'true' : 'false'}" aria-label="${esc(label)}"></button></div>`;
+    const tg = (k, label, hint) => row(!!s[k], `data-t="${k}"`, label, hint);
+    // the Warden's own switches (kept on the hero, as the Character page has them); Overdrive is on unless switched off
+    const htg = (k, label, hint) => row(k === 'autoOd' ? h.autoOd !== 0 : !!h[k], `data-ht="${k}"`, label, hint);
+    const fmt0Demo = () => G.fmt(1234567890) + ' · ' + G.fmt(4.2e18);
     body.innerHTML = `
       <div class="setList">
         ${tg('sound', t('sound'))}${tg('music', t('music'))}
         <div class="setRow"><span>${esc(t('volume'))}</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${s.vol}"></div>
         ${tg('hold', t('hold'))}${tg('shake', t('shake'))}${tg('autoBoss', t('autoBoss'))}${tg('filter', t('lootFilter'))}
         ${window.BTTN_AN ? tg('stats', t('statsOpt')) : ''}
+      </div>
+      <div class="sect">${esc(t('setPlay'))}</div>
+      <div class="setList">
+        ${htg('auto', t('autoEquip'))}${htg('autoPerk', t('autoPerk'))}${htg('cast', t('autoCast'))}${htg('autoOd', t('autoOd'), t('autoOdHint'))}
+        ${tg('autoSpin', t('autoSpin'), t('autoSpinHint'))}${tg('lowfx', t('lowfx'), t('lowfxHint'))}
+        <div class="setRow"><span>${esc(t('autoSalv'))}</span><span class="seg" data-hsalv>${[0, 1, 2, 3].map(r => `<button data-r="${r}" class="${(h.salv || 0) === r ? 'on' : ''}">${r === 0 ? esc(t('off')) : esc(L(G.RARITIES[r].name))}</button>`).join('')}</span></div>
+        <div class="setRow"><span>${esc(t('numFmt'))}<small>${esc(fmt0Demo())}</small></span><span class="seg" data-nf>${[0, 1].map(v => `<button data-v="${v}" class="${(s.sci ? 1 : 0) === v ? 'on' : ''}">${esc(t('numFmt' + v))}</button>`).join('')}</span></div>
       </div>
       <div class="sect">${esc(t('saveTitle'))}</div>
       <p class="note">${esc(t('importHint'))}</p>
@@ -20896,6 +21842,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     body.addEventListener('click', e => {
       const tgB = e.target.closest('[data-t]');
       if (tgB) { const k = tgB.dataset.t; s[k] = s[k] ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.render(); return; }
+      const hb = e.target.closest('[data-ht]');
+      if (hb) { const k = hb.dataset.ht; h[k] = k === 'autoOd' ? (h.autoOd === 0 ? 1 : 0) : (h[k] ? 0 : 1); G.dirty && G.dirty(); UI.render(); return; }
+      const sv = e.target.closest('[data-hsalv] [data-r]');
+      if (sv) { h.salv = +sv.dataset.r; UI.render(); return; }
+      const nf = e.target.closest('[data-nf] [data-v]');
+      if (nf) { s.sci = +nf.dataset.v; UI.render(); return; }
       if (e.target.closest('[data-exp]')) { $('#saveBox').value = G.exportSave(); return; }
       if (e.target.closest('[data-restore]')) { G.Net.restoreBackup().then(ok => { UI.toast(esc(ok ? t('imported') : t('noBackup')), ok ? 'ach' : '', 'ic_scroll'); if (ok) UI.render(); }); return; }
       if (e.target.closest('[data-copy]')) {
@@ -20966,7 +21918,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   UI.modal = function (title, html, actions, locked) {
     const m = $('#modal');
     m.innerHTML = `<div class="box" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h2>${esc(title)}</h2>${html}<div class="acts">${(actions || []).map((a, i) => `<button class="btn ${a.cls || ''}" data-a="${i}">${esc(a.label)}</button>`).join('')}</div></div>`;
-    m.hidden = false;
+    m.hidden = false; m.dataset.locked = locked ? '1' : '';
     const close = () => { m.hidden = true; m.innerHTML = ''; };
     m.onclick = e => {
       const b = e.target.closest('[data-a]');
@@ -20990,7 +21942,11 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         ${r.warden.perks ? `<div>${img('ic_bolt', '', 3)}<span style="color:#ffe27a">${esc(r.warden.perks === 1 ? t('offPerk1') : t('offPerks', r.warden.perks))}</span></div>` : ''}
         ${r.warden.shards ? `<div>${img('ic_shard', '', 3)}<span>${esc(t('offShards', fmt(r.warden.shards)))}</span></div>` : ''}
       </div>` : ''}`;
-    UI.modal(t('welcomeBack'), html + (r.rested ? `<p style="color:#8ae07a">${esc(t('restedNote'))}</p>` : ''), [{ label: t('collect'), cls: 'gold' }]);
+    // QoL: and what waits for you now, each one tap away
+    const todo = todoList().slice(0, 5);
+    const m = UI.modal(t('welcomeBack'), html + (r.rested ? `<p style="color:#8ae07a">${esc(t('restedNote'))}</p>` : '') + (todo.length ? `<div class="sect">${esc(t('todoTitle'))}</div>${todoHtml(todo)}` : ''), [{ label: t('collect'), cls: 'gold' }]);
+    m.querySelectorAll('[data-todo]').forEach(b => b.addEventListener('click', () => { m.hidden = true; m.innerHTML = ''; todoGo(b.dataset.todo); }));
+    return m;
   };
 })(globalThis.G = globalThis.G || {});
 
@@ -21075,6 +22031,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     help_19: 'Relics', help_19t: 'The rarest drop there is: a white bag from a boss (about 1 in 600; 1 in 200 for a lord; more at higher Torment; never in Rifts). Each relic changes how you play. The Museum keeps the list.',
     help_20: 'Holding the Button', help_20t: 'Hold Space or the Button to click 1 time a second; each Steady Hand level (Upgrades) adds one, up to 10.',
     help_10: 'Carnage', help_10t: 'Kill without a 2.5-second pause to raise gold and XP, up to +40%.',
+    help_21: 'Shortcuts', help_21t: 'In a building, the bar on top jumps to any other one (or swipe; keys 1–0, ← →); FIELD goes back. Lock gear so it is never scrapped. Hold an upgrade to keep buying. Tap the gold rate to see where gold comes from. Settings → Play: auto-perks, Overdrive, spins, fewer effects.',
   });
 
   // ---------- Pointer targets ----------
@@ -21087,7 +22044,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       let e = typeof sel === 'string' ? $(sel) : sel; if (!e || !e.offsetParent) return null;
       // a town window covering the target (a phone's full-screen one): point at its close button first
       const tw = $('#townWin');
-      if (tw && !tw.hidden && !tw.contains(e)) { const a = tw.getBoundingClientRect(), b = e.getBoundingClientRect(); if (b.left < a.right && b.right > a.left && b.top < a.bottom && b.bottom > a.top) e = tw.querySelector('.twX') || e; }
+      // (TOWN/FIELD or Upgrades under it: the window's own FIELD button on its quick bar, one tap back to the field)
+      if (tw && !tw.hidden && !tw.contains(e)) { const a = tw.getBoundingClientRect(), b = e.getBoundingClientRect(); if (b.left < a.right && b.right > a.left && b.top < a.bottom && b.bottom > a.top) e = ((e.id === 'btnTown' || e.matches('.tab[data-tab="upg"]')) && tw.querySelector('[data-twgo="field"]')) || tw.querySelector('.twX') || e; }
       const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top - 2, el: e };
     },
     // a page lives in a town building: point at TOWN, then the building, in the square or the panel's list
@@ -21096,8 +22054,12 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       if (!b) return P.el(`.tab[data-tab="${id}"]`);
       if (!G.R.town) return P.el('#btnTown');
       if (G.UI.townId() === b) return null;
-      // a window covers the square: the building's row in the panel's list, or the window's close button
-      if (G.UI.townId()) return P.el(`[data-dir="${b}"]`) || P.el('#townWin .twX');
+      // a window covers the square: its quick bar's button for the building, the panel's list, or the close button
+      if (G.UI.townId()) {
+        const nb = $(`#townWin [data-twgo="${b}"]`), nv = nb && nb.parentElement;
+        if (nb && nv) { const r = nb.getBoundingClientRect(), q = nv.getBoundingClientRect(); if (r.left < q.left || r.right > q.right) nv.scrollLeft += r.left < q.left ? r.left - q.left - 8 : r.right - q.right + 8; }
+        return P.el(nb) || P.el(`[data-dir="${b}"]`) || P.el('#townWin .twX');
+      }
       const q = G.Stage.townPoint && G.Stage.townPoint(b);
       return q ? { x: q.x, y: q.y - 4 } : P.el(`[data-dir="${b}"]`);
     },
@@ -21416,8 +22378,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_town', 17], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14], ['ic_coin', 18], [G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', 19], ['ic_clock', 20]];
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_town', 17], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14], ['ic_coin', 18], [G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', 19], ['ic_clock', 20], ['ic_gear', 21]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
+      <div class="helpRow"><span></span><div><b>${esc(t('help_bars'))}</b><div class="helpBars">${[['ic_skull', 'tipClear'], ['ic_heart', 'tipHp'], ['ic_chest', 'tipChest'], ['ic_coin', 'tipCombo']].map(([ic, k]) => `<p>${img(ic, 2)} ${esc(t(k))}</p>`).join('')}</div></div></div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
     G.UI.modal(t('help_title'), html, [
       { label: t('help_intro'), fn: () => Tut.intro() },
@@ -21731,6 +22694,8 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     mEl.style.left = Math.round(cx) + 'px';
     mEl.style.transform = `translateX(-50%) scale(${k})`;
     pill.style.bottom = (lay.bottom - 2) + 'px';
+    // 3.5: on a phone the meter sits in the right corner, off the middle of the field where the party fights
+    if (lay.phone) { pill.style.left = 'auto'; pill.style.right = '6px'; pill.style.transform = 'none'; } else { pill.style.left = ''; pill.style.right = ''; pill.style.transform = ''; }
     chips.style.top = topY + 'px';
     layT = now();
   }

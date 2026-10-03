@@ -201,7 +201,7 @@
     scrapMany: 'Scrap many…', scrapTitle: 'Scrap everything below', scrapHint: 'Locked items, uniques and worn gear always stay.',
     scrapSum: '{0} item(s) below {1}:', scrapKept: 'Kept: {0} locked or unique.', scrapGo: 'Scrap {0}', cancel: 'Cancel',
     teamPower: 'Team power',
-    todoTitle: 'Needs you', todoBest: 'Equip best: {0} upgrade(s) in the bag', todoBag: 'Bag full ({0}): new drops get scrapped',
+    todoTitle: 'Needs you', todoPerk: 'Level up! Pick a perk on the field', todoBest: 'Equip best: {0} upgrade(s) in the bag', todoBag: 'Bag full ({0}): new drops get scrapped',
     todoSeat: 'A party seat is open: recruit', todoQuests: '{0} reward(s) to claim', todoEggs: '{0} egg(s) to hatch', todoStars: 'A star to learn',
     todoFame: 'Fame to spend', todoUpg: '{0} upgrade(s) affordable', todoBuild: '{0} building(s) can be built up',
     etaIn: 'in {0}', upgSort_def: 'List', upgSort_cost: 'Cheapest', holdBuyHint: 'Hold a row to keep buying.',

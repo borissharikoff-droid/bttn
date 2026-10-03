@@ -894,13 +894,13 @@
   // hold a row: after a moment it buys again and again until it can't (a scroll or a lifted finger stops it)
   function holdBuy(list, sel, buy) {
     let tm = 0, iv = 0, row = null, did = false;
-    const stop = () => { clearTimeout(tm); clearInterval(iv); tm = iv = 0; row = null; };
+    const stop = () => { clearTimeout(tm); clearInterval(iv); tm = iv = 0; if (row) row.classList.remove('held'); row = null; };
     list.addEventListener('pointerdown', e => {
       const r = e.target.closest(sel); if (!r || e.button > 0) return;
       stop(); did = false; row = r;
       tm = setTimeout(() => { iv = setInterval(() => { if (!row || !row.isConnected) { stop(); return; } if (buy(row)) { did = true; row.classList.add('held'); } else stop(); }, 85); }, 420);
     });
-    for (const k of ['pointerup', 'pointercancel', 'pointerleave']) list.addEventListener(k, () => { if (row) row.classList.remove('held'); stop(); });
+    for (const k of ['pointerup', 'pointercancel', 'pointerleave']) list.addEventListener(k, stop);
     list.addEventListener('contextmenu', e => { if (e.target.closest(sel)) e.preventDefault(); });
     // (the click that ends a hold doesn't buy once more)
     list.addEventListener('click', e => { if (did) { did = false; e.stopPropagation(); } }, true);
@@ -1771,6 +1771,8 @@
   function todoList() {
     const S = G.S, h = S.hero, out = [];
     if (!h || !h.cls) return out;
+    // (the level-up cards wait on the field while you're in town)
+    if (G.R.town && h.offer) out.push({ k: 'perk', icon: 'ic_star', txt: t('todoPerk') });
     const ups = bagUpsC().total;
     if (ups) out.push({ k: 'best', icon: 'ic_sword', txt: t('todoBest', ups) });
     if (h.bag.length >= G.TUNE.bagMax) out.push({ k: 'forge', icon: 'ic_bag', txt: t('todoBag', h.bag.length), warn: 1 });
@@ -1791,6 +1793,7 @@
     G.Audio && G.Audio.unlock && G.Audio.unlock();
     if (k === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); pingT = 0; if (G.R.town && tw.id) renderTown(); UI.render(); return; }
     if (k === 'upg') { if (G.R.town) G.leaveTown(); tab = 'upg'; UI.render(); return; }
+    if (k === 'perk') { if (G.R.town) G.leaveTown(); return; }
     if (!G.R.town && !G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
     if (k === 'build') { const id = BLD_ORDER.filter(bldCanBuild).sort((x, y) => G.bldCost(x) - G.bldCost(y))[0]; if (id) UI.townOpen(id); return; }
     UI.townOpen(k, k === 'tavern' ? 'tavern' : undefined);
@@ -1867,17 +1870,19 @@
   // QoL: what in the bag is an upgrade for whom: the count per member, the total, and for each item the first
   // member it would suit (companions keep to their class's weapons and leave uniques to the Warden, as EQUIP BEST does)
   function bagUps() {
-    const S = G.S, h = S.hero, n = {}, whoFor = new Map(); let total = 0;
-    if (!h || !h.cls) return { total, n, whoFor };
+    const S = G.S, h = S.hero, n = {}, whoFor = new Map();
+    if (!h || !h.cls) return { total: 0, n, whoFor };
     for (const w of [-1].concat((S.party || []).map((_, i) => i))) {
       n[w] = 0; const eq = G.eqOf(w), base = {};
       for (const g of h.bag) {
-        const sl = G.slotOf(g.id); if (!canWear(g, w) || (w >= 0 && g.q)) continue;
+        // (a unique the Warden wears stays on unless another unique beats it, as EQUIP BEST has it)
+        const sl = G.slotOf(g.id); if (!canWear(g, w) || (w >= 0 && g.q) || (w < 0 && eq[sl] && eq[sl].q && !g.q)) continue;
         if (base[sl] == null) base[sl] = G.powerWith(sl, eq[sl], w);
-        if (G.powerWith(sl, g, w) > base[sl]) { n[w]++; total++; if (!whoFor.has(g.u)) whoFor.set(g.u, whoName(w)); }
+        if (G.powerWith(sl, g, w) > base[sl]) { n[w]++; if (!whoFor.has(g.u)) whoFor.set(g.u, whoName(w)); }
       }
     }
-    return { total, n, whoFor };
+    // (total: the items that would go on someone, each counted once)
+    return { total: whoFor.size, n, whoFor };
   }
   UI.bagUps = bagUps;
   // (the badges ask often: a fresh answer at most every 400 ms)

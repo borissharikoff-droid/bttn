@@ -752,7 +752,7 @@
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
-      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 10,
+      offCap: 14400, offEff: 0.5, scout: 0, vet: 0, legion: false, mega: false, autoBoss: false, bossNeed: 8,
       potCap: 10, potPow: 1, fameMult: 1, questMult: 1, goldenChance: G.GOLDEN_CHANCE, petOpen: 0, spdMult: 1,
       heroMult: 1, hpMult: 1,
     };
@@ -2074,18 +2074,18 @@
   const TUNE = G.TUNE;
   Object.assign(TUNE, {
     mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.22,
-    mobWalk: 7, hordeRate: 0.6, hordeRef: 3, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
+    mobWalk: 5, opFrom: 2.5, opHpPow: 0.8, kbPush: 0.045, kbEvery: 0.6, hordeRate: 0.6, hordeRef: 2.2, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
     // the arena is never empty: lots of small bodies, capped for the frame rate
     mobMax: 1100, packMul: 3, minCrowd: 135, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
-    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.2,
+    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.8,
     // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002, biteFloor: 0.037,
+    killChest: 0.03, plunder: 0.002, biteFloor: 0.042,
     // 3.0: the bigger mobs (not the small fry) take this many times longer to bring down
-    bigHp: 1.8,
+    bigHp: 2.4,
     // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
     // regen out of and in a boss fight (share of health a second)
     hsMin: 1, earlyHp: 3, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
@@ -2599,7 +2599,7 @@
     while (h.bag.length > TUNE.bagMax) {
       // Drop the weakest item in the bag into shards, uniques last
       let worst = null, ws = Infinity;
-      for (const b of h.bag) { const s = powerWith(G.slotOf(b.id), b) + (b.q ? 1e300 : 0); if (s < ws) { ws = s; worst = b; } }
+      for (const b of h.bag) { const s = powerWith(G.slotOf(b.id), b) + (b.q ? 1e300 : 0) + (b.keep ? 1e299 : 0); if (s < ws) { ws = s; worst = b; } }
       salvage(worst, true);
     }
     emit('gear', g, equipped);
@@ -2646,7 +2646,7 @@
   G.salvageBelow = function (r) {
     const h = G.S.hero;
     let n = 0, v = 0;
-    for (const g of h.bag.slice()) if (g.r < r && !g.q) { v += salvage(g, true); n++; }
+    for (const g of h.bag.slice()) if (g.r < r && !g.q && !g.keep) { v += salvage(g, true); n++; }
     emit('salvage', null, v);
     return { n, v };
   };
@@ -2830,7 +2830,7 @@
   // the second land: from then on a boss needs a Warden strong for this depth.
   G.bossHp = d => mobHp(d) * Math.min(TUNE.bossHpMobs, 40 + 30 * d) * (G.isLord(d) ? TUNE.lordHp : 1);
   // (3.3: the first levels cost more, so the opening isn't a blur of level-up cards)
-  function xpNeed(l) { return Math.floor(10 * Math.pow(1.2, l - 1) + 14 * l); }
+  function xpNeed(l) { return Math.floor(10 * Math.pow(1.21, l - 1) + 14 * l); }
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {
@@ -2881,7 +2881,7 @@
     const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
     const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : kind === 'guardian' ? 1 : TUNE.bigHp) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
-    const m = { id: ++R.mobUid, kind, w, hp, max: hp, p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
+    const m = { id: ++R.mobUid, kind, w, hp: hp * (R.rift ? 1 : R.opHp || 1), max: hp * (R.rift ? 1 : R.opHp || 1), p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
       m.name = pick(RARE_A) + ' ' + pick(RARE_B);
@@ -3171,7 +3171,16 @@
     if (!ts.length) return true;
     const splash = around(ts, aoe);
     emit('heroAttack', { ids: ts.map(m => m.id), splash: splash.map(m => m.id), aoe, crit, src, dmg });
-    if (src === 'click') for (const m of ts.concat(splash)) if (m.p > -0.05) m.p = Math.max(-0.05, m.p - 0.05 / Math.sqrt(Math.max(0.03, m.w)));
+    // the Hand's knock-back: a nudge, lighter on the heavy ones and on the splash, and once in a while per mob,
+    // so fast clicking slows the Horde but can't pin it away from the Button (3.5: it was a shove of up to 29%)
+    if (src === 'click') {
+      const now = G.S.st.playTime || 0;
+      for (const m of ts.concat(splash)) {
+        if (m.p <= -0.05 || now - (m.kbAt || -9) < TUNE.kbEvery) continue;
+        m.kbAt = now;
+        m.p = Math.max(-0.05, m.p - TUNE.kbPush / Math.sqrt(Math.max(0.25, m.w)) * (ts.includes(m) ? 1 : 0.5));
+      }
+    }
     for (const m of ts) dealHit(m, dmg, src, crit);
     for (const m of splash) dealHit(m, dmg * sp, src, crit);
     // Stormcaller: a bolt on another mob with every swing
@@ -3338,6 +3347,8 @@
         else if ((R.surgeT -= dt) <= 0) { R.surgeT = TUNE.surgeEvery * rand(0.8, 1.2); R.surge = TUNE.surgeLen * (land().surge || 1); emit('surge'); }
         const surging = R.surge > 0;
         R.hs = hordeScale();
+        // 3.5: past the Horde's biggest size, an outgrown depth's mobs get tougher with the party, so they still reach the Button
+        R.opHp = Math.pow(Math.max(1, mightRatio() / (TUNE.hordeRef * TUNE.opFrom)), TUNE.opHpPow);
         const thick = om().horde * (R.rift ? 1.5 : G.torment().horde) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
         R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * thick);
         const cap = hordeCap(dnow()) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1) * (R.rift || shrine('slaughter') ? 1.5 : 1);
@@ -3850,7 +3861,7 @@
     // a full bag gives up its weakest piece, never a unique or a relic
     while (h.bag.length > G.TUNE.bagMax) {
       let worst = null, ws = Infinity;
-      for (const x of h.bag) { if (x.q) continue; const p = G.powerWith(G.slotOf(x.id), x); if (p < ws) { ws = p; worst = x; } }
+      for (const x of h.bag) { if (x.q) continue; const p = G.powerWith(G.slotOf(x.id), x) + (x.keep ? 1e299 : 0); if (p < ws) { ws = p; worst = x; } }
       if (!worst) break;
       G.salvage(worst, true);
     }

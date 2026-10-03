@@ -135,6 +135,8 @@
     lctx.globalAlpha = 1;
   }
   function part(x, y, col, o) {
+    // Settings → Reduce effects: about half the particles (for weak phones)
+    if (G.S.set && G.S.set.lowfx && Math.random() < 0.55) return;
     if (parts.length > MAXP) parts.shift();
     parts.push(Object.assign({ x, y, vx: rand(-40, 40), vy: rand(-70, -20), life: rand(0.4, 0.9), max: 0, col, size: 1, grav: 120 }, o || {}));
     parts[parts.length - 1].max = parts[parts.length - 1].life;

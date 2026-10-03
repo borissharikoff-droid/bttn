@@ -10,6 +10,19 @@
 - **Built for holding the Button.** A held Button clicks once a second, Steady Hand takes it up to 10, and nothing counts past 10.
 - **Chase the rare.** Relics drop in a white bag from bosses only, the Lucky Spin pays out from kills, and the JACKPOT hits about one kill in two million.
 
+## 3.5 — Alive
+
+- **The party runs and fights where you can see it.** Heroes run around the field (walk cycles, dust, facing): the tank walks the Horde's front, the healer runs to whoever is hurt, melee lunges in and back, the rogue blinks with afterimages, ranged heroes take the flanks. Every attack shows: steel crescents and shield bashes, arrows with streaks (a fan on crits), magic missiles and fireballs that burst, double dagger slashes, holy bolts and golden heal beams. A mob falls when the blow lands.
+- **The Horde reaches the Button again.** The Hand's knock-back used to throw small fry back almost a third of the way on every click; now it's a nudge, once in a while per mob. Mobs walk in faster and are tougher, the Horde grows with your party sooner, and a party that outgrows a depth meets tougher mobs there. Levels come a little slower.
+- **The town, smoother.**
+  - A quick bar in every building (FIELD plus every building, with badges): one tap between buildings; keys 1–0 and ← →; swipe on phones; each building reopens on the tab you left.
+  - A Needs-you list in town and on the welcome-back card (equip best, open seat, rewards, eggs, stars, upgrades…).
+  - Forge: sort the bag, ▲/▼ on every item for the chosen hero, lock items (never scrapped), Scrap many with a preview, a warning when the bag is full.
+  - Tavern: the whole team at a glance with EQUIP BEST.
+  - Upgrades: ×1 / ×10 / MAX, cheapest first, time until affordable, hold to keep buying.
+  - Settings → Play: auto-equip, auto-perks, auto-cast, auto-Overdrive, auto-scrap, instant spins, reduce effects, number format. Tap the gold rate for a breakdown.
+- On phones the Lucky Spin meter sits in the corner, off the party.
+
 ## 3.4 — Momentum
 
 - **Lands change twice as often.** A land has three zones now instead of five (morning, dusk, and the lord's lair), so you see a new land every few minutes. Lords hit a little softer (they come every third depth now), losing to a boss costs less waiting, and every try rallies the party harder (+15% a try, up to +60%).

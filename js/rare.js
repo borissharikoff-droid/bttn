@@ -50,13 +50,16 @@
     rareWell: 0.0004, rareGambler: 0.0006, rareStar: 0.0008, rareKing: 0.0006, rarePity: 0.5, rareHard: 12 * 3600,
     rareMerchantWait: 24,     // he waits this long to be tapped, then walks off
     rareShopTime: 30,         // the shop stays open this long (real seconds in the browser)
-    rareLand: 1 / 300,        // per march to a new zone; doubles after rareLandSoft marches without, sure at rareLandHard
+    rareLand: 1 / 300,        // per march to a new zone; doubles after rareLandSoft marches without, sure at rareLandHard...
     rareLandSoft: 300, rareLandHard: 900, rareLandT: 75, rareLandFrom: 3,
+    rareLandGap: 2 * 3600,    // ...but never within this much play of the last one (a treasure map ignores it)
     rareHorde: 1 / 20,        // per Stampede
     rareHordeGold: 8,
     rareFever: 0.005, rareFeverTriple: 0.02, rareFeverN: 7,
-    rarePet: 1 / 5000,        // per egg hatched
-    rareLegend: 1e-6,         // per click of the Hand
+    rarePet: 1 / 5000,        // per egg hatched...
+    rarePetGap: 6 * 3600,     // ...and not within six hours of play of the last one (late-game hatcheries open thousands)
+    rareLegend: 1e-6,         // per click of the Hand (no luck counts here)
+    rareLuckMax: 3,
     rareStarT: 5.5, rareWellT: 26, rareGamblerT: 22, rareKingT: 24,
   });
 
@@ -66,20 +69,21 @@
     put('rareTag', 'ONCE IN A BLUE MOON');
     put('rareFirst', 'FIRST SIGHTING');
     put('rareCodex', 'Rare sightings');
+    put('feedRare', '{0}');
   }
 
   // ---------- The codex ----------
   G.RARE_LOG = [
-    { id: 'merchant', name: 'The Lucky Merchant', col: '#ffd84a', icon: 'ic_coin', odds: 'about once in 1–3 hours', desc: 'A cloaked trader with a pack full of bargains. Tap him before he leaves.' },
-    { id: 'land', name: 'A Secret Land', col: '#ff8ad8', icon: 'ic_star', odds: 'about 1 march in 300', desc: 'A wrong turn into a land of treasure: the Gilded Vault, Candy Hollow or the Upside Land.' },
-    { id: 'pet', name: 'A Mythic Pet', col: '#ff5fd2', icon: 'ic_egg', odds: '1 hatch in 5000', desc: 'Three pets above Divine. Eggs, wishes and secret lands may hold one.' },
+    { id: 'merchant', feed: 'met the Lucky Merchant', name: 'The Lucky Merchant', col: '#ffd84a', icon: 'ic_coin', odds: 'about once in 1–3 hours', desc: 'A cloaked trader with a pack full of bargains. Tap him before he leaves.' },
+    { id: 'land', feed: 'found a SECRET LAND', name: 'A Secret Land', col: '#ff8ad8', icon: 'ic_star', odds: 'about 1 march in 300', desc: 'A wrong turn into a land of treasure: the Gilded Vault, Candy Hollow or the Upside Land.' },
+    { id: 'pet', feed: 'hatched a MYTHIC pet', name: 'A Mythic Pet', col: '#ff5fd2', icon: 'ic_egg', odds: '1 hatch in 5000', desc: 'Three pets above Divine. Eggs, wishes and secret lands may hold one.' },
     { id: 'fever', name: 'Free-Spin Fever', col: '#ff3b5c', icon: 'cs_seven', odds: '1 Lucky Spin in 200', desc: 'Seven free spins on the bonus reel: no misses, rising multipliers.' },
     { id: 'horde', name: 'The Golden Horde', col: '#ffd84a', icon: 'ev_stampede', odds: '1 Stampede in 20', desc: 'The Stampede turns to gold: every kill pays eight times.' },
     { id: 'well', name: 'The Wishing Well', col: '#7fe9ff', icon: 'ic_star', odds: 'once in a blue moon (more on a full one)', desc: 'Toss a coin and make one of three wishes.' },
     { id: 'gambler', name: 'The Ghostly Gambler', col: '#c8d6ff', icon: 'ic_coin', odds: 'every few hours', desc: 'A ghost stakes its own gold. Double or nothing?' },
     { id: 'star', name: 'A Shooting Star', col: '#fff3a0', icon: 'ic_star', odds: 'every few hours', desc: 'Tap it before it is gone and make a wish.' },
-    { id: 'king', name: 'The Goblin King', col: '#8ae07a', icon: 'ic_crown', odds: 'every few hours', desc: 'A giant treasure goblin that bleeds coins. Catch him!' },
-    { id: 'legend', name: 'The Button of Legends', col: '#ffffff', icon: 'ic_jackpot', odds: '1 click in a million', desc: 'Nobody knows what happens. Nobody has pressed it right.' },
+    { id: 'king', feed: 'met the Goblin King', name: 'The Goblin King', col: '#8ae07a', icon: 'ic_crown', odds: 'every few hours', desc: 'A giant treasure goblin that bleeds coins. Catch him!' },
+    { id: 'legend', feed: 'pressed the BUTTON OF LEGENDS', name: 'The Button of Legends', col: '#ffffff', icon: 'ic_jackpot', odds: '1 click in a million', desc: 'Nobody knows what happens. Nobody has pressed it right.' },
   ];
   const LOG_BY_ID = {}; G.RARE_LOG.forEach(e => { LOG_BY_ID[e.id] = e; });
 
@@ -95,7 +99,9 @@
     if (!Array.isArray(S.st.rareLog)) S.st.rareLog = [];
     S.st.rareLog.push({ k: kind, s: sub || null, t: Math.round(S.st.playTime || 0), d: S.depth || 0 });
     if (S.st.rareLog.length > 30) S.st.rareLog.splice(0, S.st.rareLog.length - 30);
-    if (G.feed) { try { G.feed('rare', (LOG_BY_ID[kind] || { name: kind }).name); } catch (e) { /* the feed is optional */ } }
+    // the rarest ones go on the friends' feed
+    const L = LOG_BY_ID[kind];
+    if (G.feed && L && L.feed) { try { G.feed('rare', L.feed); } catch (e) { /* the feed is optional */ } }
     emit('rareSeen', kind, first, sub);
     return first;
   }
@@ -110,7 +116,12 @@
   RR();
   G.rareState = RR;
   const inc = () => Math.max(1, G.casinoIncome ? G.casinoIncome() : (G.D.incomeRef || 1));
-  const luck = () => (G.D.rareLuck || 1) * ((S_().st.rareLuckT || 0) > (S_().st.playTime || 0) ? 3 : 1);
+  // gold from a surprise: kept out of the casino's estimate of what the purse takes in (G.casinoIncome),
+  // which every payout here is measured in, so a gold geyser can't feed the next one
+  function addG(g) { if (!(g > 0)) return; if (G.casino) G.casino().own += g; G.addGold(g, 'rare'); }
+  // the odds of the surprises: a Clover Sprite or Golden Buttonling (G.D.rareLuck, up to x2) and a wish of Luck (x2 for an
+  // hour), never more than TUNE.rareLuckMax in all
+  const luck = () => Math.min(TUNE.rareLuckMax, Math.min(2, G.D.rareLuck || 1) * ((S_().st.rareLuckT || 0) > (S_().st.playTime || 0) ? 2 : 1));
 
   // What keeps every surprise away: no Warden, the tutorial, town, a cinematic, a Rift, a window open
   function blocked() {
@@ -124,11 +135,11 @@
     return null;
   }
   G.rareBlocked = blocked;
-  // ...and what keeps a surprise from walking onto the field: a boss (or one about to come), a march, an
-  // invasion, a Land Champion, a sudden event, another surprise
+  // ...and what keeps a surprise from walking onto the field: a boss, a march, an invasion, a Land Champion,
+  // a sudden event, another surprise (a boss that is only waiting to come waits a little longer: see the tick)
   function fieldOk() {
     const r = RR(), S = S_();
-    return !blocked() && !R.boss && !R.bossReady && !R.march && !R.inv && !R.champ && !R.ev && !r.cur && !r.land
+    return !blocked() && !R.boss && !R.march && !R.inv && !R.champ && !R.ev && !r.cur && !r.land
       && (S.st.playTime || 0) >= TUNE.rareFrom;
   }
   G.rareFieldOk = fieldOk;
@@ -149,18 +160,24 @@
     return Math.abs(days - 14.77) < 1.2 ? 3 : 1;
   }
   G.rareMoon = () => moonK() > 1;
-  function rollField(dt) {
+  // the clocks (and the rolls owed) run through all of play that isn't blocked, boss fights and marches too;
+  // the rolls themselves wait for a quiet field, so a fast player who is always fighting meets them as often
+  function clockField(dt) {
     const r = RR(), P = pity();
     P.field = (P.field || 0) + dt;
     for (const [k] of FIELD()) P[k] = (P[k] || 0) + dt;
-    r.acc += dt;
-    if (r.acc < TUNE.rareRoll) return;
-    r.acc -= TUNE.rareRoll;
-    if (P.field < TUNE.rareGap) return;
-    const L = luck();
-    for (const [k, base, pk, hard] of FIELD()) {
-      const p = base * L * (1 + pk * (P[k] || 0) / 3600);
-      if ((P[k] || 0) >= hard || chance(p)) { spawnField(k); return; }
+    r.acc = Math.min(r.acc + dt, TUNE.rareRoll * 90);
+  }
+  function rollField() {
+    const r = RR(), P = pity();
+    while (r.acc >= TUNE.rareRoll) {
+      r.acc -= TUNE.rareRoll;
+      if (P.field < TUNE.rareGap) { r.acc = 0; return; }
+      const L = luck();
+      for (const [k, base, pk, hard] of FIELD()) {
+        const p = base * L * (1 + pk * (P[k] || 0) / 3600);
+        if ((P[k] || 0) >= hard || chance(p)) { r.acc = 0; spawnField(k); return; }
+      }
     }
   }
   function spawnField(k, force) {
@@ -323,7 +340,8 @@
     const r = RR(), S = S_();
     if (r.own || r.land) return;
     if (blocked() || (S.bestDepth || 0) < TUNE.rareLandFrom || (S.st.playTime || 0) < TUNE.rareFrom) return;
-    const P = pity();
+    const P = pity(), now = S.st.playTime || 0;
+    if (!S.st.rareMap && S.st.rareLandAt != null && now - S.st.rareLandAt < TUNE.rareLandGap) return;
     P.land = (P.land || 0) + 1;
     const p = TUNE.rareLand * luck() * (P.land >= TUNE.rareLandSoft ? 2 : 1);
     if (S.st.rareMap || P.land >= TUNE.rareLandHard || chance(p)) {
@@ -338,6 +356,7 @@
     if (r.cur) clearCur('land');
     k = k && LANDS[k] ? k : pickOf(Object.keys(LANDS));
     P.land = 0;
+    G.S.st.rareLandAt = Math.round(G.S.st.playTime || 0);
     const L = LANDS[k];
     const land = r.land = { k, name: L.name, sub: L.sub, col: L.col, t: TUNE.rareLandT, T: TUNE.rareLandT, on: false, map: !!map,
       gobT: 1, rainT: 0.4, geyT: 2, eggT: 6, gearT: 4, haul: { gold: 0, chests: 0, eggs: 0, drops: 0, goblins: 0 }, meter: G.S.bossMeter || 0, S: G.S };
@@ -350,7 +369,8 @@
     const S = S_(), L = LANDS[land.k];
     if (R.boss || R.rift) { endLand('boss'); return; }
     // the way in: the march from the boss has to finish first
-    if (!land.on) { if (R.march) return; land.on = true; emit('rareLandOn', land); }
+    // (its geysers are measured against the purse as it was on the way in, not as the land's own gold swells it)
+    if (!land.on) { if (R.march) return; land.on = true; land.inc = inc(); emit('rareLandOn', land); }
     // nothing else gets in: no boss calls, no sudden events, no champions
     R.bossHold = Math.max(R.bossHold || 0, 1);
     if (R.bossReady && R.bossIn != null) R.bossIn = Math.max(R.bossIn, 1);
@@ -373,8 +393,8 @@
     // gold geysers by the Button
     if ((land.geyT -= dt) <= 0) {
       land.geyT = 3;
-      const g = inc() * L.geyser;
-      G.addGold(g, 'rare'); land.haul.gold += g;
+      const g = (land.inc || inc()) * L.geyser;
+      addG(g); land.haul.gold += g;
       emit('rareGeyser', g, land);
     }
     if (L.eggs && (land.eggT -= dt) <= 0) { land.eggT = 7; const n = G.addEggs ? G.addEggs(1) : 0; land.haul.eggs += n; if (n) emit('rareCandyEgg', land); }
@@ -570,7 +590,7 @@
   function grantWish(k, src, spot) {
     const S = S_(), got = { k };
     spot = spot || { a: 0.5, p: 0.75 };
-    if (k === 'riches') { got.gold = inc() * 600; G.addGold(got.gold, 'rare'); }
+    if (k === 'riches') { got.gold = inc() * 600; addG(got.gold); }
     else if (k === 'fortune') { orbs(['ascent', 'grace', 'ascent', 'grace'], { at: spot }); got.orbs = 4; }
     else if (k === 'kin') { const res = hatch(2, 0.1, src); got.pet = res && res.pet.id; got.mythic = !!(res && res.pet.tier === 4); got.eggs = G.addEggs ? G.addEggs(2) : 0; }
     else if (k === 'luck') { S.st.rareLuckT = Math.max(S.st.rareLuckT || 0, S.st.playTime || 0) + 3600; got.luck = 3600; }
@@ -619,7 +639,7 @@
     const c = RR().cur;
     if (!c || c.k !== 'gambler' || !c.open || c.done) return null;
     c.done = true; c.cashed = c.pot;
-    G.addGold(c.pot, 'rare');
+    addG(c.pot);
     const S = S_(); S.st.rareGhostBest = Math.max(S.st.rareGhostBest || 0, c.flips);
     emit('rareCash', c, c.pot);
     c.t = Math.max(c.t, c.T - 2.5);
@@ -641,7 +661,7 @@
   const STAR_W = [['riches', 30], ['eggs', 22], ['fortune', 18], ['glory', 14], ['fever', 10], ['luck', 4], ['mythic', 2]];
   function spawnStar() {
     const r = RR();
-    const c = r.cur = { k: 'star', id: ++r.uid, t: 0, T: TUNE.rareStarT, dir: chance(0.5) ? 1 : -1, y: rand(0.16, 0.3), caught: false, S: G.S };
+    const c = r.cur = { k: 'star', id: ++r.uid, t: 0, T: TUNE.rareStarT, dir: chance(0.5) ? 1 : -1, y: rand(0.28, 0.38), caught: false, S: G.S };
     record('star');
     emit('rareSpawn', c);
     emit('rare', 'star', c);
@@ -696,7 +716,7 @@
     const before = c.lost;
     c.lost = Math.min(1, c.lost + Math.min(dmg, Math.max(0, m.hp)) / m.max);
     const n8 = Math.floor(c.lost / 0.08) - Math.floor(before / 0.08);
-    for (let i = 0; i < n8; i++) { const g = inc() * 4; G.addGold(g, 'rare'); c.gold += g; c.coins++; emit('rareKingCoins', c, g); }
+    for (let i = 0; i < n8; i++) { const g = inc() * 4; addG(g); c.gold += g; c.coins++; emit('rareKingCoins', c, g); }
     const n25 = Math.floor(c.lost / 0.25) - Math.floor(before / 0.25);
     for (let i = 0; i < n25 && G.dropItem; i++) { G.dropItem('gear', G.pickItem(Math.min(G.rarityCap(), 2 + (chance(0.3) ? 1 : 0))), m, { src: 'rare', spread: 0.05 }); c.drops++; }
   });
@@ -710,7 +730,7 @@
     if (G.lootShower) G.lootShower(m, 12, Math.min(cap, 3), 0.35, { floorN: 4, spread: 0.12, src: 'rare', rolls: 2 });
     orbs(['ascent', 'ascent', chance(0.5) ? 'grace' : 'ruin'], { m });
     const ch = rainChests(5, 1);
-    const g = inc() * 120; G.addGold(g, 'rare'); c.gold += g;
+    const g = inc() * 120; addG(g); c.gold += g;
     S_().st.rareKings = (S_().st.rareKings || 0) + 1;
     c.rew = { drops: 12 + c.drops, chests: ch, gold: c.gold };
     emit('rareKingKill', c, c.rew);
@@ -719,12 +739,12 @@
   // ================= MYTHIC PETS =================
   if (G.PET_TIERS && !G.PET_TIERS[4]) G.PET_TIERS[4] = { name: 'Mythic', color: '#ff5fd2', rate: 0 };
   const MYTHIC = G.MYTHIC_PETS = [
-    { id: 'goldling', tier: 4, mythic: 1, cps: 6, name: 'Golden Buttonling', desc: 'Gold, auto clicks, rare luck',
-      fx: (p, D) => { D.goldMult *= 1 + 0.2 * p; D.rareLuck = (D.rareLuck || 1) * (1 + 0.1 * p); } },
+    { id: 'goldling', tier: 4, mythic: 1, cps: 6, name: 'Golden Buttonling', desc: 'Gold, auto clicks, a little rare luck',
+      fx: (p, D) => { D.goldMult *= 1 + 0.2 * p; D.rareLuck = (D.rareLuck || 1) * (1 + Math.min(0.5, 0.05 * p)); } },
     { id: 'voidkit', tier: 4, mythic: 1, cps: 0, name: 'Void Kitten', desc: 'Crit chance, crit power, boss damage',
       fx: (p, D) => { D.crit += 0.012 * p; D.critMult += 0.8 * p; D.bossMult *= 1 + 0.12 * p; } },
     { id: 'clover', tier: 4, mythic: 1, cps: 2, name: 'Clover Sprite', desc: 'Luck, eggs and rare surprises',
-      fx: (p, D) => { D.luck += 0.03 * p; D.eggMult *= 1 + 0.12 * p; D.rareLuck = (D.rareLuck || 1) * (1 + 0.25 * p); } },
+      fx: (p, D) => { D.luck += 0.03 * p; D.eggMult *= 1 + 0.12 * p; D.rareLuck = (D.rareLuck || 1) * (1 + Math.min(1, 0.1 * p)); } },
   ];
   if (G.PETS && G.PET_BY_ID) for (const p of MYTHIC) if (!G.PET_BY_ID[p.id]) { G.PETS.push(p); G.PET_BY_ID[p.id] = p; }
 
@@ -763,6 +783,7 @@
     const pet = pickOf(fresh.length ? fresh : MYTHIC);
     const res = petInto(pet, chance((G.D.goldenChance || 0.05) * 2));
     res.mythic = true; res.src = src;
+    S.st.rarePetAt = Math.round(S.st.playTime || 0);
     record('pet', pet.id);
     emit('rarePet', res);
     emit('rare', 'pet', res);
@@ -773,12 +794,14 @@
   G.on('pull', res => {
     const r = RR();
     if (r.pull || !Array.isArray(res)) return;
-    const n = res.length;
+    const S = S_(), n = res.length;
     for (let i = 0; i < n; i++) {
-      if (!chance(TUNE.rarePet * luck())) continue;
-      const S = S_(), fresh = MYTHIC.filter(p => !S.pets[p.id]), pet = pickOf(fresh.length ? fresh : MYTHIC);
+      if (S.st.rarePetAt != null && (S.st.playTime || 0) - S.st.rarePetAt < TUNE.rarePetGap) return;
+      if (!chance(TUNE.rarePet)) continue;
+      const fresh = MYTHIC.filter(p => !S.pets[p.id]), pet = pickOf(fresh.length ? fresh : MYTHIC);
       const m = petInto(pet, chance((G.D.goldenChance || 0.05) * 2));
       m.mythic = true; m.src = 'hatch';
+      S.st.rarePetAt = Math.round(S.st.playTime || 0);
       record('pet', pet.id);
       res.push(m); // into the Hatchery's own card
       emit('rarePet', m);
@@ -788,13 +811,13 @@
 
   // ================= THE BUTTON OF LEGENDS =================
   G.hook('click', () => {
-    if (!chance(TUNE.rareLegend * luck()) || blocked()) return;
+    if (!chance(TUNE.rareLegend) || blocked()) return;
     legend();
   });
   function legend() {
     const S = S_();
     const gold = inc() * 3000;
-    G.addGold(gold, 'rare');
+    addG(gold);
     const q = uniqueAny();
     if (q && G.dropItem) G.dropItem('uq', q, null, { at: { a: 0.5, p: 0.8 }, src: 'rare', wait: 1.2 });
     orbs(['grace', 'grace', 'grace', 'ascent', 'ascent'], { at: { a: 0.5, p: 0.8 }, wait: 1.4 });
@@ -859,7 +882,8 @@
     if (r.fever) tickFever(r.fever, dt);
     if (r.gild) tickGild(r.gild, dt);
     if (S.st.rareLuckT && S.st.rareLuckT < (S.st.playTime || 0)) S.st.rareLuckT = 0;
-    if (fieldOk()) rollField(dt);
+    if (!blocked() && (S.st.playTime || 0) >= TUNE.rareFrom) clockField(dt);
+    if (fieldOk()) rollField();
   });
   G.on('ascend', () => {
     const r = RR();

@@ -533,7 +533,7 @@
     while (h.bag.length > TUNE.bagMax) {
       // Drop the weakest item in the bag into shards, uniques last
       let worst = null, ws = Infinity;
-      for (const b of h.bag) { const s = powerWith(G.slotOf(b.id), b) + (b.q ? 1e300 : 0); if (s < ws) { ws = s; worst = b; } }
+      for (const b of h.bag) { const s = powerWith(G.slotOf(b.id), b) + (b.q ? 1e300 : 0) + (b.keep ? 1e299 : 0); if (s < ws) { ws = s; worst = b; } }
       salvage(worst, true);
     }
     emit('gear', g, equipped);
@@ -580,7 +580,7 @@
   G.salvageBelow = function (r) {
     const h = G.S.hero;
     let n = 0, v = 0;
-    for (const g of h.bag.slice()) if (g.r < r && !g.q) { v += salvage(g, true); n++; }
+    for (const g of h.bag.slice()) if (g.r < r && !g.q && !g.keep) { v += salvage(g, true); n++; }
     emit('salvage', null, v);
     return { n, v };
   };
