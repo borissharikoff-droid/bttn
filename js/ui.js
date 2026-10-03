@@ -57,7 +57,24 @@
     const tip = (T.n ? t('tormentTip', T.n, '×' + T.mobHp.toFixed(2), '×' + T.bite.toFixed(2), '×' + T.bossHp.toFixed(2), '×' + T.gold.toFixed(2), '×' + T.xp.toFixed(2), '+' + Math.round((T.drop - 1) * 100) + '%') + (T.rarity ? ' ' + t('tormentRar', T.rarity) : '') : t('tormentZero')) + ' ' + t('tormentMore') + (busy ? ' ' + t('tormentBusy') : '');
     if (el.title !== tip) el.title = tip;
   }
+  // QoL: numbers in letters (1.23Qa) or in science (1.23e15), as the player likes (Settings). Every file calls
+  // G.fmt when it draws, so wrapping it here reaches the field's numbers too.
+  if (G.fmt && !G.fmt._qol) {
+    const fmt0 = G.fmt;
+    G.fmt = function (n, small) {
+      const s = G.S && G.S.set;
+      if (s && s.sci && typeof n === 'number' && Number.isFinite(n) && Math.abs(n) >= 1e6) {
+        const a = Math.abs(n), ex = Math.floor(Math.log10(a)), m = Math.floor(a / Math.pow(10, ex) * 100) / 100;
+        return (n < 0 ? '-' : '') + m.toFixed(2) + 'e' + ex;
+      }
+      return fmt0(n, small);
+    };
+    G.fmt._qol = 1;
+  }
   const fmt = G.fmt, t = G.t, L = G.L;
+  // the player's interface choices (last tabs, sorts, buy amount…), kept in the save with the settings
+  const PF = () => { const s = G.S.set; if (!s.ui || typeof s.ui !== 'object') s.ui = {}; return s.ui; };
+  UI.prefs = PF;
 
   let tab = 'upg', buyAmt = 1, selNode = 'spark', selItem = null, ascArm = 0, resetArm = 0, selWho = -1;
   let refs = {}, lastText = new WeakMap();
@@ -104,6 +121,9 @@
     const S = G.S;
     S.seen = S.seen || {};
     S.seen.tabs = S.seen.tabs || {};
+    // (what's in the bag on the first look isn't news; gold is counted by source for the breakdown)
+    if (PF().seenU == null && S.hero) bagSeen();
+    if (!G.goldBySrc) G.goldBySrc = {};
     $('#goldIco').src = ic('ic_coin', 4);
     $('#essIco').src = ic('ic_ess', 3);
     $('#eggIco').src = ic('ic_egg', 3);
@@ -221,14 +241,15 @@
   }
   function bindPartyHud() {
     $('#partyHud').addEventListener('click', e => {
-      if (e.target.closest('[data-seat]')) { G.Audio.unlock(); if (G.enterTown()) UI.townOpen('tavern'); else UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
+      if (e.target.closest('[data-seat]')) { G.Audio.unlock(); if (G.enterTown()) UI.townOpen('tavern', 'tavern'); else UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
       if (e.target.closest('[data-seatlock]')) { UI.teamCard(); return; }
       const c = e.target.closest('.pchip'); if (!c) return;
       const who = +c.dataset.who;
       if (G.reviveTap(who)) { G.Audio.click(0, false); return; }
       // a standing unit: open their page in the Party tab
       selWho = who; selGear = null; tw.who = who;
-      if (G.R.town) UI.townOpen('forge'); else UI.toast(esc(t('chipTown')), '', 'ic_sword');
+      // (QoL: between fights a tap walks straight to their gear at the Forge)
+      if (G.R.town || (!G.R.boss && !G.R.inv && G.enterTown())) UI.townOpen('forge'); else UI.toast(esc(t('chipTown')), '', 'ic_sword');
     });
     $('#btnFold').addEventListener('click', () => { $('#app').classList.toggle('fold'); $('#btnFold').textContent = $('#app').classList.contains('fold') ? '▴' : '▾'; setTimeout(() => G.Stage && G.Stage.resize && G.Stage.resize(), 0); });
   }
@@ -276,8 +297,19 @@
     if (window.innerWidth < 700) G.TUNE.mobMax = Math.min(G.TUNE.mobMax, 750);
     bindTown();
     $('#btnTown').addEventListener('click', () => { G.Audio.unlock(); if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } });
-    G.on('town', on => { if (!on) UI.townClose(true); document.getElementById('app').classList.toggle('inTown', on); if (tab === 'set') tab = 'upg'; UI.render(); });
-    $('#torment').addEventListener('click', e => { const b = e.target.closest('[data-tm]'); if (!b) return; G.Audio.unlock(); if (G.setTorment((G.S.torment || 0) + +b.dataset.tm)) { G.Audio.buy(); updateTorment(); } else G.Audio.error(); });
+    G.on('town', on => {
+      // QoL: leave town from inside a building and the next visit opens it again (not while the tutorial walks you)
+      if (!on) { PF().resume = tw.id || null; UI.townClose(true); }
+      document.getElementById('app').classList.toggle('inTown', on); if (tab === 'set') tab = 'upg'; UI.render();
+      if (on && PF().resume && G.S.tut < 0 && bldOpen(PF().resume)) { const id = PF().resume; setTimeout(() => { if (G.R.town && !tw.id && $('#modal').hidden) UI.townOpen(id); }, 0); }
+    });
+    bindSwipe();
+    // a finger down on the panel: nothing there re-sorts or rebuilds under it
+    $('#panel').addEventListener('pointerdown', () => { UI._panelDown = true; });
+    window.addEventListener('pointerup', () => { UI._panelDown = false; });
+    window.addEventListener('pointercancel', () => { UI._panelDown = false; });
+    // the gold rate opens where the gold comes from
+    const rt = $('#panel .rates'); if (rt) { rt.setAttribute('role', 'button'); rt.tabIndex = 0; rt.title = t('gpsTip'); rt.addEventListener('click', () => UI.goldBreakdown()); rt.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); UI.goldBreakdown(); } }); }    $('#torment').addEventListener('click', e => { const b = e.target.closest('[data-tm]'); if (!b) return; G.Audio.unlock(); if (G.setTorment((G.S.torment || 0) + +b.dataset.tm)) { G.Audio.buy(); updateTorment(); } else G.Audio.error(); });
     $('#realmBox').addEventListener('click', () => { if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#realmBox').addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; e.preventDefault(); e.stopPropagation(); if (G.S.hero && G.S.hero.cls) UI.worldMap(); });
     $('#btnSound').addEventListener('click', () => { G.S.set.sound = G.S.set.sound ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.update(true); });
@@ -300,6 +332,12 @@
       if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.isContentEditable)) return;
       // Ctrl+C copies, it doesn't Mend
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // QoL, in town: 1–9, 0, − open a building; ← → the next one; Shift+← → its tabs
+      if (G.R.town && !G.uiBusy() && !(tg && tg.tagName === 'SELECT')) {
+        const ki = e.code === 'Minus' || e.code === 'NumpadSubtract' ? 10 : /^(Digit|Numpad)[0-9]$/.test(e.code) ? (+e.code.slice(-1) + 9) % 10 : -1;
+        if (ki >= 0 && !e.repeat) { const id = BLD_ORDER[ki]; if (id) { e.preventDefault(); G.Audio.unlock(); if (tw.id !== id) UI.townOpen(id); } return; }
+        if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') { e.preventDefault(); const d = e.code === 'ArrowRight' ? 1 : -1; if (e.shiftKey && tw.id) UI.townSub(d); else UI.townStep(d); return; }
+      }
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter') {
         if (tg && tg.tagName === 'BUTTON' && e.code !== 'Space') return;
         e.preventDefault();
@@ -317,6 +355,7 @@
       else if (e.code === 'KeyV') { if (!G.uiBusy() && G.overdrive && !G.overdrive('key')) G.Audio.error(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
       else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } }
+      else if (e.code === 'Escape' && !$('#modal').hidden && $('#modal').dataset.locked !== '1') { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; }
       else if (e.code === 'Escape' && G.R.town && !G.uiBusy()) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
       else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
       else if (e.code === 'KeyX') { if (!G.uiBusy()) G.usePower('ward'); }
@@ -373,7 +412,7 @@
         <p class="story">${esc(t('teamText'))}</p>
         <div class="teamRow">${G.CLASSES.map((c, i) => `<div class="teamCls" style="animation-delay:${0.08 * i}s">${img(c.spr, '', 6)}<b>${esc(L(c.name))}</b><small class="r_${G.ROLES[c.id]}">${esc(G.ROLE_NAMES[G.ROLES[c.id]])}</small></div>`).join('')}</div>
         <p class="note">${esc(t(open ? 'teamOpen' : 'teamNext', G.PARTY_AT[Math.min(2, n)] + 1))}</p></div>`,
-        open ? [{ label: t('teamGo'), cls: 'gold', fn: () => { if (G.enterTown()) UI.townOpen('tavern'); } }, { label: t('later') }] : [{ label: t('close') }]);
+        open ? [{ label: t('teamGo'), cls: 'gold', fn: () => { if (G.enterTown()) UI.townOpen('tavern', 'tavern'); } }, { label: t('later') }] : [{ label: t('close') }]);
       G.Audio && G.Audio.levelUp && G.Audio.levelUp();
       return m;
     };
@@ -474,11 +513,59 @@
     });
     G.on('rival', ev => UI.toast(esc(ev.up ? t('rivalUp', ev.name, ev.cat, ev.rank) : t('rivalDown', ev.name, ev.cat)), ev.up ? 'ach' : '', 'ic_crown'));
     G.on('gear', (g, equipped) => { if (equipped && (g.r >= 2 || g.q)) UI.toast(`<span>${esc(t('equipped'))}: <b style="color:${gearCol(g)}">${esc(gearName(g))}</b></span>`, '', G.gearSpr(g)); });
+    // QoL: the bag filling up says so once (and again only after it's had room), since a full bag scraps the weakest
+    G.on('gear', () => {
+      const h = G.S.hero, full = h.bag.length >= G.TUNE.bagMax;
+      if (full && !UI._bagFullSaid) { UI._bagFullSaid = true; setTimeout(() => UI.toast(`<span><b>${esc(t('bagFullT'))}</b> ${esc(t('bagFullToast'))}</span>`, '', 'ic_bag'), 600); }
+      else if (h.bag.length < G.TUNE.bagMax - 3) UI._bagFullSaid = false;
+    });
     G.on('levelUp', () => { const xb = $('#xpBar'); xb.classList.remove('up'); void xb.offsetWidth; xb.classList.add('up'); });
     G.on('buttonBreak', () => UI.toast(`<b>${esc(t('overload'))}</b> ${esc(t('overloadHint'))}`, '', 'ic_skull'));
   }
   const dirty = {};
   function dirtyTab(id) { dirty[id] = true; }
+
+  // ---------- QoL: swipe between buildings on a phone ----------
+  function bindSwipe() {
+    const el = twEl(); if (!el) return;
+    let sx = 0, sy = 0, st = 0, ok = false;
+    el.addEventListener('touchstart', e => {
+      const p = e.touches[0];
+      // (not on anything that scrolls or slides sideways itself)
+      ok = e.touches.length === 1 && !e.target.closest('.twNav, .twSubs, .seg, .flt, input, select, textarea, .starmap, .scrapSeg, .orbBar, .gmbSlots');
+      if (ok) { sx = p.clientX; sy = p.clientY; st = performance.now(); }
+    }, { passive: true });
+    el.addEventListener('touchend', e => {
+      if (!ok || !tw.id) return; ok = false;
+      const p = e.changedTouches[0], dx = p.clientX - sx, dy = p.clientY - sy;
+      if (performance.now() - st < 700 && Math.abs(dx) > 70 && Math.abs(dy) < Math.abs(dx) * 0.5) UI.townStep(dx < 0 ? 1 : -1);
+    }, { passive: true });
+  }
+  // ---------- QoL: where the gold comes from ----------
+  // the game counts every coin by its source (G.goldBySrc); a sample a second gives the last half minute's split
+  const srcHist = [];
+  const SRC_GROUP = { gps: 'gps', mob: 'mob', click: 'click', auto: 'click', chest: 'chest', spill: 'chest', boss: 'boss', champion: 'boss', drop: 'drop' };
+  function sampleGold() {
+    if (!G.goldBySrc) G.goldBySrc = {};
+    const now = performance.now() / 1000;
+    if (srcHist.length && now - srcHist[srcHist.length - 1].t < 1) return;
+    srcHist.push({ t: now, v: Object.assign({}, G.goldBySrc) });
+    while (srcHist.length > 31) srcHist.shift();
+  }
+  G.on('ascend', () => { srcHist.length = 0; });
+  UI.goldBreakdown = function () {
+    const D = G.D, a = srcHist[0], b = srcHist[srcHist.length - 1];
+    const secs = a && b ? Math.max(1, b.t - a.t) : 0, by = {};
+    let tot = 0;
+    if (secs) for (const k in b.v) { const d = (b.v[k] || 0) - ((a.v[k]) || 0); if (d > 0) { const gk = SRC_GROUP[k] || 'other'; by[gk] = (by[gk] || 0) + d / secs; tot += d / secs; } }
+    const rows = Object.keys(by).sort((x, y) => by[y] - by[x]).map(k => `<div class="gbRow"><span>${esc(t('gsrc_' + k))}</span><i><u style="width:${Math.max(2, Math.round(by[k] / tot * 100))}%"></u></i><b>${fmt(by[k], true)}${esc(t('perSec'))}</b><small>${Math.round(by[k] / tot * 100)}%</small></div>`).join('');
+    const mul = [['gbGold', D.goldMult], ['gbDepth', D.depthMult], ['gbGarrison', D.gpsMult], ['gbFrenzy', D.buffGold]].filter(([, v]) => v && Math.abs(v - 1) > 1e-6)
+      .map(([k, v]) => `<span>${esc(t(k))}</span><b>×${v >= 100 ? fmt(v) : v.toFixed(2)}</b>`).join('') + (G.odActive && G.odActive() ? `<span>${esc(t('odName'))}</span><b>×3</b>` : '');
+    UI.modal(t('gbTitle'), `<p class="note">${esc(secs ? t('gbHint', Math.round(secs)) : t('gbWait'))}</p>
+      ${rows ? `<div class="gbList">${rows}</div><p class="gbTot">${esc(t('total'))}: <b>${fmt(tot, true)}${esc(t('perSec'))}</b></p>` : ''}
+      <div class="statList"><span>${esc(t('gbGarrisonNow'))}</span><b>${fmt(D.gps * (D.buffGold || 1), true)}${esc(t('perSec'))}</b><span>${esc(t('perClick'))}</span><b>${fmt(D.click, true)}</b>${mul}</div>
+      <p class="note">${esc(t('gbMore'))}</p>`, [{ label: t('close'), cls: 'gold' }]);
+  };
 
   // ---------- Update loop ----------
   let goalKey = '';
@@ -562,6 +649,11 @@
   UI.update = function (force) {
     const S = G.S, D = G.D, R = G.R;
     if (performance.now() - snapT > 250) { snapT = performance.now(); snapPixels(); }
+    sampleGold();
+    // Settings → Reduce effects: the page's own pulses and glows rest (the field reads S.set.lowfx too)
+    setClass(document.body, 'lowfx', !!S.set.lowfx);
+    // Settings → Spin at once: a ready Lucky Spin pulls itself after a beat instead of waiting
+    if (S.set.autoSpin && G.spinReady && G.spinReady() && !G.uiBusy() && G.casino && (G.casino().readyT || 0) > 0.6 && !(G.casinoHold && G.casinoHold('auto'))) G.spin('auto');
     // the Town button: into town between fights, back to the field from it
     { const tb = $('#btnTown'); if (tb) { setText(tb.querySelector('b'), R.town ? t('townBack') : t('townBtn')); tb.classList.toggle('dim', !R.town && !G.townOk()); tb.classList.toggle('on', !!R.town);
       // it glows when the bag holds something better than what someone wears (checked once a second)
@@ -580,7 +672,8 @@
     const nowS = performance.now() / 1000;
     if (!goldHist.length || nowS - goldHist[goldHist.length - 1][0] >= 1) { goldHist.push([nowS, S.goldTotal]); while (goldHist.length > 11) goldHist.shift(); }
     const g0 = goldHist[0], rate = goldHist.length > 2 && S.goldTotal >= g0[1] ? (S.goldTotal - g0[1]) / Math.max(1, nowS - g0[0]) : 0;
-    setText($('#gpsNum'), fmt(Math.max(D.gps, rate), true));
+    UI._rate = Math.max(D.gps, rate);
+    setText($('#gpsNum'), fmt(UI._rate, true));
     setText($('#clickNum'), fmt(D.click, true));
     setText($('#essNum'), fmt(S.essence, true));
     setText($('#eggNum'), fmt(S.eggs));
@@ -739,7 +832,8 @@
     if (id === 'quests') return S.quests.some(q => q.done) || G.dailyAvailable();
     if (id === 'tavern') return !!(S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length);
     if (id === 'pets') return S.eggs >= 1;
-    if (id === 'forge') return G.S.hero.bag.some(g => G.powerWith(G.slotOf(g.id), g, -1) > G.powerWith(G.slotOf(g.id), G.S.hero.eq[G.slotOf(g.id)], -1));
+    // (an upgrade in the bag for anyone in the party, or a full bag)
+    if (id === 'forge') return bagUpsC().total > 0 || G.S.hero.bag.length >= G.TUNE.bagMax;
     return false;
   }
   const bldCanBuild = id => bldOpen(id) && G.bldLvl(id) < G.BLD_MAX && G.S.gold >= G.bldCost(id);
@@ -774,17 +868,63 @@
   };
 
   // Upgrades
+  // QoL: buy ×1, ×10 or as many as you can afford; sort cheapest first; each row says how long until you can
+  // afford it at this income; hold a row to keep buying
+  function upgPlan(u, amt) {
+    const S = G.S, L0 = S.upg[u.id] || 0, room = u.max ? Math.max(0, u.max - L0) : Infinity;
+    if (!room) return { n: 0, c: 0 };
+    let n = 0, c = 0;
+    const want = amt === 'max' ? room : Math.min(room, amt);
+    for (let i = 0; i < want && i < 1000; i++) {
+      const ci = u.base * Math.pow(u.growth, L0 + i);
+      if (amt === 'max' && n >= 1 && c + ci > S.gold) break;
+      c += ci; n++;
+      if (amt === 'max' && c > S.gold) break;
+    }
+    return { n, c };
+  }
+  function buyUpgN(id, n) { let k = 0; while (k < n && G.buyUpgrade(id)) k++; return k; }
+  // how long until a price is in reach at this income ('' when it already is, or would take days)
+  function eta(c) {
+    const S = G.S, r = UI._rate || 0;
+    if (S.gold >= c || r <= 0) return '';
+    const s = (c - S.gold) / r;
+    return s > 72 * 3600 ? '' : t('etaIn', G.fmtTime(Math.ceil(s)));
+  }
+  // hold a row: after a moment it buys again and again until it can't (a scroll or a lifted finger stops it)
+  function holdBuy(list, sel, buy) {
+    let tm = 0, iv = 0, row = null, did = false;
+    const stop = () => { clearTimeout(tm); clearInterval(iv); tm = iv = 0; row = null; };
+    list.addEventListener('pointerdown', e => {
+      const r = e.target.closest(sel); if (!r || e.button > 0) return;
+      stop(); did = false; row = r;
+      tm = setTimeout(() => { iv = setInterval(() => { if (!row || !row.isConnected) { stop(); return; } if (buy(row)) { did = true; row.classList.add('held'); } else stop(); }, 85); }, 420);
+    });
+    for (const k of ['pointerup', 'pointercancel', 'pointerleave']) list.addEventListener(k, () => { if (row) row.classList.remove('held'); stop(); });
+    list.addEventListener('contextmenu', e => { if (e.target.closest(sel)) e.preventDefault(); });
+    // (the click that ends a hold doesn't buy once more)
+    list.addEventListener('click', e => { if (did) { did = false; e.stopPropagation(); } }, true);
+  }
   renderers.upg = function (body) {
-    const S = G.S;
-    const list = G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (!u.req || S.upg[u.req] > 0) && (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger'));
-    body.innerHTML = `<button class="btn gold buyAll" data-buyall>${esc(t('buyAll'))}</button><div class="list">${list.map(u => `
+    const S = G.S, pf = PF(), amt = pf.upgAmt || 1, srt = pf.upgSort || 'def';
+    let list = visUpg(S);
+    if (srt === 'cost') {
+      const k = u => (u.max && (S.upg[u.id] || 0) >= u.max ? Infinity : upgPlan(u, amt === 'max' ? 1 : amt).c);
+      list = list.slice().sort((a, b) => k(a) - k(b));
+    }
+    body.innerHTML = `<button class="btn gold buyAll" data-buyall>${esc(t('buyAll'))}</button>
+      <div class="upgBar"><span class="seg" data-uamt>${[1, 10, 'max'].map(a => `<button data-a="${a}" class="${a === amt ? 'on' : ''}">${a === 'max' ? 'MAX' : '×' + a}</button>`).join('')}</span>
+        <span class="seg" data-usort>${['def', 'cost'].map(k => `<button data-s="${k}" class="${k === srt ? 'on' : ''}">${esc(t('upgSort_' + k))}</button>`).join('')}</span></div>
+      <div class="list">${list.map(u => `
       <button class="row" data-u="${u.id}">
         <span class="ico">${img(u.icon, '', 4)}</span>
         <span class="info"><span class="name">${esc(L(u.name))}<span class="lv" data-lv></span></span><span class="desc">${esc(L(u.desc))}</span></span>
-        <span class="cost">${img('ic_coin', '', 2)}<span data-cost></span></span>
+        <span class="cost">${img('ic_coin', '', 2)}<span data-cost></span><small class="eta" data-eta></small></span>
       </button>`).join('')}</div>
+      <p class="note">${esc(t('holdBuyHint'))}</p>
       <p class="note keys">${esc(t('keysHint'))}</p>`;
-    refs.rows = $$('.row', body).map(el => ({ el, u: G.UPGRADES.find(x => x.id === el.dataset.u), lv: el.querySelector('[data-lv]'), cost: el.querySelector('[data-cost]') }));
+    refs.rows = $$('.row', body).map(el => ({ el, u: G.UPGRADES.find(x => x.id === el.dataset.u), lv: el.querySelector('[data-lv]'), cost: el.querySelector('[data-cost]'), eta: el.querySelector('[data-eta]') }));
+    refs.order = list.map(u => u.id).join();
     // 3.3: buy the cheapest affordable upgrade again and again until nothing's affordable
     body.querySelector('[data-buyall]').addEventListener('click', () => {
       G.Audio.unlock(); let n = 0;
@@ -794,28 +934,41 @@
       }
       if (n) { G.Audio.buy(); UI.toast(esc(t('buyAllDone', n)), '', 'ic_coin'); UI.update(true); } else G.Audio.error();
     });
-    body.querySelector('.list').addEventListener('click', e => {
+    body.querySelector('[data-uamt]').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b) return; pf.upgAmt = b.dataset.a === 'max' ? 'max' : +b.dataset.a; if (srt === 'cost') { UI.render(); return; } $$('[data-uamt] button', body).forEach(x => x.classList.toggle('on', x === b)); UI.update(true); });
+    body.querySelector('[data-usort]').addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (!b) return; pf.upgSort = b.dataset.s; UI.render(); });
+    const lst = body.querySelector('.list');
+    const buyRow = r => { const u = G.UPGRADES.find(x => x.id === r.dataset.u), p = upgPlan(u, PF().upgAmt || 1); return p.n > 0 && G.S.gold >= p.c && buyUpgN(u.id, p.n) > 0; };
+    holdBuy(lst, '.row', buyRow);
+    lst.addEventListener('click', e => {
       const r = e.target.closest('.row'); if (!r) return;
-      if (!G.buyUpgrade(r.dataset.u)) { shakeRow(r); }
+      if (!buyRow(r)) shakeRow(r);
     });
     refs.count = list.length;
   };
   updaters.upg = function () {
     const S = G.S;
     if (!refs.rows) return;
-    const visible = G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (!u.req || S.upg[u.req] > 0) && (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger')).length;
-    if (visible !== refs.count) { UI.render(); return; }
+    if (visUpg(S).length !== refs.count) { UI.render(); return; }
+    const amt = PF().upgAmt || 1;
     for (const r of refs.rows) {
       const L_ = S.upg[r.u.id] || 0;
       const maxed = r.u.max && L_ >= r.u.max;
-      const c = G.upgCost(r.u);
+      const p = upgPlan(r.u, amt), can = !maxed && p.n > 0 && S.gold >= p.c;
       setText(r.lv, t('lvl') + ' ' + L_ + (r.u.max ? '/' + r.u.max : ''));
-      setText(r.cost, maxed ? t('max') : fmt(c));
+      setText(r.cost, maxed ? t('max') : (p.n > 1 ? p.n + '× ' : '') + fmt(p.c));
+      setText(r.eta, maxed || can ? '' : eta(p.c));
       setClass(r.el, 'maxed', maxed);
-      setClass(r.el, 'can', !maxed && S.gold >= c);
-      setClass(r.el, 'cant', !maxed && S.gold < c);
+      setClass(r.el, 'can', can);
+      setClass(r.el, 'cant', !maxed && !can);
     }
     const ba = $('[data-buyall]'); if (ba) setClass(ba, 'dim', !refs.rows.some(r => r.el.classList.contains('can')));
+    // cheapest first: the order follows the prices, but never moves a row under a finger
+    if ((PF().upgSort || 'def') === 'cost' && !UI._panelDown && performance.now() - (refs.ordT || 0) > 800) {
+      refs.ordT = performance.now();
+      const k = u => (u.max && (S.upg[u.id] || 0) >= u.max ? Infinity : upgPlan(u, amt === 'max' ? 1 : amt).c);
+      const ord = visUpg(S).slice().sort((a, b) => k(a) - k(b)).map(u => u.id).join();
+      if (ord !== refs.order) { const y = $('#tabBody').scrollTop; UI.render(); $('#tabBody').scrollTop = y; }
+    }
   };
   function shakeRow(r) { r.classList.remove('shake'); void r.offsetWidth; r.classList.add('shake'); G.Audio.error(); }
 
@@ -828,6 +981,7 @@
     const S = G.S;
     const vis = G.HEROES.filter(heroVisible);
     const next = G.HEROES[vis.length];
+    if (PF().hireAmt) buyAmt = PF().hireAmt;
     body.innerHTML = `
       <div class="sect">${esc(t('statsTitle'))}</div>
       <div class="statGrid">${G.POTIONS.map(p => `<div class="stat" data-p="${p.id}" title="${esc(L(p.name) + ': ' + L(p.desc))}">${img('pot_' + p.id, '', 2)}<b>${p.short}</b><span></span></div>`).join('')}</div>
@@ -839,20 +993,22 @@
           <span class="ico">${img('h_' + h.id, '', 4)}</span>
           <span class="info"><span class="name">${esc(L(h.name))}<span class="count" data-n></span></span>
             <span class="desc" data-d></span><span class="bar"><i data-bar></i></span></span>
-          <span class="cost">${img('ic_coin', '', 2)}<span data-cost></span></span>
+          <span class="cost">${img('ic_coin', '', 2)}<span data-cost></span><small class="eta" data-eta></small></span>
         </button>`).join('')}
         ${next ? `<div class="row locked"><span class="ico">${img('h_' + next.id, '', 4)}</span><span class="info"><span class="name">${esc(t('heroLocked'))}</span><span class="desc">${esc(t('heroLockedHint', fmt(next.cost * 0.35)))}</span></span><span></span></div>` : ''}
       </div>`;
-    refs.rows = $$('.row[data-h]', body).map(el => ({ el, h: G.HEROES.find(x => x.id === el.dataset.h), n: el.querySelector('[data-n]'), d: el.querySelector('[data-d]'), bar: el.querySelector('[data-bar]'), cost: el.querySelector('[data-cost]') }));
+    refs.rows = $$('.row[data-h]', body).map(el => ({ el, h: G.HEROES.find(x => x.id === el.dataset.h), n: el.querySelector('[data-n]'), d: el.querySelector('[data-d]'), bar: el.querySelector('[data-bar]'), cost: el.querySelector('[data-cost]'), eta: el.querySelector('[data-eta]') }));
     refs.stats = $$('.stat', body).map(el => ({ el, p: el.dataset.p, v: el.querySelector('span') }));
     refs.potHint = body.querySelector('[data-pothint]');
     refs.count = vis.length;
     body.querySelector('[data-seg]').addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
-      buyAmt = b.dataset.a === 'max' ? 'max' : +b.dataset.a;
+      buyAmt = b.dataset.a === 'max' ? 'max' : +b.dataset.a; PF().hireAmt = buyAmt;
       $$('[data-seg] button', body).forEach(x => x.classList.toggle('on', x === b));
       UI.update(true);
     });
+    // (hold a row to keep hiring)
+    holdBuy(body.querySelector('.list'), '.row[data-h]', r => !!G.buyHero(r.dataset.h, buyAmt));
     body.querySelector('.list').addEventListener('click', e => {
       const r = e.target.closest('.row[data-h]'); if (!r) return;
       if (!G.buyHero(r.dataset.h, buyAmt)) shakeRow(r);
@@ -874,6 +1030,7 @@
       setText(r.d, fmt(each, true) + t('perSec') + ' ' + t('each') + (n ? ' · ' + t('total') + ' ' + fmt(total, true) + t('perSec') : '') + (nextM ? ' · ' + t('toMilestone', nextM - n) : ''));
       r.bar.style.width = nextM ? ((n - prevM) / (nextM - prevM) * 100) + '%' : '100%';
       setText(r.cost, (amt > 1 ? amt + '× ' : '') + fmt(c));
+      setText(r.eta, S.gold >= c ? '' : eta(c));
       setClass(r.el, 'can', S.gold >= c);
       setClass(r.el, 'cant', S.gold < c);
     }
@@ -1296,7 +1453,7 @@
     return `<li>${esc(L(d.name))} <b>${d.x ? '+' + a[1].toFixed(2) + '×' : G.fmtPct(a[1])}</b>${tag}</li>`;
   }
   function gearTile(g, extra) {
-    return `<button class="gear r${g.r} ${g.q ? 'uq' : ''} ${G.isRelic && G.isRelic(g) ? 'relic' : ''} ${g.c ? 'corr' : ''} ${extra || ''}" data-g="${g.u}" style="--rc:${gearCol(g)}" aria-label="${esc(gearName(g))}">${img(G.gearSpr(g), '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u></button>`;
+    return `<button class="gear r${g.r} ${g.q ? 'uq' : ''} ${G.isRelic && G.isRelic(g) ? 'relic' : ''} ${g.c ? 'corr' : ''} ${extra || ''}" data-g="${g.u}" style="--rc:${gearCol(g)}" aria-label="${esc(gearName(g))}">${img(G.gearSpr(g), '', 4)}${g.e ? `<em>+${g.e}</em>` : ''}<small>${g.il}</small><u hidden>▲</u>${g.keep ? `<i class="gk" title="${esc(t('lockedTip'))}">${img('ic_key', '', 1)}</i>` : ''}</button>`;
   }
   // The currency strip: tap an orb to use it on the selected item
   function orbBar(g) {
@@ -1369,7 +1526,8 @@
       const sb = e.target.closest('[data-salv] button');
       if (sb) { h.salv = +sb.dataset.r; $$('[data-salv] button', body).forEach(x => x.classList.toggle('on', x === sb)); return; }
       if (e.target.closest('[data-salvall]')) {
-        const r = G.salvageBelow(Math.max(1, h.salv || 2));
+        // (locked items, uniques and worn gear stay)
+        const r = scrapBelow(Math.max(1, h.salv || 2));
         UI.toast(esc(t('salvaged', r.n, fmt(r.v))), '', 'ic_shard'); refs.hero.key = ''; return;
       }
       if (e.target.closest('[data-bestall]')) { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); refs.hero.key = ''; refs.hero.dollKey = ''; updaters.hero(true); return; }
@@ -1395,7 +1553,8 @@
         if (a === 'equip') G.equip(f.g, false, selWho);
         else if (a === 'unequip') G.unequip(f.worn, f.who);
         else if (a === 'enchant') { if (!G.enchant(f.g)) G.Audio.error(); }
-        else if (a === 'salvage') { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_shard'); selGear = null; } }
+        else if (a === 'salvage') { if (f.g.keep) { G.Audio.error(); UI.toast(esc(t('lockedNoScrap')), '', 'ic_key'); } else { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_shard'); selGear = null; } } }
+        else if (a === 'lock') { if (f.g.keep) delete f.g.keep; else f.g.keep = 1; G.dirty(); }
         refs.hero.key = ''; updaters.hero(true);
       }
     });
@@ -1437,6 +1596,7 @@
     setText(rf.pow, fmt(P ? P.c.power : D.power));
     setText(rf.shards, fmt(h.shards));
     setText(rf.bagn, h.bag.length + '/' + G.TUNE.bagMax);
+    setClass(rf.bagn, 'full', h.bag.length >= G.TUNE.bagMax);
     setText($('#tabSub'), t('power') + ' ' + fmt(D.power));
     // what the Warden is doing for you right now
     const c0 = D.hero, critEV = 1 + c0.crit * (c0.critMult - 1);
@@ -1450,7 +1610,7 @@
     ];
     const roleHtml = role.map(([k, v]) => `<span>${esc(t(k))}</span><b>${esc(v)}</b>`).join('') + (alone > limit * 2 ? `<p class="note warn">${esc(t('roleWeak'))}</p>` : '');
     if (rf.role.innerHTML !== roleHtml) rf.role.innerHTML = roleHtml;
-    const key = JSON.stringify([eqS, selWho, h.bag.length, h.bag.map(g => g.u + ':' + g.e).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks, h.orbs]);
+    const key = JSON.stringify([eqS, selWho, h.bag.length, h.bag.map(g => g.u + ':' + g.e + (g.keep ? 'k' : '')).join(), selGear, h.lvl, Math.floor(h.shards / 5), h.perks, h.orbs]);
     if (key === rf.key && !force) return;
     const pk = Object.keys(h.perks || {}).filter(k => h.perks[k] > 0);
     rf.perks.innerHTML = pk.length ? pk.map(k => {
@@ -1504,7 +1664,8 @@
       <div class="act">
         ${f.worn ? `<button class="btn" data-act="unequip">${esc(t('unequip'))}</button>` : `<button class="btn gold" data-act="equip">${esc(t('equip'))}</button>`}
         <button class="btn ${canE ? 'gold' : ''}" data-act="enchant" ${g.e >= G.ENCHANT_MAX ? 'disabled' : ''}>${esc(t('enchant'))} ${g.e >= G.ENCHANT_MAX ? t('max') : `${img('ic_shard', '', 2)}${fmt(ec.shards)} ${img('ic_coin', '', 2)}${fmt(ec.gold)}`}</button>
-        ${f.worn ? '' : `<button class="btn red" data-act="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))}</button>`}
+        ${f.worn ? '' : `<button class="btn red" data-act="salvage" ${g.keep ? `disabled title="${esc(t('lockedNoScrap'))}"` : ''}>${esc(t('salvage'))} +${fmt(G.salvageValue(g))}</button>`}
+        <button class="btn ${g.keep ? 'on' : ''}" data-act="lock" aria-pressed="${g.keep ? 'true' : 'false'}">${img('ic_key', '', 2)} ${esc(t(g.keep ? 'unlockItem' : 'lockItem'))}</button>
       </div>`;
   };
   // ---------- The Town (2.4): one window per building, over the field ----------
@@ -1519,7 +1680,12 @@
     if (!BLDS[id] && TAB_BLD[id]) { sub = id; id = TAB_BLD[id]; }
     const B = BLDS[id]; if (!B) return;
     if (!bldOpen(id)) { G.Audio.error(); UI.toast(esc(t('bldOpens', t('lock_' + id))), '', 'ic_scroll'); return; }
+    // QoL: a building opens on the tab it was left on
+    const pf = PF(); pf.sub = pf.sub && typeof pf.sub === 'object' ? pf.sub : {};
+    if (!sub && pf.sub[id]) sub = pf.sub[id];
     if (!sub || !B.subs.includes(sub) || !subOpen(sub)) sub = B.subs.find(subOpen);
+    pf.sub[id] = sub;
+    if (tw.id && tw.id !== id && (tw.id === 'forge' || tw.id === 'enchant')) bagSeen();
     tw.id = id; tw.sub = sub; tw.sel = null;
     if (tab === 'set') tab = 'upg';
     wtab = CUSTOM[sub] ? null : sub;
@@ -1532,10 +1698,55 @@
   };
   UI.townClose = function (quiet) {
     const had = !!wtab;
+    if (tw.id === 'forge' || tw.id === 'enchant') bagSeen();
     tw.id = null; wtab = null;
     const el = twEl(); if (el) { el.hidden = true; el.innerHTML = ''; }
     if (had && !quiet) UI.render(); else if (!quiet && G.R.town) UI.render();
   };
+  // ---------- QoL: the town's quick bar ----------
+  // Every window carries a row of the buildings that are open (one tap to the next, a dot where something wants
+  // you, a ▲ where a build-up is affordable) and a FIELD button, so a phone's full-screen window is never a dead end.
+  // Keys: 1–9, 0, − open a building; ← → step through them; Shift+← → the building's tabs; Esc closes.
+  const BLD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'];
+  const bldSpr = id => (G.SPR.defs[BLD_SPR[id]] ? BLD_SPR[id] : 'ic_scroll');
+  function twNav() {
+    const keys = !matchMedia('(hover: none)').matches;
+    return `<nav class="twNav" aria-label="${esc(t('twNavLbl'))}"><button class="twGo field" data-twgo="field" title="${esc(t('townBackTip'))}" aria-label="${esc(t('townBack'))}">${img(G.SPR.defs.ic_town ? 'ic_town' : 'ic_tomb', '', 2)}<b>${esc(t('townBack'))}</b></button>${BLD_ORDER.filter(bldOpen).map(id => {
+      const k = BLD_KEYS[BLD_ORDER.indexOf(id)];
+      return `<button class="twGo ${id === tw.id ? 'on' : ''}" data-twgo="${id}" title="${esc(t('town_' + id) + (keys ? ' (' + k + ')' : ''))}" aria-label="${esc(t('town_' + id))}"><span class="pic">${img(bldSpr(id), '', 1)}</span><small>${esc(t('twShort_' + id))}</small><i class="dot" hidden></i><i class="up" hidden>▲</i>${keys ? `<kbd class="hint">${k}</kbd>` : ''}</button>`;
+    }).join('')}</nav>`;
+  }
+  let navT = 0;
+  function twNavLive(force) {
+    const el = twEl(); if (!el || el.hidden) return;
+    const now = performance.now(); if (!force && now - navT < 400) return; navT = now;
+    for (const b of el.querySelectorAll('.twGo[data-twgo]')) {
+      const id = b.dataset.twgo; if (id === 'field') continue;
+      const d = b.querySelector('.dot'), u = b.querySelector('.up'), p = id !== tw.id && bldPing(id), c = bldCanBuild(id);
+      if (d && d.hidden === !!p) d.hidden = !p;
+      if (u && u.hidden === !!c) u.hidden = !c;
+    }
+  }
+  // the next (dir 1) or the previous (-1) open building; from the square, the first or the last
+  UI.townStep = function (dir) {
+    if (!G.R.town) return;
+    const open = BLD_ORDER.filter(bldOpen); if (!open.length) return;
+    let i = open.indexOf(tw.id);
+    i = i < 0 ? (dir > 0 ? 0 : open.length - 1) : (i + dir + open.length) % open.length;
+    G.Audio && G.Audio.unlock && G.Audio.unlock();
+    UI.townOpen(open[i]);
+    const w = twEl().querySelector('.tw'); if (w && !G.S.set.lowfx) w.classList.add(dir > 0 ? 'inR' : 'inL');
+    // (the bar keeps the open building in view)
+    const on = twEl().querySelector('.twGo.on'); if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  };
+  UI.townSub = function (dir) {
+    const B = BLDS[tw.id]; if (!B || B.subs.length < 2) return;
+    const subs = B.subs.filter(subOpen), i = subs.indexOf(tw.sub);
+    if (subs.length > 1) UI.townOpen(tw.id, subs[(i + dir + subs.length) % subs.length]);
+  };
+  // gear the player has looked at: anything newer shows a NEW tag in the Forge
+  const bagMaxU = () => (G.S.hero && G.S.hero.bag || []).reduce((m, g) => Math.max(m, g.u || 0), 0);
+  function bagSeen() { const pf = PF(); pf.seenU = Math.max(pf.seenU || 0, bagMaxU()); }
   // a building's tabs (the Tavern: party, character, ladder; the Museum: collection, trophies)
   function twSubRow(id) {
     const B = BLDS[id]; if (!B || B.subs.length < 2) return '';
@@ -1554,10 +1765,43 @@
     const b = twEl().querySelector('[data-twbuild]'); if (!b) return;
     setClass(b, 'gold', G.S.gold >= G.bldCost(b.dataset.twbuild));
   }
+  // ---------- QoL: what wants you, in one list ----------
+  // The town's panel and the welcome-back card both show it: each line is one tap to where it's done.
+  const visUpg = S => G.UPGRADES.filter(u => (S.upg[u.id] || 0) > 0 || (!u.req || S.upg[u.req] > 0) && (u.secret ? S.goldRun >= u.secret : S.goldTotal >= u.base * 0.3 || u.id === 'finger'));
+  function todoList() {
+    const S = G.S, h = S.hero, out = [];
+    if (!h || !h.cls) return out;
+    const ups = bagUpsC().total;
+    if (ups) out.push({ k: 'best', icon: 'ic_sword', txt: t('todoBest', ups) });
+    if (h.bag.length >= G.TUNE.bagMax) out.push({ k: 'forge', icon: 'ic_bag', txt: t('todoBag', h.bag.length), warn: 1 });
+    if (G.partySlots && G.partySlots() > S.party.length) out.push({ k: 'tavern', icon: 'h_knight', txt: t('todoSeat') });
+    const qd = S.quests.filter(q => q.done).length + (G.dailyAvailable() ? 1 : 0);
+    if (qd && bldOpen('quests')) out.push({ k: 'quests', icon: 'ic_scroll', txt: t('todoQuests', qd) });
+    if (S.eggs >= 1 && bldOpen('pets')) out.push({ k: 'pets', icon: 'ic_egg', txt: t('todoEggs', fmt(S.eggs)) });
+    if (bldOpen('stars') && G.NODES.some(n => (S.nodes[n.id] || 0) < n.max && G.nodeAvailable(n) && S.essence >= G.nodeCost(n))) out.push({ k: 'stars', icon: 'ic_ess', txt: t('todoStars') });
+    if (bldOpen('temple') && G.LEGACY.some(l => (S.legacy[l.id] || 0) < l.max && S.fame >= G.legacyCost(l))) out.push({ k: 'temple', icon: 'ic_fame', txt: t('todoFame') });
+    const nu = visUpg(S).filter(u => !(u.max && (S.upg[u.id] || 0) >= u.max) && S.gold >= G.upgCost(u)).length;
+    if (nu) out.push({ k: 'upg', icon: 'ic_rune', txt: t('todoUpg', nu) });
+    const nb = BLD_ORDER.filter(bldCanBuild).length;
+    if (nb) out.push({ k: 'build', icon: G.SPR.defs.ic_town ? 'ic_town' : 'ic_tomb', txt: t('todoBuild', nb) });
+    return out;
+  }
+  UI.todoList = todoList;
+  function todoGo(k) {
+    G.Audio && G.Audio.unlock && G.Audio.unlock();
+    if (k === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); pingT = 0; if (G.R.town && tw.id) renderTown(); UI.render(); return; }
+    if (k === 'upg') { if (G.R.town) G.leaveTown(); tab = 'upg'; UI.render(); return; }
+    if (!G.R.town && !G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
+    if (k === 'build') { const id = BLD_ORDER.filter(bldCanBuild).sort((x, y) => G.bldCost(x) - G.bldCost(y))[0]; if (id) UI.townOpen(id); return; }
+    UI.townOpen(k, k === 'tavern' ? 'tavern' : undefined);
+  }
+  UI.todoGo = todoGo;
+  const todoHtml = list => list.length ? `<div class="todo">${list.map(x => `<button class="todoRow ${x.warn ? 'warn' : ''}" data-todo="${x.k}">${img(G.SPR.defs[x.icon] ? x.icon : 'ic_star', '', 2)}<span>${esc(x.txt)}</span><i>›</i></button>`).join('')}</div>` : '';
   // the panel, in town: every building, what it does, how built up it is, what opens it
   renderers.towndir = function (body) {
-    const S = G.S;
-    body.innerHTML = `<p class="note">${esc(t('dirHint'))}</p>
+    const S = G.S, todo = todoList(), canB = BLD_ORDER.filter(bldCanBuild);
+    refs.todoKey = todo.map(x => x.k + x.txt).join('|');
+    body.innerHTML = `${todo.length ? `<div class="sect">${esc(t('todoTitle'))}</div>${todoHtml(todo)}` : ''}<p class="note">${esc(t('dirHint'))}</p>
       <div class="dirLvl">${esc(t('dirLvl', G.townLvl()))} <small>/ ${G.BLD.length * G.BLD_MAX}</small></div>
       <div class="dirList">${BLD_ORDER.map(id => {
         const open = bldOpen(id), L = G.bldLvl(id), sp = G.SPR.defs[BLD_SPR[id]] ? BLD_SPR[id] : 'ic_scroll';
@@ -1566,9 +1810,12 @@
           <span class="txt"><b>${esc(t('town_' + id))}</b><small>${open ? esc(t('bldLvl', L, G.BLD_MAX) + ' · ' + (L ? '' : t('bldNext') + ': ') + t('bldFx_' + id, bldVal(id, Math.max(1, L)))) : esc(t('bldLocked') + ': ' + t('bldOpens', t('lock_' + id)))}</small></span>
           <span class="dot" hidden></span><i class="up" hidden>▲</i></button>`;
       }).join('')}</div>
-      <button class="btn gold" data-dirall>${esc(t('dirBuildAll'))}</button>
-      <button class="btn big" data-dirback>${esc(t('dirBack'))}</button>`;
+      <button class="btn gold ${canB.length ? '' : 'dim'}" data-dirall>${esc(t('dirBuildAll'))}${canB.length ? ` · ${canB.length}` : ''}</button>
+      <button class="btn big" data-dirback>${esc(t('dirBack'))}</button>
+      ${matchMedia('(hover: none)').matches ? `<p class="note">${esc(t('dirSwipe'))}</p>` : `<p class="note keys">${esc(t('dirKeys'))}</p>`}`;
     body.addEventListener('click', e => {
+      const td = e.target.closest('[data-todo]');
+      if (td) { todoGo(td.dataset.todo); return; }
       const r = e.target.closest('[data-dir]');
       if (r) { G.Audio.unlock(); G.Audio.buy && G.Audio.buy(); UI.townOpen(r.dataset.dir); return; }
       if (e.target.closest('[data-dirback]')) { G.Audio.unlock(); G.leaveTown(); }
@@ -1582,6 +1829,8 @@
   };
   updaters.towndir = function () {
     const rf = refs.dir; if (!rf) return;
+    // (the to-do list follows what changes, checked twice a second; never while a finger is down on the panel)
+    if (performance.now() - (rf.tdT || 0) > 500 && !UI._panelDown) { rf.tdT = performance.now(); const k = todoList().map(x => x.k + x.txt).join('|'); if (k !== refs.todoKey) { UI.render(); return; } }
     for (const r of rf.rows) {
       const id = r.dataset.dir, d = r.querySelector('.dot'), u = r.querySelector('.up'), p = bldPing(id), c = bldCanBuild(id);
       if (d.hidden === p) d.hidden = !p;
@@ -1614,9 +1863,63 @@
   function twHeader(npc, title, sub) {
     return `<header class="twHead">${img(npc, '', 4)}<div><b>${esc(title)}</b><small>${esc(sub)}</small></div><button class="twX" data-tw="close" aria-label="${esc(t('close'))}">✕</button></header>`;
   }
+  const whoName = w => (w < 0 ? (G.S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(w)].name));
+  // QoL: what in the bag is an upgrade for whom: the count per member, the total, and for each item the first
+  // member it would suit (companions keep to their class's weapons and leave uniques to the Warden, as EQUIP BEST does)
+  function bagUps() {
+    const S = G.S, h = S.hero, n = {}, whoFor = new Map(); let total = 0;
+    if (!h || !h.cls) return { total, n, whoFor };
+    for (const w of [-1].concat((S.party || []).map((_, i) => i))) {
+      n[w] = 0; const eq = G.eqOf(w), base = {};
+      for (const g of h.bag) {
+        const sl = G.slotOf(g.id); if (!canWear(g, w) || (w >= 0 && g.q)) continue;
+        if (base[sl] == null) base[sl] = G.powerWith(sl, eq[sl], w);
+        if (G.powerWith(sl, g, w) > base[sl]) { n[w]++; total++; if (!whoFor.has(g.u)) whoFor.set(g.u, whoName(w)); }
+      }
+    }
+    return { total, n, whoFor };
+  }
+  UI.bagUps = bagUps;
+  // (the badges ask often: a fresh answer at most every 400 ms)
+  let upsC = null, upsT = 0;
+  function bagUpsC() { const now = performance.now(); if (!upsC || now - upsT > 400) { upsC = bagUps(); upsT = now; } return upsC; }
+  // QoL: breaking down many at once never takes a locked item, a unique or anything someone wears
+  const scrapList = r => G.S.hero.bag.filter(g => g.r < r && !g.q && !g.keep && !G.isWorn(g));
+  function scrapBelow(r) {
+    const list = scrapList(r); let v = 0;
+    for (const g of list) v += G.salvage(g, true);
+    if (list.length) { G.emit('salvage', null, v); G.dirty(); G.recalc(); }
+    return { n: list.length, v };
+  }
+  UI.scrapBelow = scrapBelow;
+  // pick the rarity, see how many go and the shards they give, then confirm
+  UI.scrapAsk = function () {
+    const pf = PF(); let r = Math.min(6, Math.max(1, pf.salv || 2));
+    const html = `<p class="note">${esc(t('scrapHint'))}</p>
+      <div class="scrapSeg">${[1, 2, 3, 4, 5, 6].map(i => `<button data-sr="${i}" style="--rc:${G.RARITIES[i].color}" class="${i === r ? 'on' : ''}">${esc(L(G.RARITIES[i].name))}</button>`).join('')}</div>
+      <p class="scrapSum" data-ssum></p>`;
+    const m = UI.modal(t('scrapTitle'), html, [{ label: t('salvage'), cls: 'red', fn: () => {
+      const res = scrapBelow(r);
+      if (res.n) { G.Audio.buy(); UI.toast(esc(t('salvaged', res.n, fmt(res.v))), '', 'ic_shard'); } else G.Audio.error();
+      if (G.R.town && tw.id) renderTown(); UI.update(true);
+    } }, { label: t('cancel') }]);
+    const upd = () => {
+      const list = scrapList(r), v = list.reduce((a, g) => a + G.salvageValue(g), 0), kept = G.S.hero.bag.filter(g => g.r < r && (g.keep || g.q)).length;
+      const sm = m.querySelector('[data-ssum]'); if (sm) sm.innerHTML = `${esc(t('scrapSum', list.length, L(G.RARITIES[r].name)))} ${img('ic_shard', 'inl', 2)} <b>+${fmt(v)}</b>${kept ? `<br><small>${esc(t('scrapKept', kept))}</small>` : ''}`;
+      const go = m.querySelector('[data-a="0"]'); if (go) { go.textContent = t('scrapGo', list.length); go.disabled = !list.length; }
+    };
+    m.querySelector('.scrapSeg').addEventListener('click', e => {
+      const b = e.target.closest('[data-sr]'); if (!b) return;
+      r = +b.dataset.sr; pf.salv = r;
+      m.querySelectorAll('[data-sr]').forEach(x => x.classList.toggle('on', x === b)); upd();
+    });
+    upd();
+    return m;
+  };
   function twWhoRow() {
     const S = G.S, units = [{ who: -1, cls: S.hero.cls, eq: S.hero.eq }].concat((S.party || []).map((m, i) => ({ who: i, cls: m.cls, eq: m.eq })));
-    return `<div class="twWho">${units.map(u => `<button class="${u.who === tw.who ? 'on' : ''}" data-twwho="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small>${esc(u.who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[u.cls].name))}</small></button>`).join('')}</div>`;
+    const ups = bagUps();
+    return `<div class="twWho">${units.map(u => `<button class="${u.who === tw.who ? 'on' : ''}" data-twwho="${u.who}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><small>${esc(whoName(u.who))}</small>${ups.n[u.who] ? `<em class="upN" title="${esc(t('twUpsFor', ups.n[u.who]))}">▲${ups.n[u.who]}</em>` : ''}</button>`).join('')}</div>`;
   }
   function renderForge(el) {
     const S = G.S, h = S.hero, who = tw.who, m = memOf(who), eq = m ? m.eq : h.eq, enchant = tw.id === 'enchant';
@@ -1630,11 +1933,19 @@
         <span class="row">${g ? gearTile(g) : `<span class="empty">${img(SLOT_ICON[s], '', 3, { dark: true })}</span>`}
         <span class="nm" style="color:${g ? gearCol(g) : 'var(--dim)'}">${g ? esc(gearName(g)) : esc(t('twEmpty'))}</span></span></div>`;
     }).join('');
-    const bag = h.bag.filter(g => tw.filter === 'all' || G.slotOf(g.id) === tw.filter)
-      .sort((a, b) => G.SLOTS.indexOf(G.slotOf(a.id)) - G.SLOTS.indexOf(G.slotOf(b.id)) || b.r - a.r || b.il - a.il);
+    // QoL: the bag sorts by slot, rarity, power (for whoever is picked) or newest; each tile says ▲ better / ▼ worse
+    // for them, ◆ when it would suit someone else in the party, NEW when it came since the last look, and a key when locked
+    const srt = PF().sort || 'slot', seenU = PF().seenU || 0, ups = bagUps();
+    const gain = g => { const sl = G.slotOf(g.id); return canWear(g, who) ? G.powerWith(sl, g, who) - G.powerWith(sl, eq[sl], who) : -Infinity; };
+    const gn = new Map(h.bag.map(g => [g, gain(g)]));
+    const bySlot = (a, b) => G.SLOTS.indexOf(G.slotOf(a.id)) - G.SLOTS.indexOf(G.slotOf(b.id));
+    const SORTS = { slot: (a, b) => bySlot(a, b) || b.r - a.r || b.il - a.il, rar: (a, b) => (b.q ? 9 : b.r) - (a.q ? 9 : a.r) || b.il - a.il || bySlot(a, b),
+      pow: (a, b) => gn.get(b) - gn.get(a) || b.r - a.r, new: (a, b) => b.u - a.u };
+    const bag = h.bag.filter(g => tw.filter === 'all' || G.slotOf(g.id) === tw.filter).sort(SORTS[srt] || SORTS.slot);
     const tiles = bag.map(g => {
-      const sl = G.slotOf(g.id), ok = canWear(g, who), d = ok ? G.powerWith(sl, g, who) - G.powerWith(sl, eq[sl], who) : 0;
-      return `<span class="twTile ${ok ? '' : 'no'} ${d > 0 ? 'better' : ''} ${tw.sel === g.u ? 'sel' : ''}" data-twg="${g.u}">${gearTile(g)}${d > 0 ? '<i class="up">▲</i>' : ''}</span>`;
+      const ok = canWear(g, who), d = gn.get(g), oth = !(d > 0) && ups.whoFor.get(g.u);
+      const mark = d > 0 ? '<i class="up">▲</i>' : ok && d < 0 ? '<i class="dn">▼</i>' : '';
+      return `<span class="twTile ${ok ? '' : 'no'} ${d > 0 ? 'better' : ''} ${tw.sel === g.u ? 'sel' : ''} ${g.keep ? 'kept' : ''}" data-twg="${g.u}">${gearTile(g)}${mark}${oth ? `<i class="oth" title="${esc(t('twBetterFor', oth))}">◆</i>` : ''}${g.u > seenU ? `<i class="new">${esc(t('newTag'))}</i>` : ''}</span>`;
     }).join('');
     // the item card
     let card = `<div class="twCard empty"><p>${esc(t(enchant ? 'twPickEnchant' : 'twPick'))}</p></div>`;
@@ -1653,14 +1964,16 @@
         <div class="twActs">
           ${f.worn ? `<button class="btn" data-twa="unequip">${esc(t('unequip'))}</button>` : `<button class="btn gold" data-twa="equip" ${canWear(g, who) ? '' : 'disabled'}>${esc(t('twEquipOn', who < 0 ? (S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(who)].name)))}</button>`}
           <button class="btn ${canE ? 'gold' : ''}" data-twa="enchant" ${g.e >= G.ENCHANT_MAX ? 'disabled' : ''}>${esc(t('twUpgrade', g.e + 1))} ${g.e >= G.ENCHANT_MAX ? t('max') : `${img('ic_shard', '', 2)}${fmt(ec.shards)} ${img('ic_coin', '', 2)}${fmt(ec.gold)}`}</button>
-          ${f.worn ? '' : `<button class="btn red" data-twa="salvage">${esc(t('salvage'))} +${fmt(G.salvageValue(g))} ${img('ic_shard', '', 2)}</button>`}
+          ${f.worn ? '' : `<button class="btn red" data-twa="salvage" ${g.keep ? `disabled title="${esc(t('lockedNoScrap'))}"` : ''}>${esc(t('salvage'))} +${fmt(G.salvageValue(g))} ${img('ic_shard', '', 2)}</button>`}
+          <button class="btn ${g.keep ? 'on' : ''}" data-twa="lock" aria-pressed="${g.keep ? 'true' : 'false'}">${img('ic_key', '', 2)} ${esc(t(g.keep ? 'unlockItem' : 'lockItem'))}</button>
         </div>
         <p class="hint">${esc(t('twUpgradeHint', g.e, G.ENCHANT_MAX))}</p>
         <div class="twOrbs"><small>${esc(t('twOrbs'))}</small>${orbBar(g)}</div>
       </div>`;
     }
     const filters = ['all'].concat(G.SLOTS).map(k => `<button class="${tw.filter === k ? 'on' : ''}" data-twflt="${k}">${esc(k === 'all' ? t('twAll') : t('slot_' + k))}</button>`).join('');
-    const better = h.bag.some(g => { const sl = G.slotOf(g.id); return canWear(g, who) && G.powerWith(sl, g, who) > G.powerWith(sl, eq[sl], who); });
+    const better = ups.total > 0, full = h.bag.length >= G.TUNE.bagMax;
+    const sorts = ['slot', 'rar', 'pow', 'new'].map(k => `<button class="${srt === k ? 'on' : ''}" data-twsort="${k}">${esc(t('sort_' + k))}</button>`).join('');
     el.innerHTML = `<div class="tw forge ${enchant ? 'ench' : ''}">
       ${twHeader(enchant ? 'npc_witch' : 'npc_smith', t(enchant ? 'town_enchant' : 'town_forge'), t(enchant ? 'twEnchSub' : 'twForgeSub'))}
       ${twWhoRow()}
@@ -1673,11 +1986,12 @@
           <label class="twAuto"><input type="checkbox" data-twauto ${h.auto ? 'checked' : ''}> ${esc(t('twAutoEq'))}</label>
         </div>
         <div class="twBag">
-          <div class="twBagHead"><b>${esc(t('twBag', h.bag.length, G.TUNE.bagMax))}</b><span class="flt">${filters}</span></div>
+          <div class="twBagHead"><b class="${full ? 'full' : ''}">${esc(t('twBag', h.bag.length, G.TUNE.bagMax))}</b><span class="flt">${filters}</span></div>
+          ${full ? `<p class="bagFull">${esc(t('bagFullHint'))}</p>` : ''}
+          <div class="twSort"><small>${esc(t('sortBy'))}</small><span class="flt">${sorts}</span></div>
           <div class="twGrid">${tiles || `<p class="note">${esc(t('bagEmpty'))}</p>`}</div>
           <div class="twSalv">${img('ic_shard', '', 2)} <b>${fmt(h.shards)}</b> ${esc(t('twShards'))}
-            <button class="btn red" data-twa="salvall">${esc(t('twSalvAll', L(G.RARITIES[tw.salv].name)))}</button>
-            <select data-twsalv>${G.RARITIES.slice(1, 6).map((r, i) => `<option value="${i + 1}" ${tw.salv === i + 1 ? 'selected' : ''}>${esc(L(r.name))}</option>`).join('')}</select></div>
+            <button class="btn red" data-twa="salvask">${esc(t('scrapMany'))}</button></div>
         </div>
         ${card}
       </div></div>`;
@@ -1704,13 +2018,29 @@
     }).join('');
     el.innerHTML = `<div class="tw alch">${twHeader('npc_alch', t('town_alch'), t('twAlchSub'))}<div class="twPots">${rows}</div></div>`;
   }
+  // QoL: the whole team at a glance: each one's power, damage, health, the four things they wear and how many
+  // upgrades wait in the bag for them, the team's power, and EQUIP BEST right here
+  function memStats(who) {
+    const m = memOf(who), eq = m ? m.eq : G.S.hero.eq;
+    return G.heroCombat(eq, G.D, m ? { cls: m.cls, lvl: G.S.hero.lvl } : undefined);
+  }
+  function memGear(who) {
+    const eq = G.eqOf(who);
+    return `<span class="mGear">${G.SLOTS.map(sl => { const g = eq[sl]; return g ? `<i class="mg" style="--rc:${gearCol(g)}" title="${esc(gearName(g))}">${img(G.gearSpr(g), '', 2)}</i>` : `<i class="mg none" title="${esc(t('slot_' + sl) + ': ' + t('twEmpty'))}">${img(SLOT_ICON[sl], '', 2, { dark: true })}</i>`; }).join('')}</span>`;
+  }
+  function memLine(who, ups) {
+    const c = memStats(who);
+    return `<span class="mStat"><b>${fmt(c.power)}</b> ${esc(t('power').toLowerCase())} · ${fmt(c.dps, true)}${esc(t('perSec'))} · ${fmt(c.hp)} ${esc(t('twHp').toLowerCase())}</span>${memGear(who)}${ups.n[who] ? `<em class="upN">▲${ups.n[who]} ${esc(t('twUpsShort'))}</em>` : ''}`;
+  }
   function renderTavern(el) {
-    const S = G.S, slots = G.partySlots(), party = S.party || [];
-    const mem = party.map((m, i) => `<div class="twMem"><img src="${G.Doll.portrait({ cls: m.cls, eq: m.eq }, 3, true)}" alt=""><b>${esc(L(G.CLASS_BY_ID[m.cls].name))}</b><small class="r_${G.ROLES[m.cls]}">${esc(G.ROLE_NAMES[G.ROLES[m.cls]])}</small><button class="btn" data-twgear="${i}">${esc(t('twGearUp'))}</button></div>`).join('');
+    const S = G.S, slots = G.partySlots(), party = S.party || [], ups = bagUps();
+    const teamPow = [-1].concat(party.map((_, i) => i)).reduce((a, w) => a + memStats(w).power, 0);
+    const mem = party.map((m, i) => `<div class="twMem"><img src="${G.Doll.portrait({ cls: m.cls, eq: m.eq }, 3, true)}" alt=""><b>${esc(L(G.CLASS_BY_ID[m.cls].name))}</b><small class="r_${G.ROLES[m.cls]}">${esc(G.ROLE_NAMES[G.ROLES[m.cls]])}</small>${memLine(i, ups)}<button class="btn" data-twgear="${i}">${esc(t('twGearUp'))}</button></div>`).join('');
+    const team = `<div class="twTeam"><span>${esc(t('teamPower'))} <b>${fmt(teamPow)}</b></span><button class="btn gold ${ups.total ? 'pulse' : ''}" data-twa="best">${esc(t('twBest'))}${ups.total ? ` · ▲${ups.total}` : ''}</button></div>`;
     const open = slots - party.length;
     const recruits = open > 0 ? `<p>${esc(t('twRecruitN', open))}</p><div class="twRecruit">${G.CLASSES.map(c => `<button class="clsCard" data-twrec="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><small class="r_${G.ROLES[c.id]}">${esc(G.ROLE_NAMES[G.ROLES[c.id]])}</small></button>`).join('')}</div>` : `<p class="note">${esc(t(slots >= 3 ? 'twPartyFull' : 'twNextSlot', (G.PARTY_AT || [])[slots] || ''))}</p>`;
     el.innerHTML = `<div class="tw tavern">${twHeader('npc_keeper', t('town_tavern'), t('twTavernSub'))}
-      <div class="twParty"><div class="twMem lead"><img src="${G.Doll.portrait(S.hero, 3)}" alt=""><b>${esc(S.profile.name || t('wardenName'))}</b><small>${esc(L(G.CLASS_BY_ID[S.hero.cls].name))} · ${esc(t('lvl'))} ${S.hero.lvl}</small><button class="btn" data-twgear="-1">${esc(t('twGearUp'))}</button></div>${mem}</div>
+      ${team}<div class="twParty"><div class="twMem lead"><img src="${G.Doll.portrait(S.hero, 3)}" alt=""><b>${esc(S.profile.name || t('wardenName'))}</b><small>${esc(L(G.CLASS_BY_ID[S.hero.cls].name))} · ${esc(t('lvl'))} ${S.hero.lvl}</small>${memLine(-1, ups)}<button class="btn" data-twgear="-1">${esc(t('twGearUp'))}</button></div>${mem}</div>
       ${recruits}</div>`;
   }
   function renderTown(full) {
@@ -1718,26 +2048,34 @@
     if (!G.S.hero || !G.S.hero.cls) { UI.townClose(); return; }
     if (tw.who >= (G.S.party || []).length) { tw.who = -1; tw.sel = null; }
     const B = BLDS[tw.id];
+    const nv0 = el.querySelector('.twNav'), navX = nv0 ? nv0.scrollLeft : 0;
     if (!CUSTOM[tw.sub]) {
       // a page hosted here: its renderer draws it once (full), its updater keeps it live
       if (!full) { twFootLive(); return; }
       const old = el.querySelector('.twTabBody'), y = old ? old.scrollTop : 0;
-      el.innerHTML = `<div class="tw host">${twHeader(B.npc, t('town_' + tw.id), t(B.sub || 'twTavernSub'))}${twSubRow(tw.id)}
+      el.innerHTML = `<div class="tw host">${twHeader(B.npc, t('town_' + tw.id), t(B.sub || 'twTavernSub'))}${twNav()}${twSubRow(tw.id)}
         <div class="twTabHead"><b>${esc(tw.sub === 'hero' ? t('twSubChar') : t('tab_' + tw.sub))}</b><small id="tabSub"></small></div><div class="tabBody twTabBody"></div>${twBldFoot(tw.id)}</div>`;
       const body = el.querySelector('.twTabBody');
       (renderers[tw.sub] || (() => {}))(body);
       body.scrollTop = y;
+      const nv = el.querySelector('.twNav'); if (nv) nv.scrollLeft = navX;
+      twNavLive(true);
       return;
     }
     const sc = el.querySelector('.twBody, .twPots, .tw.tavern'), y = sc ? sc.scrollTop : 0, gy = el.querySelector('.twGrid') ? el.querySelector('.twGrid').scrollTop : 0;
+    // (on a phone the whole window scrolls: a tap deep in the bag must not jump back to the top)
+    const w0 = el.querySelector('.tw'), wy = w0 && w0.dataset.b === tw.id + tw.sub ? w0.scrollTop : 0;
     if (tw.id === 'forge' || (tw.id === 'enchant' && tw.sub !== 'gamble')) renderForge(el);
     else if (tw.sub === 'gamble') renderGamble(el);
     else if (tw.id === 'alch') renderAlch(el);
     else if (tw.id === 'tavern') renderTavern(el);
-    const head = el.querySelector('.twHead'); if (head) head.insertAdjacentHTML('afterend', twSubRow(tw.id));
+    const head = el.querySelector('.twHead'); if (head) head.insertAdjacentHTML('afterend', twNav() + twSubRow(tw.id));
     const root = el.querySelector('.tw'); if (root) root.insertAdjacentHTML('beforeend', twBldFoot(tw.id));
     const sc2 = el.querySelector('.twBody, .twPots, .tw.tavern'); if (sc2) sc2.scrollTop = y;
     const g2 = el.querySelector('.twGrid'); if (g2) g2.scrollTop = gy;
+    const nv = el.querySelector('.twNav'); if (nv) nv.scrollLeft = navX;
+    const w1 = el.querySelector('.tw'); if (w1) { w1.dataset.b = tw.id + tw.sub; if (wy) w1.scrollTop = wy; }
+    twNavLive(true);
   }
   UI.townRender = renderTown;
   function bindTown() {
@@ -1751,11 +2089,16 @@
     el.addEventListener('click', e => {
       // (a page hosted here handles its own clicks)
       if (e.target.closest('.twTabBody')) return;
-      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb],[data-twsub],[data-twbuild],[data-twgamb],[data-twseal]');
+      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb],[data-twsub],[data-twbuild],[data-twgamb],[data-twseal],[data-twgo],[data-twsort]');
+      // (a phone shows the building's note on one line: a tap on it shows the whole of it)
+      if (!b && e.target.closest('.twHead > div')) { e.target.closest('.twHead').classList.toggle('open'); return; }
       if (!b) { if (e.target === el) UI.townClose(); return; }
       G.Audio.unlock();
       const h = G.S.hero;
       if (b.dataset.tw === 'close') { UI.townClose(); return; }
+      if (b.dataset.twgo) { if (b.dataset.twgo === 'field') G.leaveTown(); else if (b.dataset.twgo !== tw.id) { G.Audio.buy && G.Audio.buy(); UI.townOpen(b.dataset.twgo); } return; }
+      if (b.dataset.twsort) { PF().sort = b.dataset.twsort; renderTown(); return; }
+      if (b.dataset.twa === 'salvask') { UI.scrapAsk(); return; }
       if (b.dataset.twsub) { UI.townOpen(tw.id, b.dataset.twsub); return; }
       if (b.dataset.twgamb) {
         const r = G.gamble(b.dataset.twgamb);
@@ -1790,13 +2133,16 @@
       } else if (b.dataset.twa) {
         const a = b.dataset.twa, f = tw.sel != null ? twFind(tw.sel) : null;
         if (a === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); }
-        else if (a === 'salvall') { const r = G.salvageBelow(tw.salv); if (r.n) G.Audio.buy(); }
+        else if (a === 'salvall') { const r = scrapBelow(PF().salv || 2); if (r.n) G.Audio.buy(); }
+        else if (f && a === 'lock') { if (f.g.keep) delete f.g.keep; else f.g.keep = 1; G.Audio.click && G.Audio.click(0, false); }
         else if (f && a === 'equip') { if (canWear(f.g, tw.who)) { G.equip(f.g, false, tw.who); G.Audio.buy(); } }
         else if (f && a === 'unequip') { G.unequip(f.worn, f.who); }
         else if (f && a === 'enchant') { if (G.enchant(f.g)) G.Audio.buy(); else G.Audio.error(); }
-        else if (f && a === 'salvage') { G.salvage(f.g); tw.sel = null; G.Audio.buy(); }
+        else if (f && a === 'salvage') { if (f.g.keep) { G.Audio.error(); UI.toast(esc(t('lockedNoScrap')), '', 'ic_key'); return; } G.salvage(f.g); tw.sel = null; G.Audio.buy(); }
       }
       G.dirty(); G.recalc(); renderTown(); UI.update(true);
+      // (on a phone the item card sits under the bag: bring it into view after a pick)
+      if (b.dataset.twg != null && innerWidth < 860) { const c = el.querySelector('.twCard'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'nearest', behavior: G.S.set.lowfx ? 'auto' : 'smooth' }); }
     });
   }
 
@@ -2048,14 +2394,25 @@
 
   // Settings
   renderers.set = function (body) {
-    const s = G.S.set;
-    const tg = (k, label) => `<div class="setRow"><span>${esc(label)}</span><button class="toggle ${s[k] ? 'on' : ''}" data-t="${k}" aria-pressed="${s[k] ? 'true' : 'false'}" aria-label="${esc(label)}"></button></div>`;
+    const s = G.S.set, h = G.S.hero;
+    const row = (on, attr, label, hint) => `<div class="setRow"><span>${esc(label)}${hint ? `<small>${esc(hint)}</small>` : ''}</span><button class="toggle ${on ? 'on' : ''}" ${attr} aria-pressed="${on ? 'true' : 'false'}" aria-label="${esc(label)}"></button></div>`;
+    const tg = (k, label, hint) => row(!!s[k], `data-t="${k}"`, label, hint);
+    // the Warden's own switches (kept on the hero, as the Character page has them); Overdrive is on unless switched off
+    const htg = (k, label, hint) => row(k === 'autoOd' ? h.autoOd !== 0 : !!h[k], `data-ht="${k}"`, label, hint);
+    const fmt0Demo = () => G.fmt(1234567890) + ' · ' + G.fmt(4.2e18);
     body.innerHTML = `
       <div class="setList">
         ${tg('sound', t('sound'))}${tg('music', t('music'))}
         <div class="setRow"><span>${esc(t('volume'))}</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${s.vol}"></div>
         ${tg('hold', t('hold'))}${tg('shake', t('shake'))}${tg('autoBoss', t('autoBoss'))}${tg('filter', t('lootFilter'))}
         ${window.BTTN_AN ? tg('stats', t('statsOpt')) : ''}
+      </div>
+      <div class="sect">${esc(t('setPlay'))}</div>
+      <div class="setList">
+        ${htg('auto', t('autoEquip'))}${htg('autoPerk', t('autoPerk'))}${htg('cast', t('autoCast'))}${htg('autoOd', t('autoOd'), t('autoOdHint'))}
+        ${tg('autoSpin', t('autoSpin'), t('autoSpinHint'))}${tg('lowfx', t('lowfx'), t('lowfxHint'))}
+        <div class="setRow"><span>${esc(t('autoSalv'))}</span><span class="seg" data-hsalv>${[0, 1, 2, 3].map(r => `<button data-r="${r}" class="${(h.salv || 0) === r ? 'on' : ''}">${r === 0 ? esc(t('off')) : esc(L(G.RARITIES[r].name))}</button>`).join('')}</span></div>
+        <div class="setRow"><span>${esc(t('numFmt'))}<small>${esc(fmt0Demo())}</small></span><span class="seg" data-nf>${[0, 1].map(v => `<button data-v="${v}" class="${(s.sci ? 1 : 0) === v ? 'on' : ''}">${esc(t('numFmt' + v))}</button>`).join('')}</span></div>
       </div>
       <div class="sect">${esc(t('saveTitle'))}</div>
       <p class="note">${esc(t('importHint'))}</p>
@@ -2074,6 +2431,12 @@
     body.addEventListener('click', e => {
       const tgB = e.target.closest('[data-t]');
       if (tgB) { const k = tgB.dataset.t; s[k] = s[k] ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.render(); return; }
+      const hb = e.target.closest('[data-ht]');
+      if (hb) { const k = hb.dataset.ht; h[k] = k === 'autoOd' ? (h.autoOd === 0 ? 1 : 0) : (h[k] ? 0 : 1); G.dirty && G.dirty(); UI.render(); return; }
+      const sv = e.target.closest('[data-hsalv] [data-r]');
+      if (sv) { h.salv = +sv.dataset.r; UI.render(); return; }
+      const nf = e.target.closest('[data-nf] [data-v]');
+      if (nf) { s.sci = +nf.dataset.v; UI.render(); return; }
       if (e.target.closest('[data-exp]')) { $('#saveBox').value = G.exportSave(); return; }
       if (e.target.closest('[data-restore]')) { G.Net.restoreBackup().then(ok => { UI.toast(esc(ok ? t('imported') : t('noBackup')), ok ? 'ach' : '', 'ic_scroll'); if (ok) UI.render(); }); return; }
       if (e.target.closest('[data-copy]')) {
@@ -2144,7 +2507,7 @@
   UI.modal = function (title, html, actions, locked) {
     const m = $('#modal');
     m.innerHTML = `<div class="box" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h2>${esc(title)}</h2>${html}<div class="acts">${(actions || []).map((a, i) => `<button class="btn ${a.cls || ''}" data-a="${i}">${esc(a.label)}</button>`).join('')}</div></div>`;
-    m.hidden = false;
+    m.hidden = false; m.dataset.locked = locked ? '1' : '';
     const close = () => { m.hidden = true; m.innerHTML = ''; };
     m.onclick = e => {
       const b = e.target.closest('[data-a]');
@@ -2168,6 +2531,10 @@
         ${r.warden.perks ? `<div>${img('ic_bolt', '', 3)}<span style="color:#ffe27a">${esc(r.warden.perks === 1 ? t('offPerk1') : t('offPerks', r.warden.perks))}</span></div>` : ''}
         ${r.warden.shards ? `<div>${img('ic_shard', '', 3)}<span>${esc(t('offShards', fmt(r.warden.shards)))}</span></div>` : ''}
       </div>` : ''}`;
-    UI.modal(t('welcomeBack'), html + (r.rested ? `<p style="color:#8ae07a">${esc(t('restedNote'))}</p>` : ''), [{ label: t('collect'), cls: 'gold' }]);
+    // QoL: and what waits for you now, each one tap away
+    const todo = todoList().slice(0, 5);
+    const m = UI.modal(t('welcomeBack'), html + (r.rested ? `<p style="color:#8ae07a">${esc(t('restedNote'))}</p>` : '') + (todo.length ? `<div class="sect">${esc(t('todoTitle'))}</div>${todoHtml(todo)}` : ''), [{ label: t('collect'), cls: 'gold' }]);
+    m.querySelectorAll('[data-todo]').forEach(b => b.addEventListener('click', () => { m.hidden = true; m.innerHTML = ''; todoGo(b.dataset.todo); }));
+    return m;
   };
 })(globalThis.G = globalThis.G || {});

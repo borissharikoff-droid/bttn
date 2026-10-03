@@ -78,6 +78,7 @@
     help_19: 'Relics', help_19t: 'The rarest drop there is: a white bag from a boss (about 1 in 600; 1 in 200 for a lord; more at higher Torment; never in Rifts). Each relic changes how you play. The Museum keeps the list.',
     help_20: 'Holding the Button', help_20t: 'Hold Space or the Button to click 1 time a second; each Steady Hand level (Upgrades) adds one, up to 10.',
     help_10: 'Carnage', help_10t: 'Kill without a 2.5-second pause to raise gold and XP, up to +40%.',
+    help_21: 'Shortcuts', help_21t: 'In a building, the bar on top jumps to any other one (or swipe; keys 1–0, ← →); FIELD goes back. Lock gear so it is never scrapped. Hold an upgrade to keep buying. Tap the gold rate to see where gold comes from. Settings → Play: auto-perks, Overdrive, spins, fewer effects.',
   });
 
   // ---------- Pointer targets ----------
@@ -90,7 +91,8 @@
       let e = typeof sel === 'string' ? $(sel) : sel; if (!e || !e.offsetParent) return null;
       // a town window covering the target (a phone's full-screen one): point at its close button first
       const tw = $('#townWin');
-      if (tw && !tw.hidden && !tw.contains(e)) { const a = tw.getBoundingClientRect(), b = e.getBoundingClientRect(); if (b.left < a.right && b.right > a.left && b.top < a.bottom && b.bottom > a.top) e = tw.querySelector('.twX') || e; }
+      // (TOWN/FIELD or Upgrades under it: the window's own FIELD button on its quick bar, one tap back to the field)
+      if (tw && !tw.hidden && !tw.contains(e)) { const a = tw.getBoundingClientRect(), b = e.getBoundingClientRect(); if (b.left < a.right && b.right > a.left && b.top < a.bottom && b.bottom > a.top) e = ((e.id === 'btnTown' || e.matches('.tab[data-tab="upg"]')) && tw.querySelector('[data-twgo="field"]')) || tw.querySelector('.twX') || e; }
       const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top - 2, el: e };
     },
     // a page lives in a town building: point at TOWN, then the building, in the square or the panel's list
@@ -99,8 +101,12 @@
       if (!b) return P.el(`.tab[data-tab="${id}"]`);
       if (!G.R.town) return P.el('#btnTown');
       if (G.UI.townId() === b) return null;
-      // a window covers the square: the building's row in the panel's list, or the window's close button
-      if (G.UI.townId()) return P.el(`[data-dir="${b}"]`) || P.el('#townWin .twX');
+      // a window covers the square: its quick bar's button for the building, the panel's list, or the close button
+      if (G.UI.townId()) {
+        const nb = $(`#townWin [data-twgo="${b}"]`), nv = nb && nb.parentElement;
+        if (nb && nv) { const r = nb.getBoundingClientRect(), q = nv.getBoundingClientRect(); if (r.left < q.left || r.right > q.right) nv.scrollLeft += r.left < q.left ? r.left - q.left - 8 : r.right - q.right + 8; }
+        return P.el(nb) || P.el(`[data-dir="${b}"]`) || P.el('#townWin .twX');
+      }
       const q = G.Stage.townPoint && G.Stage.townPoint(b);
       return q ? { x: q.x, y: q.y - 4 } : P.el(`[data-dir="${b}"]`);
     },
@@ -419,8 +425,9 @@
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_town', 17], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14], ['ic_coin', 18], [G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', 19], ['ic_clock', 20]];
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_town', 17], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14], ['ic_coin', 18], [G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', 19], ['ic_clock', 20], ['ic_gear', 21]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
+      <div class="helpRow"><span></span><div><b>${esc(t('help_bars'))}</b><div class="helpBars">${[['ic_skull', 'tipClear'], ['ic_heart', 'tipHp'], ['ic_chest', 'tipChest'], ['ic_coin', 'tipCombo']].map(([ic, k]) => `<p>${img(ic, 2)} ${esc(t(k))}</p>`).join('')}</div></div></div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
     G.UI.modal(t('help_title'), html, [
       { label: t('help_intro'), fn: () => Tut.intro() },
