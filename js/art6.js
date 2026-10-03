@@ -1638,9 +1638,11 @@
     return list[1 + Math.floor((u - G.MOB_SKIN_ORIG) / (1 - G.MOB_SKIN_ORIG) * (list.length - 1)) % (list.length - 1)];
   };
   // the second walk frame, at about 5 steps a second (small fry faster), each mob out of step with the next
+  // (a mob that stands still, biting or held by the tank, keeps its first frame)
   G.mobFrame = function (id, t, m) {
     const id2 = id + '_2';
     if (!SPR.defs[id2]) return id;
+    if (m && (m.p >= 1 || m.held || m.p < 0)) return id;
     const rate = m && m.kind === 'fodder' ? 7 : 4.5;
     return Math.floor(t * rate + ((m && m.id) || 0) * 0.37) % 2 ? id2 : id;
   };
