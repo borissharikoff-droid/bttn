@@ -301,6 +301,8 @@
     mEl.style.left = Math.round(cx) + 'px';
     mEl.style.transform = `translateX(-50%) scale(${k})`;
     pill.style.bottom = (lay.bottom - 2) + 'px';
+    // 3.5: on a phone the meter sits in the right corner, off the middle of the field where the party fights
+    if (lay.phone) { pill.style.left = 'auto'; pill.style.right = '6px'; pill.style.transform = 'none'; } else { pill.style.left = ''; pill.style.right = ''; pill.style.transform = ''; }
     chips.style.top = topY + 'px';
     layT = now();
   }
