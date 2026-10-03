@@ -135,7 +135,7 @@ function run(name, seed, minutes) {
         else if (b && !(b.inv > 0)) G.usePower('smite');
       }
       G.tick(dt);
-      if (Math.round(t / dt) % 5 === 0) { crowd.push(G.R.mobs.length); chests.field.push(G.S.chests.length); press.n++; const hf = s.hero.hp / Math.max(1, G.D.heroHp); if (hf < 0.5) press.low++; if (hf < 0.2) press.crit++; if (G.R.boss) press.boss++; }
+      if (Math.round(t / dt) % 5 === 0) { crowd.push(G.R.mobs.length); chests.field.push(G.S.chests.length); press.n++; const hf = s.hero.hp / Math.max(1, G.D.heroHp); if (hf < 0.5) press.low++; if (hf < 0.2) press.crit++; if (G.R.boss) press.boss++; if (!G.R.boss && !G.R.town) { press.fn = (press.fn || 0) + 1; if (G.R.mobs.some(m => m.p >= 0.97)) press.reach = (press.reach || 0) + 1; (press.might = press.might || []).push(G.mightRatio()); } }
       // events: tap the shrine, chase the Hoarder
       if (P.events && G.R.shrine && r() < P.events * dt * 2) G.useShrine('hand');
       if (P.events && !G.R.focus) { const hd = G.R.mobs.find(m => m.kind === 'hoard'); if (hd && r() < P.events * dt * 3) G.R.focus = hd.id; }
@@ -220,7 +220,7 @@ function run(name, seed, minutes) {
     champ, landAt, bossFails: fails, maxFailStreak, ascensions: s.ascensions, journey: s.journey || 0, evos: Object.keys((s.rec && s.rec.evos) || {}).length, bounties: moments.filter(m => m[1] === 'bounty').length, bestDepth: s.bestDepth, level: s.hero.lvl,
     ach: Object.keys(s.ach).length + '/' + G.ACH.length, pets: Object.keys(s.pets).length, collection: Object.keys(s.coll).length + '/' + G.ITEMS.length,
     torment: s.torment || 0,
-    pressure: { low: +(press.low / Math.max(1, press.n)).toFixed(3), crit: +(press.crit / Math.max(1, press.n)).toFixed(3), boss: +(press.boss / Math.max(1, press.n)).toFixed(3) },
+    pressure: { low: +(press.low / Math.max(1, press.n)).toFixed(3), crit: +(press.crit / Math.max(1, press.n)).toFixed(3), boss: +(press.boss / Math.max(1, press.n)).toFixed(3), reach: +((press.reach || 0) / Math.max(1, press.fn || 0)).toFixed(3), might: (press.might || []).sort((a, b) => a - b).filter((_, i, a) => i === Math.floor(a.length / 2)).map(v => +v.toFixed(1))[0] },
     sessions, attempts: process.env.BOSSLOG ? attempts : undefined,
   };
 }
