@@ -1871,7 +1871,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
     ascGain: 'Fame gained', ascNeed: 'Beat the depth 15 lord for fame', ascEach: 'Each fame: +1% gold, +0.5% Warden damage, forever.',
     ascBtn: 'Ascend', ascConfirm: 'Sure? Tap again', hallOfFame: 'Hall of Fame', hallHint: 'Fame upgrades. Never reset.',
     ascDone: 'Ascended! +{0} fame', famePassive: 'Fame: {0} (+{1}% gold, +{2}% Warden damage)',
-    sound: 'Sound effects', music: 'Music', volume: 'Volume', hold: 'Hold to click', shake: 'Screen shake',
+    sound: 'Sound effects', music: 'Music', volume: 'Volume', hold: 'Hold to click', shake: 'Screen shake', statsOpt: 'Anonymous play stats (helps us improve the game)',
     autoBoss: 'Auto-call bosses', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code, then Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Deletes everything forever',
     saved: 'Game saved', badSave: 'Save code didn\u2019t load. Copied all of it?', imported: 'Save loaded',
@@ -2076,7 +2076,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
       daily: { last: '', streak: 0 },
       st: { crits: 0, bossKills: 0, lordKills: 0, wisps: 0, mimics: 0, merges: 0, divine: 0, maxCombo: 0,
         playTime: 0, chests: 0, modded: 0, megas: 0, hoards: 0, shrines: 0, breaches: 0, drops: 0, orbs: 0, rifts: 0 },
-      set: { sound: 1, music: 1, vol: 0.6, hold: 1, shake: 1, autoBoss: 1, filter: 1 },
+      set: { sound: 1, music: 1, vol: 0.6, hold: 1, shake: 1, autoBoss: 1, filter: 1, stats: 1 },
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
       uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
@@ -20869,6 +20869,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
         ${tg('sound', t('sound'))}${tg('music', t('music'))}
         <div class="setRow"><span>${esc(t('volume'))}</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${s.vol}"></div>
         ${tg('hold', t('hold'))}${tg('shake', t('shake'))}${tg('autoBoss', t('autoBoss'))}${tg('filter', t('lootFilter'))}
+        ${window.BTTN_AN ? tg('stats', t('statsOpt')) : ''}
       </div>
       <div class="sect">${esc(t('saveTitle'))}</div>
       <p class="note">${esc(t('importHint'))}</p>
@@ -24434,6 +24435,133 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   // for testing: the current overlay pieces
   G.spellFx = { sfx: SFX, flourish: (el, x, y) => { if (!ensure()) return; layout(); idle = false; if (FLOUR[el]) FLOUR[el](x, y); }, size: () => ({ Wl, Hl, u }), at: (x, y) => { if (!ensure()) return null; layout(); const q = P(x, y), r = cv.getBoundingClientRect(); return { x: r.left + ox + q.x * u, y: r.top + oy + q.y * u }; }, state: () => ({ fx: fxs.length, parts: parts.length, decals: decals.length, quick: quick.length, words: words.map(w => w.str) }) };
   requestAnimationFrame(frame);
+})(globalThis.G = globalThis.G || {});
+
+/* js/analytics.js */
+// BTTN 3.5 — anonymous play analytics for the public host (deploy/serve.js). Where players come from (UTM tags,
+// referrer), what they play on, and how far they get: intro, class, first press, tutorial, bosses, depths, lands,
+// falls, the team, and whether they come back. No names, no saves, no IPs from here: a random visitor id kept in
+// this browser, a session id, and game milestones. Off on claude.ai (the server sets window.BTTN_AN), with Global
+// Privacy Control, or with Settings → Anonymous stats off.
+(function (G) {
+  'use strict';
+  if (typeof window === 'undefined' || !window.BTTN_AN) return;
+  const URL_EV = typeof window.BTTN_AN === 'string' ? window.BTTN_AN : '/api/ev';
+  const ls = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+  const rid = n => { const a = new Uint8Array(n); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : a.forEach((_, i) => { a[i] = Math.random() * 256; }); return Array.from(a, b => (b % 36).toString(36)).join(''); };
+  const off = () => navigator.globalPrivacyControl === true || (G.S && G.S.set && G.S.set.stats === 0);
+
+  // ---------- who and from where ----------
+  let vid = ls.get('bttn_vid');
+  const isNew = !vid;
+  if (!vid) { vid = rid(14); ls.set('bttn_vid', vid); ls.set('bttn_vfirst', String(Date.now())); }
+  const sid = rid(10);
+  const q = new URLSearchParams(location.search);
+  const refHost = (() => { try { const h = document.referrer ? new URL(document.referrer).hostname : ''; return h && h !== location.hostname ? h.replace(/^www\./, '') : ''; } catch (e) { return ''; } })();
+  const touch = {
+    src: (q.get('utm_source') || q.get('ref') || '').slice(0, 60), med: (q.get('utm_medium') || '').slice(0, 40),
+    cmp: (q.get('utm_campaign') || '').slice(0, 80), cnt: (q.get('utm_content') || '').slice(0, 80), trm: (q.get('utm_term') || '').slice(0, 60),
+    ref: refHost.slice(0, 80), land: location.pathname.slice(0, 60),
+  };
+  // the first touch stays with the visitor for good (that's what a campaign is credited with)
+  let first = null;
+  try { first = JSON.parse(ls.get('bttn_vtouch') || 'null'); } catch (e) {}
+  if (!first) { first = touch; ls.set('bttn_vtouch', JSON.stringify(first)); }
+  const firstAt = +ls.get('bttn_vfirst') || Date.now();
+
+  // ---------- the queue ----------
+  const t0 = Date.now();
+  let queue = [], seq = 0, lastSend = 0;
+  function ev(t, d) {
+    if (off()) return;
+    if (queue.length > 300) queue.splice(0, queue.length - 300);
+    queue.push(d ? { t, ts: Date.now(), n: ++seq, d } : { t, ts: Date.now(), n: ++seq });
+    if (queue.length >= 40) flush();
+  }
+  function flush(beacon) {
+    if (!queue.length || off()) return;
+    const body = JSON.stringify({ v: vid, s: sid, e: queue });
+    queue = []; lastSend = Date.now();
+    // text/plain keeps it a simple request (no preflight); sendBeacon survives the tab closing
+    try {
+      if (beacon && navigator.sendBeacon && navigator.sendBeacon(URL_EV, new Blob([body], { type: 'text/plain' }))) return;
+      fetch(URL_EV, { method: 'POST', body, headers: { 'content-type': 'text/plain' }, keepalive: body.length < 60000 }).catch(() => {});
+    } catch (e) {}
+  }
+  G.track = ev;
+
+  // ---------- the session (once the save has loaded: main.js runs after this file) ----------
+  function init() {
+  const S0 = G.S || {};
+  ev('start', {
+    nw: isNew ? 1 : 0, age: Math.floor((Date.now() - firstAt) / 864e5), ...touch,
+    f: isNew ? undefined : first, sw: screen.width, sh: screen.height, vw: innerWidth, vh: innerHeight, dpr: +(devicePixelRatio || 1).toFixed(2),
+    tch: matchMedia('(pointer: coarse)').matches ? 1 : 0, lang: (navigator.language || '').slice(0, 12), tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || '').slice(0, 40),
+    save: S0.st && S0.st.playTime > 5 ? { pt: Math.round(S0.st.playTime), bd: S0.bestDepth || 0, asc: S0.ascensions || 0, cls: (S0.hero && S0.hero.cls) || '' } : undefined,
+  });
+
+  // ---------- milestones ----------
+  const on = (k, f) => G.on && G.on(k, f);
+  const S = () => G.S || {};
+  // the intro (DOM: #intro shows first; its Skip / Next buttons)
+  let introSeen = false;
+  document.addEventListener('click', e => {
+    const box = e.target.closest && e.target.closest('#intro');
+    if (!box) return;
+    if (e.target.closest('[data-skip]')) ev('intro_skip');
+    else if (e.target.closest('[data-next]')) ev('intro_next');
+  }, true);
+  on('classChosen', () => ev('class', { c: S().hero && S().hero.cls }));
+  on('bossWin', (rew, b) => ev('boss_win', { d: b && b.d, l: b && b.lord ? 1 : 0 }));
+  on('bossFail', b => ev('boss_fail', { d: b && b.d, l: b && b.lord ? 1 : 0 }));
+  on('realm', r => ev('land', { li: r, d: S().depth }));
+  on('runOver', sum => ev('run_over', { d: sum && sum.depth, s: sum && Math.round(sum.secs), f: sum && sum.fame }));
+  on('ascend', (g, death) => { if (!death) ev('ascend', { d: S().maxDepth }); });
+  on('bless', b => ev('bless', { id: b && b.id }));
+  on('champKill', c => ev('champ', { m: c.mech, ok: 1 }));
+  on('champEscape', (c, why) => ev('champ', { m: c.mech, ok: 0, w: why }));
+  on('recruit', m => ev('recruit', { c: m && m.cls }));
+  on('slotOpen', k => ev('seat', { k }));
+  on('town', inTown => { if (inTown) ev('town'); });
+  on('build', (id, l) => ev('build', { id, l }));
+  on('relicDrop', g => ev('relic', { id: g && g.id }));
+  on('jackpot', () => ev('jackpot'));
+  on('odStart', how => ev('od', { h: how }));
+  on('rankUp', r => ev('rank', { r: r && r.n != null ? r.n : r }));
+  on('levelUp', () => { const l = S().hero && S().hero.lvl; if (l && (l <= 5 || l % 5 === 0)) ev('lvl', { l }); });
+  let bestSeen = S0.bestDepth || 0;
+  // every second: the tutorial step, the first press, a held Button, a new best depth
+  let tutLast = S0.tut, clicked = (S0.clicks || 0) > 0, held = !!(S0.seen && S0.seen.hold);
+  setInterval(() => {
+    const s = S();
+    if (!s.st) return;
+    if (!introSeen && document.getElementById('intro') && !document.getElementById('intro').hidden) introSeen = true;
+    if (introSeen && document.getElementById('intro') && document.getElementById('intro').hidden) { introSeen = false; ev('intro_done'); }
+    if (s.tut !== tutLast) { ev(s.tut === -1 ? 'tut_end' : 'tut', { k: s.tut, from: tutLast }); tutLast = s.tut; }
+    if (!clicked && (s.clicks || 0) > 0) { clicked = true; ev('first_click'); }
+    if (!held && s.seen && s.seen.hold) { held = true; ev('hold'); }
+    if ((s.bestDepth || 0) > bestSeen) { bestSeen = s.bestDepth; ev('depth', { d: bestSeen }); }
+  }, 1000);
+  // a heartbeat while the tab is in front: how long they really play and where they are
+  setInterval(() => {
+    if (document.hidden) return;
+    const s = S();
+    ev('hb', { pt: Math.round((s.st && s.st.playTime) || 0), d: s.depth || 0, l: (s.hero && s.hero.lvl) || 0, p: (s.party || []).length, tn: G.R && G.R.town ? 1 : 0 });
+  }, 30000);
+  // errors (to fix what breaks for real players)
+  let errN = 0;
+  window.addEventListener('error', e => { if (errN++ < 5) ev('err', { m: String(e.message || '').slice(0, 160), at: String((e.filename || '').split('/').pop() + ':' + (e.lineno || 0)).slice(0, 60) }); });
+  // leaving: what they'd reached
+  const bye = () => { const s = S(); ev('end', { secs: Math.round((Date.now() - t0) / 1000), pt: Math.round((s.st && s.st.playTime) || 0), d: s.depth || 0, bd: s.bestDepth || 0, tut: s.tut }); flush(true); };
+  document.addEventListener('visibilitychange', () => { if (document.hidden) bye(); });
+  window.addEventListener('pagehide', bye);
+  setInterval(() => { if (queue.length && Date.now() - lastSend > 15000) flush(); }, 5000);
+  setTimeout(flush, 4000);
+  }
+  if (document.readyState === 'complete') setTimeout(init, 0); else window.addEventListener('load', () => setTimeout(init, 0));
 })(globalThis.G = globalThis.G || {});
 
 /* js/main.js */

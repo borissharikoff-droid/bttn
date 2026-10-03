@@ -2055,6 +2055,7 @@
         ${tg('sound', t('sound'))}${tg('music', t('music'))}
         <div class="setRow"><span>${esc(t('volume'))}</span><input id="vol" type="range" min="0" max="1" step="0.05" value="${s.vol}"></div>
         ${tg('hold', t('hold'))}${tg('shake', t('shake'))}${tg('autoBoss', t('autoBoss'))}${tg('filter', t('lootFilter'))}
+        ${window.BTTN_AN ? tg('stats', t('statsOpt')) : ''}
       </div>
       <div class="sect">${esc(t('saveTitle'))}</div>
       <p class="note">${esc(t('importHint'))}</p>

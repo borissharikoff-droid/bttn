@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>BTTN Admin</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781; --grid: #e1e0d9; --axis: #c3c2b7;
+  --ring: rgba(11,11,11,0.10); --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --good: #006300; --bad: #d03b3b; --seq1: #cde2fb; --seq2: #86b6ef; --seq3: #3987e5; --seq4: #1c5cab; --seq5: #0d366b; --wash: rgba(42,120,214,.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781; --grid: #2c2c2a; --axis: #383835;
+    --ring: rgba(255,255,255,0.10); --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --good: #0ca30c; --bad: #e66767;
+    --seq1: #184f95; --seq2: #1c5cab; --seq3: #2a78d6; --seq4: #5598e7; --seq5: #9ec5f4; --wash: rgba(57,135,229,.12);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781; --grid: #2c2c2a; --axis: #383835;
+  --ring: rgba(255,255,255,0.10); --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --good: #0ca30c; --bad: #e66767;
+  --seq1: #184f95; --seq2: #1c5cab; --seq3: #2a78d6; --seq4: #5598e7; --seq5: #9ec5f4; --wash: rgba(57,135,229,.12);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: var(--page); border-bottom: 1px solid var(--grid); }
+header h1 { margin: 0; font-size: 17px; letter-spacing: .02em; }
+header .sp { flex: 1; }
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--surface); box-shadow: 0 0 0 1px var(--ring); font-size: 13px; color: var(--ink2); }
+.badge i { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+button, select, input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--axis); border-radius: 8px; padding: 6px 10px; }
+button { cursor: pointer; }
+button.on { background: var(--s1); color: #fff; border-color: var(--s1); }
+button.ghost { background: transparent; border-color: transparent; color: var(--ink2); }
+main { max-width: 1280px; margin: 0 auto; padding: 16px 20px 60px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+.filters .seg { display: inline-flex; gap: 0; }
+.filters .seg button { border-radius: 0; margin-left: -1px; }
+.filters .seg button:first-child { border-radius: 8px 0 0 8px; margin: 0; }
+.filters .seg button:last-child { border-radius: 0 8px 8px 0; }
+.filters label { display: inline-flex; gap: 6px; align-items: center; color: var(--ink2); }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }
+.card { grid-column: span 12; background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--ring); padding: 16px; min-width: 0; }
+.card h2 { margin: 0 0 4px; font-size: 15px; }
+.card .sub { margin: 0 0 12px; color: var(--muted); font-size: 12.5px; }
+.c6 { grid-column: span 6; } .c4 { grid-column: span 4; } .c8 { grid-column: span 8; }
+@media (max-width: 900px) { .c6, .c4, .c8 { grid-column: span 12; } }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--ring); padding: 12px 14px; }
+.kpi .l { color: var(--ink2); font-size: 12.5px; }
+.kpi .v { font-size: 26px; font-weight: 650; margin-top: 2px; }
+.kpi .h { color: var(--muted); font-size: 12px; }
+.loading main { opacity: .55; transition: opacity .2s; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink2); font-weight: 600; font-size: 12.5px; cursor: pointer; user-select: none; }
+td.l, th.l { text-align: left; }
+tr:hover td { background: var(--wash); }
+.tablewrap { overflow-x: auto; }
+.bars .row { display: grid; grid-template-columns: minmax(90px, 34%) 1fr 64px; gap: 10px; align-items: center; padding: 3px 0; }
+.bars .lab { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bars .val { text-align: right; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.bars .trk { height: 12px; position: relative; }
+.bars .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--s1); min-width: 2px; }
+.bars .row:hover .fill { filter: brightness(1.12); }
+.funnel .row { grid-template-columns: minmax(150px, 30%) 1fr 120px; }
+.score { display: inline-block; width: 64px; height: 8px; background: var(--grid); border-radius: 4px; vertical-align: middle; position: relative; margin-left: 6px; }
+.score > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--s3); }
+.muted { color: var(--muted); }
+.note { color: var(--ink2); font-size: 12.5px; }
+.legend { display: flex; gap: 14px; color: var(--ink2); font-size: 12.5px; margin-bottom: 6px; }
+.legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+svg text { fill: var(--muted); font-size: 11px; }
+#tip { position: fixed; z-index: 20; pointer-events: none; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--ring), 0 6px 20px rgba(0,0,0,.18); border-radius: 8px; padding: 7px 10px; font-size: 12.5px; display: none; max-width: 280px; }
+#tip b { font-size: 14px; }
+#tip .k { display: inline-block; width: 12px; height: 2px; margin-right: 6px; vertical-align: middle; }
+.heat td.c { color: var(--ink); text-align: center; }
+.login { max-width: 420px; margin: 12vh auto; background: var(--surface); border-radius: 14px; box-shadow: 0 0 0 1px var(--ring); padding: 24px; }
+.login input { width: 100%; margin: 12px 0; }
+.utm { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.utm input { width: 100%; }
+.out { margin-top: 10px; display: flex; gap: 8px; }
+.out input { flex: 1; font-family: ui-monospace, monospace; font-size: 12.5px; }
+.err { color: var(--bad); }
+@media (max-width: 640px) { header { flex-wrap: wrap; padding: 10px 12px; } header > .muted { display: none; } main { padding: 12px 12px 40px; } .kpi .v { font-size: 22px; } }
+.pill { display: inline-block; padding: 1px 7px; border-radius: 999px; box-shadow: 0 0 0 1px var(--ring); font-size: 12px; color: var(--ink2); }
+</style>
+</head>
+<body>
+<div id="tip"></div>
+<div id="app"></div>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+// a tiny DOM builder: text always goes in as text (source names come from anyone's utm tags)
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const k in attrs || {}) {
+    const v = attrs[k];
+    if (v == null || v === false) continue;
+    if (k === 'style' && typeof v === 'object') { for (const p in v) { if (p.startsWith('--')) el.style.setProperty(p, v[p]); else el.style[p] = v[p]; } }
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'cls') el.className = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return el;
+}
+const SVGNS = 'http://www.w3.org/2000/svg';
+const s_ = (tag, attrs) => { const el = document.createElementNS(SVGNS, tag); for (const k in attrs) el.setAttribute(k, attrs[k]); return el; };
+const fmt = n => (n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : String(n));
+const pc = n => (n == null ? '—' : n + '%');
+const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} } };
+const theme = store.get('bttn_admin_theme'); if (theme) document.documentElement.dataset.theme = theme;
+
+// ---------- the tooltip ----------
+const tip = $('#tip');
+function tipOn(el, build) {
+  const show = e => { tip.replaceChildren(...build()); tip.style.display = 'block'; const r = e.clientX != null ? { x: e.clientX, y: e.clientY } : (() => { const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top }; })(); const w = tip.offsetWidth; tip.style.left = Math.min(innerWidth - w - 8, r.x + 14) + 'px'; tip.style.top = Math.max(8, r.y - tip.offsetHeight - 10) + 'px'; };
+  el.addEventListener('pointermove', show); el.addEventListener('focus', show);
+  el.addEventListener('pointerleave', () => { tip.style.display = 'none'; }); el.addEventListener('blur', () => { tip.style.display = 'none'; });
+  if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+}
+const tipRow = (col, val, label) => h('div', null, col ? h('span', { cls: 'k', style: { background: col } }) : null, h('b', null, val), ' ', h('span', { cls: 'muted' }, label));
+
+// ---------- state ----------
+const st = { range: store.get('bttn_admin_range') || '7', from: '', to: '', src: '', dev: '', cc: '', bots: false, data: null, sort: { k: 'visitors', dir: -1 } };
+const token = () => store.get('bttn_admin_token');
+const dayStr = t => new Date(t).toISOString().slice(0, 10);
+function rangeDates() {
+  if (st.range === 'custom') return { from: st.from, to: st.to };
+  const n = +st.range, to = Date.now();
+  return { from: dayStr(to - (n - 1) * 864e5), to: dayStr(to) };
+}
+async function api(path, qs) {
+  const u = new URL(path, location.origin); for (const k in qs || {}) if (qs[k] !== '' && qs[k] != null) u.searchParams.set(k, qs[k]);
+  const r = await fetch(u, { headers: { 'x-admin-token': token() || '' } });
+  if (r.status === 401) { store.set('bttn_admin_token', null); throw new Error('Wrong token'); }
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'HTTP ' + r.status);
+  return r;
+}
+async function load() {
+  document.body.classList.add('loading');
+  try {
+    const r = await api('/api/admin/stats', Object.assign(rangeDates(), { src: st.src, dev: st.dev, cc: st.cc, bots: st.bots ? 1 : '' }));
+    st.data = await r.json(); render();
+  } catch (e) { if (!token()) loginView(e.message); else { const m = $('#msg'); if (m) m.textContent = e.message; } }
+  document.body.classList.remove('loading');
+}
+
+// ---------- login ----------
+function loginView(err) {
+  const inp = h('input', { type: 'password', placeholder: 'Admin token', autocomplete: 'current-password' });
+  const go = () => { store.set('bttn_admin_token', inp.value.trim()); load(); };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  $('#app').replaceChildren(h('div', { cls: 'login' }, h('h2', null, 'BTTN Admin'), h('p', { cls: 'note' }, 'Enter the admin token. It is the ADMIN_TOKEN variable of the bttn service on Railway (Variables tab).'), inp, h('button', { cls: 'on', onclick: go }, 'Open dashboard'), err ? h('p', { cls: 'err' }, err) : null));
+  inp.focus();
+}
+
+// ---------- pieces ----------
+function card(title, sub, body, span) { return h('section', { cls: 'card ' + (span || '') }, h('h2', null, title), sub ? h('p', { cls: 'sub' }, sub) : null, body); }
+function kpi(label, value, hint) { return h('div', { cls: 'kpi' }, h('div', { cls: 'l' }, label), h('div', { cls: 'v' }, value), hint ? h('div', { cls: 'h' }, hint) : null); }
+// a horizontal bar list: label · bar · value (one series, so no legend; the card title names it)
+function bars(rows, opts) {
+  opts = opts || {};
+  const max = Math.max(1, ...rows.map(r => r[1]));
+  const tot = opts.total || rows.reduce((a, r) => a + r[1], 0);
+  if (!rows.length) return h('p', { cls: 'muted' }, 'No data yet.');
+  return h('div', { cls: 'bars' }, rows.map(([lab, v]) => {
+    const row = h('div', { cls: 'row' }, h('div', { cls: 'lab', title: lab }, lab), h('div', { cls: 'trk' }, h('div', { cls: 'fill', style: { width: (100 * v / max) + '%', background: opts.col || '' } })), h('div', { cls: 'val' }, opts.pct ? Math.round(100 * v / Math.max(1, tot)) + '%' : fmt(v)));
+    tipOn(row, () => [tipRow(null, fmt(v), lab), h('div', { cls: 'muted' }, Math.round(1000 * v / Math.max(1, tot)) / 10 + '% of ' + fmt(tot))]);
+    return row;
+  }));
+}
+// the funnel: ordinal steps, each bar as a share of the first; the drop from the step before in the tooltip
+function funnel(steps) {
+  const top0 = Math.max(1, steps[0] ? steps[0].n : 1);
+  return h('div', { cls: 'bars funnel' }, steps.map((s, i) => {
+    const prev = i ? steps[i - 1].n : s.n, share = Math.round(1000 * s.n / top0) / 10, drop = prev ? Math.round(1000 * (prev - s.n) / prev) / 10 : 0;
+    const row = h('div', { cls: 'row' }, h('div', { cls: 'lab' }, s.label), h('div', { cls: 'trk' }, h('div', { cls: 'fill', style: { width: share + '%', background: 'var(--seq' + (i < 4 ? 4 : i < 9 ? 3 : 2) + ')' } })), h('div', { cls: 'val' }, fmt(s.n) + ' · ' + share + '%'));
+    tipOn(row, () => [tipRow(null, fmt(s.n), s.label), h('div', { cls: 'muted' }, share + '% of all new visitors'), i ? h('div', { cls: drop > 40 ? 'err' : 'muted' }, '−' + drop + '% from the step before') : null]);
+    return row;
+  }));
+}
+// visitors per day: stacked new + returning bars, 2px surface gap between segments, rounded data end
+function dailyChart(days) {
+  const W = 1000, H = 220, L = 34, B = 24, T = 8, n = days.length || 1, peak = Math.max(1, ...days.map(d => d.nw + d.ret));
+  // round ticks: a whole step that divides the axis in four
+  const tstep = Math.max(1, Math.ceil(peak / 4 / Math.pow(10, Math.floor(Math.log10(Math.max(1, peak / 4))))) * Math.pow(10, Math.floor(Math.log10(Math.max(1, peak / 4))))), max = tstep * 4;
+  const step = (W - L) / n, bw = Math.max(2, Math.min(28, step * 0.62));
+  const svg = s_('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', role: 'img', 'aria-label': 'Visitors per day, new and returning' });
+  const y = v => T + (H - T - B) * (1 - v / max);
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) { const v = tstep * i, yy = y(v); svg.append(s_('line', { x1: L, x2: W, y1: yy, y2: yy, stroke: 'var(--grid)', 'stroke-width': 1 })); const t = s_('text', { x: L - 6, y: yy + 4, 'text-anchor': 'end' }); t.textContent = fmt(v); svg.append(t); }
+  days.forEach((d, i) => {
+    const x = L + i * step + (step - bw) / 2, base = y(0);
+    const hN = base - y(d.nw), hR = base - y(d.ret);
+    const g = s_('g', {});
+    if (d.nw) g.append(s_('rect', { x, y: base - hN, width: bw, height: Math.max(0, hN - (d.ret ? 1 : 0)), fill: 'var(--s1)', rx: d.ret ? 0 : 3 }));
+    if (d.ret) g.append(s_('rect', { x, y: base - hN - hR + 1, width: bw, height: Math.max(0, hR - 1), fill: 'var(--s2)', rx: 3 }));
+    const hit = s_('rect', { x: L + i * step, y: T, width: step, height: H - T - B, fill: 'transparent' });
+    g.append(hit); svg.append(g);
+    if (n <= 16 || i % Math.ceil(n / 12) === 0) { const t = s_('text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle' }); t.textContent = d.day.slice(5); svg.append(t); }
+    tipOn(hit, () => [h('div', { cls: 'muted' }, d.day), tipRow('var(--s1)', fmt(d.nw), 'new'), tipRow('var(--s2)', fmt(d.ret), 'returning'), h('div', { cls: 'muted' }, d.ses + ' sessions · ' + d.play + ' min played')]);
+  });
+  svg.append(s_('line', { x1: L, x2: W, y1: y(0), y2: y(0), stroke: 'var(--axis)', 'stroke-width': 1 }));
+  return h('div', null, h('div', { cls: 'legend' }, h('span', { style: { '--c': 'var(--s1)' } }, 'New visitors'), h('span', { style: { '--c': 'var(--s2)' } }, 'Returning')), svg);
+}
+function hoursChart(hours) {
+  const W = 1000, H = 140, L = 30, B = 22, T = 6, max = Math.max(1, ...hours), step = (W - L) / 24, bw = step * 0.62;
+  const svg = s_('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', role: 'img', 'aria-label': 'Sessions by hour (UTC)' });
+  hours.forEach((v, i) => {
+    const hh = (H - T - B) * v / max, x = L + i * step + (step - bw) / 2;
+    if (v) svg.append(s_('rect', { x, y: H - B - hh, width: bw, height: hh, fill: 'var(--s1)', rx: 3 }));
+    const hit = s_('rect', { x: L + i * step, y: T, width: step, height: H - T - B, fill: 'transparent' }); svg.append(hit);
+    tipOn(hit, () => [tipRow(null, fmt(v), 'sessions started'), h('div', { cls: 'muted' }, String(i).padStart(2, '0') + ':00–' + String(i).padStart(2, '0') + ':59 UTC')]);
+    if (i % 3 === 0) { const t = s_('text', { x: x + bw / 2, y: H - 6, 'text-anchor': 'middle' }); t.textContent = String(i).padStart(2, '0'); svg.append(t); }
+  });
+  svg.append(s_('line', { x1: L, x2: W, y1: H - B, y2: H - B, stroke: 'var(--axis)' }));
+  return svg;
+}
+function table(cols, rows, opts) {
+  opts = opts || {};
+  const thead = h('tr', null, cols.map(c => h('th', { cls: c.l ? 'l' : '', onclick: opts.sortable ? () => { st.sort = { k: c.k, dir: st.sort.k === c.k ? -st.sort.dir : -1 }; render(); } : null, title: c.tip || null }, c.t + (opts.sortable && st.sort.k === c.k ? (st.sort.dir < 0 ? ' ↓' : ' ↑') : ''))));
+  const body = rows.map(r => h('tr', null, cols.map(c => { const v = c.f ? c.f(r) : r[c.k]; return h('td', { cls: c.l ? 'l' : '' }, v); })));
+  return h('div', { cls: 'tablewrap' }, h('table', null, h('thead', null, thead), h('tbody', null, body)), rows.length ? null : h('p', { cls: 'muted' }, 'No data yet.'));
+}
+function heat(cohorts) {
+  const cell = v => { if (v == null) return h('td', { cls: 'c muted' }, '·'); const k = v >= 40 ? 5 : v >= 25 ? 4 : v >= 15 ? 3 : v >= 5 ? 2 : 1; return h('td', { cls: 'c', style: { background: 'var(--seq' + k + ')', color: k >= 4 ? '#fff' : 'var(--ink)' } }, v + '%'); };
+  return h('div', { cls: 'tablewrap heat' }, h('table', null, h('thead', null, h('tr', null, h('th', null, 'First day'), h('th', null, 'New'), h('th', null, 'Day 1'), h('th', null, 'Day 3'), h('th', null, 'Day 7'))),
+    h('tbody', null, cohorts.filter(c => c.n).reverse().map(c => h('tr', null, h('td', null, c.day), h('td', null, fmt(c.n)), cell(c.d1), cell(c.d3), cell(c.d7))))), cohorts.some(c => c.n) ? null : h('p', { cls: 'muted' }, 'No new visitors in this range yet.'));
+}
+
+// ---------- the page ----------
+function render() {
+  const d = st.data; if (!d) return;
+  const K = d.kpi;
+  const seg = (vals) => h('div', { cls: 'seg' }, vals.map(([v, label]) => h('button', { cls: st.range === v ? 'on' : '', onclick: () => { st.range = v; store.set('bttn_admin_range', v); load(); } }, label)));
+  const sel = (key, label, options) => h('label', null, label, h('select', { onchange: e => { st[key] = e.target.value; load(); } }, h('option', { value: '' }, 'All'), options.map(o => { const op = h('option', { value: o[0] }, o[1]); if (st[key] === o[0]) op.selected = true; return op; })));
+  const rd = rangeDates();
+  const fromI = h('input', { type: 'date', value: rd.from, onchange: e => { st.range = 'custom'; st.from = e.target.value; st.to = st.to || rd.to; load(); } });
+  const toI = h('input', { type: 'date', value: rd.to, onchange: e => { st.range = 'custom'; st.to = e.target.value; st.from = st.from || rd.from; load(); } });
+  const filters = h('div', { cls: 'filters' },
+    seg([['1', 'Today'], ['7', '7 days'], ['30', '30 days'], ['90', '90 days']]), fromI, h('span', { cls: 'muted' }, '→'), toI,
+    sel('src', 'Source', d.filters.sources.map(s => [s, s])), sel('dev', 'Device', [['mobile', 'Mobile'], ['desktop', 'Desktop'], ['tablet', 'Tablet']]), sel('cc', 'Country', d.filters.cc.map(c => [c, c])),
+    h('label', null, h('input', { type: 'checkbox', checked: st.bots || null, onchange: e => { st.bots = e.target.checked; load(); } }), 'Include bots'),
+    h('button', { onclick: load }, 'Refresh'),
+    h('button', { onclick: async () => { const r = await api('/api/admin/export', rd); const b = await r.blob(); const a = h('a', { href: URL.createObjectURL(b), download: 'bttn-sessions-' + rd.from + '-' + rd.to + '.csv' }); document.body.append(a); a.click(); a.remove(); } }, 'Export CSV'),
+    h('span', { id: 'msg', cls: 'err' }));
+  const kpis = h('div', { cls: 'kpis' },
+    kpi('Visitors', fmt(K.visitors), fmt(K.newVisitors) + ' new'), kpi('Sessions', fmt(K.sessions), (K.visitors ? (K.sessions / K.visitors).toFixed(1) : '0') + ' per visitor'),
+    kpi('Median session', K.medSessionMin + ' min'), kpi('Median play time', K.medPlayMin + ' min', 'per visitor, total'),
+    kpi('Hooked', pc(K.hooked), 'new visitors who played 5+ min'), kpi('Day-1 retention', pc(K.d1), K.d1Base ? 'of ' + fmt(K.d1Base) + ' new visitors' : 'needs 2+ days of data'),
+    kpi('Playing now', fmt(K.live), 'active in the last 5 min'));
+  const srcSorted = d.sources.slice().sort((a, b) => { const x = a[st.sort.k], y = b[st.sort.k]; return (typeof x === 'string' ? String(x).localeCompare(y) : (x == null ? -1 : x) - (y == null ? -1 : y)) * st.sort.dir; });
+  const sourceCols = [
+    { k: 'src', t: 'Source', l: 1, f: r => h('span', null, r.src, r.med ? h('span', { cls: 'pill', style: { marginLeft: '6px' } }, r.med) : null) },
+    { k: 'visitors', t: 'New visitors' }, { k: 'cls', t: 'Picked class', f: r => pc(r.cls) }, { k: 'm5', t: 'Played 5 min', f: r => pc(r.m5) },
+    { k: 'land2', t: 'Reached land 2', f: r => pc(r.land2) }, { k: 'd1', t: 'Day-1 back', f: r => pc(r.d1) }, { k: 'back', t: 'Came back', f: r => pc(r.back) },
+    { k: 'medMin', t: 'Median min', f: r => r.medMin }, { k: 'mobile', t: 'Mobile', f: r => pc(r.mobile) },
+    { k: 'score', t: 'Quality', tip: '20% picked class + 30% played 5 min + 20% reached land 2 + 30% came back on day 1', f: r => h('span', null, r.visitors < 20 ? h('span', { cls: 'muted', title: 'fewer than 20 visitors: too few to judge' }, r.score + '*') : String(r.score), h('span', { cls: 'score' }, h('i', { style: { width: Math.min(100, r.score) + '%' } }))) },
+  ];
+  const game = d.game;
+  const winRate = game.bossWin + game.bossFail ? Math.round(100 * game.bossWin / (game.bossWin + game.bossFail)) : null;
+  const grid = h('div', { cls: 'grid' },
+    card('Visitors per day', 'New and returning visitors who opened the game. Hover a day for sessions and minutes played.', dailyChart(d.daily)),
+    card('Where traffic comes from, and how good it is', 'First touch per new visitor: utm_source, or the referring site, or (direct). Sort by any column. Quality blends class pick, 5-minute play, land 2 and day-1 return; * means under 20 visitors. Buy more of the sources with high quality, not just high counts.', table(sourceCols, srcSorted, { sortable: true })),
+    card('Funnel', 'Of the new visitors in this range: how many reached each step. Hover for the drop from the step before; a big drop is where to fix the game.', funnel(d.funnel), 'c6'),
+    card('Retention by first day', 'Share of each day’s new visitors who came back exactly 1, 3 and 7 days later.', heat(d.cohorts), 'c6'),
+    card('How long new visitors played', 'Total play time per new visitor.', bars(d.quit.play, { pct: true }), 'c4'),
+    card('Where non-returning players stopped: tutorial', 'Last tutorial step of new visitors who have not come back.', bars(d.quit.tut), 'c4'),
+    card('Where non-returning players stopped: depth', 'Best depth reached in their last session.', bars(d.quit.depth), 'c4'),
+    card('Campaigns', 'utm_source / utm_campaign / utm_content, for ads and posts you tagged.', table([{ k: 'k', t: 'Source / campaign / content', l: 1 }, { k: 'visitors', t: 'New visitors' }, { k: 'm5', t: 'Played 5 min', f: r => pc(r.m5) }, { k: 'back', t: 'Came back', f: r => pc(r.back) }], d.campaigns)),
+    card('Devices', null, bars(d.dev.type, { pct: true }), 'c4'), card('Operating systems', null, bars(d.dev.os, { pct: true }), 'c4'), card('Browsers and in-app browsers', 'In-app browsers (TikTok, Instagram, Telegram) tell you which app a link was opened in.', bars(d.dev.br, { pct: true }), 'c4'),
+    card('Countries', 'From the browser’s time zone (no IP lookup).', bars(d.geo.cc, { pct: true }), 'c4'), card('Languages', null, bars(d.geo.lang, { pct: true }), 'c4'), card('Screen sizes', null, bars(d.dev.scr, { pct: true }), 'c4'),
+    card('When they play', 'Sessions started by hour, UTC. Moscow is UTC+3.', hoursChart(d.hours)),
+    card('Classes picked', null, bars(d.game.cls), 'c4'), card('Blessings picked', null, bars(d.game.bless), 'c4'), card('Lands reached', 'Entries into each land.', bars(d.game.land), 'c4'),
+    card('Land Champions', 'Slain vs got away, by rule.', table([{ k: 0, t: 'Rule', l: 1 }, { k: 1, t: 'Slain' }, { k: 2, t: 'Got away' }, { k: 'r', t: 'Kill rate', f: r => pc(r[1] + r[2] ? Math.round(100 * r[1] / (r[1] + r[2])) : null) }], d.game.champ), 'c4'),
+    card('Town', 'Building upgrades and recruits.', h('div', null, bars(d.game.build), h('div', { style: { height: '10px' } }), bars(d.game.recruit)), 'c4'),
+    card('Runs', null, h('div', { cls: 'kpis' }, kpi('Boss win rate', pc(winRate), fmt(game.bossWin) + ' won · ' + fmt(game.bossFail) + ' lost'), kpi('Runs lost', fmt(game.runOvers), 'median depth ' + game.runOverMedDepth), kpi('Ascensions', fmt(game.ascend)), kpi('Overdrives', fmt(game.od)), kpi('Relics', fmt(game.relic)), kpi('Jackpots', fmt(game.jackpot))), 'c4'),
+    card('Playing now', 'Refreshes every 15 seconds.', table([{ k: 'src', t: 'Source', l: 1 }, { k: 'dev', t: 'Device', l: 1 }, { k: 'cc', t: 'Country' }, { k: 'd', t: 'Depth', f: r => r.d + 1 }, { k: 'pt', t: 'Total play (min)' }, { k: 'secs', t: 'This session', f: r => Math.round(r.secs / 60) + ' min' }, { k: 'ago', t: 'Last seen', f: r => r.ago + ' s ago' }], d.live), 'c6'),
+    card('Errors players hit', 'JavaScript errors from real sessions (fix the top ones).', table([{ k: 0, t: 'Error', l: 1 }, { k: 1, t: 'Count' }], d.errors), 'c6'),
+    card('Tracking links', 'Tag every ad and post, so it shows up as its own source above. Use the same source name each time (tiktok, youtube, telegram, reddit…).', utmBuilder()),
+  );
+  const head = h('header', null, h('h1', null, 'BTTN Admin'), h('span', { cls: 'badge' }, h('i'), fmt(K.live) + ' playing now'), h('span', { cls: 'muted' }, d.range.from + ' → ' + d.range.to + ' · all time ' + fmt(d.totals.visitors) + ' visitors'), h('span', { cls: 'sp' }),
+    h('button', { cls: 'ghost', onclick: () => { const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); const n = cur === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = n; store.set('bttn_admin_theme', n); } }, 'Theme'),
+    h('button', { cls: 'ghost', onclick: () => { store.set('bttn_admin_token', null); loginView(); } }, 'Log out'));
+  $('#app').replaceChildren(head, h('main', null, filters, kpis, h('div', { style: { height: '16px' } }), grid));
+}
+function utmBuilder() {
+  const f = { src: h('input', { placeholder: 'utm_source (tiktok)' }), med: h('input', { placeholder: 'utm_medium (video, post, ad)' }), cmp: h('input', { placeholder: 'utm_campaign (launch_oct)' }), cnt: h('input', { placeholder: 'utm_content (clip_3, optional)' }) };
+  const out = h('input', { readonly: true }), copy = h('button', { onclick: () => { out.select(); navigator.clipboard && navigator.clipboard.writeText(out.value); copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy'; }, 1200); } }, 'Copy');
+  const upd = () => { const u = new URL(location.origin + '/'); const m = { utm_source: f.src.value, utm_medium: f.med.value, utm_campaign: f.cmp.value, utm_content: f.cnt.value }; for (const k in m) if (m[k].trim()) u.searchParams.set(k, m[k].trim().toLowerCase().replace(/\s+/g, '_')); out.value = u.toString(); };
+  Object.values(f).forEach(i => i.addEventListener('input', upd)); upd();
+  return h('div', null, h('div', { cls: 'utm' }, Object.values(f)), h('div', { cls: 'out' }, out, copy));
+}
+setInterval(async () => { if (!st.data || document.hidden || !token()) return; try { const r = await api('/api/admin/live'); st.data.live = await r.json(); st.data.kpi.live = st.data.live.length; render(); } catch (e) {} }, 15000);
+if (token()) load(); else loginView();
+</script>
+</body>
+</html>

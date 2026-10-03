@@ -1,3 +1,4 @@
 node_modules/
 server/dev.sqlite
 playtest-results.json
+data/

@@ -57,7 +57,7 @@
     ascGain: 'Fame gained', ascNeed: 'Beat the depth 15 lord for fame', ascEach: 'Each fame: +1% gold, +0.5% Warden damage, forever.',
     ascBtn: 'Ascend', ascConfirm: 'Sure? Tap again', hallOfFame: 'Hall of Fame', hallHint: 'Fame upgrades. Never reset.',
     ascDone: 'Ascended! +{0} fame', famePassive: 'Fame: {0} (+{1}% gold, +{2}% Warden damage)',
-    sound: 'Sound effects', music: 'Music', volume: 'Volume', hold: 'Hold to click', shake: 'Screen shake',
+    sound: 'Sound effects', music: 'Music', volume: 'Volume', hold: 'Hold to click', shake: 'Screen shake', statsOpt: 'Anonymous play stats (helps us improve the game)',
     autoBoss: 'Auto-call bosses', saveTitle: 'Save', export: 'Export', import: 'Import', copy: 'Copy',
     copied: 'Copied', importHint: 'Paste a save code, then Import.', resetBtn: 'Erase progress', resetConfirm: 'Sure? Deletes everything forever',
     saved: 'Game saved', badSave: 'Save code didn\u2019t load. Copied all of it?', imported: 'Save loaded',
