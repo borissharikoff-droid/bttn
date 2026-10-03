@@ -25,6 +25,8 @@
   // The Button is a spring: every click squashes it and it bounces back
   const btnSpring = { s: 1, v: 0 };
   const MAXP = 700, MAXG = 650;
+  // 3.5: blows are drawn a size up where the field's pixels are small (a phone), so they read at arm's length
+  let FXK = 1;
 
   St.init = function (canvas) {
     cv = canvas; ctx = cv.getContext('2d');
@@ -49,6 +51,7 @@
     groundKey = '';
     computeSlots();
     heroKey = '';
+    FXK = clamp(2.2 / S, 1, 1.4);
   };
 
   // ---------- Layout ----------
@@ -126,7 +129,8 @@
       p.vy += p.grav * vdt; p.x += p.vx * vdt; p.y += p.vy * vdt;
       lctx.globalAlpha = Math.min(1, p.life / p.max * 1.6);
       lctx.fillStyle = p.col;
-      lctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      if (p.plus) { const x = Math.round(p.x), y = Math.round(p.y); lctx.fillRect(x - 1, y, 3, 1); lctx.fillRect(x, y - 1, 1, 3); }
+      else lctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
     }
     lctx.globalAlpha = 1;
   }
@@ -317,7 +321,7 @@
       shots.push({ x: q.x, y: q.y - 6, sx: q.x, sy: q.y - 6, tx: v.x, ty: v.y - 4, t: 0, dur: 0.22, col: '#ffd84a' });
     });
     G.on('heroAttack', onHeroAttack);
-    G.on('mobDie', gore);
+    G.on('mobDie', onMobDie);
     G.on('mobFlee', m => { const q = mobPos(m); burst(q.x, q.y - 6, '#6e6e7c', 6, 30); mobVis.delete(m.id); });
     G.on('mobBite', m => {
       btnHurtT = 0.15; mobVisOf(m).lunge = 0.12;
@@ -461,7 +465,7 @@
       cardText(0, G.realmName(d).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
       cardText(11, G.t('zoneCard', G.zoneOf(d) + 1, G.ZONE_NAME(d)), '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
     }, 700));
-    G.on('ascend', () => { groundKey = ''; vis.clear(); mobVis.clear(); St.clearStain(); gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
+    G.on('ascend', () => { pfx.length = 0; pend.clear(); late.length = 0; groundKey = ''; vis.clear(); mobVis.clear(); St.clearStain(); gibs.length = 0; heroKey = ''; streak.n = 0; St.flash(0.8, '#ffffff'); });
     G.on('buy', (kind) => { if (kind === 'hero') heroKey = ''; });
     worldListen();
   }
@@ -616,12 +620,17 @@
   // ---------- Hero & mobs ----------
   const mobVis = new Map();
   let btnHurtT = 0;
-  // The Warden's animation state: position, facing, walk cycle and the current move
-  const hero = { x: null, y: null, face: 1, walk: 0, moving: false, atk: null, cast: 0, tgt: null, tgtT: 9, hand: null, top: null };
-  // (a Warden who is the party's tank or healer takes that place; damage Wardens keep the left)
+  // The Warden's animation state. 3.5: the Warden and every companion share one shape (newVis):
+  // a position and a velocity (they run, speeding up and easing into place), the stride of their feet,
+  // where they face, the current move, and the dash, aim and heal-run timers that pick where they go.
+  const newVis = () => ({ x: null, y: null, vx: 0, vy: 0, face: 1, stride: 0, legs: 0, moving: false, atk: null, cast: 0,
+    hand: null, top: null, hurt: 0, heal: 0, ph: Math.random() * 6, dashT: 0, dashTo: null, aimT: 0, aimX: 0, aimY: 0,
+    ghosts: [], ghostT: 0, swings: 0, flk: 0, flkT: 0, flkP: 0.9, healT: 0, healTo: null, chargeT: 0 });
+  const hero = newVis();
+  // where the Warden first stands (a Warden who is the party's tank or healer takes that place)
   function heroBase() {
     const b = btnPos(), r = G.S.hero && G.S.hero.cls ? G.ROLES[G.S.hero.cls] : 'dps';
-    if (r === 'tank' || r === 'heal') { const ti = G.tankInfo && G.tankInfo(); if (r === 'heal' || (ti && ti.who === -1)) return roleGoal(-1, r, null); }
+    if (r === 'tank' || r === 'heal') { const ti = G.tankInfo && G.tankInfo(); if (r === 'heal' || (ti && ti.who === -1)) return unitGoal(-1, { role: r }, hero, null); }
     return { x: b.x - 30, y: b.y + 16 };
   }
   function heroPos() {
@@ -629,38 +638,14 @@
     return { x: Math.round(hero.x), y: Math.round(hero.y) };
   }
   const ATTACK = { sword: ['swing', 0.24], katana: ['swing', 0.2], scythe: ['swing', 0.3], dagger: ['stab', 0.15], bow: ['shot', 0.3], staff: ['cast', 0.3], wand: ['cast', 0.22] };
-  // Melee Wardens step out to meet the crowd and fall back to the Button
-  function stepHero(dt) {
-    const base = heroBase();
-    if (hero.x == null) { hero.x = base.x; hero.y = base.y; }
-    const wt = G.D.hero ? G.D.hero.wtype : 'dagger';
-    let gx = base.x, gy = base.y;
-    hero.tgtT += dt;
-    if (MELEE[wt] && hero.tgt && hero.tgtT < 0.9 && !bossVis) {
-      const dx = hero.tgt.x - base.x, dy = hero.tgt.y - base.y, d = Math.hypot(dx, dy);
-      const go = clamp(d - 11, 0, 26);
-      if (d > 0) { gx = base.x + dx / d * go; gy = base.y + dy / d * go; }
-    }
-    gy = clamp(gy, 30, H - Math.ceil(70 / S));
-    const dx = gx - hero.x, dy = gy - hero.y, d = Math.hypot(dx, dy);
-    hero.moving = d > 0.7;
-    if (hero.moving) {
-      const st = Math.min(d, 80 * dt);
-      hero.x += dx / d * st; hero.y += dy / d * st; hero.walk += dt;
-      if (!hero.atk && Math.abs(dx) > 0.5) hero.face = dx > 0 ? 1 : -1;
-    }
-    if (hero.atk && (hero.atk.t += dt) >= hero.atk.dur) hero.atk = null;
-    if (hero.cast > 0) hero.cast -= dt;
-  }
   St.heroPos = heroPos;
 
   // ---------- The party on the field ----------
-  // Companions hold places around the Button; the Warden keeps the left.
   const allyVis = [];
-  const aVis = i => allyVis[i] || (allyVis[i] = { atk: null, face: 1, hurt: 0, heal: 0, ph: Math.random() * 6 });
+  const aVis = i => allyVis[i] || (allyVis[i] = newVis());
   // clear of the chest ring by the Button
   const SLOTS_AT = [[34, 14], [0, 36], [-34, -4]];
-  // 3.0: companions move as their roles want (stepAllies): allySlot is where each one is right now
+  // allySlot is where each companion is right now
   function allySlot(i) { const v = aVis(i); if (v.x == null) { const b = btnPos(), o = SLOTS_AT[i] || [0, 40]; v.x = b.x + o[0]; v.y = b.y + o[1]; } return { x: Math.round(v.x), y: Math.round(v.y) }; }
   // a point on the line a mob walks: angle a (0-1, as mobs use it), p from the edge (0) to the Button (1)
   function ringPos(a, p) {
@@ -668,29 +653,131 @@
     const sx = b.x + Math.cos(th) * W * 0.6, sy = b.y + Math.sin(th) * H * 0.56, ex = b.x + Math.cos(th) * 26, ey = b.y + Math.sin(th) * 14 + 4;
     return { x: sx + (ex - sx) * p, y: sy + (ey - sy) * p };
   }
-  // where a member of the party wants to be: the tank on its line, the healer behind the Button or at the
-  // side of whoever it's mending, damage on the flanks either side of the tank, a melee one lunging at its target
-  function roleGoal(who, role, wt) {
-    const ti = G.tankInfo && G.tankInfo(), ta = ti ? ti.a : 0.5, b = btnPos(), v = who < 0 ? hero : aVis(who);
-    if (role === 'tank' && ti && ti.who === who) return ringPos(ta, G.TUNE.tankP - 0.03);
-    if (role === 'heal') {
-      if (v.healT > 0 && v.healTo != null) { v.healT -= fdt; const q = unitPos(v.healTo); return { x: q.x + (q.x < b.x ? 12 : -12), y: q.y + 4 }; }
-      const o = ringPos(ta, 0.5), dx = b.x - o.x, dy = b.y - o.y, d = Math.hypot(dx, dy) || 1;
-      return { x: b.x + dx / d * 30 + Math.sin(time * 0.7 + (who + 2)) * 4, y: b.y + dy / d * 16 + 10 };
+  // which side of the line each hero flanks: the Warden and the companions take turns
+  const SIDE = { '-1': -1, 0: 1, 1: -1, 2: 1 };
+  // how fast each runs (logical px/s): a tank strides, a healer hurries, a dash is a blur
+  const RUN = { tank: 56, heal: 92, dps: 80, lunge: 170, dash: 250 };
+  // 3.5: where the Horde presses hardest (0-1 as mobs use it): the line the party forms on when no tank holds one
+  const threat = { a: 0.5, go: 0.5, t: 0, bins: new Float32Array(12) };
+  function stepThreat(dt) {
+    if ((threat.t -= dt) <= 0) {
+      threat.t = 0.5;
+      const B = threat.bins; B.fill(0);
+      for (const m of G.R.mobs || []) if (!m.dead && m.p > 0.35) B[Math.min(11, Math.max(0, Math.floor(m.a * 12)))] += (m.w || 1) * m.p;
+      let bi = -1, bv = 0; for (let i = 0; i < 12; i++) if (B[i] > bv) { bv = B[i]; bi = i; }
+      if (bi >= 0) threat.go = (bi + 0.5) / 12;
     }
-    if (v.lunge > 0 && v.lungeTo) { v.lunge -= fdt; return v.lungeTo; }
-    if (!v.flk || (v.flkT = (v.flkT || 0) - fdt) <= 0) { v.flkT = rand(3, 6); v.flk = (who % 2 ? 1 : -1) * rand(0.1, 0.2); v.flkP = rand(0.86, 0.94); }
-    return ringPos(clamp(ta + v.flk, 0.03, 0.97), MELEE[wt] ? 0.84 : v.flkP);
+    const d = threat.go - threat.a; threat.a += Math.sign(d) * Math.min(Math.abs(d), 0.3 * dt);
   }
-  function stepAllies(dt) {
+  // where a member of the party wants to be: the tank on its line, the healer behind the Button or at the
+  // side of whoever it's mending, damage on the flanks either side of the line; a melee hero dashes at its
+  // target and back, a shooter steps out toward what it shoots and falls back to the Button
+  function unitGoal(who, u, v, wt) {
+    const ti = G.tankInfo && G.tankInfo(), ta = ti ? ti.a : threat.a, b = btnPos(), melee = MELEE[wt];
+    if (v.dashT > 0 && v.dashTo) return v.dashTo;
+    if (u.role === 'tank' && ti && ti.who === who) {
+      if (bossVis) return bossSideSpot(v, who);
+      return ringPos(ta, G.TUNE.tankP - 0.03);
+    }
+    if (u.role === 'heal') {
+      if (v.healT > 0 && v.healTo != null) { const q = unitPos(v.healTo); return { x: q.x + (q.x < b.x ? 13 : -13), y: q.y + 3 }; }
+      const o = ringPos(ta, 0.5), dx = b.x - o.x, dy = b.y - o.y, d = Math.hypot(dx, dy) || 1;
+      return { x: b.x + dx / d * 30 + Math.sin(time * 0.7 + (who + 2)) * 5, y: b.y + dy / d * 16 + 10 };
+    }
+    if (v.flkT <= 0) { v.flkT = rand(2.5, 4.5); v.flk = (SIDE[who] || 1) * rand(0.08, 0.2); v.flkP = rand(0.66, 0.8); }
+    if (bossVis) {
+      if (melee) return bossSideSpot(v, who);
+      return ringPos(clamp(ta + v.flk * 1.8, 0.03, 0.97), 0.74);
+    }
+    const home = ringPos(clamp(ta + v.flk, 0.03, 0.97), melee ? 0.78 : v.flkP);
+    if (!melee && v.aimT > 0) {
+      const dx = v.aimX - home.x, dy = v.aimY - home.y, d = Math.hypot(dx, dy) || 1, go = clamp(d - 40, 0, 34);
+      return { x: home.x + dx / d * go, y: home.y + dy / d * go };
+    }
+    return home;
+  }
+  // in a boss fight melee heroes stand at its flanks: each keeps the side it came in on
+  function bossSide(v) { if (v.bFor !== bossVis) { v.bFor = bossVis; v.bSide = (v.x == null ? 0 : v.x) < bossPos().x ? -1 : 1; } return v.bSide; }
+  function bossSideSpot(v, who) { const bp = bossPos(), hh = bossHalf(), s = bossSide(v); return { x: bp.x + s * (hh.w + 5), y: bp.y - 1 + (who + 1) * 4 }; }
+  // a little physics for a run: speed up, ease into place, and no twitching on the spot
+  function moveUnit(v, gx, gy, top, dt) {
+    const dx = gx - v.x, dy = gy - v.y, d = Math.hypot(dx, dy);
+    const want = d < 0.75 ? 0 : top * Math.min(1, d / 12);
+    const tx = d > 0 ? dx / d * want : 0, ty = d > 0 ? dy / d * want : 0;
+    const ax = tx - v.vx, ay = ty - v.vy, a = Math.hypot(ax, ay), lim = (top > 120 ? 1600 : 650) * dt;
+    if (a > lim) { v.vx += ax / a * lim; v.vy += ay / a * lim; } else { v.vx = tx; v.vy = ty; }
+    v.x += v.vx * dt; v.y += v.vy * dt;
+  }
+  const DUST = ['#d8ccb2', '#b8a888', '#ece2cc'];
+  function dust(v, sp) {
+    if (parts.length > MAXP - 80) return;
+    const n = sp > 140 ? 2 : 1;
+    for (let i = 0; i < n; i++) part(v.x - v.face * rand(1, 4), v.y - 1, pick(DUST), { vx: -v.vx * 0.15 + rand(-6, 6), vy: -rand(5, 13), grav: 22, life: rand(0.25, 0.42), size: Math.random() < 0.6 ? 2 : 1 });
+  }
+  function stepUnit(u, dt) {
+    const who = u.who, v = who < 0 ? hero : aVis(who);
+    if (who < 0) heroPos(); else allySlot(who);
+    if (v.dashT > 0) v.dashT -= dt;
+    if (v.aimT > 0) v.aimT -= dt;
+    if (v.healT > 0) v.healT -= dt;
+    if (v.chargeT > 0) v.chargeT -= dt;
+    v.flkT -= dt;
+    if (v.atk && (v.atk.t += dt) >= v.atk.dur) v.atk = null;
+    if (v.cast > 0) v.cast -= dt;
+    if (u.down > 0) { v.vx = v.vy = 0; v.moving = false; v.legs = 0; v.dashT = 0; v.ghosts.length = 0; return; }
+    const wt = u.eq.weapon ? G.ITEM_TYPE[u.eq.weapon.id] : null;
+    const g = unitGoal(who, u, v, wt);
+    let gx = clamp(g.x, 10, W - 10), gy = clamp(g.y, 30, H - Math.ceil(70 / S));
+    // never stand on (or hide behind) the Button or the boss: a goal inside it moves out to its rim
+    const o = keepOut(gx, gy, v.x < btnPos().x ? -1 : 1); gx = o.x; gy = o.y;
+    const top = v.dashT > 0 ? (u.cls === 'rogue' ? RUN.dash : RUN.lunge) : RUN[u.role] || RUN.dps;
+    moveUnit(v, gx, gy, top, dt);
+    // and on the way, it goes round the Button (or the boss), never through it
+    const ko = keepOut(v.x, v.y, v.vx < 0 ? -1 : 1);
+    if (ko.x !== v.x || ko.y !== v.y) { const k = Math.min(1, dt * 10); v.x += (ko.x - v.x) * k; v.y += (ko.y - v.y) * k; }
+    const sp = Math.hypot(v.vx, v.vy);
+    v.moving = sp > 8;
+    if (v.moving) {
+      // a frame of the run every 4.5 px of ground, never faster than about 20 a second
+      v.stride += Math.min(sp, 92) * dt / 4.5;
+      const lg = Math.floor(v.stride) % 4;
+      if (lg !== v.legs && (lg === 1 || lg === 3) && sp > 26) dust(v, sp);
+      v.legs = lg;
+    } else { v.legs = 0; v.stride = 0; }
+    // face what it hits while it fights, else where it runs (with a dead zone, so it never flickers)
+    if (v.atk || v.aimT > 0 || v.dashT > 0) { if (Math.abs(v.aimX - v.x) > 2) v.face = v.aimX > v.x ? 1 : -1; }
+    else if (Math.abs(v.vx) > 12) v.face = v.vx > 0 ? 1 : -1;
+    // a rogue's dash leaves afterimages
+    if (v.dashT > 0 && u.cls === 'rogue' && sp > 60 && (v.ghostT -= dt) <= 0) { v.ghostT = 0.028; if (v.ghosts.length < 7) v.ghosts.push({ x: v.x, y: v.y, face: v.face, legs: v.legs, t: 0.22 }); }
+  }
+  // the Button's footprint (and the bit above it its top hides), or the boss's
+  const KO = { x: 0, y: 0 };
+  function keepOut(x, y, side) {
+    const b = btnPos();
+    let cx = b.x, cy = b.y - 7, rx = 27, ry = 17;
+    if (bossVis) { const hh = bossHalf(); cy = b.y - 2 - hh.h * 0.7; rx = hh.w + 3; ry = hh.h * 0.75 + 4; }
+    let ex = (x - cx) / rx, ey = (y - cy) / ry, e = Math.hypot(ex, ey);
+    KO.x = x; KO.y = y;
+    if (e >= 1) return KO;
+    if (e < 0.05) { ex = side; ey = 0.3; e = Math.hypot(ex, ey); }
+    // out through the nearer side or the bottom, never up behind it
+    if (ey < 0 && Math.abs(ex) < 0.6) ey = -ey;
+    KO.x = cx + ex / e * rx; KO.y = cy + ey / e * ry;
+    return KO;
+  }
+  function stepParty(dt) {
     if (!G.partyUnits) return;
-    for (const u of G.partyUnits()) {
-      if (u.who < 0 || u.down > 0) continue;
-      const v = aVis(u.who), q = allySlot(u.who), wt = u.eq.weapon ? G.ITEM_TYPE[u.eq.weapon.id] : null;
-      const g = roleGoal(u.who, u.role, wt), gx = clamp(g.x, 8, W - 8), gy = clamp(g.y, 30, H - Math.ceil(70 / S));
-      const dx = gx - v.x, dy = gy - v.y, d = Math.hypot(dx, dy);
-      v.moving = d > 1;
-      if (v.moving) { const sp = (u.role === 'tank' ? 50 : v.lunge > 0 ? 140 : 65) * dt, k = Math.min(1, sp / d); v.x += dx * k; v.y += dy * k; if (!v.atk && Math.abs(dx) > 0.5) v.face = dx > 0 ? 1 : -1; }
+    stepThreat(dt);
+    const us = G.partyUnits();
+    for (const u of us) stepUnit(u, dt);
+    // heroes standing on top of each other step apart
+    for (let i = 0; i < us.length; i++) for (let j = i + 1; j < us.length; j++) {
+      const a = unitVis(us[i].who), c = unitVis(us[j].who);
+      if (us[i].down > 0 || us[j].down > 0 || a.dashT > 0 || c.dashT > 0 || a.x == null || c.x == null) continue;
+      const dx = c.x - a.x, dy = (c.y - a.y) * 1.6, d = Math.hypot(dx, dy);
+      if (d >= 12) continue;
+      const k = (12 - d) / 2 * Math.min(1, dt * 5) / (d || 1), px = d ? dx * k : k, py = d ? dy * k / 1.6 : 0;
+      a.x -= px; a.y -= py; c.x += px; c.y += py;
     }
   }
   St.ringPos = ringPos;
@@ -714,28 +801,114 @@
     lctx.strokeStyle = '#ffd84a'; lctx.lineWidth = 1; lctx.beginPath(); lctx.arc(q.x, q.y - 6, 9, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2); lctx.stroke();
     if (Math.random() < 0.08) part(q.x + rand(-4, 4), q.y - 10, '#c8c8d4', { vx: 0, vy: -8, grav: 0, life: 0.6 });
   }
-  function drawAlly(i, u, q) {
-    const v = aVis(i);
-    if (u.down > 0) { drawDowned(u, q); return; }
-    const w = u.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
-    shadow(q.x, q.y - 1, 12);
-    if (v.heal > 0) { glow(q.x, q.y - 8, 9, '#8ae07a', v.heal * 2); v.heal -= fdt; }
-    // the tank wears a shield-glow while it is holding a line of mobs
-    if (u.role === 'tank' && G.R.mobs.some(m => m.held)) glow(q.x, q.y - 8, 13, '#7ab8ff', 0.16 + 0.07 * Math.sin(time * 4));
+  // 3.5: the Warden and the companions are drawn the same way: running feet, the move in hand, the swing's smear
+  const POSE = { pose: 'rest', ang: 0, draw: 0 };
+  function unitPose(v, wt) {
     let pose = 'rest', ang = G.Doll.restAngle(wt), draw = 0;
     const a = v.atk;
     if (a) {
       const k = a.t / a.dur;
-      if (a.kind === 'swing') { if (k < 0.3) { pose = 'up'; ang = -2.4; } else { pose = 'fwd'; ang = G.lerp(-2.4, 0.8, Math.min(1, (k - 0.3) / 0.4)); } }
-      else if (a.kind === 'stab') { if (k > 0.3) { pose = 'fwd'; ang = 0; } }
-      else if (a.kind === 'shot') { pose = 'fwd'; draw = k < 0.5 ? k / 0.5 : 0; }
-      else if (a.kind === 'cast') { if (k < 0.4) { pose = 'up'; ang = -1.9; } else { pose = 'fwd'; ang = -0.55; } }
-      if ((a.t += fdt) >= a.dur) v.atk = null;
+      if (a.kind === 'swing') {
+        if (k < 0.25) { pose = 'up'; ang = -2.4; }
+        else if (k < 0.6) { pose = 'fwd'; ang = G.lerp(-2.4, 0.8, (k - 0.25) / 0.35); }
+        else ang = G.lerp(0.8, ang, (k - 0.6) / 0.4);
+      } else if (a.kind === 'stab') {
+        if (k < 0.35) ang = -0.3; else if (k < 0.8) { pose = 'fwd'; ang = 0; }
+      } else if (a.kind === 'shot') { pose = 'fwd'; draw = k < 0.5 ? k / 0.5 : 0; }
+      else if (a.kind === 'cast') {
+        if (k < 0.4) { pose = 'up'; ang = -1.9; } else if (k < 0.85) { pose = 'fwd'; ang = -0.55; }
+      }
     }
-    const bob = a ? 0 : Math.floor(time * 1.6 + v.ph) % 2;
-    G.Doll.draw(lctx, u, q.x, q.y, { face: v.face, pose, bob, ang, draw, time: time + v.ph });
-    if (v.hurt > 0) { lctx.globalAlpha = Math.min(0.6, v.hurt * 4); lctx.fillStyle = '#ff3b3b'; lctx.fillRect(q.x - 6, q.y - 20, 12, 20); lctx.globalAlpha = 1; v.hurt -= fdt; }
-    hpBar(q.x, q.y - 24, u.hp / u.max, 14, ROLE_COL[u.role]);
+    if (v.cast > 0) { pose = 'up'; ang = -1.7; }
+    POSE.pose = pose; POSE.ang = ang; POSE.draw = draw;
+    return POSE;
+  }
+  // a dash's afterimages: the body as a flat tinted shadow, one cached canvas per hero look
+  const ghostCache = new Map();
+  function ghostOf(u) {
+    const key = u.cls + '|' + (u.eq.weapon ? u.eq.weapon.id : '-') + '|' + (u.eq.armor ? u.eq.armor.id : '-');
+    let c = ghostCache.get(key);
+    if (c) return c;
+    if (ghostCache.size > 12) ghostCache.clear();
+    const f = G.Doll.frame(u, 1, 'fwd', 0).canvas;
+    c = SPR.makeCanvas(f.width, f.height);
+    const x = c.getContext('2d');
+    x.drawImage(f, 0, 0); x.globalCompositeOperation = 'source-in';
+    x.fillStyle = (CFX[u.cls] || CFX.rogue)[0]; x.fillRect(0, 0, c.width, c.height);
+    ghostCache.set(key, c);
+    return c;
+  }
+  function drawGhosts(u, v) {
+    if (!v.ghosts.length) return;
+    const c = ghostOf(u);
+    for (let i = v.ghosts.length - 1; i >= 0; i--) {
+      const g = v.ghosts[i];
+      if ((g.t -= fdt) <= 0) { v.ghosts.splice(i, 1); continue; }
+      lctx.globalAlpha = 0.5 * g.t / 0.22;
+      const ox = Math.round(g.x - 13), oy = Math.round(g.y - 23);
+      if (g.face > 0) lctx.drawImage(c, ox, oy);
+      else { lctx.save(); lctx.translate(ox + 26, oy); lctx.scale(-1, 1); lctx.drawImage(c, 0, 0); lctx.restore(); }
+    }
+    lctx.globalAlpha = 1;
+  }
+  function footRing(x, y, rx, col, a) {
+    const ry = Math.max(2, Math.round(rx * 0.38)), n = Math.round(rx * 4);
+    lctx.fillStyle = col;
+    for (let j = 0; j < n; j++) {
+      const t = j / n * Math.PI * 2, sy = Math.sin(t);
+      lctx.globalAlpha = a * (sy > 0 ? 1 : 0.45);
+      lctx.fillRect(Math.round(x + Math.cos(t) * rx), Math.round(y - 1 + sy * ry), 1, 1);
+    }
+    lctx.globalAlpha = 1;
+  }
+  function drawUnit(u, v, q) {
+    const warden = u.who < 0;
+    if (u.down > 0) { drawDowned(u, q); return; }
+    const w = u.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
+    drawGhosts(u, v);
+    if (v.hurt > 0) v.hurt -= fdt;
+    if (v.heal > 0) { glow(q.x, q.y - 8, 9, '#8ae07a', v.heal * 2); v.heal -= fdt; }
+    if (warden && w && w.r >= 3) glow(q.x, q.y - 6, 10, G.RARITIES[w.r].color, 0.16 + 0.06 * Math.sin(time * 4));
+    if (warden && G.R.hb && G.R.hb.wing > 0) glow(q.x, q.y - 12, 12, '#ffffff', 0.25);
+    // the tank wears a shield-glow while it is holding a line of mobs
+    if (u.role === 'tank' && G.tankInfo && (G.tankInfo() || {}).who === u.who && G.R.mobs.some(m => m.held)) glow(q.x, q.y - 8, 13, '#7ab8ff', 0.16 + 0.07 * Math.sin(time * 4));
+    // a staff or wand glows as a spell gathers
+    if (v.chargeT > 0 && v.hand) { const c = CFX[fxKey(u.cls, wt)] || CFX.wizard; glow(v.hand.x, v.hand.y - 3, 4, c[0], 0.45 * v.chargeT / 0.2); }
+    shadow(q.x, q.y - 1, warden ? 14 : 12);
+    // a ring of the role's colour at its feet, to find each hero in the crowd
+    footRing(q.x, q.y, warden ? 9 : 8, ROLE_COL[u.role], warden ? 0.75 : 0.55);
+    const P = unitPose(v, wt), a = v.atk;
+    const bob = v.moving || a ? 0 : Math.floor(time * 1.6 + v.ph) % 2;
+    const lunge = a && a.kind !== 'shot' && P.pose === 'fwd' ? v.face : 0;
+    const r = G.Doll.draw(lctx, u, q.x + lunge, q.y, { face: v.face, legs: v.legs, pose: P.pose, bob, ang: P.ang, draw: P.draw, time: time + (warden ? 0 : v.ph) });
+    if (!v.hand) v.hand = { x: 0, y: 0 };
+    v.hand.x = r.hx; v.hand.y = r.hy; v.top = r.top;
+    // a smear behind the blade, and a flash ahead of a stab
+    if (a && w) {
+      const k = a.t / a.dur, col = G.WEAPONS[wt].col;
+      if (a.kind === 'swing' && k >= 0.25 && k < 0.8) {
+        const cur = k < 0.6 ? P.ang : 0.8, from = Math.max(-2.4, cur - 2.2);
+        lctx.fillStyle = col;
+        for (let t = from; t <= cur; t += 0.1) {
+          lctx.globalAlpha = 0.25 + 0.6 * (t - from) / Math.max(0.01, cur - from);
+          lctx.fillRect(Math.round(r.hx + v.face * Math.cos(t) * 9), Math.round(r.hy + Math.sin(t) * 9), 1, 1);
+          lctx.fillRect(Math.round(r.hx + v.face * Math.cos(t) * 11), Math.round(r.hy + Math.sin(t) * 11), 1, 1);
+        }
+        lctx.globalAlpha = 1;
+      } else if (a.kind === 'stab' && k >= 0.35 && k < 0.8) {
+        lctx.fillStyle = '#ffffff';
+        for (let j = 10; j < 15; j++) { lctx.globalAlpha = 1 - (j - 10) / 5; lctx.fillRect(Math.round(r.hx + v.face * j), Math.round(r.hy), 1, 1); }
+        lctx.globalAlpha = 1;
+      }
+    }
+    if (a && a.kind === 'cast' && !a.flash && a.t / a.dur >= 0.4 && w) {
+      a.flash = true;
+      const tp = G.Doll.tip(w, r.hx, r.hy, v.face, -0.55);
+      burst(tp.x, tp.y, [G.WEAPONS[wt].col, '#ffffff'], 5, 40, { grav: 0, life: 0.22 });
+    }
+    if (v.hurt > 0) { lctx.globalAlpha = Math.min(0.6, v.hurt * 4); lctx.fillStyle = '#ff3b3b'; lctx.fillRect(q.x - 6, q.y - 20, 12, 20); lctx.globalAlpha = 1; }
+    if (warden) { if (G.D.wardenHp) hpBar(q.x, q.y - 26, G.S.hero.whp / G.D.wardenHp, 16, ROLE_COL[u.role]); }
+    else hpBar(q.x, q.y - 24, u.hp / u.max, 14, ROLE_COL[u.role]);
   }
   // heals, bites and boss shots between the party, the Button and the Horde
   const beamsFx = [];
@@ -756,22 +929,368 @@
       }
     }
   }
+  // ---------- 3.5: the party's blows ----------
+  // One attack of a hero, made visible. The hit has already landed in the game; the blow is drawn landing a
+  // moment later (a swing in about 0.07 s, an arrow or a spell in 0.15-0.3 s), and a mob it killed stays
+  // standing until the blow reaches it (late), so the arrow, not the number, is what kills it.
+  // Knobs: G.Stage.partyFx.cap (live blows), .q (0-1: trail sparkle and sparks; drops by itself on a slow frame)
+  const PFX = St.partyFx = { cap: 180, q: 1, lateMax: 80 };
+  // each class's look: [main, light, dark]
+  const CFX = {
+    knight: ['#c8d4e4', '#ffffff', '#5a8adf'],
+    archer: ['#9be15d', '#f0ffd8', '#3d7f2b'],
+    wizard: ['#7fa8ff', '#eef4ff', '#8a4aef'],
+    fire: ['#ff7a2e', '#ffe27a', '#c8321a'],
+    rogue: ['#c8a8ff', '#ffffff', '#6a3aaa'],
+    cleric: ['#ffd84a', '#fffbe0', '#d89a2a'],
+  };
+  // the style of a blow goes by the weapon in hand (any class may carry any weapon), the colours of a spell by who casts it
+  const fxKey = (cls, wt) => (wt === 'bow' ? 'archer' : wt === 'dagger' ? 'rogue' : MELEE[wt] || !wt ? 'knight' : cls === 'cleric' ? 'cleric' : cls === 'wizard' && wt === 'staff' ? 'fire' : 'wizard');
+  const pfx = [];          // live blows: projectiles, swings, slashes, sparks, beams
+  const pend = new Map();  // mob id -> the blow on its way to it
+  const late = [];         // mobs killed by a blow still on its way: drawn where they stood until it lands
+  let idMap = new Map(), idMapT = -1;
+  function mobById(id) {
+    if (idMapT !== time) { idMapT = time; idMap.clear(); for (const m of G.R.mobs) idMap.set(m.id, m); }
+    return idMap.get(id);
+  }
+  function bossSpot() { const bp = bossPos(), hh = bossHalf(); return { x: bp.x + rand(-0.8, 0.8) * hh.w, y: bp.y - hh.h * rand(0.55, 1.45) }; }
+  const unitVis = who => (who < 0 ? hero : aVis(who));
+  function blow(o) {
+    if (pfx.length >= PFX.cap) {
+      if (!o.hits && !o.boss) return null;     // a spark or a mark: skip it
+      o.t = o.dur; land(o); return null;       // a hit: land it now
+    }
+    o.t = -(o.delay || 0);
+    pfx.push(o);
+    if (o.hits) for (const m of o.hits) pend.set(m.id, o);
+    return o;
+  }
+  function onMobDie(m, gold, chest, src) {
+    const f = pend.get(m.id);
+    if (f && !f.done && late.length < PFX.lateMax) { late.push({ m, q: mobPos(m), gold, chest, src, f, t: 0 }); return; }
+    gore(m, gold, chest, src);
+  }
+  function flushLate(f) {
+    for (let i = late.length - 1; i >= 0; i--) {
+      const L = late[i];
+      if (f ? L.f === f : true) { late.splice(i, 1); gore(L.m, L.gold, L.chest, L.src); }
+    }
+  }
+  function stepLate(dt, list, realm) {
+    for (let i = late.length - 1; i >= 0; i--) {
+      const L = late[i];
+      if ((L.t += dt) > 0.45 || L.f.done) { late.splice(i, 1); gore(L.m, L.gold, L.chest, L.src); continue; }
+      list.push({ y: L.q.y, draw: () => drawMob(L.m, L.q, realm) });
+    }
+  }
+  // where a blow is aimed right now: its mob (alive or waiting in late), else the spot it was sent to
+  function aimOf(f) {
+    if (f.m) { const q = mobPos(f.m); f.tx = q.x + (f.ox || 0); f.ty = q.y - 7 + (f.oy || 0); }
+  }
+  // the blow arrives
+  function land(f) {
+    if (f.done) return;
+    f.done = true;
+    aimOf(f);
+    if (f.hits) for (const m of f.hits) { if (pend.get(m.id) === f) pend.delete(m.id); if (!m.dead) { const v = mobVisOf(m); v.hit = Math.max(v.hit, m === f.m ? 0.1 : 0.07); } }
+    if (f.boss) bossHitT = Math.max(bossHitT, 0.07);
+    const C = f.C, x = f.tx, y = f.ty, big = f.crit ? 1.5 : 1, q = PFX.q;
+    switch (f.k) {
+      case 'arrow':
+        blow({ k: 'spark', x, y, C, crit: f.crit, sc: f.sc * 0.8, dur: 0.12 });
+        if (f.m && !f.m.dead) blow({ k: 'stuck', m: f.m, ox: f.ox || 0, oy: (f.oy || 0) + rand(-2, 2), ux: f.ux, uy: f.uy, C, dur: 0.55 });
+        else burst(x, y, [C[0], '#ffffff', '#c8a870'], 3, 50, { life: 0.22 });
+        break;
+      case 'missile':
+        ring(x, y + 2, 6 * big, 4 * big, C[0], 0.2);
+        blow({ k: 'spark', x, y, C, crit: f.crit, sc: f.sc, dur: 0.14 });
+        if (q > 0.5) burst(x, y, [C[0], C[1], C[2]], f.crit ? 8 : 4, 55, { grav: 0, life: 0.25 });
+        break;
+      case 'fire': {
+        const rx = Math.max(8, f.rx || 10) * big, ry = Math.max(5, f.ry || 6) * big;
+        blow({ k: 'flash', x, y: y + 3, r: rx * 0.7, col: '#ffe27a', dur: 0.16 });
+        ring(x, y + 4, rx, ry, '#ff7a2e', 0.26); ring(x, y + 4, rx * 0.6, ry * 0.6, '#ffe27a', 0.2);
+        burst(x, y, ['#ffe27a', '#ff7a2e', '#ff3b1a', '#ffffff'], Math.round((f.crit ? 16 : 9) * (0.4 + 0.6 * q)), 85, { life: 0.32, grav: 60 });
+        for (let i = 0; i < 3 * q; i++) part(x + rand(-4, 4), y + rand(-2, 2), pick(['#3a3440', '#5a5260']), { vx: rand(-8, 8), vy: -rand(14, 26), grav: -8, life: rand(0.4, 0.6), size: 2 });
+        if (f.crit) St.shake(1.5);
+        break;
+      }
+      case 'holy':
+        blow({ k: 'cross', x, y, C, crit: f.crit, sc: f.sc, dur: 0.16 }); ring(x, y + 2, 5 * big, 3 * big, C[0], 0.18);
+        if (q > 0.5) burst(x, y, [C[0], C[1]], f.crit ? 7 : 4, 40, { grav: -20, life: 0.3 });
+        break;
+      case 'hit': // a swing or a stab connecting
+        if (f.mark === 'cut') blow({ k: 'cut', x, y, C, sc: f.sc, flip: f.flip, dur: 0.16 });
+        else if (f.mark === 'x') { blow({ k: 'xcut', x, y, C, sc: f.sc, dur: 0.34 }); burst(x, y, ['#ff3b3b', '#ffffff', '#ff8a8a'], 8, 70, { life: 0.3 }); St.shake(1); }
+        else blow({ k: 'spark', x, y, C, crit: f.crit, sc: f.sc, dur: 0.14 });
+        break;
+    }
+    flushLate(f);
+  }
+  // the moves, by class (and, for a wizard, by staff or wand)
+  function unitAttack(who, ev, wt) {
+    const u = who < 0 ? G.S.hero : G.S.party[who];
+    if (!u || !u.cls || !lctx) return;
+    const v = unitVis(who), q = who < 0 ? heroPos() : allySlot(who);
+    const key = fxKey(u.cls, wt), C = CFX[key], sc = (who < 0 ? 1.25 : 1) * FXK, crit = !!ev.crit;
+    const tg = [], spl = [];
+    if (ev.ids) for (const id of ev.ids) { if (tg.length >= 5) break; const m = mobById(id); if (m) tg.push(m); }
+    if (ev.splash) for (const id of ev.splash) { if (spl.length >= 10) break; const m = mobById(id); if (m) spl.push(m); }
+    const onBoss = !tg.length && !!ev.boss && !!bossVis;
+    if (!tg.length && !onBoss) return;
+    const p0 = tg.length ? mobPos(tg[0]) : bossSpot();
+    v.aimX = p0.x; v.aimY = p0.y; v.aimT = 0.9;
+    v.face = p0.x >= q.x ? 1 : -1;
+    const at = ATTACK[wt] || ATTACK.sword;
+    if (!v.atk || v.atk.t > v.atk.dur * 0.5) v.atk = { kind: at[0], t: 0, dur: at[1] };
+    const hx = v.hand ? v.hand.x : q.x + v.face * 7, hy = v.hand ? v.hand.y - 1 : q.y - 11;
+    const tpt = (m, i) => { if (m) { const p = mobPos(m); return { x: p.x, y: p.y - 7 }; } const s = bossSpot(); return s; };
+    const n = onBoss ? 1 : tg.length;
+    if (MELEE[wt]) {
+      let tp = tpt(tg[0], 0);
+      // on a boss, a melee hero strikes from its flank
+      if (onBoss) { const sp = bossSideSpot(v, who), hh = bossHalf(); tp = { x: sp.x - bossSide(v) * 7, y: sp.y - 9 }; tp.hx = bossPos().x + bossSide(v) * hh.w * 0.55; tp.hy = bossPos().y - hh.h * rand(0.5, 1.2); }
+      const dx = tp.x - q.x, dy = tp.y + 7 - q.y, d = Math.hypot(dx, dy) || 1;
+      const tank = u.role === 'tank' && G.tankInfo && (G.tankInfo() || {}).who === who;
+      if (key === 'rogue') {
+        // a blink to the target, afterimages behind, two quick cuts (a red X on a crit)
+        let reach = 0;
+        if (d > 9) { v.dashT = Math.min(0.32, d / RUN.dash + 0.08); v.dashTo = { x: tp.x - v.face * 7, y: tp.y + 8 }; v.ghostT = 0; reach = Math.min(0.12, d / RUN.dash * 0.6); }
+        for (let i = 0; i < n; i++) {
+          const t = tg[i] ? tpt(tg[i]) : onBoss ? { x: tp.hx, y: tp.hy } : tp;
+          blow({ k: 'hit', m: tg[i] || null, boss: onBoss, tx: t.x, ty: t.y, hits: tg[i] ? (i === 0 ? [tg[i]].concat(spl) : [tg[i]]) : null, C, sc, crit, dur: reach + 0.04 + i * 0.03, mark: crit && i === 0 ? 'x' : 'cut', flip: false });
+          if (!crit || i > 0) blow({ k: 'cut', m: tg[i] || null, x: t.x + 3, y: t.y - 1, C, sc, flip: true, dur: 0.16, delay: reach + 0.1 + i * 0.03 });
+        }
+      } else {
+        // a knight's (or any blade's) crescent; the tank leans into it, anyone else lunges out to meet the mob
+        if (tank) { v.dashT = 0.12; v.dashTo = { x: q.x + dx / d * 5, y: q.y + dy / d * 3 }; }
+        else if (d > 12) { v.dashT = 0.3; v.dashTo = { x: tp.x - v.face * 9, y: tp.y + 9 }; }
+        const dir = Math.atan2((tp.y - (q.y - 9)) / 0.75, tp.x - q.x);
+        blow({ k: 'arc', who, dir, face: v.face, C, col: G.WEAPONS[wt].col, sc: sc * (crit ? 1.3 : 1), crit, dur: crit ? 0.24 : 0.19, delay: tank || d <= 12 ? 0.02 : Math.min(0.14, d / RUN.lunge * 0.7) });
+        const all = tg.concat(spl);
+        const nn = onBoss ? 1 : Math.min(all.length, 6);
+        for (let i = 0; i < nn; i++) {
+          const t = all[i] ? tpt(all[i]) : onBoss ? { x: tp.hx, y: tp.hy } : tp;
+          blow({ k: 'hit', m: all[i] || null, boss: onBoss && i === 0, tx: t.x, ty: t.y, hits: all[i] ? [all[i]] : null, C, sc, crit: crit && i === 0, dur: 0.07 + i * 0.025 + (tank || d <= 12 ? 0 : Math.min(0.14, d / RUN.lunge * 0.7)), mark: 'spark' });
+        }
+        // the shield: every fourth swing (and on a crit) a bash that rings out round the knight
+        if (u.cls === 'knight' && (++v.swings % 4 === 0 || crit)) blow({ k: 'wave', who, C, sc, dur: 0.3, delay: 0.05 });
+      }
+      return;
+    }
+    // ranged: the shot leaves the bow, wand or staff a beat after the draw
+    if (key !== 'archer') v.chargeT = 0.2;
+    const kind = key === 'archer' ? 'arrow' : key === 'fire' ? 'fire' : key === 'cleric' ? 'holy' : 'missile';
+    const speed = kind === 'arrow' ? 330 : kind === 'fire' ? 200 : kind === 'holy' ? 250 : 230;
+    const lead = kind === 'arrow' ? 0.06 : 0.05;
+    const area = ev.aoe ? aoePx(ev.aoe) : null;
+    const per = kind === 'arrow' && crit ? 3 : 1;
+    for (let i = 0; i < n; i++) {
+      const m = tg[i] || null, t = tpt(m, i);
+      for (let j = 0; j < per; j++) {
+        const dx = t.x - hx, dy = t.y - hy, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+        // a crit volley fans out a little either side of the mark
+        const off = per > 1 ? (j - 1) * 4 : 0;
+        const f = { k: kind, m: j === 0 ? m : m, boss: onBoss, sx: hx, sy: hy, tx: t.x - uy * off, ty: t.y + ux * off, ox: -uy * off, oy: ux * off, ux, uy,
+          C, sc, crit, dur: clamp(d / speed, 0.1, 0.32), delay: lead + i * 0.03 + j * 0.035, arc: kind === 'arrow' ? Math.min(7, d * 0.05) : kind === 'fire' ? Math.min(12, d * 0.09) : kind === 'holy' ? Math.min(8, d * 0.06) : 0,
+          wob: kind === 'missile' ? (Math.random() < 0.5 ? -1 : 1) * (crit ? 5 : 4) : 0,
+          hits: m && j === 0 ? (i === 0 ? [m].concat(spl) : [m]) : null };
+        if (kind === 'fire' && area) { f.rx = area.rx; f.ry = area.ry; }
+        if (!m) { f.ox = f.oy = 0; }
+        blow(f);
+      }
+    }
+  }
+  // a cleric's mend: a golden beam from the staff to whoever it heals, and + motes rising off them
+  function healFx(i, who) {
+    if (i == null || !lctx) return;
+    const v = unitVis(i);
+    v.cast = Math.max(v.cast, 0.25); v.chargeT = 0.25;
+    blow({ k: 'beam', from: i, to: who, C: CFX.cleric, dur: 0.5 });
+  }
+  function unitChest(who) { if (who === 'button') { const b = btnPos(); return { x: b.x, y: b.y - 8 }; } const q = unitPos(who); return { x: q.x, y: q.y - 10 }; }
+  // a few points back along a projectile's path, for its trail
+  function pathAt(f, k) {
+    const e = k, x = f.sx + (f.tx - f.sx) * e, y = f.sy + (f.ty - f.sy) * e - Math.sin(e * Math.PI) * f.arc;
+    if (!f.wob) { PT.x = x; PT.y = y; return PT; }
+    const w = Math.sin(e * Math.PI) * f.wob * Math.sin(e * Math.PI * 2), d = Math.hypot(f.tx - f.sx, f.ty - f.sy) || 1;
+    PT.x = x - (f.ty - f.sy) / d * w; PT.y = y + (f.tx - f.sx) / d * w; return PT;
+  }
+  const PT = { x: 0, y: 0 }, ARC_COLS = ['', '', '', '', ''];
+  // a round-ish pixel blob: a square with its corners off
+  function blob(x, y, s) { if (s < 4) { px(x, y, s); return; } const X = Math.round(x - (s >> 1)), Y = Math.round(y - (s >> 1)); lctx.fillRect(X + 1, Y, s - 2, s); lctx.fillRect(X, Y + 1, s, s - 2); }
+  function px(x, y, s) { lctx.fillRect(Math.round(x - (s >> 1)), Math.round(y - (s >> 1)), s, s); }
+  function drawPfx(dt) {
+    // a slow frame thins the sparkle
+    PFX.q = clamp(PFX.q + (fdt > 0.024 ? -dt * 2 : dt * 0.5), 0.35, 1);
+    for (let i = pfx.length - 1; i >= 0; i--) {
+      const f = pfx[i];
+      f.t += dt;
+      if (f.t < 0) continue;
+      if (f.hits !== undefined || f.boss) {
+        // a projectile or a connecting swing
+        if (f.t >= f.dur) { pfx.splice(i, 1); land(f); continue; }
+        if (f.k === 'hit') continue;
+        aimOf(f);
+        drawShot(f, f.t / f.dur);
+        continue;
+      }
+      if (f.t >= f.dur) { pfx.splice(i, 1); continue; }
+      drawMark(f, f.t / f.dur);
+    }
+    lctx.globalAlpha = 1;
+  }
+  function drawShot(f, k) {
+    const C = f.C, q = PFX.q, s = f.sc * (f.crit ? 1.35 : 1);
+    if (f.k === 'arrow') {
+      const p = pathAt(f, k), x = p.x, y = p.y, b = pathAt(f, Math.max(0, k - 0.06)), bx = b.x, by = b.y;
+      let ux = x - bx, uy = y - by; const l = Math.hypot(ux, uy) || 1; ux /= l; uy /= l;
+      f.ux = ux; f.uy = uy;
+      const len = Math.round(6 * s);
+      // a fading streak behind it
+      lctx.fillStyle = f.crit ? '#ffe27a' : C[1];
+      for (let j = 1; j <= 6; j++) { lctx.globalAlpha = 0.4 * (1 - j / 7); lctx.fillRect(Math.round(x - ux * (len + j * 2)), Math.round(y - uy * (len + j * 2)), 1, 1); }
+      lctx.globalAlpha = 1;
+      lctx.fillStyle = '#0c0b12'; line(x - ux * len + 0.5, y - uy * len + 1, x + 0.5, y + 1);
+      lctx.fillStyle = '#d8b880'; line(x - ux * len, y - uy * len, x, y);
+      lctx.fillStyle = f.crit ? '#fff3a0' : C[0]; lctx.fillRect(Math.round(x - ux * len) - 1, Math.round(y - uy * len), 2, 1);
+      lctx.fillStyle = '#ffffff'; px(x, y, f.crit ? 3 : 2);
+      if (f.crit) glow(x, y, 3, '#ffe27a', 0.35);
+      return;
+    }
+    if (f.k === 'missile' || f.k === 'holy' || f.k === 'fire') {
+      const fire = f.k === 'fire', holy = f.k === 'holy';
+      const head = fire ? 4 : 3, n = fire ? 6 : 5;
+      for (let j = n; j >= 1; j--) {
+        const p = pathAt(f, Math.max(0, k - j * 0.045));
+        lctx.globalAlpha = 0.7 * (1 - j / (n + 1));
+        lctx.fillStyle = fire ? (j < 3 ? '#ff7a2e' : j < 5 ? '#c8321a' : '#5a4a50') : j < 3 ? C[0] : C[2];
+        px(p.x, p.y, Math.max(1, Math.round((head - j * 0.5) * s)));
+      }
+      lctx.globalAlpha = 1;
+      const p = pathAt(f, k), x = p.x, y = p.y;
+      glow(x, y, Math.round((fire ? 5 : 4) * s), fire ? '#ff9a3a' : C[0], 0.3);
+      lctx.fillStyle = '#0c0b12'; blob(x, y + 1, Math.round(head * s) + 1);
+      lctx.fillStyle = fire ? '#ff7a2e' : C[0]; blob(x, y, Math.round(head * s));
+      lctx.fillStyle = fire ? '#ffe27a' : C[1]; px(x, y, Math.max(1, Math.round((head - 2) * s)));
+      if (holy) { lctx.fillStyle = C[1]; lctx.fillRect(Math.round(x) - Math.round(2 * s), Math.round(y), Math.round(4 * s) + 1, 1); lctx.fillRect(Math.round(x), Math.round(y) - Math.round(2 * s), 1, Math.round(4 * s) + 1); }
+      if (f.crit) { lctx.fillStyle = '#ffffff'; px(x, y, 1 + (fire ? 1 : 0)); }
+      if (Math.random() < (fire ? 0.5 : 0.28) * q) part(x + rand(-1, 1), y + rand(-1, 1), fire ? pick(['#ffe27a', '#ff7a2e', '#ff3b1a']) : pick([C[0], C[1]]), { vx: rand(-10, 10), vy: rand(-14, 4), grav: fire ? -20 : 0, life: rand(0.15, 0.3) });
+    }
+  }
+  function drawMark(f, k) {
+    const C = f.C, fade = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5;
+    switch (f.k) {
+      case 'arc': { // a crescent of steel round the swinger
+        const u = f.who < 0 ? hero : aVis(f.who); if (u.x == null) return;
+        const cx = u.x + f.face * 2, cy = u.y - 9, r = (f.crit ? 17 : 14) * f.sc;
+        const a0 = f.dir - 1.35 * f.face, a1 = f.dir + 1.35 * f.face;
+        const hk = 1 - Math.pow(1 - Math.min(1, k / 0.45), 2), tk = Math.max(0, (k - 0.2) / 0.8);
+        const ah = a0 + (a1 - a0) * hk, at = a0 + (a1 - a0) * tk, span = ah - at;
+        if (Math.abs(span) < 0.02) return;
+        const steps = Math.max(6, Math.round(Math.abs(span) * r));
+        const rows = f.crit ? 5 : 4, cols = ARC_COLS;
+        cols[0] = '#ffffff'; cols[1] = f.crit ? '#ffe27a' : C[1]; cols[2] = f.crit ? '#ffb347' : C[0]; cols[3] = f.col === '#ffffff' ? C[2] : f.col; cols[4] = C[2];
+        // an ink rim outside, then row by row (one colour each), thick in the middle of the sweep and thin at its ends
+        lctx.fillStyle = '#0c0b12';
+        for (let j = 0; j <= steps; j += 2) { const s = j / steps, a = at + span * s; lctx.globalAlpha = fade * 0.5 * s; lctx.fillRect(Math.round(cx + Math.cos(a) * (r + 1)), Math.round(cy + Math.sin(a) * 0.75 * (r + 1)), 1, 1); }
+        for (let row = 0; row < rows; row++) {
+          lctx.fillStyle = cols[row];
+          const rr = r - row;
+          for (let j = 0; j <= steps; j++) {
+            const s = j / steps;
+            if (Math.sin(s * Math.PI) * rows + 0.7 <= row) continue;
+            const a = at + span * s;
+            lctx.globalAlpha = fade * (0.3 + 0.7 * s) * (row > 2 ? 0.7 : 1);
+            lctx.fillRect(Math.round(cx + Math.cos(a) * rr), Math.round(cy + Math.sin(a) * 0.75 * rr), 1, 1);
+          }
+        }
+        return;
+      }
+      case 'wave': { // the shield bash: a ring of force rolling out along the ground
+        const u = f.who < 0 ? hero : aVis(f.who); if (u.x == null) return;
+        if (!f.fx) { f.fx = u.x; f.fy = u.y; for (let i = 0; i < 6 * PFX.q; i++) dust({ x: u.x + rand(-6, 6), y: u.y, face: rand(-1, 1) < 0 ? -1 : 1, vx: rand(-60, 60) }, 100); glow(u.x + u.face * 6, u.y - 9, 6, '#ffffff', 0.6); }
+        const e = 1 - Math.pow(1 - k, 2), rx = (5 + 20 * e) * f.sc, ry = rx * 0.5;
+        const n = Math.max(24, Math.round(rx * 4.6));
+        for (let row = 0; row < 3; row++) {
+          lctx.globalAlpha = (1 - k) * (row === 0 ? 0.95 : row === 1 ? 0.7 : 0.45); lctx.fillStyle = row === 0 ? '#ffffff' : row === 1 ? C[0] : C[2];
+          const rr = rx - row, ryy = ry - row * 0.5;
+          for (let j = 0; j < n; j++) { const a = j / n * Math.PI * 2; lctx.fillRect(Math.round(f.fx + Math.cos(a) * rr), Math.round(f.fy - 2 + Math.sin(a) * ryy), 1, 1); }
+        }
+        return;
+      }
+      case 'spark': { // an impact star
+        const l = (2 + 4 * Math.min(1, k * 2.5)) * f.sc * (f.crit ? 1.5 : 1), x = Math.round(f.x), y = Math.round(f.y);
+        lctx.globalAlpha = fade;
+        lctx.fillStyle = f.crit ? '#ffe27a' : C[0];
+        lctx.fillRect(x - Math.round(l), y, Math.round(l * 2) + 1, 1); lctx.fillRect(x, y - Math.round(l * 0.8), 1, Math.round(l * 1.6) + 1);
+        const dl = Math.round(l * 0.6);
+        for (let j = 1; j <= dl; j++) { lctx.fillRect(x + j, y + j, 1, 1); lctx.fillRect(x - j, y - j, 1, 1); lctx.fillRect(x + j, y - j, 1, 1); lctx.fillRect(x - j, y + j, 1, 1); }
+        lctx.fillStyle = '#ffffff'; lctx.fillRect(x - 1, y - 1, 3, 3);
+        return;
+      }
+      case 'cross': { // a holy bolt's flash
+        const l = Math.round((2 + 2.5 * Math.min(1, k * 3)) * f.sc * (f.crit ? 1.6 : 1)), x = Math.round(f.x), y = Math.round(f.y);
+        lctx.globalAlpha = fade;
+        lctx.fillStyle = C[0]; lctx.fillRect(x - l, y - 1, l * 2 + 1, 3); lctx.fillRect(x - 1, y - l, 3, l * 2 + 1);
+        lctx.fillStyle = C[1]; lctx.fillRect(x - l + 1, y, l * 2 - 1, 1); lctx.fillRect(x, y - l + 1, 1, l * 2 - 1);
+        return;
+      }
+      case 'cut': case 'xcut': { // a rogue's dagger cuts: two quick slashes, or a big red X
+        if (f.m && !f.m.dead) { const q = mobPos(f.m); f.x = q.x + (f.flip ? 3 : 0); f.y = q.y - 8; }
+        const x = f.x, y = f.y, X = f.k === 'xcut', L = (X ? 8 : 5) * f.sc, g = Math.min(1, k / 0.3);
+        const lines = X ? 2 : 1;
+        for (let j = 0; j < lines; j++) {
+          const gj = X ? clamp((k - j * 0.15) / 0.3, 0, 1) : g; if (gj <= 0) continue;
+          const sx = X ? (j ? 1 : -1) : f.flip ? -1 : 1;
+          const x0 = x - sx * L, y0 = y - L, x1 = x0 + sx * 2 * L * gj, y1 = y0 + 2 * L * gj;
+          lctx.globalAlpha = fade;
+          lctx.fillStyle = '#0c0b12'; line(x0, y0 + 1, x1, y1 + 1);
+          lctx.fillStyle = X ? '#ff3b3b' : C[0]; line(x0 + 1, y0, x1 + 1, y1); if (X) { line(x0 - 1, y0, x1 - 1, y1); }
+          lctx.fillStyle = '#ffffff'; line(x0, y0, x1, y1);
+        }
+        return;
+      }
+      case 'stuck': { // an arrow left standing in its mob
+        if (f.m && !f.m.dead) { const q = mobPos(f.m); f.x = q.x + f.ox; f.y = q.y - 7 + f.oy; } else if (f.x == null) return;
+        const ux = f.ux || 1, uy = f.uy || 0;
+        lctx.globalAlpha = fade;
+        lctx.fillStyle = '#d8b880'; line(f.x - ux * 4, f.y - uy * 4, f.x - ux, f.y - uy);
+        lctx.fillStyle = C[0]; lctx.fillRect(Math.round(f.x - ux * 4), Math.round(f.y - uy * 4), 1, 1);
+        return;
+      }
+      case 'flash':
+        glow(f.x, f.y, Math.max(2, Math.round(f.r * (0.6 + 0.4 * k))), f.col, 0.55 * (1 - k));
+        lctx.globalAlpha = 1;
+        return;
+      case 'beam': { // a cleric's mend
+        const a = unitPos(f.from), A = { x: a.x + (f.from < 0 ? hero : aVis(f.from)).face * 6, y: a.y - 16 }, B = unitChest(f.to);
+        const hk = Math.min(1, k / 0.28), mx = (A.x + B.x) / 2, my = Math.min(A.y, B.y) - 12 - Math.hypot(B.x - A.x, B.y - A.y) * 0.12;
+        const d = Math.hypot(B.x - A.x, B.y - A.y), n = Math.max(6, Math.round(d / 1.5)), al = k < 0.55 ? 1 : 1 - (k - 0.55) / 0.45;
+        for (let j = 0; j <= n * hk; j++) {
+          const s = j / n, u1 = 1 - s, x = u1 * u1 * A.x + 2 * u1 * s * mx + s * s * B.x, y = u1 * u1 * A.y + 2 * u1 * s * my + s * s * B.y;
+          lctx.globalAlpha = al * (0.55 + 0.45 * Math.sin(s * 12 - time * 30) * 0.5 + 0.2);
+          lctx.fillStyle = C[2]; lctx.fillRect(Math.round(x) - 1, Math.round(y), 3, 1);
+          lctx.fillStyle = C[0]; lctx.fillRect(Math.round(x), Math.round(y) - 1, 1, 3);
+          if (j % 2 === 0) { lctx.fillStyle = C[1]; lctx.fillRect(Math.round(x), Math.round(y), 1, 1); }
+        }
+        if (hk >= 1 && !f.hit) {
+          f.hit = true;
+          ring(B.x, B.y + 6, 9, 5, C[0], 0.35);
+          for (let j = 0; j < 6; j++) part(B.x + rand(-7, 7), B.y + rand(-4, 6), pick(['#8ae07a', '#ffd84a', '#ffffff']), { vx: rand(-6, 6), vy: -rand(14, 28), grav: -6, life: rand(0.5, 0.8), size: 1, plus: true });
+          glow(B.x, B.y, 7, '#fff3a0', 0.5);
+        }
+        if (hk < 1) { const s = hk, u1 = 1 - s; lctx.globalAlpha = 1; lctx.fillStyle = '#ffffff'; px(u1 * u1 * A.x + 2 * u1 * s * mx + s * s * B.x, u1 * u1 * A.y + 2 * u1 * s * my + s * s * B.y, 3); }
+        return;
+      }
+    }
+  }
   function partyListen() {
     G.on('allyAttack', ev => {
-      const v = aVis(ev.i), q = allySlot(ev.i), m = G.S.party[ev.i];
+      const m = G.S.party[ev.i];
       if (!m) return;
-      const wt = ev.wt || (m.eq.weapon ? G.ITEM_TYPE[m.eq.weapon.id] : 'sword'), at = ATTACK[wt] || ['swing', 0.24];
-      v.atk = { kind: at[0], t: 0, dur: at[1] };
-      const t0 = ev.ids && G.R.mobs.find(x => x.id === ev.ids[0]);
-      const tp = t0 ? mobPos(t0) : ev.boss && bossVis ? bossPos() : null;
-      if (!tp) return;
-      v.face = tp.x >= q.x ? 1 : -1;
-      // a melee companion (not the tank, who holds its line) lunges at its target and comes back
-      if (MELEE[wt] && G.ROLES[m.cls] !== 'tank' && t0) { v.lunge = 0.35; v.lungeTo = { x: tp.x - v.face * 7, y: tp.y + 2 }; }
-      if (shots.length < 110 && !MELEE[wt]) shots.push({ x: q.x, y: q.y - 10, sx: q.x, sy: q.y - 10, tx: tp.x, ty: tp.y - 6, t: 0, dur: 0.2, col: G.WEAPONS[wt] ? G.WEAPONS[wt].col : '#ffffff', arrow: wt === 'bow', flat: wt === 'bow', big: wt === 'staff' });
-      else if (MELEE[wt]) burst(tp.x, tp.y - 5, ['#ffffff', G.WEAPONS[wt].col], 3, 40, { life: 0.2 });
-      for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
-      for (const id of ev.ids || []) mobVisOf({ id }).hit = 0.09;
+      unitAttack(ev.i, ev, ev.wt || (m.eq.weapon ? G.ITEM_TYPE[m.eq.weapon.id] : 'sword'));
     });
     // 3.1 OVERDRIVE: a white-out and a shockwave, then the Button lashes every mob with lightning
     G.on('odReady', () => { const b = btnPos(); ring(b.x, b.y - 4, 30, 15, '#7fe9ff', 0.6); text(b.x, b.y - 46, G.t('odReady'), '#7fe9ff', 4, { life: 1.8, vy: -8 }); if (G.Audio && G.Audio.achievement) G.Audio.achievement(); });
@@ -799,11 +1318,9 @@
     });
     G.on('odEnd', n => { const b = btnPos(); ring(b.x, b.y - 4, 120, 60, '#ffffff', 0.7); St.flash(0.3, '#7fe9ff'); text(b.x, b.y - 40, G.t('odEnd', n), '#7fe9ff', 5, { life: 1.6, vy: -10 }); });
     G.on('heal', (i, who) => {
-      beamsFx.push({ kind: 'heal', from: i, to: who, t: 0, dur: 0.35 });
+      healFx(i, who);
       // the healer runs to whoever it mends (not to the Button: it mends that from where it stands)
       if (i != null && who !== 'button' && who !== i) { const hv = aVisOf(i); hv.healTo = who; hv.healT = 1.2; }
-      const q = unitPos(who);
-      burst(q.x, q.y - 12, ['#8ae07a', '#ffffff'], 5, 30, { grav: -20, life: 0.5 });
       if (who !== 'button') aVisOf(who).heal = 0.3;
     });
     G.on('unitHurt', (who, dmg, src) => {
@@ -1065,64 +1582,6 @@
     if (v.hit > 0) { blit(white(spr), x, q.y, sc, Math.min(0.6, v.hit * 8)); v.hit -= fdt; }
     if (Math.random() < 0.4) part(q.x + rand(-10, 10), q.y - rand(0, spr.height * sc), pick(['#b36bff', '#ff3b5c']), { vx: 0, vy: -20, grav: 0, life: 0.5 });
   }
-  function drawHero(hp) {
-    const h = G.S.hero;
-    if (!h || !h.cls) return;
-    if (h.wdown > 0) { drawDowned({ cls: h.cls, eq: h.eq, down: h.wdown }, hp); return; }
-    if (hero.hurt > 0) hero.hurt -= fdt;
-    if (hero.heal > 0) { glow(hp.x, hp.y - 8, 9, '#8ae07a', hero.heal * 2); hero.heal -= fdt; }
-    const w = h.eq.weapon, wt = w ? G.ITEM_TYPE[w.id] : null;
-    if (w && w.r >= 3) glow(hp.x, hp.y - 6, 10, G.RARITIES[w.r].color, 0.16 + 0.06 * Math.sin(time * 4));
-    if (G.R.hb && G.R.hb.wing > 0) glow(hp.x, hp.y - 12, 12, '#ffffff', 0.25);
-    shadow(hp.x, hp.y - 1, 14);
-    let pose = 'rest', ang = G.Doll.restAngle(wt), draw = 0;
-    const a = hero.atk;
-    if (a) {
-      const k = a.t / a.dur;
-      if (a.kind === 'swing') {
-        if (k < 0.25) { pose = 'up'; ang = -2.4; }
-        else if (k < 0.6) { pose = 'fwd'; ang = G.lerp(-2.4, 0.8, (k - 0.25) / 0.35); }
-        else ang = G.lerp(0.8, ang, (k - 0.6) / 0.4);
-      } else if (a.kind === 'stab') {
-        if (k < 0.35) ang = -0.3; else if (k < 0.8) { pose = 'fwd'; ang = 0; }
-      } else if (a.kind === 'shot') { pose = 'fwd'; draw = k < 0.5 ? k / 0.5 : 0; }
-      else if (a.kind === 'cast') {
-        if (k < 0.4) { pose = 'up'; ang = -1.9; } else if (k < 0.85) { pose = 'fwd'; ang = -0.55; }
-      }
-    }
-    if (hero.cast > 0) { pose = 'up'; ang = -1.7; }
-    const legs = hero.moving ? Math.floor(hero.walk * 11) % 4 : 0;
-    const bob = hero.moving || a ? 0 : Math.floor(time * 1.6) % 2;
-    const lunge = a && a.kind !== 'shot' && pose === 'fwd' ? hero.face : 0;
-    const r = G.Doll.draw(lctx, h, hp.x + lunge, hp.y, { face: hero.face, legs, pose, bob, ang, draw, time });
-    hero.hand = { x: r.hx, y: r.hy }; hero.top = r.top;
-    // a crescent smear behind the blade, and a flash ahead of a stab
-    if (a && w) {
-      const k = a.t / a.dur, col = G.WEAPONS[wt].col;
-      if (a.kind === 'swing' && k >= 0.25 && k < 0.8) {
-        const cur = k < 0.6 ? ang : 0.8, from = Math.max(-2.4, cur - 2.2);
-        lctx.fillStyle = col;
-        for (let t = from; t <= cur; t += 0.1) {
-          lctx.globalAlpha = 0.25 + 0.6 * (t - from) / Math.max(0.01, cur - from);
-          for (const rr of [9, 11]) lctx.fillRect(Math.round(r.hx + hero.face * Math.cos(t) * rr), Math.round(r.hy + Math.sin(t) * rr), 1, 1);
-        }
-        lctx.globalAlpha = 1;
-      } else if (a.kind === 'stab' && k >= 0.35 && k < 0.8) {
-        lctx.fillStyle = '#ffffff';
-        for (let j = 10; j < 15; j++) { lctx.globalAlpha = 1 - (j - 10) / 5; lctx.fillRect(Math.round(r.hx + hero.face * j), Math.round(r.hy), 1, 1); }
-        lctx.globalAlpha = 1;
-      }
-    }
-    if (a && a.kind === 'cast' && !a.flash && a.t / a.dur >= 0.4 && w) {
-      a.flash = true;
-      const tp = G.Doll.tip(w, r.hx, r.hy, hero.face, -0.55);
-      burst(tp.x, tp.y, [G.WEAPONS[wt].col, '#ffffff'], 7, 45, { grav: 0, life: 0.25 });
-      ring(tp.x, tp.y, 5, 4, G.WEAPONS[wt].col, 0.18);
-    }
-    if (hero.moving && Math.random() < 0.3) part(hp.x + rand(-3, 3), hp.y, pick(['#c8b89a', '#8a7a60']), { vx: -hero.face * rand(5, 15), vy: rand(-10, -2), grav: 20, life: 0.3 });
-    if (hero.hurt > 0) { lctx.globalAlpha = Math.min(0.6, hero.hurt * 4); lctx.fillStyle = '#ff3b3b'; lctx.fillRect(hp.x - 6, hp.y - 20, 12, 20); lctx.globalAlpha = 1; }
-    if (G.D.wardenHp) hpBar(hp.x, hp.y - 26, h.whp / G.D.wardenHp, 16, ROLE_COL[G.ROLES[h.cls]]);
-  }
   const MELEE = { dagger: 1, sword: 1, katana: 1, scythe: 1 };
   // The Warden's hits on a boss add up into floating numbers a few times a second
   const bossDmg = { acc: 0, t: 0, crit: false };
@@ -1131,13 +1590,18 @@
     if (!h || !h.cls) return;
     if (ev.boss) { bossDmg.acc += ev.dmg * (G.D.bossMult || 1); bossDmg.crit = bossDmg.crit || ev.crit; }
     const D = G.D, wt = D.hero ? D.hero.wtype : 'dagger';
-    const col = G.WEAPONS[wt].col;
-    const find = id => { const m = G.R.mobs.find(q => q.id === id); return m ? Object.assign(mobPos(m), { m }) : null; };
-    const pts = ev.boss ? [Object.assign({}, bossPos(), { y: bossPos().y - 12 })] : (ev.ids || []).map(find).filter(Boolean);
-    if (!pts.length) return;
-    for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
     // The Hand: a click calls lightning down from above the screen
-    if (ev.src === 'click') {
+    if (ev.src === 'click' || ev.src === 'pet') {
+      const find = id => { const m = mobById(id); return m ? Object.assign(mobPos(m), { m }) : null; };
+      const pts = ev.boss ? [Object.assign({}, bossPos(), { y: bossPos().y - 12 })] : (ev.ids || []).map(find).filter(Boolean);
+      if (!pts.length) return;
+      for (const id of ev.splash || []) mobVisOf({ id }).hit = 0.07;
+      if (ev.src === 'pet') {
+        if (shots.length > 90) return;
+        const t = pts[0], pp = petPos(Math.floor(Math.random() * Math.max(1, G.S.active.length)));
+        if (G.S.active.length) shots.push({ x: pp.x, y: pp.y, sx: pp.x, sy: pp.y, tx: t.x, ty: t.y - 6, t: 0, dur: 0.22, col: '#fff3a0' });
+        return;
+      }
       if (ev.boss) { bossHitT = 0.07; return; }
       const t = pts[0], ty = t.y - 6;
       if (t.m) mobVisOf(t.m).hit = 0.1;
@@ -1153,36 +1617,9 @@
       if (ev.crit) text(t.x, ty - 8, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 });
       return;
     }
-    const hp = heroPos();
-    const src = hero.hand ? { x: hero.hand.x, y: hero.hand.y - 1 } : { x: hp.x + hero.face * 9, y: hp.y - 12 };
-    if (ev.src === 'pet') {
-      if (shots.length > 90) return;
-      const t = pts[0], pp = petPos(Math.floor(Math.random() * Math.max(1, G.S.active.length)));
-      if (G.S.active.length) shots.push({ x: pp.x, y: pp.y, sx: pp.x, sy: pp.y, tx: t.x, ty: t.y - 6, t: 0, dur: 0.22, col: '#fff3a0' });
-      return;
-    }
-    hero.face = pts[0].x >= hp.x ? 1 : -1;
-    const kind = ATTACK[wt] || ATTACK.dagger;
-    if (!hero.atk || hero.atk.t > hero.atk.dur * 0.5) hero.atk = { kind: kind[0], t: 0, dur: kind[1] };
-    if (!ev.boss) { hero.tgt = { x: pts[0].x, y: pts[0].y }; hero.tgtT = 0; }
-    if (shots.length > 110) return;
-    const melee = MELEE[wt];
-    const area = ev.aoe ? aoePx(ev.aoe) : null;
-    pts.forEach((t, i) => {
-      const ty = t.y - 7;
-      if (t.m) mobVisOf(t.m).hit = 0.08;
-      const dur = melee ? 0.1 : wt === 'bow' ? 0.16 : 0.22;
-      if (!melee) shots.push({ x: src.x, y: src.y, sx: src.x, sy: src.y, tx: t.x, ty, t: 0, dur, col: ev.crit ? '#ff7a2e' : col, flat: wt === 'bow', big: wt === 'staff' || ev.crit, arrow: wt === 'bow', boom: area && !ev.boss ? { x: t.x, y: t.y - 3, rx: area.rx, ry: area.ry, col } : null });
-      else if (ev.boss) shots.push({ x: src.x, y: src.y, sx: src.x, sy: src.y, tx: t.x, ty, t: 0, dur, col: ev.crit ? '#ff7a2e' : col, flat: true, key: true });
-      if (wt === 'staff') shots.push({ x: src.x, y: src.y + 2, sx: src.x, sy: src.y + 2, tx: t.x, ty: ty + 3, t: 0, dur: dur * 1.1, col, flat: false });
-      if (melee && !ev.boss) { // a crescent sweep through the pack
-        const a = Math.atan2(t.y - hp.y, t.x - hp.x);
-        ring(t.x, t.y - 4, area ? area.rx : 8, area ? area.ry : 5, ev.crit ? '#ff7a2e' : col, 0.14, [a - 1.2, a + 1.2]);
-      } else if (melee) {
-        for (let j = 0; j < 5; j++) { const a = -1 + j * 0.5; part(t.x + Math.cos(a) * 6 * hero.face, ty + Math.sin(a) * 6, col, { vx: 0, vy: 0, grav: 0, life: 0.14 }); }
-      }
-      if (ev.crit && i === 0) text(t.x, ty - 8, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 });
-    });
+    // 3.5: the Warden's own blows are drawn like a companion's, in its class's style and a size up
+    unitAttack(-1, ev, wt);
+    if (ev.crit && !ev.boss && ev.ids && ev.ids.length) { const m = mobById(ev.ids[0]); if (m) { const q = mobPos(m); text(q.x, q.y - 16, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 }); } }
   }
 
   // ---------- Horde FX: the crunch ----------
@@ -2320,7 +2757,7 @@
 
   St.frame = function (dt) {
     time += dt; fdt = dt || 1 / 60;
-    if (G.R.town) { drawTown(dt); return; }
+    if (G.R.town) { if (late.length) flushLate(); pfx.length = 0; pend.clear(); drawTown(dt); return; }
     // several kills in one frame weigh more
     // the Horde dies in heaps all the time now: only a real heap stops the frame
     if (multiCd > 0) multiCd -= dt;
@@ -2439,7 +2876,7 @@
       } });
     });
     // Mobs and the hero
-    if (G.S.hero && G.S.hero.cls) { stepHero(dt); stepAllies(dt); }
+    if (G.S.hero && G.S.hero.cls) stepParty(dt);
     const mrealm = realm;
     for (const m of R.mobs || []) {
       const v = mobVisOf(m);
@@ -2454,9 +2891,10 @@
       if (q.x < -12 || q.x > W + 12 || q.y < -4 || q.y > H + 20) continue;
       list.push({ y: q.y, draw: () => drawDig(q, dg) });
     }
-    if (G.S.hero && G.S.hero.cls) { const hp = heroPos(); list.push({ y: hp.y, draw: () => drawHero(hp) }); }
-    // companions, each at their place
-    if (G.partyUnits && G.S.hero && G.S.hero.cls) for (const u of G.partyUnits()) if (u.who >= 0) { const q = allySlot(u.who); list.push({ y: q.y, draw: () => drawAlly(u.who, u, q) }); }
+    // the Warden and the companions, each where it has run to
+    if (G.partyUnits && G.S.hero && G.S.hero.cls) for (const u of G.partyUnits()) { const q = u.who < 0 ? heroPos() : allySlot(u.who), v = unitVis(u.who); list.push({ y: q.y, draw: () => drawUnit(u, v, q) }); }
+    // mobs a blow in the air has killed stand until it lands
+    stepLate(dt, list, mrealm);
     if (mobVis.size > (R.mobs || []).length + 20) { const ids = new Set((R.mobs || []).map(m => m.id)); for (const k of [...mobVis.keys()]) if (!ids.has(k)) mobVis.delete(k); }
     // Button or boss
     if (bossVis && bossDmg.acc > 0 && (bossDmg.t -= dt) <= 0) {
@@ -2600,6 +3038,8 @@
     // Particles
     stepDrawParts(vdt);
     drawGibs(false);
+    // the party's blows go over the gore, so they read in the thick of it
+    drawPfx(vdt);
 
     // Buff tint
     if (G.hasBuff('frenzy')) { lctx.globalAlpha = 0.07 + 0.03 * Math.sin(time * 6); lctx.fillStyle = '#ffd84a'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; }

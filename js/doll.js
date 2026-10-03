@@ -209,10 +209,12 @@
     ctx.putImageData(img, 0, 0);
   }
 
-  let cacheKey = '', cache = new Map();
+  // one frame cache per gear set (3.5: a party of differently-geared heroes used to rebuild sprites every draw)
+  const caches = new Map();
   function frame(h, legs, pose, bob) {
     const gk = gearKey(h);
-    if (gk !== cacheKey) { cacheKey = gk; cache = new Map(); }
+    let cache = caches.get(gk);
+    if (!cache) { if (caches.size > 12) caches.clear(); cache = new Map(); caches.set(gk, cache); }
     const k = legs + pose + bob;
     let f = cache.get(k);
     if (!f) { f = build(h, legs, pose, bob); cache.set(k, f); }
