@@ -341,13 +341,30 @@
   function hide() { const c = $('#coach'); if (c) c.hidden = true; lastKey = ''; placedY = null; aim = null; hidePointer(); }
 
   // ---------- Intro ----------
+  // slide 2: the Horde closes in on the Button from both sides, wave after wave, and the Button flinches at every blow
+  function siege() {
+    const L = [['f_crab', 0], ['b_goblin', 1], ['f_goblin', 0], ['f_spore', 0], ['b_crab', 1], ['f_pebble', 0]];
+    const Rt = [['f_bat', 0], ['b_imp', 1], ['f_eye', 0], ['f_shade', 0], ['b_eye', 1], ['f_ember', 0]];
+    // lane (vertical place), how far in it stops, when it sets off
+    // (they gather in an arc round it: the outer lanes, and the big ones, stand further out)
+    const lanes = [[-44, 0], [-4, 0.3], [34, 0.7], [-24, 1.1], [16, 1.5], [48, 1.9]];
+    const mob = (side, [id, big], k) => {
+      const [y, d] = lanes[k], stop = Math.round(80 + Math.abs(y) * 0.55 + (big ? 22 : 0) + (k > 2 ? 34 : 0));
+      return `<span class="sgMob ${side}${big ? ' big' : ''}" style="--y:${y}px;--d:${d}s;--stop:${stop}px"><img src="${G.SPR.url(id, big ? 4 : 5)}" alt="" draggable="false"></span>`;
+    };
+    return `<div class="siege" aria-hidden="true">
+      <div class="sgGround"></div>
+      ${L.map((m, k) => mob('l', m, k)).join('')}${Rt.map((m, k) => mob('r', m, k)).join('')}
+      <div class="sgBtn"><i class="sgGlow"></i><img src="${G.SPR.url(G.SPR.button('#e8413c', false, 0), 4)}" alt="" draggable="false"><i class="sgHit l"></i><i class="sgHit r"></i></div>
+    </div>`;
+  }
   Tut.intro = function () {
     const box = $('#intro');
     const skins = ['#e8413c'];
     const btn = G.SPR.url(G.SPR.button(skins[0], false, 0), 6);
     const slides = [
       { a: 'in_1', b: 'in_1b', art: `<div class="introTitle">${'BTTN'.split('').map((ch, i) => `<span style="animation-delay:${0.15 * i}s">${ch}</span>`).join('')}</div><img class="dropBtn" src="${btn}" alt="">` },
-      { a: 'in_2', b: 'in_2b', art: `<div class="march"><span class="mL">${sm('f_crab')}${img('b_goblin', 4)}${sm('f_goblin')}</span><img class="midBtn" src="${G.SPR.url(G.SPR.button('#e8413c', false, 0), 4)}" alt=""><span class="mR">${sm('f_bat')}${img('b_imp', 4)}${sm('f_eye')}</span></div>` },
+      { a: 'in_2', b: 'in_2b', art: siege() },
       { a: 'in_3', b: 'in_3b', art: `<div class="row3">${G.CLASSES.map((c, i) => `<span class="popIn" style="animation-delay:${0.2 * i}s">${img(c.spr, 8)}</span>`).join('')}</div>
           <div class="row3 small">${['bag_3', 'it_steel_sword', 'chest_4', 'it_golden_plate', 'bag_6'].map((id, i) => `<span class="popIn" style="animation-delay:${0.9 + 0.15 * i}s">${img(id, 5)}</span>`).join('')}</div>` },
       { a: 'in_4', b: 'in_4b', art: `<div class="handArt"><img class="zap l" src="${G.SPR.url('ic_bolt', 5)}" alt=""><img class="finger" src="${G.SPR.url('ic_finger', 8)}" alt=""><img class="btn2" src="${btn}" alt=""><img class="zap r" src="${G.SPR.url('ic_bolt', 5)}" alt=""></div>`, last: true },
