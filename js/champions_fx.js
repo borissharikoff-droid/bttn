@@ -23,7 +23,7 @@
 
   // ================= Styles =================
   const css = `
-#champFx { position: absolute; inset: 0; pointer-events: none; }
+#champFx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; max-width: none; pointer-events: none; }
 #champCard { position: absolute; left: 50%; top: 13%; transform: translateX(-50%); z-index: 4; pointer-events: none;
   width: max-content; max-width: min(92%, 480px); text-align: center; }
 #champCard .chBox { --c: #ffd84a; padding: 9px 16px 10px; background: rgba(10, 9, 16, .86); border: 2px solid #0a0910;

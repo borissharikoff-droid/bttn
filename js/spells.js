@@ -70,7 +70,7 @@
   G.spellState = st;
   const xy = m => G.mobXY(m);
   // on screen (the arena's edge is off it, the top is under the HUD)
-  const inSight = m => !m.dead && !m.gone && m.p >= 0.16 && (() => { const [x, y] = xy(m); return Math.abs(x) < 0.86 && y > -0.72 && y < 0.9; })();
+  const inSight = m => !m.dead && !m.gone && m.p >= 0.16 && (() => { const [x, y] = xy(m); return Math.abs(x) < 0.78 && y > -0.6 && y < 0.56; })();
   const sight = () => R.mobs.filter(inSight);
   const d2 = (ax, ay, bx, by) => (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
   // the thickest spot of the horde: a few mobs tried, the one with the most weight around it wins
@@ -126,7 +126,7 @@
       // across the field at the horde's height, never over the Button itself
       const c = dense(0.2); let y = c.y;
       if (Math.abs(y) < 0.3) y = y < -0.12 ? -0.36 : 0.36;
-      y = Math.max(-0.6, Math.min(0.72, y));
+      y = Math.max(-0.6, Math.min(0.5, y));
       const dir = c.x >= 0 ? 1 : -1, x0 = -0.95 * dir, x1 = 0.95 * dir, T = 2.8;
       Object.assign(sp, { x: x0, y, x0, x1, y0: y, dir, T: T + 0.4, wob: rr(0, 6) });
       const n = 13;
@@ -165,7 +165,7 @@
       const c = dense(0.26); Object.assign(sp, c);
       for (let i = 0; i < d.n; i++) {
         const a = rr(0, Math.PI * 2), k = Math.sqrt(rnd()) * 0.26;
-        sp.ev.push({ t: 0.35 + 0.08 * i + rr(0, 0.04), x: c.x + Math.cos(a) * k, y: c.y + Math.sin(a) * k * 0.9, r: d.r, hit: d.hit, tag: 'sword', boss: 1 / d.n });
+        sp.ev.push({ t: 0.35 + 0.08 * i + rr(0, 0.04), x: c.x + Math.cos(a) * k, y: Math.min(0.6, c.y + Math.sin(a) * k * 0.9), r: d.r, hit: d.hit, tag: 'sword', boss: 1 / d.n });
       }
       sp.ev.sort((a, b) => a.t - b.t);
       sp.T = sp.ev[sp.ev.length - 1].t + 0.9;
@@ -273,10 +273,13 @@
 
   // ---------- When ----------
   const tutOn = () => !!(G.Tut && G.S && typeof G.S.tut === 'number' && G.S.tut >= 0);
+  // no charge at all: off, no Warden yet, in town, marching, a cinematic, the tutorial
   function blocked() {
     const S = G.S;
-    return !TUNE.spellOn || !S || !S.hero || !S.hero.cls || R.town || R.march || R.cine > 0 || R.btnDown > 0 || tutOn() || (G.odActive && G.odActive());
+    return !TUNE.spellOn || !S || !S.hero || !S.hero.cls || R.town || R.march || R.cine > 0 || tutOn();
   }
+  // the charge holds (but keeps filling) while the Button is broken or the Overdrive is going off
+  const held = () => R.btnDown > 0 || (G.odActive && G.odActive());
   // fighting: a boss on the field, or enough of the Horde in sight
   function fighting() {
     if (R.boss) return true;
@@ -311,7 +314,7 @@
       if (fight || R.mobs.length) s.m = Math.min(1, s.m + dt / TUNE.spellIdle + Math.min(s.kAcc, TUNE.spellKillCap * dt));
       s.kAcc = 0;
     }
-    if (s.m >= 1 && s.gap <= 0 && fight) cast(pickKind(), 'auto');
+    if (s.m >= 1 && s.gap <= 0 && fight && !held()) cast(pickKind(), 'auto');
   });
   G.hook('kill', (m, src) => { if (src !== 'spell') st().kAcc += TUNE.spellKill; });
   G.hook('click', () => { const s = st(); if (s.m < 1 && !blocked()) s.m = Math.min(1, s.m + 1 / TUNE.spellClicks); });
