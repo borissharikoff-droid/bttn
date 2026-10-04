@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Privacy · BTTN</title>
+<meta name="description" content="What BTTN records when you play: anonymous play stats, no cookies, no names, no ad trackers.">
+<link rel="canonical" href="%ORIGIN%/privacy">
+<meta name="theme-color" content="#0d0a12">
+<meta name="color-scheme" content="dark">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+<style>
+@font-face{font-family:'P2P';font-display:swap;src:url(/assets/PressStart2P-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+2000-206F}
+@font-face{font-family:'P2P';font-display:swap;src:url(/assets/PressStart2P-cyrillic.woff2) format('woff2');unicode-range:U+0400-045F}
+:root{--bg:#0d0a12;--card:#1a1522;--line:#2f2640;--ink:#f4ebd9;--ink2:#d9cde3;--mut:#a497b4;--gold:#ffc629;--red:#ff6a5c;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink2);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:28px max(16px,env(safe-area-inset-right)) 60px max(16px,env(safe-area-inset-left))}
+a{color:var(--gold)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:28px;font:11px 'P2P',monospace}
+.top a{color:var(--ink);text-decoration:none}
+.top .play{color:#fff;background:#e8413c;padding:10px 14px;box-shadow:inset 0 -4px 0 #a3241f,0 -3px 0 #16090b,0 3px 0 #16090b,-3px 0 0 #16090b,3px 0 0 #16090b}
+h1{font:clamp(16px,3.4vw,22px)/1.5 'P2P',monospace;color:#fff4d8;margin:0 0 8px}
+h2{font:12px/1.6 'P2P',monospace;color:var(--gold);margin:30px 0 8px}
+p,ul{margin:0 0 12px}
+ul{padding-left:20px}
+li{margin:4px 0}
+b{color:var(--ink)}
+code{font:13px ui-monospace,monospace;background:var(--card);padding:1px 5px;color:var(--ink)}
+.card{background:var(--card);box-shadow:0 -2px 0 var(--line),0 2px 0 var(--line),-2px 0 0 var(--line),2px 0 0 var(--line);padding:14px 16px;margin:16px 0}
+.mut{color:var(--mut);font-size:14px}
+hr{border:0;border-top:2px solid var(--line);margin:44px 0 30px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><a href="/">BTTN</a><span><a href="#ru" lang="ru">RU ↓</a> &nbsp; <a class="play" href="/play">PLAY</a></span></div>
+
+  <article>
+    <h1>Privacy</h1>
+    <p class="mut">Last updated 4 October 2026.</p>
+    <div class="card"><b>In short:</b> BTTN counts anonymous play stats to learn where players come from and where the game loses them. No cookies, no accounts, no names or emails, no ad trackers, no third-party analytics. Your save stays in your browser.</div>
+
+    <h2>What this site records</h2>
+    <ul>
+      <li><b>A random visitor id</b>, made in your browser and kept in its local storage (<code>bttn_vid</code>, with the date of your first visit and the link that first brought you here). It is not a cookie and is never linked to your name.</li>
+      <li><b>On the home page:</b> that you saw it, whether you pressed Play, how far you scrolled, which questions you opened, and which language you chose.</li>
+      <li><b>In the game:</b> milestones (intro, class picked, first press, tutorial steps, bosses, depths and lands reached, runs, recruits, town buildings), and every 30 seconds while the tab is open: total play time, depth, level, party size, frame rate and graphics quality.</li>
+      <li><b>Where you came from:</b> the <code>utm_*</code> tags or <code>ref</code> in the link you used, and the referring site's domain name (never the full address).</li>
+      <li><b>Your device, roughly:</b> screen and window size, pixel ratio, touch or mouse, browser language and time zone, and the browser's user-agent string (to tell phones from desktops and bots from people).</li>
+      <li><b>Errors:</b> the text of JavaScript errors you hit, so they can be fixed.</li>
+    </ul>
+
+    <h2>What it does not record</h2>
+    <ul>
+      <li>Your IP address. The server keeps only a salted one-way hash of it (12 characters) to count people and to slow down abuse; the address itself is never written down.</li>
+      <li>Your location from the IP. The country in the stats comes from your browser's time zone.</li>
+      <li>Names, emails, payment details or anything you type.</li>
+      <li>Your game save. It lives in your browser's local storage (<code>bttn-save-v1</code>) and is not sent to this server.</li>
+    </ul>
+
+    <h2>How long, and who sees it</h2>
+    <p>Raw events are kept for up to 400 days and then deleted. Only the developer sees them, in a password-protected dashboard. They are not sold or shared. The site is hosted on Railway, which may keep ordinary request logs for a short time.</p>
+
+    <h2>Turning it off</h2>
+    <ul>
+      <li>Turn on <b>Global Privacy Control</b> in your browser: the site then sends nothing at all.</li>
+      <li>In the game: <b>Settings → Anonymous stats</b> off.</li>
+      <li>Clearing this site's data in your browser removes the visitor id (and your save, so export it first: Settings → Export).</li>
+    </ul>
+
+    <h2>Purchases and ads</h2>
+    <p>There is nothing to buy and no ads on this site yet. If a store opens, payments will be handled by the payment provider (we never see card numbers) and this page will be updated before it does.</p>
+
+    <h2>Contact</h2>
+    <p>%CONTACT%</p>
+  </article>
+
+  <hr>
+
+  <article id="ru" lang="ru">
+    <h1>Приватность</h1>
+    <p class="mut">Обновлено 4 октября 2026.</p>
+    <div class="card"><b>Коротко:</b> BTTN собирает анонимную статистику игры, чтобы понять, откуда приходят игроки и где игра их теряет. Без cookie, без аккаунтов, без имён и почты, без рекламных трекеров и сторонней аналитики. Сохранение остаётся в твоём браузере.</div>
+    <h2>Что записывается</h2>
+    <ul>
+      <li><b>Случайный id посетителя</b>, созданный в браузере и хранящийся в его local storage (<code>bttn_vid</code>, плюс дата первого визита и ссылка, по которой ты пришёл). Это не cookie, и он не связан с твоим именем.</li>
+      <li><b>На главной:</b> что ты её открыл, нажал ли «Играть», как далеко пролистал, какие вопросы раскрыл и какой язык выбрал.</li>
+      <li><b>В игре:</b> ключевые моменты (интро, выбор класса, первое нажатие, шаги обучения, боссы, глубина и земли, забеги, наём, здания), а раз в 30 секунд, пока вкладка открыта: время игры, глубина, уровень, размер отряда, частота кадров и качество графики.</li>
+      <li><b>Откуда ты пришёл:</b> метки <code>utm_*</code> или <code>ref</code> в ссылке и домен сайта, с которого был переход (не полный адрес).</li>
+      <li><b>Устройство, примерно:</b> размер экрана и окна, плотность пикселей, касание или мышь, язык и часовой пояс браузера, строка user-agent.</li>
+      <li><b>Ошибки:</b> текст ошибок JavaScript, чтобы их исправить.</li>
+    </ul>
+    <h2>Что не записывается</h2>
+    <ul>
+      <li>IP-адрес. Сервер хранит только солёный односторонний хеш (12 символов) для подсчёта людей и защиты от злоупотреблений.</li>
+      <li>Местоположение по IP. Страна в статистике берётся из часового пояса браузера.</li>
+      <li>Имена, почта, платёжные данные и всё, что ты вводишь.</li>
+      <li>Сохранение игры: оно лежит в local storage браузера (<code>bttn-save-v1</code>) и на сервер не отправляется.</li>
+    </ul>
+    <h2>Сколько хранится и кто видит</h2>
+    <p>События хранятся до 400 дней, затем удаляются. Видит их только разработчик в защищённой паролем панели. Данные не продаются и не передаются. Сайт размещён на Railway, который может недолго хранить обычные журналы запросов.</p>
+    <h2>Как отключить</h2>
+    <ul>
+      <li>Включи <b>Global Privacy Control</b> в браузере: сайт перестанет отправлять что-либо.</li>
+      <li>В игре: <b>Settings → Anonymous stats</b> — выключить.</li>
+      <li>Очистка данных сайта удаляет id посетителя (и сохранение — сначала сделай экспорт: Settings → Export).</li>
+    </ul>
+    <h2>Покупки и реклама</h2>
+    <p>Покупок и рекламы на сайте пока нет. Если магазин откроется, платежи будет обрабатывать платёжный сервис (номера карт мы не видим), а эта страница обновится заранее.</p>
+    <h2>Связь</h2>
+    <p>%CONTACT_RU%</p>
+  </article>
+  <p class="mut" style="margin-top:40px"><a href="/">← BTTN</a></p>
+</div>
+</body>
+</html>

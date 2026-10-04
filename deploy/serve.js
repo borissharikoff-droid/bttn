@@ -1,9 +1,15 @@
 // BTTN — the public host (Railway, Render, any Node host). No dependencies.
-//  GET  /            the game (docs/index.html), with the analytics flag and share tags put in
-//  POST /api/ev      anonymous play events from js/analytics.js, appended to $DATA_DIR/ev-YYYY-MM-DD.ndjson
+//  GET  /            the landing page (deploy/landing.html): the pitch and one big PLAY that carries the utm tags on
+//  GET  /play        the game (docs/index.html), with the analytics flag and share tags put in; /play/* too.
+//                    Old links still work: /?play=1 and /index.html redirect to /play with their query.
+//  GET  /privacy, /sitemap.xml, /robots.txt, /manifest.webmanifest, /favicon.ico, /og.png, /assets/*
+//  GET  /api/config  which payment and ad providers are configured (from env vars, all off by default), public
+//                    links (LINK_* env vars) and a rounded weekly player count for the landing's social proof
+//  POST /api/ev      anonymous events from js/analytics.js and the landing, appended to $DATA_DIR/ev-YYYY-MM-DD.ndjson
 //  GET  /admin       the admin dashboard (deploy/admin.html); its data needs the ADMIN_TOKEN
 //  GET  /api/admin/stats, /api/admin/live, /api/admin/export   (header x-admin-token)
-//  GET  /health, /og.png
+//  GET  /health
+// Pages and assets are read once at boot, kept in memory with brotli/gzip copies and ETags.
 // Events are kept on disk (a Railway volume at $DATA_DIR) and folded into memory at boot, so the dashboard is
 // instant. No raw IPs are stored: only a salted hash, to count people and to rate-limit.
 'use strict';
@@ -11,6 +17,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const PORT = process.env.PORT || 8080;
 const ROOT = path.join(__dirname, '..');
@@ -18,20 +25,75 @@ const DATA = process.env.DATA_DIR || path.join(ROOT, 'data');
 const TOKEN = process.env.ADMIN_TOKEN || '';
 const SALT = process.env.ANALYTICS_SALT || crypto.createHash('sha256').update('bttn|' + TOKEN).digest('hex');
 const KEEP_DAYS = +process.env.KEEP_DAYS || 400;
+// the public address, for canonical links, the sitemap and og:image (crawlers want absolute URLs)
+const ORIGIN = (process.env.PUBLIC_URL || 'https://bttn-production.up.railway.app').replace(/\/+$/, '');
 fs.mkdirSync(DATA, { recursive: true });
 
-// ---------- the page ----------
-const HEAD = `<meta name="description" content="A pixel-art clicker: hold the Button against the Horde, build a team, chase loot. Free, in the browser.">
-<meta property="og:title" content="BTTN — hold the Button"><meta property="og:description" content="A pixel-art clicker: hold the Button against the Horde, build a team, chase loot. Free, in the browser.">
-<meta property="og:type" content="website"><meta property="og:image" content="/og.png"><meta name="twitter:card" content="summary_large_image">
+// ---------- files: read once, compressed once ----------
+function pack(buf, type, cache) {
+  const o = { raw: buf, type, cache: cache || 'no-cache', etag: 'W/"' + crypto.createHash('sha1').update(buf).digest('base64').slice(0, 22) + '"' };
+  if (/^(text\/|application\/(json|manifest|xml|javascript)|image\/svg)/.test(type) && buf.length > 1024) {
+    o.br = zlib.brotliCompressSync(buf, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: buf.length > 4e5 ? 9 : 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: buf.length } });
+    o.gz = zlib.gzipSync(buf, { level: 9 });
+  }
+  return o;
+}
+const readOr = (f, alt) => { try { return fs.readFileSync(path.join(__dirname, f)); } catch (e) { return Buffer.from(alt); } };
+const HTML = 'text/html; charset=utf-8';
+const origin = s => s.replace(/%ORIGIN%/g, ORIGIN);
+
+// the game, at /play
+const HEAD = `<meta name="description" content="Hold the Button against a 1,000-monster Horde. Your party fights, your clicks call lightning, the loot rains. Free, in the browser.">
+<link rel="canonical" href="${ORIGIN}/play"><meta name="theme-color" content="#0d0a12"><link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png"><link rel="apple-touch-icon" href="/assets/apple-touch-icon.png"><link rel="manifest" href="/manifest.webmanifest">
+<meta property="og:title" content="BTTN — Don't let the Button break"><meta property="og:description" content="Hold the Button against a 1,000-monster Horde. Your party fights, your clicks call lightning, the loot rains. Free, in the browser.">
+<meta property="og:type" content="website"><meta property="og:url" content="${ORIGIN}/play"><meta property="og:image" content="${ORIGIN}/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${ORIGIN}/og.png">
 <script>window.BTTN_AN='/api/ev'</script>`;
 function loadPage() {
   const html = fs.readFileSync(path.join(ROOT, 'docs', 'index.html'), 'utf8');
-  return Buffer.from(html.includes('</head>') ? html.replace('</head>', HEAD + '\n</head>') : HEAD + html);
+  return pack(Buffer.from(html.includes('</head>') ? html.replace('</head>', HEAD + '\n</head>') : HEAD + html), HTML);
 }
 const page = loadPage();
-const admin = (() => { try { return fs.readFileSync(path.join(__dirname, 'admin.html')); } catch (e) { return Buffer.from('no dashboard'); } })();
-const og = (() => { try { return fs.readFileSync(path.join(__dirname, 'og.png')); } catch (e) { return null; } })();
+// the landing, at / (and /?lang=ru, the same page with Russian marked as its language for crawlers)
+const landingSrc = origin(readOr('landing.html', '<!doctype html><a href="/play">Play</a>').toString('utf8'));
+const landing = { en: pack(Buffer.from(landingSrc), HTML), ru: pack(Buffer.from(landingSrc.replace('<html lang="en">', '<html lang="ru">').replace(`<link rel="canonical" href="${ORIGIN}/">`, `<link rel="canonical" href="${ORIGIN}/?lang=ru">`).replace('content="en_US"', 'content="ru_RU"').replace('content="ru_RU">\n<meta name="twitter', 'content="en_US">\n<meta name="twitter')), HTML) };
+const CONTACT = (() => {
+  const m = String(process.env.CONTACT_EMAIL || '').trim(), l = String(process.env.LINK_TELEGRAM || process.env.LINK_CONTACT || '').trim();
+  const esc = x => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  if (/^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(m)) return { en: `Questions or a deletion request: <a href="mailto:${esc(m)}">${esc(m)}</a>.`, ru: `Вопросы или просьба удалить данные: <a href="mailto:${esc(m)}">${esc(m)}</a>.` };
+  if (/^https:\/\/[^\s"'<>]+$/i.test(l)) return { en: `Questions or a deletion request: <a href="${esc(l)}">${esc(l)}</a>.`, ru: `Вопросы или просьба удалить данные: <a href="${esc(l)}">${esc(l)}</a>.` };
+  return { en: 'Questions or a deletion request: use the contact links on the <a href="/">home page</a>. Clearing this site\'s data also unlinks you from everything recorded so far.', ru: 'Вопросы или просьба удалить данные: ссылки для связи на <a href="/">главной</a>.' };
+})();
+const privacy = pack(Buffer.from(origin(readOr('privacy.html', 'Privacy: anonymous play stats only.').toString('utf8')).replace('%CONTACT%', CONTACT.en).replace('%CONTACT_RU%', CONTACT.ru)), HTML);
+const admin = pack(readOr('admin.html', 'no dashboard'), HTML);
+const og = (() => { try { return pack(fs.readFileSync(path.join(__dirname, 'og.png')), 'image/png', 'public, max-age=86400'); } catch (e) { return null; } })();
+const BOOT_DAY = new Date().toISOString().slice(0, 10);
+const sitemap = pack(Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<url><loc>${ORIGIN}/</loc><lastmod>${BOOT_DAY}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority><xhtml:link rel="alternate" hreflang="en" href="${ORIGIN}/"/><xhtml:link rel="alternate" hreflang="ru" href="${ORIGIN}/?lang=ru"/><xhtml:link rel="alternate" hreflang="x-default" href="${ORIGIN}/"/></url>
+<url><loc>${ORIGIN}/?lang=ru</loc><lastmod>${BOOT_DAY}</lastmod><changefreq>weekly</changefreq><priority>0.9</priority><xhtml:link rel="alternate" hreflang="en" href="${ORIGIN}/"/><xhtml:link rel="alternate" hreflang="ru" href="${ORIGIN}/?lang=ru"/><xhtml:link rel="alternate" hreflang="x-default" href="${ORIGIN}/"/></url>
+<url><loc>${ORIGIN}/play</loc><lastmod>${BOOT_DAY}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>${ORIGIN}/privacy</loc><lastmod>${BOOT_DAY}</lastmod><changefreq>yearly</changefreq><priority>0.2</priority></url>
+</urlset>
+`), 'application/xml; charset=utf-8', 'public, max-age=3600');
+const robots = pack(Buffer.from(`User-agent: *\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${ORIGIN}/sitemap.xml\n`), 'text/plain; charset=utf-8', 'public, max-age=3600');
+const manifest = pack(Buffer.from(JSON.stringify({
+  name: 'BTTN — hold the Button', short_name: 'BTTN', description: 'A free pixel-art idle horde clicker. Hold the Button, build a party, chase the loot.',
+  id: '/play', start_url: '/play?utm_source=pwa&utm_medium=app', scope: '/', display: 'standalone', orientation: 'any', background_color: '#0d0a12', theme_color: '#0d0a12', categories: ['games', 'entertainment'],
+  icons: [{ src: '/assets/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/assets/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: '/assets/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }],
+})), 'application/manifest+json; charset=utf-8', 'public, max-age=86400');
+// deploy/assets/*: the landing's posters, video loops, sprite atlas, fonts and icons
+const TYPES = { '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm', '.woff2': 'font/woff2', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json' };
+const assets = new Map();
+(function loadAssets(dir, pre) {
+  let names = []; try { names = fs.readdirSync(dir); } catch (e) { return; }
+  for (const n of names) {
+    const f = path.join(dir, n), st = fs.statSync(f);
+    if (st.isDirectory()) { loadAssets(f, pre + n + '/'); continue; }
+    const type = TYPES[path.extname(n).toLowerCase()]; if (!type) continue;
+    assets.set(pre + n, pack(fs.readFileSync(f), type, /\.(woff2)$/.test(n) ? 'public, max-age=604800, immutable' : 'public, max-age=86400'));
+  }
+})(path.join(__dirname, 'assets'), '');
+const favicon = assets.get('favicon-32.png') || null;
 
 // ---------- who's on the other end ----------
 const BOT = /bot|crawl|spider|slurp|headless|playwright|puppeteer|phantom|python|curl|wget|httpclient|lighthouse|preview|facebookexternalhit|embedly|vkshare/i;
@@ -62,12 +124,42 @@ const visitors = new Map(); // vid -> visitor
 const sessions = new Map(); // sid -> session
 const MILESTONE = new Set(['intro_next', 'intro_skip', 'intro_done', 'class', 'first_click', 'tut', 'tut_end', 'hold', 'boss_win', 'boss_fail', 'land', 'depth', 'run_over', 'ascend', 'bless', 'champ', 'recruit', 'seat', 'town', 'build', 'relic', 'jackpot', 'od', 'rank', 'lvl', 'err', 'end', 'start']);
 const clip = (v, n) => (typeof v === 'string' ? v.slice(0, n) : v);
+const touchOf = d => ({ src: clip(d.src, 60) || '', med: clip(d.med, 40) || '', cmp: clip(d.cmp, 80) || '', cnt: clip(d.cnt, 80) || '', ref: clip(d.ref, 80) || '' });
+const lands = new Map(); // sid -> one landing page view
+function ingestLanding(rec, V, xs) {
+  const { r, s } = rec;
+  let L = lands.get(s);
+  for (const x of xs.slice(0, 100)) {
+    const ts = Math.min(r, Math.max(r - 6 * 3600e3, +x.ts || r));
+    const d = x.d && typeof x.d === 'object' ? x.d : {};
+    if (!L) { L = { sid: s, vid: V.vid, ts, touch: null, dev: V.dev, cc: V.cc, ui: '', play: 0, pos: '', how: '', ms: 0, s50: 0, s100: 0, sc: 0, dur: 0, faq: [], sup: [], pf: [], bot: V.bot }; lands.set(s, L); }
+    V.last = Math.max(V.last, ts);
+    if (x.t === 'land_view' && !L.touch) {
+      L.ts = ts; L.touch = touchOf(d); L.ui = clip(d.ui, 4) || ''; L.nw = d.nw ? 1 : 0;
+      if (!V.touch) V.touch = d.f && typeof d.f === 'object' ? touchOf(d.f) : L.touch;
+      if (!d.nw && d.age > 0 && V.first === r) V.first = r - d.age * 864e5;
+      if (!V.lang) V.lang = clip(d.lang, 12) || ''; if (!V.tz) V.tz = clip(d.tz, 40) || '';
+      const where = country({ headers: {} }, clip(d.tz, 40), clip(d.lang, 12));
+      L.cc = rec.geo ? rec.cc : where !== '??' ? where : rec.cc || '??'; if (!V.ses) V.cc = L.cc;
+    } else if (x.t === 'land_play') { if (!L.play) { L.play = ts; L.pos = clip(d.pos, 12) || ''; L.how = clip(d.how, 8) || ''; L.ms = Math.max(0, +d.ms || 0); } }
+    else if (x.t === 'land_scroll') { if (+d.p >= 50) L.s50 = 1; if (+d.p >= 100) L.s100 = 1; }
+    else if (x.t === 'land_end') { L.sc = Math.max(L.sc, Math.min(100, +d.sc || 0)); L.dur = Math.max(L.dur, Math.min(36e5, +d.ms || 0)); }
+    else if (x.t === 'land_faq' && L.faq.length < 12) L.faq.push(clip(String(d.q || ''), 16));
+    else if (x.t === 'land_support' && L.sup.length < 12) L.sup.push(clip(String(d.sku || ''), 32));
+    else if (x.t === 'land_platform' && L.pf.length < 12) L.pf.push(clip(String(d.pf || ''), 16));
+    if ((x.t === 'land_view' || x.t === 'land_play') && !V.steps[x.t]) V.steps[x.t] = ts;
+  }
+}
 function ingest(rec) {
-  const { r, ip, ua, cc, v, s, e } = rec;
+  const { r, ip, ua, cc, v, s } = rec;
+  let e = rec.e;
   if (!v || !s || !Array.isArray(e)) return;
   const dev = parseUA(ua);
   let V = visitors.get(v);
   if (!V) { V = { vid: v, first: r, last: r, touch: null, dev, cc, lang: '', tz: '', days: new Set(), ses: 0, pt: 0, bd: 0, steps: {}, cls: '', bot: dev.bot, ip }; visitors.set(v, V); }
+  // the landing page reports in its own session; it is not a play session (no time played, no milestones)
+  const isLand = x => x && typeof x.t === 'string' && x.t.startsWith('land_');
+  if (e.some(isLand)) { ingestLanding(rec, V, e.filter(isLand)); e = e.filter(x => !isLand(x)); if (!e.length) return; }
   let Ss = sessions.get(s);
   if (!Ss) {
     Ss = { sid: s, vid: v, start: r, last: r, touch: null, dev, cc, pt0: null, pt: 0, d: 0, bd: 0, tut: null, secs: 0, n: 0, ev: [], bot: dev.bot };
@@ -149,9 +241,30 @@ function stats(qs) {
   const d1Base = fresh.filter(v => now - Date.parse(dayKey(v.first) + 'T00:00:00Z') >= 2 * 864e5);
   const live = [...sessions.values()].filter(s => now - s.last < 5 * 60e3 && (wantBots || !s.bot)).sort((a, b) => b.last - a.last).slice(0, 50)
     .map(s => ({ src: srcKey((visitors.get(s.vid) || {}).touch), dev: s.dev.type + ' · ' + s.dev.os, cc: s.cc, d: s.d, bd: s.bd, pt: Math.round(s.pt / 60), ago: Math.round((now - s.last) / 1000), secs: s.secs }));
-  // the funnel, over visitors first seen in the range
-  const FUN = [['visit', 'Opened the game'], ['intro', 'Got through the intro'], ['class', 'Picked a class'], ['first_click', 'Pressed the Button'], ['hold', 'Held the Button'], ['boss', 'Beat a boss'], ['tut', 'Finished the tutorial'], ['land2', 'Reached land 2'], ['depth5', 'Reached depth 5'], ['m5', 'Played 5 minutes'], ['land3', 'Reached land 3'], ['m15', 'Played 15 minutes'], ['recruit', 'Recruited a companion'], ['run_over', 'Lost a run (the Button fell)'], ['back', 'Came back another day']];
-  const funnel = FUN.map(([k, label]) => ({ k, label, n: k === 'visit' ? fresh.length : k === 'back' ? fresh.filter(backAny).length : fresh.filter(v => v.steps[k]).length }));
+  // the landing page: views in the range, how many pressed PLAY, by source and device
+  const LV = [...lands.values()].filter(l => l.touch && l.ts >= from && l.ts <= to && okV(visitors.get(l.vid)));
+  const lvIds = new Set(LV.map(l => l.vid)), lvVis = [...lvIds].map(id => visitors.get(id));
+  const landRow = (rows, keyOf) => {
+    const o = {};
+    for (const l of rows) { const k = keyOf(l), x = o[k] || (o[k] = { k, views: 0, plays: 0, vids: new Set() }); x.views++; if (l.play) x.plays++; x.vids.add(l.vid); }
+    return Object.values(o).map(x => { const vs = [...x.vids].map(id => visitors.get(id)); return { k: x.k, views: x.views, ctr: pct(x.plays, x.views), opened: pct(vs.filter(v => v.steps.start).length, vs.length), m5: pct(vs.filter(v => v.steps.m5).length, vs.length) }; }).sort((a, b) => b.views - a.views);
+  };
+  const lpos = {}, lfaq = {}, lsup = {}, lpf = {}, lui = {};
+  for (const l of LV) { if (l.play) bump(lpos, l.pos); for (const q of l.faq) bump(lfaq, q); for (const k of l.sup) bump(lsup, k); for (const k of l.pf) bump(lpf, k); bump(lui, l.ui || 'en'); }
+  const lPlays = LV.filter(l => l.play);
+  const landing = {
+    views: LV.length, visitors: lvIds.size, plays: lPlays.length, ctr: pct(lPlays.length, LV.length),
+    visitorCtr: pct(lvVis.filter(v => v.steps.land_play).length, lvVis.length), opened: pct(lvVis.filter(v => v.steps.start).length, lvVis.length),
+    s50: pct(LV.filter(l => l.s50).length, LV.length), s100: pct(LV.filter(l => l.s100).length, LV.length),
+    secToPlay: lPlays.length ? Math.round(med(lPlays.map(l => l.ms)) / 100) / 10 : null,
+    bySrc: landRow(LV, l => srcKey(l.touch)).slice(0, 20), byDev: landRow(LV, l => l.dev.type),
+    pos: top(lpos), faq: top(lfaq), support: top(lsup), platform: top(lpf), ui: top(lui),
+  };
+  // the funnel, over visitors first seen in the range: the landing first (visitors who skip it, like /play links,
+  // start at "Opened the game")
+  const lnew = [...visitors.values()].filter(v => v.steps.land_view && v.first >= from && v.first <= to && okV(v));
+  const FUN = [['land_view', 'Saw the landing'], ['land_play', 'Clicked Play'], ['visit', 'Opened the game'], ['intro', 'Got through the intro'], ['class', 'Picked a class'], ['first_click', 'Pressed the Button'], ['hold', 'Held the Button'], ['boss', 'Beat a boss'], ['tut', 'Finished the tutorial'], ['land2', 'Reached land 2'], ['depth5', 'Reached depth 5'], ['m5', 'Played 5 minutes'], ['land3', 'Reached land 3'], ['m15', 'Played 15 minutes'], ['recruit', 'Recruited a companion'], ['run_over', 'Lost a run (the Button fell)'], ['back', 'Came back another day']];
+  const funnel = FUN.map(([k, label]) => ({ k, label, n: k === 'land_view' ? lnew.length : k === 'land_play' ? lnew.filter(v => v.steps.land_play).length : k === 'visit' ? fresh.length : k === 'back' ? fresh.filter(backAny).length : fresh.filter(v => v.steps[k]).length }));
   // sources: first touch
   const bySrc = {};
   for (const v of fresh) {
@@ -221,14 +334,14 @@ function stats(qs) {
       d1: d1Base.length ? pct(d1Base.filter(v => back(v, 1)).length, d1Base.length) : null, d1Base: d1Base.length, live: live.length,
     },
     daily: days.map(d => ({ day: d, nw: daily[d].nw.size, ret: daily[d].ret.size, ses: daily[d].ses, play: Math.round(daily[d].play) })),
-    funnel, sources, campaigns, cohorts, hours,
+    funnel, landing, sources, campaigns, cohorts, hours,
     quit: { play: Object.entries(quitPlay), tut: top(quitTut, 12), depth: top(quitDepth, 12) },
     dev: { type: top(dev.type), os: top(dev.os), br: top(dev.br), scr: top(dev.scr, 8) },
     geo: { cc: top(geo.cc, 15), lang: top(geo.lang, 12) },
     game: { cls: top(game.cls), bless: top(game.bless), champ: Object.entries(game.champ).map(([m, o]) => [m, o.ok, o.fail]), land: Object.entries(game.land).sort((a, b) => +a[0].slice(5) - +b[0].slice(5)), build: top(game.build), recruit: top(game.recruit), runOvers: game.runOver.length, runOverMedDepth: med(game.runOver) + 1, bossWin: game.bossWin, bossFail: game.bossFail, od: game.od, relic: game.relic, jackpot: game.jackpot, ascend: game.ascend },
     errors: top(errors, 15), live,
     filters: { sources: [...new Set([...visitors.values()].filter(v => !v.bot).map(v => srcKey(v.touch)))].sort().slice(0, 100), cc: [...new Set([...visitors.values()].map(v => v.cc))].sort() },
-    totals: { visitors: visitors.size, sessions: sessions.size },
+    totals: { visitors: visitors.size, sessions: sessions.size, landingViews: lands.size },
   };
 }
 function exportCsv(qs) {
@@ -247,9 +360,59 @@ const authed = req => {
   return got.length === want.length && crypto.timingSafeEqual(got, want);
 };
 
+// ---------- the public config: which providers are set up (never the secrets themselves) ----------
+const env = k => String(process.env[k] || '').trim();
+const okLink = u => (/^https:\/\/[^\s"'<>]+$/i.test(u) ? u : '');
+let cfgCache = null, cfgAt = 0;
+function config() {
+  if (cfgCache && Date.now() - cfgAt < 60e3) return cfgCache;
+  const providers = {
+    yookassa: !!(env('YOOKASSA_SHOP_ID') && env('YOOKASSA_SECRET_KEY')), robokassa: !!(env('ROBOKASSA_LOGIN') && env('ROBOKASSA_PASS1')),
+    stripe: !!env('STRIPE_SECRET_KEY'), stars: !!env('TELEGRAM_BOT_TOKEN'),
+  };
+  const ads = { adsgram: !!env('ADSGRAM_BLOCK_ID'), yandex: !!env('YANDEX_RTB_ID'), adsense: !!env('ADSENSE_CLIENT') };
+  const mail = env('CONTACT_EMAIL');
+  const links = {
+    telegram: okLink(env('LINK_TELEGRAM')), discord: okLink(env('LINK_DISCORD')), vk: okLink(env('LINK_VK')), youtube: okLink(env('LINK_YOUTUBE')), reddit: okLink(env('LINK_REDDIT')),
+    contact: /^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(mail) ? 'mailto:' + mail : okLink(env('LINK_CONTACT')),
+    tg_app: okLink(env('LINK_TG_APP')), yandex: okLink(env('LINK_YANDEX_GAMES')), crazygames: okLink(env('LINK_CRAZYGAMES')), steam: okLink(env('LINK_STEAM')),
+  };
+  for (const k in links) if (!links[k]) delete links[k];
+  // social proof for the landing: real people who played this week, rounded down to the hundred, only past 500
+  const wk = Date.now() - 7 * 864e5, seen = new Set();
+  for (const S of sessions.values()) if (S.last >= wk && !S.bot) seen.add(S.vid);
+  const players7d = seen.size >= 500 ? Math.floor(seen.size / 100) * 100 : null;
+  cfgCache = { v: 1, payments: env('PAYMENTS') === '1' && Object.values(providers).some(Boolean), providers, ads, links, players7d };
+  cfgAt = Date.now();
+  return cfgCache;
+}
+
 // ---------- the server ----------
 const SEC = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin' };
 function send(res, code, type, body, extra) { res.writeHead(code, Object.assign({ 'content-type': type, 'cache-control': 'no-store' }, SEC, extra || {})); res.end(body); }
+// a packed file: 304 on a matching ETag, brotli or gzip when the browser takes it, byte ranges for video (Safari needs them)
+function serve(req, res, o, extra) {
+  const h = Object.assign({ 'content-type': o.type, 'cache-control': o.cache, etag: o.etag }, SEC, extra || {});
+  if (o.br) h.vary = 'accept-encoding';
+  const inm = req.headers['if-none-match'];
+  if (inm && inm.split(/\s*,\s*/).includes(o.etag)) { res.writeHead(304, h); return res.end(); }
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+  if (!o.br && range && (range[1] || range[2])) {
+    const size = o.raw.length;
+    let a = range[1] === '' ? size - +range[2] : +range[1], b = range[1] !== '' && range[2] !== '' ? Math.min(+range[2], size - 1) : size - 1;
+    if (a < 0) a = 0;
+    if (a > b || a >= size) { res.writeHead(416, Object.assign(h, { 'content-range': 'bytes */' + size })); return res.end(); }
+    res.writeHead(206, Object.assign(h, { 'accept-ranges': 'bytes', 'content-range': `bytes ${a}-${b}/${size}`, 'content-length': b - a + 1 }));
+    return res.end(req.method === 'HEAD' ? undefined : o.raw.subarray(a, b + 1));
+  }
+  const ae = String(req.headers['accept-encoding'] || '');
+  let body = o.raw;
+  if (o.br && /\bbr\b/.test(ae)) { body = o.br; h['content-encoding'] = 'br'; } else if (o.gz && /\bgzip\b/.test(ae)) { body = o.gz; h['content-encoding'] = 'gzip'; }
+  if (!o.br) h['accept-ranges'] = 'bytes';
+  h['content-length'] = body.length;
+  res.writeHead(200, h); res.end(req.method === 'HEAD' ? undefined : body);
+}
+const redirect = (res, to, code) => { res.writeHead(code || 302, Object.assign({ location: to, 'cache-control': 'no-cache' }, SEC)); res.end(); };
 http.createServer((req, res) => {
   const u = new URL(req.url || '/', 'http://x'), p = u.pathname;
   if (p === '/health') return send(res, 200, 'text/plain', 'ok');
@@ -278,9 +441,21 @@ http.createServer((req, res) => {
     return send(res, 404, 'text/plain', 'no');
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'text/plain', '');
-  if (p === '/admin' || p === '/admin/') return send(res, 200, 'text/html; charset=utf-8', req.method === 'HEAD' ? undefined : admin, { 'x-robots-tag': 'noindex', 'x-frame-options': 'DENY' });
-  if (p === '/og.png' && og) return send(res, 200, 'image/png', og, { 'cache-control': 'public, max-age=86400' });
-  if (p === '/robots.txt') return send(res, 200, 'text/plain', 'User-agent: *\nDisallow: /admin\nDisallow: /api/\n');
-  // one page: every other path gets the game
-  send(res, 200, 'text/html; charset=utf-8', req.method === 'HEAD' ? undefined : page, { 'cache-control': 'no-cache' });
-}).listen(PORT, () => console.log('BTTN on port ' + PORT + (TOKEN ? '' : ' (admin off: set ADMIN_TOKEN)')));
+  if (p === '/api/config') return send(res, 200, 'application/json', JSON.stringify(config()), { 'cache-control': 'public, max-age=60' });
+  // the landing; old links to the game (/?play=1, /index.html) go to /play with the rest of their query
+  if (p === '/' || p === '/index.html') {
+    if (p === '/index.html' || u.searchParams.has('play')) { u.searchParams.delete('play'); const qs = u.searchParams.toString(); return redirect(res, '/play' + (qs ? '?' + qs : '')); }
+    return serve(req, res, u.searchParams.get('lang') === 'ru' ? landing.ru : landing.en);
+  }
+  if (p === '/play' || p === '/play/' || p.startsWith('/play/')) return serve(req, res, page);
+  if (p.startsWith('/assets/')) { const a = assets.get(decodeURIComponent(p.slice(8))); return a ? serve(req, res, a) : send(res, 404, 'text/plain', 'not found'); }
+  if (p === '/privacy' || p === '/privacy/' || p === '/privacy.html') return serve(req, res, privacy);
+  if (p === '/admin' || p === '/admin/') return serve(req, res, admin, { 'x-robots-tag': 'noindex', 'x-frame-options': 'DENY', 'cache-control': 'no-store' });
+  if (p === '/og.png' && og) return serve(req, res, og);
+  if (p === '/favicon.ico' && favicon) return serve(req, res, favicon);
+  if (p === '/robots.txt') return serve(req, res, robots);
+  if (p === '/sitemap.xml') return serve(req, res, sitemap);
+  if (p === '/manifest.webmanifest' || p === '/site.webmanifest') return serve(req, res, manifest);
+  // anything else: the landing, keeping the query (tags on a mistyped link still count)
+  return redirect(res, '/' + (u.search || ''));
+}).listen(PORT, () => console.log('BTTN on port ' + PORT + (TOKEN ? '' : ' (admin off: set ADMIN_TOKEN)') + ' · ' + ORIGIN));

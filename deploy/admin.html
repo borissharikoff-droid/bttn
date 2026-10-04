@@ -178,13 +178,14 @@ function bars(rows, opts) {
     return row;
   }));
 }
-// the funnel: ordinal steps, each bar as a share of the first; the drop from the step before in the tooltip
+// the funnel: ordinal steps, each bar as a share of the biggest step (the landing comes first, but visitors who
+// skip it start at "Opened the game", so that step can be the bigger one); the drop from the step before in the tooltip
 function funnel(steps) {
-  const top0 = Math.max(1, steps[0] ? steps[0].n : 1);
+  const top0 = Math.max(1, ...steps.map(s => s.n));
   return h('div', { cls: 'bars funnel' }, steps.map((s, i) => {
     const prev = i ? steps[i - 1].n : s.n, share = Math.round(1000 * s.n / top0) / 10, drop = prev ? Math.round(1000 * (prev - s.n) / prev) / 10 : 0;
-    const row = h('div', { cls: 'row' }, h('div', { cls: 'lab' }, s.label), h('div', { cls: 'trk' }, h('div', { cls: 'fill', style: { width: share + '%', background: 'var(--seq' + (i < 4 ? 4 : i < 9 ? 3 : 2) + ')' } })), h('div', { cls: 'val' }, fmt(s.n) + ' · ' + share + '%'));
-    tipOn(row, () => [tipRow(null, fmt(s.n), s.label), h('div', { cls: 'muted' }, share + '% of all new visitors'), i ? h('div', { cls: drop > 40 ? 'err' : 'muted' }, '−' + drop + '% from the step before') : null]);
+    const row = h('div', { cls: 'row' }, h('div', { cls: 'lab' }, s.label), h('div', { cls: 'trk' }, h('div', { cls: 'fill', style: { width: share + '%', background: s.k.startsWith('land_') ? 'var(--s2)' : 'var(--seq' + (i < 6 ? 4 : i < 11 ? 3 : 2) + ')' } })), h('div', { cls: 'val' }, fmt(s.n) + ' · ' + share + '%'));
+    tipOn(row, () => [tipRow(null, fmt(s.n), s.label), h('div', { cls: 'muted' }, share + '% of the biggest step'), i && s.k !== 'visit' ? h('div', { cls: drop > 40 ? 'err' : 'muted' }, '−' + drop + '% from the step before') : s.k === 'visit' ? h('div', { cls: 'muted' }, 'Includes visitors who skipped the landing (direct /play links)') : null]);
     return row;
   }));
 }
@@ -266,12 +267,28 @@ function render() {
     { k: 'medMin', t: 'Median min', f: r => r.medMin }, { k: 'mobile', t: 'Mobile', f: r => pc(r.mobile) },
     { k: 'score', t: 'Quality', tip: '20% picked class + 30% played 5 min + 20% reached land 2 + 30% came back on day 1', f: r => h('span', null, r.visitors < 20 ? h('span', { cls: 'muted', title: 'fewer than 20 visitors: too few to judge' }, r.score + '*') : String(r.score), h('span', { cls: 'score' }, h('i', { style: { width: Math.min(100, r.score) + '%' } }))) },
   ];
+  const L = d.landing || { views: 0, bySrc: [], byDev: [], pos: [], faq: [], support: [], platform: [], ui: [] };
+  const landCols = [{ k: 'k', t: 'Source', l: 1 }, { k: 'views', t: 'Views' }, { k: 'ctr', t: 'Clicked Play', f: r => pc(r.ctr) }, { k: 'opened', t: 'Opened the game', f: r => pc(r.opened) }, { k: 'm5', t: 'Played 5 min', f: r => pc(r.m5) }];
+  const landingCard = card('Landing page', 'The page at / (the game is at /play). Views in this range, the share that pressed PLAY, and what those visitors did next. Target: 70%+ press PLAY. Links straight to /play skip this page.',
+    h('div', null,
+      h('div', { cls: 'kpis' }, kpi('Landing views', fmt(L.views), fmt(L.visitors) + ' visitors'), kpi('Play click-through', pc(L.ctr), 'of views · ' + pc(L.visitorCtr) + ' of visitors'), kpi('Opened the game', pc(L.opened), 'of landing visitors'),
+        kpi('Time to PLAY', L.secToPlay == null ? '—' : L.secToPlay + ' s', 'median, from page open'), kpi('Scrolled half', pc(L.s50), 'of views'), kpi('Reached the end', pc(L.s100), 'of views')),
+      h('div', { style: { height: '14px' } }),
+      h('div', { cls: 'grid' },
+        h('div', { cls: 'c8', style: { minWidth: 0 } }, h('p', { cls: 'note' }, 'By source (this visit’s utm_source or referrer)'), table(landCols, L.bySrc)),
+        h('div', { cls: 'c4', style: { minWidth: 0 } }, h('p', { cls: 'note' }, 'By device'), table(Object.assign([], landCols, { 0: { k: 'k', t: 'Device', l: 1 } }).filter(c => c.k !== 'm5'), L.byDev),
+          h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'Which PLAY was pressed'), bars(L.pos, { pct: true }),
+          L.faq.length ? [h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'FAQ opened'), bars(L.faq)] : null,
+          L.support.length ? [h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'Support cards clicked'), bars(L.support)] : null,
+          L.platform.length ? [h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'Platform badges clicked'), bars(L.platform)] : null,
+          h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'Page language'), bars(L.ui, { pct: true })))));
   const game = d.game;
   const winRate = game.bossWin + game.bossFail ? Math.round(100 * game.bossWin / (game.bossWin + game.bossFail)) : null;
   const grid = h('div', { cls: 'grid' },
     card('Visitors per day', 'New and returning visitors who opened the game. Hover a day for sessions and minutes played.', dailyChart(d.daily)),
+    landingCard,
     card('Where traffic comes from, and how good it is', 'First touch per new visitor: utm_source, or the referring site, or (direct). Sort by any column. Quality blends class pick, 5-minute play, land 2 and day-1 return; * means under 20 visitors. Buy more of the sources with high quality, not just high counts.', table(sourceCols, srcSorted, { sortable: true })),
-    card('Funnel', 'Of the new visitors in this range: how many reached each step. Hover for the drop from the step before; a big drop is where to fix the game.', funnel(d.funnel), 'c6'),
+    card('Funnel', 'Of the new visitors in this range: how many reached each step, from the landing page (orange) into the game. Visitors who skip the landing start at “Opened the game”. Hover for the drop from the step before; a big drop is where to fix the game.', funnel(d.funnel), 'c6'),
     card('Retention by first day', 'Share of each day’s new visitors who came back exactly 1, 3 and 7 days later.', heat(d.cohorts), 'c6'),
     card('How long new visitors played', 'Total play time per new visitor.', bars(d.quit.play, { pct: true }), 'c4'),
     card('Where non-returning players stopped: tutorial', 'Last tutorial step of new visitors who have not come back.', bars(d.quit.tut), 'c4'),

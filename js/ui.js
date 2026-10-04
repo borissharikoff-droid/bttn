@@ -484,7 +484,8 @@
         el.style.setProperty('--hk', Math.min(1, held / 1.5));
         setClass(el, 'on', !!on);
         if (!away) life += 0.1;
-        if (held >= 1.5 || life > 12) {
+        // (12 s on screen at most; one that found no free spot for a minute tries again next session)
+        if (held >= 1.5 || life > 12 || (n > 600 && life < 1)) {
           if (held >= 1.5) { S.seen.hold = 1; G.dirty && G.dirty(); G.Audio && G.Audio.levelUp && G.Audio.levelUp(); el.classList.add('done'); }
           el.classList.add('out'); clearInterval(iv); setTimeout(() => el.remove(), 600);
         }
@@ -499,6 +500,8 @@
       if (G.Stage.cardBusy && G.Stage.cardBusy()) return null;
       let top = 8;
       for (const s of ['.hud.top .realm', '.hud.top .hudBtns', '#xpBar']) { const e = $(s); if (e && !e.hidden && e.offsetParent) top = Math.max(top, e.getBoundingClientRect().bottom - wr.top + 6); }
+      // (in a boss fight it keeps under the boss's bar)
+      if (G.R.boss) { const bb = bossBarRect(); if (bb) top = Math.max(top, bb.bottom - wr.top + 6); }
       const hb = $('.hud.bottom'), bottom = (hb ? hb.getBoundingClientRect().top : wr.bottom) - wr.top - 8;
       const br = btnRect(6);
       const bTop = br ? br.top - wr.top : wr.height * 0.4, bBot = br ? br.bottom - wr.top : wr.height * 0.6;
@@ -2760,8 +2763,11 @@
   let bannerBusy = false, bannerTm = 0, bannerUpAt = 0;
   UI.bannerBusy = () => bannerBusy;
   function bannerHard() { return !!((G.uiBusy && G.uiBusy()) || G.R.town || (G.relicShow && G.relicShow())); }
+  let cardSeenAt = -1e9;
   function bannerSoft(b) {
-    if (G.Stage && G.Stage.cardBusy && G.Stage.cardBusy()) return true;
+    // (a title card's words linger a beat after its turn ends: the banner gives them that beat)
+    if (G.Stage && G.Stage.cardBusy && G.Stage.cardBusy()) { cardSeenAt = performance.now(); return true; }
+    if (performance.now() - cardSeenAt < 500) return true;
     const c = document.getElementById('champCard'); if (c && !c.hidden && !c.classList.contains('out')) return true;
     return b.p <= 0 && !!G.R.boss;
   }
