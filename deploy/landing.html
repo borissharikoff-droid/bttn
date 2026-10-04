@@ -70,8 +70,8 @@ kbd{font:inherit;padding:1px 6px;border:1px solid #6b5d7d;border-bottom-width:3p
 video.bg{opacity:0;transition:opacity .8s ease}
 video.bg.on{opacity:1}
 .shade{position:absolute;inset:0;z-index:-2;background:
-  radial-gradient(ellipse 72% 62% at 50% 48%,rgba(13,10,18,.18),rgba(13,10,18,.62) 70%,rgba(13,10,18,.9)),
-  linear-gradient(180deg,rgba(13,10,18,.7),rgba(13,10,18,0) 18%,rgba(13,10,18,0) 70%,var(--bg))}
+  linear-gradient(180deg,rgba(13,10,18,.6),rgba(13,10,18,0) 15%,rgba(13,10,18,0) 74%,var(--bg)),
+  radial-gradient(ellipse 60% 58% at 50% 50%,rgba(13,10,18,.42),rgba(13,10,18,.22) 72%,rgba(13,10,18,.3))}
 /* faint scanlines, for the CRT feel */
 .shade::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px);mix-blend-mode:multiply}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:max(14px,env(safe-area-inset-top)) max(var(--edge),env(safe-area-inset-right)) 0 max(var(--edge),env(safe-area-inset-left))}
@@ -91,8 +91,8 @@ video.bg.on{opacity:1}
 .logo b::before{content:'';position:absolute;left:.12em;top:.1em;width:.16em;height:.08em;background:rgba(255,255,255,.65)}
 @keyframes cap{0%{transform:none}4%{transform:translateY(.1em);box-shadow:inset 0 -.06em 0 var(--red-lo),0 -.06em 0 #16090b,0 .06em 0 #16090b,-.06em 0 0 #16090b,.06em 0 0 #16090b,0 .1em 0 #16090b}9%{transform:none}}
 h1{display:contents}
-.hl{font:clamp(15px,2.7vw,27px)/1.45 var(--px);color:#fff4d8;text-shadow:0 3px 0 #000,0 0 18px rgba(0,0,0,.8);text-wrap:balance}
-.sub{font-size:clamp(18px,2.1vw,23px);line-height:1.25;color:var(--ink2);max-width:36ch;text-shadow:0 2px 0 #000,0 0 12px #000;text-wrap:pretty}
+.hl{font:clamp(15px,2.9vw,32px)/1.45 var(--px);color:#fff4d8;text-shadow:0 3px 0 #000,0 0 18px rgba(0,0,0,.8);text-wrap:balance}
+.sub{font-size:clamp(18px,2.1vw,23px);line-height:1.25;color:var(--ink2);max-width:44ch;text-shadow:0 2px 0 #000,0 0 12px #000;text-wrap:pretty}
 .sub b{color:var(--gold);font-weight:400}
 
 /* the PLAY button: the game's red Button as a pixel slab */
@@ -191,19 +191,20 @@ h2{font:clamp(17px,2.6vw,26px)/1.4 var(--px);color:#fff4d8;text-wrap:balance;tex
 .fell b{display:block;color:var(--gold);font-weight:400}
 
 /* support */
-.support{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:clamp(14px,2.2vw,26px);margin-top:24px}
+.support{display:grid;grid-template-columns:1.25fr 1fr 1fr;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr);gap:clamp(14px,2.2vw,26px);margin-top:24px}
 .offer{display:flex;flex-direction:column;padding:18px;gap:10px}
 .offer.star{background:linear-gradient(180deg,#2a2013,var(--card) 60%);box-shadow:0 -3px 0 var(--gold-lo),0 3px 0 var(--gold-lo),-3px 0 0 var(--gold-lo),3px 0 0 var(--gold-lo),0 9px 0 rgba(0,0,0,.35),0 0 40px rgba(255,198,41,.12)}
-.offer .art{display:flex;align-items:flex-end;gap:8px;min-height:76px}
+.offer .art{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;min-height:76px}
 .offer .art .sp{--z:2}
 .offer.star .art .sp.big{--z:2;animation:shimmer 2.6s ease-in-out infinite}
 @keyframes shimmer{50%{filter:brightness(1.25) drop-shadow(0 0 8px rgba(255,198,41,.7))}}
 .offer h3{font:12px/1.5 var(--px);color:#fff4d8}
 .offer p{font-size:17px;color:var(--ink2);line-height:1.22;flex:1}
 .tag{display:inline-block;font:7px/1 var(--px);padding:4px 5px 3px;color:#16090b;background:var(--gold);vertical-align:2px;margin-left:6px}
-.buy{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.price{font:13px var(--px);color:var(--gold)}
-.price small{font:16px var(--tx);color:var(--mut);margin-left:6px}
+.buy{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.buy .btn2{margin-left:auto;padding:10px 12px}
+.price{font:12px var(--px);color:var(--gold);white-space:nowrap}
+.price small{display:inline-block;font:7px/1 var(--px);padding:4px 5px 3px;margin-left:8px;vertical-align:3px;color:var(--mut);box-shadow:0 0 0 2px #3a2f4c;text-transform:uppercase;letter-spacing:1px}
 .btn2{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 14px;font:10px/1.2 var(--px);color:var(--ink);text-decoration:none;background:#2c2338;box-shadow:inset 0 -4px 0 #1a1422,0 -3px 0 #0e0a13,0 3px 0 #0e0a13,-3px 0 0 #0e0a13,3px 0 0 #0e0a13;transition:transform .06s,filter .15s}
 .btn2:hover{filter:brightness(1.2)}
 .btn2:active{transform:translateY(2px)}
@@ -263,10 +264,10 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
 .dock .play .sp{--z:1}
 
 @media (max-width:860px){
-  .feats{grid-template-columns:1fr;max-width:560px;margin-left:auto;margin-right:auto}
+  .feats{grid-template-columns:minmax(0,1fr);max-width:560px;margin-left:auto;margin-right:auto}
   .feat{display:grid;grid-template-columns:minmax(0,46%) 1fr;align-items:stretch}
   .feat .scene{aspect-ratio:auto;min-height:150px}
-  .support{grid-template-columns:1fr;max-width:560px;margin-left:auto;margin-right:auto}
+  .support{grid-template-columns:minmax(0,1fr);max-width:560px;margin-left:auto;margin-right:auto}
   .faq{grid-template-columns:1fr}
 }
 @media (max-width:560px){
@@ -283,7 +284,14 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
   .offer .art{min-height:64px}
 }
 @media (max-height:640px) and (orientation:landscape){.hero{min-height:640px}}
-@media (max-width:560px) and (orientation:portrait){.pitch{align-self:end;padding-bottom:4px}}
+@media (max-width:560px) and (orientation:portrait){
+  .pitch{align-self:end;padding-bottom:4px;gap:12px}
+  .pitch::before{top:58%;height:100%}
+  .bg,.bg img{height:66%;bottom:auto;object-position:50% 85%}
+  .shade{background:linear-gradient(180deg,rgba(13,10,18,.55),rgba(13,10,18,0) 11%,rgba(13,10,18,0) 36%,rgba(13,10,18,.7) 52%,var(--bg) 66%)}
+  .logo{font-size:clamp(26px,7.4vw,34px)}
+  .sub{font-size:17px}
+}
 </style>
 </head>
 <body>
@@ -307,7 +315,7 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
     </h1>
     <p class="sub" data-t="sub">Hold it against a <b>1,000-monster Horde</b>. Your party fights, your clicks call lightning, the loot rains. Free in your browser.</p>
     <a class="play" id="play" href="/play" data-pos="hero"><i class="sp s-btn-classic up" aria-hidden="true"></i><i class="sp s-btnp-classic dn" aria-hidden="true"></i><span data-t="cta">PLAY FREE</span></a>
-    <p class="micro"><span data-t="m1">Free</span><span class="dot" aria-hidden="true">·</span><span data-t="m2">No download</span><span class="dot" aria-hidden="true">·</span><span data-t="m3">Desktop &amp; phone</span><span class="kb"><span class="dot" aria-hidden="true">·</span> <span data-t="m4">or press</span> <kbd>SPACE</kbd></span></p>
+    <p class="micro"><span data-t="m1">No sign-up</span><span class="dot" aria-hidden="true">·</span><span data-t="m2">No download</span><span class="dot" aria-hidden="true">·</span><span data-t="m3">Desktop &amp; phone</span><span class="kb"><span class="dot" aria-hidden="true">·</span> <span data-t="m4">or press</span> <kbd>SPACE</kbd></span></p>
     <p class="proof" id="proof" hidden></p>
   </div>
   <a class="cue" href="#how"><span data-t="cue">What is this?</span><i aria-hidden="true"></i></a>
@@ -337,7 +345,7 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
     <div class="nums" role="list">
       <div class="num" role="listitem"><b>1000+</b><span data-t="n1">monsters at once</span></div>
       <div class="num" role="listitem"><b>15</b><span data-t="n2">lands</span></div>
-      <div class="num" role="listitem"><b>27</b><span data-t="n3">uniques</span></div>
+      <div class="num" role="listitem"><b>19</b><span data-t="n3">uniques</span></div>
       <div class="num" role="listitem"><b>8</b><span data-t="n4">relics</span></div>
       <div class="num" role="listitem"><b>11</b><span data-t="n5">town buildings</span></div>
     </div>
@@ -385,7 +393,7 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
         </div>
         <div class="txt">
           <h3 data-t="f2">Loot worth screaming about.</h3>
-          <p data-t="f2p">Seven rarities with beams and sounds, <b>27 uniques</b> that bend the rules, and 8 relics from about 1 boss in 600.</p>
+          <p data-t="f2p">Seven rarities with beams and sounds, <b>19 uniques</b> that bend the rules, and 8 relics from about 1 boss in 600.</p>
         </div>
       </article>
       <article class="feat panel">
@@ -416,11 +424,11 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
       <article class="offer panel star">
         <div class="art"><i class="sp s-btn-gold big" aria-hidden="true"></i><i class="sp s-ic-bolt" aria-hidden="true" style="--z:3"></i><i class="sp s-it-king-crown" aria-hidden="true" style="--z:3"></i></div>
         <h3><span data-t="o1">Supporter Pack</span><span class="tag" data-t="o1t">FOUNDER</span></h3>
-        <p data-t="o1p">A Founder Button, gold lightning, a gold name on the ladder, and skip any ad-bonus video. Same caps as everyone.</p>
+        <p data-t="o1p">A Founder Button, gold lightning, a gold name on the ladder, +4 h offline, and the 4 ad bonuses without watching. Same caps as everyone.</p>
         <div class="buy"><span class="price" data-price="supporter">$9.99</span><a class="btn2 shop" data-sku="supporter" href="/play"><span data-t="get">Play free</span></a></div>
       </article>
       <article class="offer panel">
-        <div class="art"><i class="sp s-btn-obsidian" aria-hidden="true"></i><i class="sp s-btn-candy" aria-hidden="true"></i><i class="sp s-btn-frost" aria-hidden="true"></i><i class="sp s-btn-emerald" aria-hidden="true"></i></div>
+        <div class="art"><i class="sp s-btn-obsidian" aria-hidden="true"></i><i class="sp s-btn-candy" aria-hidden="true"></i><i class="sp s-btn-frost" aria-hidden="true"></i></div>
         <h3 data-t="o2">Looks</h3>
         <p data-t="o2p">Button skins, Hand trails and party outfits. Looks only, never stats.</p>
         <div class="buy"><span class="price" data-price="looks">from $0.99</span><a class="btn2 shop" data-sku="skin_btn_obsidian" href="/play"><span data-t="get">Play free</span></a></div>
@@ -456,7 +464,7 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
       <details data-q="free"><summary data-t="q1">Is it really free?</summary><p data-t="a1x">Yes, the whole game. Optional looks and a Supporter Pack fund development. No energy, no timers on offers, no paid loot boxes.</p></details>
       <details data-q="install"><summary data-t="q2">Do I need to download or sign up?</summary><p data-t="a2x">No. Press Play. It runs in any modern browser, on phone or desktop.</p></details>
       <details data-q="save"><summary data-t="q3">Is my progress saved?</summary><p data-t="a3x">Yes, automatically in this browser. Settings → Export gives you a save code to move it to another device.</p></details>
-      <details data-q="length"><summary data-t="q4">How long is it?</summary><p data-t="a4x">Weeks. 15 lands of 3 zones, a town to build, 27 uniques, 8 relics, and runs that make you stronger each time the Button falls. A session is 3–30 minutes.</p></details>
+      <details data-q="length"><summary data-t="q4">How long is it?</summary><p data-t="a4x">Weeks. 15 lands of 3 zones, a town to build, 19 uniques, 8 relics, and runs that make you stronger each time the Button falls. A session is 3–30 minutes.</p></details>
       <details data-q="idle"><summary data-t="q5">Can I play idle?</summary><p data-t="a5x">Yes. Hold the Button (or Space) and the party fights on. While you're away, your garrison and Warden keep earning for up to 4 hours.</p></details>
       <details data-q="gamble"><summary data-t="q6">Is there gambling?</summary><p data-t="a6x">No real-money gambling: no paid loot boxes, no premium currency, nothing random for sale. Rare drops are earned by playing.</p></details>
       <details data-q="lang" class="ru-only" hidden><summary data-t="q7">На каком языке игра?</summary><p data-t="a7x">Пока на английском: текста мало, всё понятно по картинкам. Русский перевод уже в работе.</p></details>
@@ -507,7 +515,7 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
   var RU = {
     hl: 'Не дай Кнопке сломаться.',
     sub: 'Удержи её против <b>орды в 1000 монстров</b>. Отряд сражается, клики бьют молнией, лут сыплется дождём. Бесплатно, прямо в браузере.',
-    cta: 'ИГРАТЬ', m1: 'Бесплатно', m2: 'Без скачивания', m3: 'Телефон и ПК', m4: 'или жми', cue: 'Что это?',
+    cta: 'ИГРАТЬ', m1: 'Без регистрации', m2: 'Без скачивания', m3: 'Телефон и ПК', m4: 'или жми', cue: 'Что это?',
     k1: 'Как играть', h_how: 'Одна Кнопка. Одна орда. Решаешь ты.',
     s1: 'ДЕРЖИ', s1p: 'Кликай или держи Кнопку. Каждое нажатие бьёт орду.',
     s2: 'ОТРЯД', s2p: 'Танк, лекарь и боец сражаются за тебя.',
@@ -515,13 +523,13 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
     n1: 'монстров разом', n2: 'земель', n3: 'уникальных вещей', n4: 'реликвий', n5: 'зданий в городе',
     k2: 'Почему затягивает', h_feat: 'Маленькая игра. Огромные числа.',
     f1: 'Один палец. Тысяча монстров.', f1p: 'Кликай или держи Кнопку. Рыцарь держит строй, клирик лечит, лучник бьёт с фланга, а твоя Рука обрушивает <b>метеоры</b> на орду.',
-    f2: 'Лут, ради которого орёшь.', f2p: 'Семь редкостей со столбами света и звуками, <b>27 уникальных вещей</b>, меняющих правила, и 8 реликвий — примерно с 1 босса из 600.',
+    f2: 'Лут, ради которого орёшь.', f2p: 'Семь редкостей со столбами света и звуками, <b>19 уникальных вещей</b>, меняющих правила, и 8 реликвий — примерно с 1 босса из 600.',
     f3: 'Каждое падение делает сильнее.', f3p: 'Когда Кнопка падает, забег приносит <b>славу</b>. 15 земель, город из 11 зданий, и каждый раз глубже. Недели игры по 3–30 минут.',
     fell: 'КНОПКА ПАЛА<b>+СЛАВА</b>', d6: 'Г6', d11: 'Г11', d19: 'Г19',
     a1: 'Отряд у Кнопки, кольцо монстров сжимается, Рука бьёт молнией', a2: 'Лут на земле под цветными столбами света', a3: 'Три забега, каждый глубже прошлого, рядом таверна и кузница',
     k3: 'Честная игра', h_sup: 'Бесплатно навсегда. Поддержи, если нравится.',
     sup: 'Игру делает один человек. Ничего случайного за деньги и никакой силы, которую нельзя заработать игрой.',
-    o1: 'Набор поддержки', o1t: 'ОСНОВАТЕЛЬ', o1p: 'Кнопка основателя, золотая молния, золотое имя в рейтинге и бонусы без просмотра рекламы. Лимиты те же, что у всех.',
+    o1: 'Набор поддержки', o1t: 'ОСНОВАТЕЛЬ', o1p: 'Кнопка основателя, золотая молния, золотое имя в рейтинге, +4 ч офлайна и 4 бонуса за рекламу без просмотра. Лимиты те же, что у всех.',
     o2: 'Облики', o2p: 'Скины Кнопки, следы Руки и наряды отряда. Только внешний вид, никаких характеристик.',
     o3: 'Пирог для Стража', o3p: 'Шапка-пирог для Стража и твоё имя на Стене меценатов. Просто спасибо.',
     get: 'Играть', getOn: 'Взять в игре', soon: 'скоро',
@@ -536,7 +544,7 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
     q1: 'Это правда бесплатно?', a1x: 'Да, вся игра. Разработку поддерживают облики и набор поддержки — по желанию. Ни энергии, ни таймеров на предложениях, ни платных лутбоксов.',
     q2: 'Нужно скачивать или регистрироваться?', a2x: 'Нет. Жми «Играть». Работает в любом современном браузере, на телефоне и на ПК.',
     q3: 'Прогресс сохраняется?', a3x: 'Да, автоматически в этом браузере. Настройки → Экспорт дают код сохранения, чтобы перенести игру на другое устройство.',
-    q4: 'Надолго это?', a4x: 'На недели. 15 земель по 3 зоны, свой город, 27 уникальных вещей, 8 реликвий и забеги, после которых ты сильнее. Сессия — 3–30 минут.',
+    q4: 'Надолго это?', a4x: 'На недели. 15 земель по 3 зоны, свой город, 19 уникальных вещей, 8 реликвий и забеги, после которых ты сильнее. Сессия — 3–30 минут.',
     q5: 'Можно играть в idle-режиме?', a5x: 'Да. Держи Кнопку (или пробел) — отряд сражается сам. Пока тебя нет, гарнизон и Страж зарабатывают до 4 часов.',
     q6: 'Тут есть азартные игры?', a6x: 'Никакого азарта за деньги: ни платных лутбоксов, ни премиум-валюты, ничего случайного на продажу. Редкий лут добывается игрой.',
     h_go: 'Орда уже идёт.', go: 'Одно нажатие — и ты в игре. Первый босс уже через пару минут.',
@@ -641,7 +649,6 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
     var a = $('#play'); a.classList.add('press');
     setTimeout(function () { go(a, e.key === ' ' ? 'space' : 'enter'); location.href = a.href; }, 90);
   });
-  if (mq('(hover: hover) and (pointer: fine)')) { try { $('#play').focus({ preventScroll: true }); } catch (e) {} }
 
   // ---------- language switch ----------
   $$('[data-lang]').forEach(function (b) {

@@ -469,12 +469,14 @@
         <div class="hpArt">${touch ? `<img class="hpFinger" src="${ic('ic_finger', 6)}" alt="">` : `<span class="hpKey">SPACE</span>`}</div>
         <p>${esc(t('holdWhy'))}</p></div>`;
       $('#stageWrap').appendChild(el);
-      let held = 0, life = 0, n = 0;
+      let held = 0, life = 0, n = 0, lastT = performance.now();
       const iv = setInterval(() => {
         if (!el.isConnected) { clearInterval(iv); return; }
+        // (real seconds: a busy frame stretches the ticks, not the plate's time)
+        const nowT = performance.now(), dt = Math.min(1, (nowT - lastT) / 1000); lastT = nowT;
         if (S.seen && S.seen.hold) { el.classList.add('out'); clearInterval(iv); setTimeout(() => el.remove(), 600); return; }
         const on = (G.Stage.isHolding && G.Stage.isHolding()) || performance.now() - (UI._holdKeyT || 0) < 250;
-        held = on ? held + 0.1 : Math.max(0, held - 0.05);
+        held = on ? held + dt : Math.max(0, held - dt / 2);
         // where it may sit, looked at three times a second
         let spot = el._spot;
         if (n++ % 3 === 0 || on) spot = el._spot = holdSpot(el);
@@ -483,7 +485,7 @@
         if (!away && el._top !== spot) { el._top = spot; el.style.top = spot + 'px'; }
         el.style.setProperty('--hk', Math.min(1, held / 1.5));
         setClass(el, 'on', !!on);
-        if (!away) life += 0.1;
+        if (!away) life += dt;
         // (12 s on screen at most; one that found no free spot for a minute tries again next session)
         if (held >= 1.5 || life > 12 || (n > 600 && life < 1)) {
           if (held >= 1.5) { S.seen.hold = 1; G.dirty && G.dirty(); G.Audio && G.Audio.levelUp && G.Audio.levelUp(); el.classList.add('done'); }
@@ -930,14 +932,18 @@
     if (br && br.hidden && br._arm) disarmRetreat(br);
     toastsYield();
     // the toasts step down out of the way of the boss bar, and of the tutorial's arrow, when they reach their corner
-    { const ts = $id('toasts'), bb = R.boss ? bossBarRect() : null, pt = $id('pointer'); let top = '';
+    { const ts = $id('toasts'), bb = R.boss ? bossBarRect() : null, pt = $id('pointer'); let top = '', block = false;
       if (ts && (bb || (pt && !pt.hidden))) {
         const wr = G.Stage.wrapRect ? G.Stage.wrapRect() : $id('stageWrap').getBoundingClientRect(), x0 = wr.right - 12 - Math.min(wr.width * (narrowUI() ? 0.6 : 0.7), narrowUI() ? 250 : 320);
         let y = 0;
         if (bb && bb.right > x0) y = bb.bottom - wr.top + 6;
         if (pt && !pt.hidden) { const a = pt.getBoundingClientRect(); if (a.right > x0 && a.left < wr.right && a.top - wr.top < (narrowUI() ? 50 : 54) + 80 && a.bottom > wr.top) y = Math.max(y, a.bottom - wr.top + 4); }
+        // (stepped down that far it would sit on the Button: then the news waits for the arrow to go instead)
+        const b = y ? btnRect(4) : null;
+        if (b && b.right > x0 && b.left < wr.right && b.top - wr.top < y + 64 && b.bottom - wr.top > y) { block = true; y = 0; }
         if (y) top = Math.round(y) + 'px';
       }
+      if (block !== toastBlock) { toastBlock = block; if (block) toastsYield(true); else if (toastQ.length && !toastTm) toastTm = setTimeout(pumpToasts, 300); }
       if (ts && ts._top !== top) { ts._top = top; ts.style.top = top; } }
     // Journey goal and today's omen
     updateGoal();
@@ -2663,7 +2669,7 @@
   const narrowUI = () => innerWidth <= 860;
   const dirQuiet = () => { try { return !!(G.director && G.director.quiet && G.director.quiet()); } catch (e) { return false; } };
   const toastQ = [];
-  let toastLast = 0, toastTm = 0;
+  let toastLast = 0, toastTm = 0, toastBlock = false;
   // what a burst of one kind says (q.n of them; q.items: what each one was about)
   const TOAST_N = {
     new: q => `<b>${esc(t('toastNewN', q.n))}</b>`,
@@ -2681,10 +2687,15 @@
   const liveToasts = box => Array.prototype.filter.call(box.children, e => !e.classList.contains('out'));
   function toastHeld(q) {
     if (q.p >= 2) return false;
+    if (toastBlock) return true;
     if (G.uiBusy && G.uiBusy()) return true;
     if (q.p <= 0 && dirQuiet()) return true;
     // (a phone's field has room for one card at the top: a champion's waits nobody)
-    if (narrowUI()) { const c = document.getElementById('champCard'); if (c && !c.hidden && !c.classList.contains('out')) return true; }
+    if (narrowUI()) {
+      const c = document.getElementById('champCard'); if (c && !c.hidden && !c.classList.contains('out')) return true;
+      // (nor a big banner: it has the top of the field for its few seconds)
+      if (bannerBusy) return true;
+    }
     return false;
   }
   function pumpToasts() {
@@ -2744,13 +2755,15 @@
   UI.toastQueue = () => toastQ.length;
   // (a phone has room for one card at the top: when a champion's comes up, a toast that just came steps back into
   // the line, an older one goes)
-  function toastsYield() {
+  function toastsYield(force) {
     if (!narrowUI()) return;
     const c = document.getElementById('champCard'), box = $('#toasts');
-    if (!c || c.hidden || c.classList.contains('out') || !box) return;
+    if (!box || (!force && (!c || c.hidden || c.classList.contains('out')))) return;
     const now = performance.now();
     for (const el of liveToasts(box)) {
+      if (force && el._q && el._q.p >= 2) continue;
       if (el._q && now - el._q.at < 1200) { clearTimeout(el._tm); el.remove(); el._q.t0 = now; toastQ.unshift(el._q); }
+      else if (force) { clearTimeout(el._tm); el.remove(); }
       else toastOut(el);
     }
     if (toastQ.length && !toastTm) toastTm = setTimeout(pumpToasts, 300);
@@ -2772,13 +2785,20 @@
     return b.p <= 0 && !!G.R.boss;
   }
   // the band of field it may use: under the top HUD, over the Button (or the boss) and the Warden on it
+  let btnArtH = 0;
   function placeBanner(el) {
     const w = $('#stageWrap'); if (!w) return;
     const wr = w.getBoundingClientRect();
     let top = 8;
     for (const s of ['.hud.top .realm', '.hud.top .hudBtns', '#xpBar']) { const e = $(s); if (e && !e.hidden && e.offsetParent) top = Math.max(top, e.getBoundingClientRect().bottom - wr.top + 6); }
+    if (G.R.boss) { const bb = bossBarRect(); if (bb) top = Math.max(top, bb.bottom - wr.top + 4); }
     let bot = wr.height * 0.42;
-    try { const bp = G.Stage.buttonPoint(), sc = G.Stage.scale ? G.Stage.scale() : 2; bot = bp.y - wr.top - (G.R.boss ? 26 : 12) * sc; } catch (e) { /* the stage is optional */ }
+    try {
+      // (the Button's sprite top: its base sits 24 px under the point, its art rises h px from base + 4)
+      const bp = G.Stage.buttonPoint(), sc = G.Stage.scale ? G.Stage.scale() : 2;
+      if (!btnArtH) { try { btnArtH = G.SPR.button('#e8413c', false, 0).height || 46; } catch (e) { btnArtH = 46; } }
+      bot = bp.y - wr.top + Math.min(G.R.boss ? -26 : -12, 28 - btnArtH - 4) * sc;
+    } catch (e) { /* the stage is optional */ }
     if (bot - top < 90) top = Math.max(0, bot - 90);
     el.style.top = Math.round(top) + 'px'; el.style.height = Math.round(Math.max(60, bot - top)) + 'px';
     const inner = el.firstElementChild;
@@ -2786,9 +2806,10 @@
     if (inner) {
       inner.style.scale = ''; inner.style.transformOrigin = '';
       const h = inner.offsetHeight, k = h > 0 ? Math.min(1, (bot - top) / h) : 1;
-      if (k < 1) inner.style.scale = String(Math.max(0.5, Math.round(k * 100) / 100));
-      // (too tall even scaled down: it keeps its foot over the Button and spills up over the top HUD instead)
-      if (k < 0.5) { el.style.placeItems = 'end center'; inner.style.transformOrigin = '50% 100%'; }
+      // (an overflowing card sits at the band's top: it shrinks from there)
+      if (k < 1) { const kk = Math.max(0.5, Math.floor(k * 100) / 100); inner.style.scale = String(kk); inner.style.transformOrigin = '50% 0'; el.style.placeItems = 'start center';
+        // (too tall even scaled down: it keeps its foot over the Button and spills up over the top HUD instead)
+        if (k < 0.5) el.style.top = Math.round(Math.max(0, bot - h * kk)) + 'px'; }
     }
   }
   function pumpBanner() {
@@ -2805,7 +2826,10 @@
     const el = $('#banner');
     bannerBusy = true; bannerUpAt = now;
     el.innerHTML = b.html; el.hidden = false; el.classList.remove('out');
+    toastsYield(true);
     placeBanner(el);
+    // (its art may land a frame later and make it taller: then it fits itself again)
+    for (const im of el.querySelectorAll('img')) if (!im.complete) im.addEventListener('load', () => { if (!el.hidden) placeBanner(el); }, { once: true });
     const ms = bannerQ.length ? b.ms * 0.7 : b.ms;
     if (G.director && G.director.mark) { try { G.director.mark('card', ms / 1000); } catch (e) { /* the director is optional */ } }
     setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; el.innerHTML = ''; bannerBusy = false; pumpBanner(); }, 400); }, ms);

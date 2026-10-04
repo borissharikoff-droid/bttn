@@ -54,7 +54,7 @@ hr{border:0;border-top:2px solid var(--line);margin:44px 0 30px}
     <h2>What it does not record</h2>
     <ul>
       <li>Your IP address. The server keeps only a salted one-way hash of it (12 characters) to count people and to slow down abuse; the address itself is never written down.</li>
-      <li>Your location from the IP. The country in the stats comes from your browser's time zone.</li>
+      <li>Your location from the IP. No IP lookup is done: the country in the stats comes from your browser's time zone (or, if a CDN in front of the site adds a country header, from that header).</li>
       <li>Names, emails, payment details or anything you type.</li>
       <li>Your game save. It lives in your browser's local storage (<code>bttn-save-v1</code>) and is not sent to this server.</li>
     </ul>
@@ -94,7 +94,7 @@ hr{border:0;border-top:2px solid var(--line);margin:44px 0 30px}
     <h2>Что не записывается</h2>
     <ul>
       <li>IP-адрес. Сервер хранит только солёный односторонний хеш (12 символов) для подсчёта людей и защиты от злоупотреблений.</li>
-      <li>Местоположение по IP. Страна в статистике берётся из часового пояса браузера.</li>
+      <li>Местоположение по IP. Поиска по IP нет: страна в статистике берётся из часового пояса браузера (или из заголовка страны, если его добавляет CDN перед сайтом).</li>
       <li>Имена, почта, платёжные данные и всё, что ты вводишь.</li>
       <li>Сохранение игры: оно лежит в local storage браузера (<code>bttn-save-v1</code>) и на сервер не отправляется.</li>
     </ul>
