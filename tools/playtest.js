@@ -143,8 +143,7 @@ function run(name, seed, minutes) {
       if (P.events && G.R.ground.length && r() < P.events * dt * 3) G.pickup(G.R.ground[0], 'hand');
       // 3.1: OVERDRIVE when it's full (the idle ones let it go off by itself)
       if (on && P.events && G.odReady && G.odReady() && r() < P.events * dt * 2) G.overdrive('tap');
-      // 3.0: the Lucky Spin when it's up, and the bonus bubbles
-      if (on && P.events && G.spinReady && G.spinReady() && r() < P.events * dt * 3) G.spin('tap');
+      // the bonus bubbles (3.6: the Lucky Spin is gone)
       if (on && P.events && G.bubbles && G.bubbles.length && r() < P.events * dt * 2) G.popBubble(G.bubbles[0].id);
       // Rifts: a run now and then once they open, harder when the last one went well
       if (P.rift && G.riftOpenable() && !G.R.rift && !G.R.boss && t - lastRift >= P.rift) { lastRift = t; G.riftStart(riftFailed ? Math.max(1, riftLvl - 3) : G.riftMax()); }

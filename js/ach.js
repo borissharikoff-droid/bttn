@@ -95,8 +95,9 @@
     A('relic_all', 'Hundred Kings', 'Find every relic', S => !!G.RELIC_IDS && G.RELIC_IDS.every(q => ((S.rec && S.rec.relicN) || {})[q])),
     A('town_10', 'Hamlet', 'Reach town level 10', S => !!G.townLvl && G.townLvl() >= 10),
     A('town_max', 'Capital', 'Build up every building fully', S => !!G.townLvl && G.townLvl() >= G.BLD.length * G.BLD_MAX),
-    A('spin_100', 'High Roller', 'Spin the Lucky Spin 100 times', S => (S.st.spins || 0) >= 100),
-    A('spin_777', 'Triple Seven', 'Hit 7-7-7', S => (S.st.sevens || 0) >= 1),
+    // 3.6: the Lucky Spin's two (spin_100, spin_777) are retired; a save that earned them keeps them (and their +1%)
+    A('bubble_100', 'Bubble Popper', 'Pop 100 bonus bubbles', S => (S.st.bubbles || 0) >= 100),
+    A('casc_10', 'Hot Streak', 'Chain 10 crits in a row', S => (S.st.cascBest || 0) >= 10),
   ];
   G.ACH_BY_ID = {}; G.ACH.forEach(a => G.ACH_BY_ID[a.id] = a);
 

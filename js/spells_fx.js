@@ -22,9 +22,12 @@
   const St = () => G.Stage || null;
   const MAXP = 600;
 
+  // 3.6 (perf): the overlay is a canvas at the stage's own pixel size, blown up by CSS (no full-screen canvas);
+  // it sits just over the stage's pixel layer (under the vignette and the stage's text), shown only while busy
   const st = document.createElement('style');
-  st.textContent = '#spellFx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; max-width: none; pointer-events: none; }';
+  st.textContent = '#spellFx { position: absolute; left: 0; top: 0; max-width: none; pointer-events: none; image-rendering: pixelated; }';
   (document.head || document.documentElement).appendChild(st);
+  const Qt = () => G.Quality || null;
 
   // ================= Sound =================
   const Snd = {
@@ -89,31 +92,28 @@
   };
 
   // ================= Layers =================
-  let cv = null, ctx = null, low = null, lx = null;
-  let W = 0, H = 0, DPR = 1, u = 3, Wl = 200, Hl = 150, ox = 0, oy = 0;
+  let cv = null, lx = null, shown = false;
+  let u = 3, Wl = 200, Hl = 150, ox = 0, oy = 0;
   function ensure() {
     if (cv && cv.isConnected) return true;
-    const stage = document.getElementById('stage');
+    const stage = document.getElementById('stage'), px = document.getElementById('stagePx');
     if (!stage) return false;
-    cv = document.createElement('canvas'); cv.id = 'spellFx';
-    stage.insertAdjacentElement('afterend', cv);
-    ctx = cv.getContext('2d');
-    low = document.createElement('canvas'); lx = low.getContext('2d');
+    cv = document.createElement('canvas'); cv.id = 'spellFx'; cv.style.display = 'none'; shown = false;
+    (px || stage).insertAdjacentElement('afterend', cv);
+    lx = cv.getContext('2d', { willReadFrequently: true }) || cv.getContext('2d');
+    Wl = 0; layout();
     return true;
   }
+  // the stage's pixel scale and size (read from the stage, no layout reads)
   function layout() {
-    const r = cv.getBoundingClientRect(), s = St();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    if (Math.round(r.width * dpr) !== cv.width || Math.round(r.height * dpr) !== cv.height || dpr !== DPR) {
-      DPR = dpr; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+    const s = St(), z = s && s.size ? s.size() : null;
+    if (!z) return;
+    if (z.W !== Wl || z.H !== Hl || z.S !== u) {
+      u = z.S; Wl = z.W; Hl = z.H;
+      cv.width = Wl; cv.height = Hl; cv.style.width = Wl * u + 'px'; cv.style.height = Hl * u + 'px';
     }
-    W = r.width; H = r.height;
-    // the stage's pixel scale and where its pixels start
-    if (s && s.toScreen) { const a = s.toScreen(0, 0), b = s.toScreen(1, 0); u = Math.max(1, b.x - a.x); ox = a.x - r.left; oy = a.y - r.top; }
-    const sc = document.getElementById('stage'), sr = sc ? sc.getBoundingClientRect() : r;
-    Wl = Math.ceil(Math.max(200, sr.width) / u); Hl = Math.ceil(Math.max(160, sr.height) / u);
-    if (low.width !== Wl || low.height !== Hl) { low.width = Wl; low.height = Hl; }
   }
+  function show(on) { if (on !== shown && cv) { shown = on; cv.style.display = on ? '' : 'none'; } }
 
   // ================= Where things are (stage pixels) =================
   function btn() { const s = St(); return s && s.btnPos ? s.btnPos() : { x: Math.round(Wl / 2), y: Math.round(Hl * 0.54) }; }
@@ -193,7 +193,9 @@
     const p = Object.assign({ x, y, vx: 0, vy: 0, life: 0.6, col: '#ffffff', sz: 1, grav: 0, drag: 0, streak: 0 }, o);
     p.max = p.life; parts.push(p); return p;
   }
+  const qn = n => { const q = Qt(); return q && q.particles < 1 ? Math.max(1, Math.round(n * q.particles)) : n; };
   function burst(x, y, cols, n, sp, o) {
+    n = qn(n);
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = rnd(sp * 0.3, sp);
       if (!part(x, y, Object.assign({ vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.7 - sp * 0.25, life: rnd(0.35, 0.8), col: pickA(cols), sz: Math.random() < 0.3 ? 2 : 1, grav: 120 }, o))) return;
@@ -201,6 +203,7 @@
   }
   // debris: chunks that fly up and fall back to the ground they came from
   function debris(x, y, cols, n, sp, o) {
+    n = qn(n);
     for (let i = 0; i < n; i++) {
       const a = rnd(-Math.PI * 0.95, -Math.PI * 0.05), s = rnd(sp * 0.4, sp);
       if (!part(x + rnd(-3, 3), y, Object.assign({ vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rnd(0.5, 0.95), col: pickA(cols), sz: Math.random() < 0.4 ? 2 : 1, grav: 260, floor: y + rnd(-2, 6) }, o))) return;
@@ -213,9 +216,19 @@
     const d = G.SPELL_DEFS[sp.kind]; if (!d) return;
     const c = sp.onBoss ? bossBody() : sp.kind === 'firestorm' || sp.kind === 'orbs' ? { x: btn().x, y: btn().y - 40 } : sp.kind === 'tornado' ? P((sp.x0 + sp.x1) / 2 * 0.4, sp.y0) : P(sp.x, sp.y);
     // one at a time: the new one pushes the old away
+    const str = (G.STR && G.STR['spell_' + sp.kind]) || d.name, x = clamp(c.x, 30, Wl - 30), y = clamp(c.y - (sp.onBoss ? 26 : 30), 30, Hl - 40);
+    // 3.6: the word is drawn on the stage's own text layer (crisp, over the effect)
+    const s = St();
+    if (s && s.text) {
+      if (lastWord) lastWord.life = 0;
+      lastWord = s.text(x, y - 4, str, d.col, clamp(u * 2.6, 8, 11) / u, { life: 1.25, max: 1.25, vy: -12, pop: 0.15, big: true, spell: true });
+      words.length = 0; words.push({ str, life: 1.25 });
+      return;
+    }
     words.length = 0;
-    words.push({ str: (G.STR && G.STR['spell_' + sp.kind]) || d.name, col: d.col, x: clamp(c.x, 30, Wl - 30), y: clamp(c.y - (sp.onBoss ? 26 : 30), 30, Hl - 40), life: 1.25, max: 1.25 });
+    words.push({ str, col: d.col, x, y, life: 1.25, max: 1.25 });
   }
+  let lastWord = null;
   const shake = v => { const s = St(); if (s && s.shake) s.shake(v); };
   const flash = (v, c) => { const s = St(); if (s && s.flash) s.flash(v, c); };
 
@@ -824,7 +837,7 @@
   function drawParts(dt) {
     for (let i = parts.length - 1; i >= 0; i--) {
       const p = parts[i]; p.life -= dt;
-      if (p.life <= 0) { if (p.pop) ringFx(p.x, p.y, 1, 3, 1, 3, p.col, 0.15, 1); parts.splice(i, 1); continue; }
+      if (p.life <= 0) { if (p.pop) ringFx(p.x, p.y, 1, 3, 1, 3, p.col, 0.15, 1); const l = parts.pop(); if (i < parts.length) parts[i] = l; continue; }
       if (p.drag) { const k = Math.max(0, 1 - p.drag * dt); p.vx *= k; p.vy *= k; }
       if (p.swirl) { const dx = p.x - p.swirl.x; p.vx -= dx * 6 * dt; }
       if (p.flutter) p.vx += Math.sin(p.life * 12) * 60 * dt;
@@ -852,28 +865,20 @@
     }
   }
   function drawWords(dt) {
-    for (let i = words.length - 1; i >= 0; i--) {
-      const w = words[i]; w.life -= dt;
-      if (w.life <= 0) { words.splice(i, 1); continue; }
-      const k = 1 - w.life / w.max, pop = k < 0.12 ? 0.6 + k / 0.12 * 0.4 : 1;
-      const size = Math.round(clamp(u * 2.6, 8, 11) * pop), x = ox + w.x * u, y = oy + (w.y - k * 10) * u;
-      ctx.globalAlpha = Math.min(1, w.life / w.max * 3);
-      ctx.font = size + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.lineWidth = Math.max(3, size * 0.4); ctx.strokeStyle = '#0a0910'; ctx.lineJoin = 'round';
-      ctx.strokeText(w.str, x, y); ctx.fillStyle = w.col; ctx.fillText(w.str, x, y);
-      ctx.globalAlpha = 1;
-    }
+    // (the words live on the stage's text layer; this only ages the record of the last one)
+    for (let i = words.length - 1; i >= 0; i--) { const w = words[i]; w.life -= dt; if (w.life <= 0) words.splice(i, 1); }
   }
 
-  let last = 0, idle = true;
-  function frame(now) {
-    requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - (last || now)) / 1000); last = now;
+  let idle = true;
+  // 3.6: one frame loop: the stage calls this after it draws (a rAF of its own only without the stage's hook)
+  function step(dtIn, now) {
+    const dt = Math.min(0.05, dtIn || 0);
     if (document.hidden) return;
     const chilled = R.mobs && R.mobs.length && R.mobs.some(m => m.chill > 0);
-    const busy = fxs.length || parts.length || decals.length || quick.length || words.length || chilled;
+    const busy = fxs.length || parts.length || decals.length || quick.length || chilled;
+    drawWords(dt);
     if (!busy || R.town) {
-      if (!idle && ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); }
+      if (!idle && lx) { lx.setTransform(1, 0, 0, 1, 0, 0); lx.clearRect(0, 0, cv.width, cv.height); show(false); }
       idle = true;
       if (R.town) { fxs.length = 0; parts.length = 0; quick.length = 0; decals.length = 0; words.length = 0; }
       return;
@@ -881,6 +886,7 @@
     if (!ensure()) return;
     idle = false;
     layout();
+    show(true);
     const t = now / 1000;
     lx.setTransform(1, 0, 0, 1, 0, 0);
     lx.clearRect(0, 0, Wl, Hl);
@@ -896,14 +902,17 @@
     }
     drawQuick(dt);
     drawParts(dt);
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(low, 0, 0, Wl, Hl, ox, oy, Wl * u, Hl * u);
-    drawWords(dt);
+  }
+  let last = 0;
+  function frame(now) {
+    if (G.Stage && G.Stage.onFrame) { G.Stage.onFrame(step); return; }
+    requestAnimationFrame(frame);
+    const dt = (now - (last || now)) / 1000; last = now;
+    step(dt, now);
   }
 
   // for testing: the current overlay pieces
-  G.spellFx = { sfx: SFX, flourish: (el, x, y) => { if (!ensure()) return; layout(); idle = false; if (FLOUR[el]) FLOUR[el](x, y); }, size: () => ({ Wl, Hl, u }), at: (x, y) => { if (!ensure()) return null; layout(); const q = P(x, y), r = cv.getBoundingClientRect(); return { x: r.left + ox + q.x * u, y: r.top + oy + q.y * u }; }, state: () => ({ fx: fxs.length, parts: parts.length, decals: decals.length, quick: quick.length, words: words.map(w => w.str) }) };
-  requestAnimationFrame(frame);
+  G.spellFx = { sfx: SFX, flourish: (el, x, y) => { if (!ensure()) return; layout(); idle = false; if (FLOUR[el]) FLOUR[el](x, y); }, size: () => ({ Wl, Hl, u }), at: (x, y) => { if (!ensure()) return null; layout(); const q = P(x, y), r = G.Stage && G.Stage.rect ? G.Stage.rect() : cv.getBoundingClientRect(); return { x: r.left + ox + q.x * u, y: r.top + oy + q.y * u }; }, state: () => ({ fx: fxs.length, parts: parts.length, decals: decals.length, quick: quick.length, words: words.map(w => w.str) }) };
+  // (the stage is set up after this file loads: hook on once the page is ready)
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(frame)); else requestAnimationFrame(frame);
 })(globalThis.G = globalThis.G || {});

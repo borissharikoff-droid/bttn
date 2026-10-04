@@ -33,8 +33,30 @@
     requestAnimationFrame(frame);
     try { step(now); } catch (e) { if (frameErr++ < 3) console.error(e); }
   }
+  // 3.6: the one frame loop. The game ticks every frame; the field (and the fx layers hung on it with
+  // G.Stage.onFrame) is drawn every frame too, except under a window: a modal (the game waits) gets the
+  // field at about 8 frames a second, a window that covers the whole field (the town's on a phone) none.
+  let coverDt = 0, coverK = '', coverFull = false, coverT = 0;
+  const townWin = () => document.getElementById('townWin');
+  function covered(dt) {
+    const tw = townWin(), open = !!(tw && !tw.hidden), modal = !!(G.uiBusy && G.uiBusy());
+    const k = (open ? 'w' : '') + (modal ? 'm' : '');
+    // how much of the field the town window hides: measured when it opens (and once a second while open)
+    if (k !== coverK || (open && (coverT -= dt) <= 0)) {
+      coverK = k; coverT = 1; coverFull = false;
+      if (open) {
+        const st = document.getElementById('stageWrap'), a = tw.getBoundingClientRect(), b = st && st.getBoundingClientRect();
+        if (b && b.width > 0) {
+          const ix = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)), iy = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+          coverFull = ix * iy >= b.width * b.height * 0.92;
+        }
+      }
+    }
+    return coverFull ? 2 : modal ? 1 : 0;
+  }
   function step(now) {
     let dt = (now - last) / 1000; last = now;
+    const dms = dt * 1000;
     if (dt > 60) {
       const r = G.applyOffline(dt);
       G.UI.offline(r);
@@ -46,12 +68,26 @@
       dt = 0;
     }
     dt = Math.min(dt, 0.1);
+    const t0 = performance.now();
     G.tick(dt);
-    G.Stage.frame(dt);
+    const cov = covered(dt);
+    let drew = true;
+    if (cov) {
+      // under a window: the field at a low rate (a full cover: not at all), with the time it missed
+      coverDt += dt;
+      if (cov === 1 && coverDt >= 0.12) { const d = Math.min(coverDt, 0.25); coverDt = 0; G.Stage.frame(d); if (G.Stage.runFrameFns) G.Stage.runFrameFns(d, now); }
+      else drew = false;
+    } else {
+      if (coverDt > 0) { coverDt = 0; }
+      G.Stage.frame(dt);
+      if (G.Stage.runFrameFns) G.Stage.runFrameFns(dt, now);
+    }
     uiT -= dt;
-    if (uiT <= 0) { uiT = 0.12; G.UI.update(); }
+    if (uiT <= 0) { uiT = 0.12 + (G.Quality ? G.Quality.tier * 0.03 : 0); G.UI.update(); }
     saveT -= dt;
     if (saveT <= 0) { saveT = 15; G.save(); if (G.Net) G.Net.tick(); }
+    // the quality governor learns from frames that drew the field in full
+    if (G.Quality && G.Quality.sample) G.Quality.sample(dms, performance.now() - t0, !drew || cov > 0 || !!(G.Stage.marching && G.Stage.marching()) || dt <= 0);
   }
 
   function boot(data) {

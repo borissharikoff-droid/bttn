@@ -5,7 +5,9 @@
   const { rand, randInt, chance, emit } = G;
   const R = G.R, TUNE = G.TUNE;
   Object.assign(TUNE, {
-    evFirst: 70, evMin: 45, evMax: 95,   // the first after a minute, then every 45-95 s
+    // the first a minute and a half after the tutorial, then every 55-95 s (3.6: and only when the pacing director
+    // lets a big moment in, so the real gap is about 60-120 s)
+    evFirst: 90, evMin: 55, evMax: 95,
     metEvery: 0.38, metFall: 1.2,        // a meteor every 0.38 s, 1.2 s from the sky to the ground
   });
 
@@ -43,7 +45,9 @@
 
   // a boss about to come on its own would cut the event short; with the auto-boss off, a full bar doesn't hold events back
   const bossSoon = () => R.bossReady && G.S.set.autoBoss;
-  const busy = () => R.boss || R.rift || R.inv || bossSoon() || R.stun > 0;
+  // (3.6: and an invasion that is due goes first)
+  const invDue = () => R.invT != null && R.invT <= 0 && (G.S.bestDepth || 0) >= 3;
+  const busy = () => R.boss || R.rift || R.inv || R.march || R.champ || bossSoon() || R.stun > 0 || invDue() || (G.director && !G.director.can('event', 1));
   const S_ = () => G.S;
 
   function startEvent(k) {
@@ -62,6 +66,7 @@
     if (e.id === 'goblins') goblins(ev);
     if (e.id === 'portals') { ev.por = []; const n = 3 + ((S.bestDepth || 0) >= 15 ? 1 : 0); for (let i = 0; i < n; i++) ev.por.push({ id: i + 1, a: (ev.a + i / n + rand(-0.05, 0.05)) % 1, p: rand(0.5, 0.62), hp: 3, acc: rand(0, 1) }); }
     if (e.id === 'warlord') warlord(ev);
+    if (G.director) G.director.mark('event', e.t);
     emit('evStart', ev, e);
     return ev;
   }
@@ -72,6 +77,7 @@
     if (!ev) return;
     const e = EV_BY_ID[ev.k];
     R.ev = null;
+    if (G.director) G.director.end('event');
     if (e.mul && (e.mul.rate || e.mul.mobHp)) R.dirty = true;
     // what holding out pays
     let reward = 0;

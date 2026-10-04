@@ -2,15 +2,13 @@
 // most players will only see a handful of times, each with a loud reveal and a codex entry:
 //
 //   merchant  THE LUCKY MERCHANT  a cloaked trader walks onto the field; tap him for a 30 s shop of
-//                                 great deals (a sure top-rarity item, orbs, a shimmering egg, a spin
-//                                 bundle, a Midas draught, now and then a unique or a treasure map).
+//                                 great deals (a sure top-rarity item, orbs, a shimmering egg, a chest
+//                                 trove, a Midas draught, now and then a unique or a treasure map).
 //   land      A SECRET LAND       about one march in 300 leads into a bonus zone for 75 s (the Gilded
 //                                 Vault, Candy Hollow or the Upside Land): treasure goblins, a chest
 //                                 rain, gold geysers, a soft and golden Horde; then the party marches back.
 //   pet       A MYTHIC PET        three tier-4 pets (G.PETS, tier 4 'Mythic'): one hatch in 5000, or from
 //                                 the merchant's egg, a secret land, a wish, or the Button of Legends.
-//   fever     FREE-SPIN FEVER     one Lucky Spin in 500 (one triple in 100) sets off 7 free spins on the
-//                                 bonus reel: no misses, rising multipliers (x2 ... x10), a sure triple last.
 //   horde     THE GOLDEN HORDE    one Stampede in 20 turns golden: the Horde pours in from every side
 //                                 and every kill pays eight times the gold.
 //   well      THE WISHING WELL    a well by the Button: toss a coin, pick one of three wishes.
@@ -26,7 +24,7 @@
 // Saved: S.st.rare {kind: count}, S.st.rareSeen {kind: play time first seen}, S.st.rareP (pity clocks),
 // S.st.rareMap (a treasure map in hand), S.st.rareLog (the last 30 moments), S.st.rareLuckT.
 // Runtime: R.rare. Events: 'rare' (kind, obj) for every reveal, plus rareSpawn, rareGone, rareShop,
-// rareBuy, rareLandStart, rareLandEnd, rareGeyser, rareFever, rareFeverSpin, rareFeverEnd, rareWish,
+// rareBuy, rareLandStart, rareLandEnd, rareGeyser, rareTrove, rareWish,
 // rareFlip, rareKingCoins, rareKingKill, rareKingEscape, rarePet, rareSeen.
 (function (G) {
   'use strict';
@@ -55,8 +53,7 @@
     rareLandGap: 2 * 3600,    // ...but never within this much play of the last one (a treasure map ignores it)
     rareHorde: 1 / 20,        // per Stampede
     rareHordeGold: 8,
-    rareFever: 0.002, rareFeverTriple: 0.01, rareFeverN: 7, // per Lucky Spin (a triple: per triple)...
-    rareFeverGap: 1800,       // ...and not within half an hour of play of the last fever from a spin
+    rareTroveN: 8,            // a chest trove (the merchant's, a star's wish): this many chests, a tier up
     rarePet: 1 / 5000,        // per egg hatched...
     rarePetGap: 6 * 3600,     // ...and not within six hours of play of the last one (late-game hatcheries open thousands)
     rareLegend: 1e-6,         // per click of the Hand (no luck counts here)
@@ -78,7 +75,6 @@
     { id: 'merchant', feed: 'met the Lucky Merchant', name: 'The Lucky Merchant', col: '#ffd84a', icon: 'ic_coin', odds: 'about once in 1–3 hours', desc: 'A cloaked trader with a pack full of bargains. Tap him before he leaves.' },
     { id: 'land', feed: 'found a SECRET LAND', name: 'A Secret Land', col: '#ff8ad8', icon: 'ic_star', odds: 'about 1 march in 300', desc: 'A wrong turn into a land of treasure: the Gilded Vault, Candy Hollow or the Upside Land.' },
     { id: 'pet', feed: 'hatched a MYTHIC pet', name: 'A Mythic Pet', col: '#ff5fd2', icon: 'ic_egg', odds: '1 hatch in 5000', desc: 'Three pets above Divine. Eggs, wishes and secret lands may hold one.' },
-    { id: 'fever', name: 'Free-Spin Fever', col: '#ff3b5c', icon: 'cs_seven', odds: '1 Lucky Spin in 500 (a triple: 1 in 100)', desc: 'Seven free spins on the bonus reel: no misses, rising multipliers.' },
     { id: 'horde', name: 'The Golden Horde', col: '#ffd84a', icon: 'ev_stampede', odds: '1 Stampede in 20', desc: 'The Stampede turns to gold: every kill pays eight times.' },
     { id: 'well', name: 'The Wishing Well', col: '#7fe9ff', icon: 'ic_star', odds: 'once in a blue moon (more on a full one)', desc: 'Toss a coin and make one of three wishes.' },
     { id: 'gambler', name: 'The Ghostly Gambler', col: '#c8d6ff', icon: 'ic_coin', odds: 'every few hours', desc: 'A ghost stakes its own gold. Double or nothing?' },
@@ -112,7 +108,7 @@
   };
 
   // ---------- Runtime ----------
-  function fresh() { return { S: G.S, acc: 0, cur: null, land: null, fever: null, gild: null, midas: 0, uid: 0, own: false, pull: false }; }
+  function fresh() { return { S: G.S, acc: 0, cur: null, land: null, gild: null, midas: 0, uid: 0, own: false, pull: false }; }
   const RR = () => { if (!R.rare || R.rare.S !== G.S) R.rare = fresh(); return R.rare; };
   RR();
   G.rareState = RR;
@@ -141,7 +137,7 @@
   function fieldOk() {
     const r = RR(), S = S_();
     return !blocked() && !R.boss && !R.march && !R.inv && !R.champ && !R.ev && !r.cur && !r.land
-      && (S.st.playTime || 0) >= TUNE.rareFrom;
+      && (S.st.playTime || 0) >= TUNE.rareFrom && (!G.director || G.director.can('rare', 1));
   }
   G.rareFieldOk = fieldOk;
 
@@ -181,10 +177,14 @@
       }
     }
   }
+  // 3.6: how long each visitor holds the field, for the pacing director (it ends early when the visitor goes)
+  const RARE_SECS = { merchant: 40, star: 6, king: 24, gambler: 22, well: 26 };
+  ['rareGone', 'rareKingKill'].forEach(k => G.on(k, () => { if (G.director) G.director.end('rare'); }));
   function spawnField(k, force) {
     const r = RR(), P = pity();
     if (r.cur) clearCur('force');
     P.field = 0; P[k] = 0;
+    if (G.director) G.director.mark('rare', RARE_SECS[k] || 20);
     if (k === 'merchant') return spawnMerchant();
     if (k === 'star') return spawnStar();
     if (k === 'king') return spawnKing();
@@ -204,6 +204,7 @@
     if (c.m) removeMob(c.m);
     r.cur = null;
     c.why = why;
+    if (G.director) G.director.end('rare');
     emit('rareGone', c, why);
   }
   function removeMob(m) {
@@ -239,7 +240,7 @@
     gear:  { name: 'Sealed Masterwork', icon: 'ic_sword', col: '#ff9a3a', cur: 'shards', sh: 2.5, desc: () => 'A sure ' + rarName(G.rarityCap()) + ' item' },
     orbs:  { name: 'Orb Satchel', icon: 'orb_ascent', col: '#7fe9ff', cur: 'gold', secs: 120, desc: () => '4 Orbs of Ascent + 1 Orb of Grace' },
     egg:   { name: 'Shimmering Egg', icon: 'ic_egg', col: '#ff5fd2', cur: 'gold', secs: 200, desc: () => 'Hatches Legendary or better · 1 in 10 Mythic' },
-    spins: { name: 'Spin Bundle', icon: 'cs_seven', col: '#ff3b5c', cur: 'gold', secs: 80, desc: () => '5 free spins on the bonus reel' },
+    trove: { name: 'Chest Trove', icon: 'ic_chest', col: '#e0a060', cur: 'gold', secs: 80, desc: () => TUNE.rareTroveN + ' good chests rain down' },
     midas: { name: 'Midas Draught', icon: 'ic_coin', col: '#ffd84a', cur: 'gold', secs: 40, desc: () => 'All gold ×3 for 60 s' },
     eggs:  { name: 'Nest of Eggs', icon: 'ic_egg', col: '#f1ece0', cur: 'shards', sh: 0.8, desc: () => '3 eggs' },
     uq:    { name: 'Curio of Legend', icon: 'ic_crown', col: '#e8903a', cur: 'shards', sh: 5, rare: 1, desc: () => 'A unique item' },
@@ -249,7 +250,7 @@
   const rarName = r => (G.RARITIES && G.RARITIES[r] ? G.RARITIES[r].name : 'rare');
   function gambleUnit() { return Math.max(10, G.gambleCost ? G.gambleCost() : 30); }
   function makeOffers() {
-    const pool = ['orbs', 'egg', 'spins', 'midas', 'eggs'];
+    const pool = ['orbs', 'egg', 'trove', 'midas', 'eggs'];
     const out = ['gear'];
     if (chance(0.3)) out.push(chance(0.5) ? 'uq' : 'map');
     while (out.length < 4 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
@@ -323,7 +324,7 @@
     }
     if (k === 'orbs') { orbs(['ascent', 'ascent', 'ascent', 'ascent', 'grace'], { m: spot }); return { orbs: 5 }; }
     if (k === 'egg') { const res = hatch(2, 0.1, 'merchant'); return { pet: res && res.pet.id, mythic: res && res.pet.tier === 4 }; }
-    if (k === 'spins') { startFever(5, 'merchant'); return { spins: 5 }; }
+    if (k === 'trove') return { chests: trove('merchant') };
     if (k === 'midas') { RR().midas = Math.max(RR().midas, 60); G.dirty(); emit('rareMidas', 60); return { midas: 60 }; }
     if (k === 'eggs') { const n = G.addEggs ? G.addEggs(3) : 0; return { eggs: n }; }
     if (k === 'uq') { const q = uniqueAny(); if (q && G.dropItem) G.dropItem('uq', q, spot, { src: 'merchant' }); return { uq: q }; }
@@ -362,6 +363,7 @@
     const land = r.land = { k, name: L.name, sub: L.sub, col: L.col, t: TUNE.rareLandT, T: TUNE.rareLandT, on: false, map: !!map,
       gobT: 1, rainT: 0.4, geyT: 2, eggT: 6, gearT: 4, haul: { gold: 0, chests: 0, eggs: 0, drops: 0, goblins: 0 }, meter: G.S.bossMeter || 0, S: G.S };
     record('land', k);
+    if (G.director) G.director.mark('rare', TUNE.rareLandT + 3);
     emit('rareLandStart', land);
     emit('rare', 'land', land);
     return land;
@@ -422,6 +424,7 @@
     for (const m of R.mobs.slice()) if (m.rareGob) removeMob(m);
     if (land.S === G.S && !R.boss) G.S.bossMeter = Math.min(G.S.bossMeter || 0, land.meter);
     land.why = why;
+    if (G.director) G.director.end('rare');
     emit('rareLandEnd', land, why);
     // and the party marches back to where it was
     if (why === 'time' && !R.rift && !R.boss) {
@@ -449,96 +452,12 @@
     return v;
   };
 
-  // ================= FREE-SPIN FEVER =================
-  // the bonus reel: no misses, triples far likelier
-  const FEVER_ODDS = [
-    ['seven', 3, 0.02], ['coin', 3, 0.12], ['chest', 3, 0.08], ['gem', 3, 0.06], ['bolt', 3, 0.05], ['skull', 3, 0.05],
-    ['seven', 2, 0.12], ['coin', 2, 0.2], ['chest', 2, 0.12], ['gem', 2, 0.1], ['bolt', 2, 0.05], ['skull', 2, 0.03],
-  ];
-  const FEVER_LAST = [['seven', 0.15], ['coin', 0.35], ['chest', 0.25], ['gem', 0.25]];
-  const MULTS = [2, 2, 3, 3, 5, 5, 10];
-  function feverMult(f, i) { const off = Math.max(0, MULTS.length - f.n); return MULTS[Math.min(MULTS.length - 1, off + i)] * (f.n < MULTS.length && i === f.n - 1 ? 0.5 : 1); }
-  function feverRoll(f) {
-    if (f.left === 1) {
-      let x = rng(), s = 'coin';
-      for (const [k, p] of FEVER_LAST) { if (x < p) { s = k; break; } x -= p; }
-      return [s, 3];
-    }
-    let x = rng();
-    for (const [s, n, p] of FEVER_ODDS) { if (x < p) return [s, n]; x -= p; }
-    return ['coin', 2];
+  // ================= A CHEST TROVE (3.6: in place of Free-Spin Fever) =================
+  function trove(src, n) {
+    const got = rainChests(n || TUNE.rareTroveN, 1);
+    emit('rareTrove', got, src);
+    return got;
   }
-  function startFever(n, src) {
-    const r = RR();
-    if (!G.spin || !G.casino) return null;
-    if (r.fever) { r.fever.n += n; r.fever.left += n; emit('rareFeverMore', r.fever, n); return r.fever; }
-    const f = r.fever = { n, left: n, i: 0, src, next: src === 'spin' ? 2.6 : 1.2, cur: null, tot: { gold: 0, chests: 0, orbs: 0, triples: 0, sevens: 0 }, saved: null, S: G.S };
-    record('fever', src);
-    emit('rareFever', f);
-    emit('rare', 'fever', f);
-    return f;
-  }
-  function tickFever(f, dt) {
-    const c = G.casino();
-    if (c.spin || !(G.casinoOn && G.casinoOn())) return;
-    if ((f.next -= dt) > 0) return;
-    if (f.left <= 0) { endFever(f); return; }
-    // a free pull: the machine is made ready, pulled on the bonus reel, and the player's own meter put back
-    const saved = { meter: c.meter, ready: c.ready };
-    f.saved = f.saved || {};
-    if (saved.ready) f.saved.ready = true;
-    c.ready = true; c.readyT = 0;
-    const mult = feverMult(f, f.i);
-    f.cur = { i: f.i + 1, n: f.n, mult };
-    const res = G.spin('free', { force: feverRoll(f) });
-    c.meter = saved.meter; c.ready = false;
-    if (!res) { c.ready = saved.ready; f.next = 1; return; }
-    res.fever = f.cur;
-    f.left--; f.i++;
-    f.next = 99; // until its result lands
-    emit('rareFeverSpin', f, res);
-  }
-  function feverBonus(f, res) {
-    const p = res.paid || {}, m = (res.fever && res.fever.mult) || 1, c = G.casino(), tot = f.tot;
-    const extra = { gold: 0, chests: 0, orbs: 0 };
-    if (m > 1) {
-      if (p.gold) { extra.gold = p.gold * (m - 1); c.own += extra.gold; G.addGold(extra.gold, 'casino'); }
-      const ch = Math.min(10, Math.round(((p.chests || 0) + (p.small || 0) * 0.25) * (m - 1)));
-      if (ch) extra.chests = rainChests(ch, 0);
-      if (p.orbs && p.orbs.length && G.dropItem) {
-        const n = Math.min(6, p.orbs.length * (m - 1));
-        for (let i = 0; i < n; i++) G.dropItem('orb', i === n - 1 && res.n === 3 ? 'grace' : chance(0.5) ? 'ascent' : 'flux', null, { at: { a: 0.5, p: 0.8 }, src: 'casino', wait: 0.3 + i * 0.1 });
-        extra.orbs = n;
-      }
-      if (p.xp && G.gainXp) G.gainXp(p.xp * (m - 1) * 0.5);
-      if (p.boost && G.casinoBoost) G.casinoBoost(p.boost, 2, 6 * m);
-    }
-    tot.gold += (p.gold || 0) + extra.gold; tot.chests += (p.chests || 0) + extra.chests; tot.orbs += (p.orbs ? p.orbs.length : 0) + extra.orbs;
-    if (res.n === 3) tot.triples++;
-    if (res.jackpot) tot.sevens++;
-    res.feverExtra = extra;
-    return extra;
-  }
-  function endFever(f) {
-    const r = RR();
-    if (r.fever !== f) return;
-    r.fever = null;
-    // a spin the player had waiting comes back
-    if (f.saved && f.saved.ready && G.addSpinMeter) G.addSpinMeter(1);
-    emit('rareFeverEnd', f);
-  }
-  G.on('spinResult', res => {
-    const r = RR(), f = r.fever;
-    if (res.how === 'free') {
-      if (f) { const ex = feverBonus(f, res); f.next = res.jackpot ? 4.6 : res.n === 3 ? 3 : 2.3; emit('rareFeverPaid', f, res, ex); }
-      return;
-    }
-    if (f || blocked()) return;
-    const S = S_(), now = S.st.playTime || 0;
-    if (S.st.rareFeverAt != null && now - S.st.rareFeverAt < TUNE.rareFeverGap) return;
-    if (chance((res.n === 3 ? TUNE.rareFeverTriple : TUNE.rareFever) * luck())) { S.st.rareFeverAt = Math.round(now); startFever(TUNE.rareFeverN, 'spin'); }
-  });
-  G.rareFever = () => RR().fever;
 
   // ================= THE GOLDEN HORDE =================
   G.on('evStart', (ev, e) => {
@@ -599,7 +518,7 @@
     else if (k === 'luck') { S.st.rareLuckT = Math.max(S.st.rareLuckT || 0, S.st.playTime || 0) + 3600; got.luck = 3600; }
     else if (k === 'glory') { const q = uniqueAny(); if (q && G.dropItem) G.dropItem('uq', q, null, { at: spot, src: 'rare' }); got.uq = q; }
     else if (k === 'mythic') { const res = hatchMythic(src); got.pet = res && res.pet.id; got.mythic = true; }
-    else if (k === 'fever') { startFever(TUNE.rareFeverN, src); got.spins = TUNE.rareFeverN; }
+    else if (k === 'trove') { got.chests = trove(src); }
     else if (k === 'eggs') { got.eggs = G.addEggs ? G.addEggs(3) : 0; }
     G.dirty();
     return got;
@@ -661,7 +580,7 @@
 
   // ================= A SHOOTING STAR =================
   // what a wish on a star brings: [wish, weight]
-  const STAR_W = [['riches', 30], ['eggs', 22], ['fortune', 18], ['glory', 14], ['fever', 10], ['luck', 4], ['mythic', 2]];
+  const STAR_W = [['riches', 30], ['eggs', 22], ['fortune', 18], ['glory', 14], ['trove', 10], ['luck', 4], ['mythic', 2]];
   function spawnStar() {
     const r = RR();
     const c = r.cur = { k: 'star', id: ++r.uid, t: 0, T: TUNE.rareStarT, dir: chance(0.5) ? 1 : -1, y: rand(0.28, 0.38), caught: false, S: G.S };
@@ -681,7 +600,7 @@
   function spawnKing() {
     const r = RR(), d = G.depthNow();
     const m = G.makeMob('hoard', rand(0.15, 0.85), 0.5);
-    delete m.inv; delete m.br;
+    m.inv = null; m.br = 0;
     m.gob = 1; m.gk = 1; m.gild = 1; m.w = 3; m.move = 'gking'; m.life = TUNE.rareKingT; m.dir = chance(0.5) ? 1 : -1; m.ph = rand(0, 6);
     m.a = sideA(); m.p = 0.3;
     const eff = G.champEffDps ? G.champEffDps() : Math.max(1, G.D.heroDps || 1);
@@ -766,7 +685,16 @@
     G.dirty(); G.recalc();
     return { pet, golden: !!golden, isNew, newGold, lvl: s.lvl };
   }
-  function showPull(res) { const r = RR(); r.pull = true; try { emit('pull', [res]); } finally { r.pull = false; } }
+  // (3.6: the hatch card waits until the surprise's own card has played and the field is free: it no longer pops up a
+  // window over the reveal; see the tick)
+  function showPull(res) { const r = RR(); (r.pullQ = r.pullQ || []).push({ res, at: (S_().st.playTime || 0) + 3.5 }); }
+  function pumpPull() {
+    const r = RR(), q = r.pullQ;
+    if (!q || !q.length || R.boss || R.march || blocked() || (S_().st.playTime || 0) < q[0].at) return;
+    const { res } = q.shift();
+    if (G.director) G.director.mark('card', 3);
+    r.pull = true; try { emit('pull', [res]); } finally { r.pull = false; }
+  }
   // a hatch of at least minTier, with a chance at a mythic (the merchant's egg, the well)
   function hatch(minTier, mythP, src) {
     if (chance(mythP * luck())) return hatchMythic(src);
@@ -829,7 +757,7 @@
     S.st.rareLegendAt = Math.round(S.st.playTime || 0);
     emit('rare', 'legend', o);
     o.pet = hatchMythic('legend');
-    startFever(TUNE.rareFeverN, 'legend');
+    o.chests = trove('legend', TUNE.rareTroveN * 2);
     return o;
   }
 
@@ -882,8 +810,8 @@
       if (r.cur) tickCur(r.cur, dt);
     }
     if (r.land) tickLand(r.land, dt);
-    if (r.fever) tickFever(r.fever, dt);
     if (r.gild) tickGild(r.gild, dt);
+    pumpPull();
     if (S.st.rareLuckT && S.st.rareLuckT < (S.st.playTime || 0)) S.st.rareLuckT = 0;
     if (!blocked() && (S.st.playTime || 0) >= TUNE.rareFrom) clockField(dt);
     if (fieldOk()) rollField();
@@ -896,7 +824,7 @@
   });
 
   // ================= For testing (and the UI) =================
-  // G.forceRare('merchant' | 'land' [, 'vault'|'candy'|'upside'] | 'pet' | 'fever' | 'horde' | 'well' | 'gambler' | 'star' | 'king' | 'legend')
+  // G.forceRare('merchant' | 'land' [, 'vault'|'candy'|'upside'] | 'pet' | 'trove' | 'horde' | 'well' | 'gambler' | 'star' | 'king' | 'legend')
   G.forceRare = function (kind, sub) {
     const S = S_();
     if (!S.hero || !S.hero.cls) return null;
@@ -910,7 +838,7 @@
       return land;
     }
     if (kind === 'pet') return hatchMythic('force');
-    if (kind === 'fever') return startFever(sub || TUNE.rareFeverN, 'force');
+    if (kind === 'trove') return trove('force', sub);
     if (kind === 'horde') {
       if (R.ev && R.ev.k === 'stampede') return gild(R.ev);
       r.forceHorde = true;
@@ -921,5 +849,5 @@
     if (kind === 'legend') return legend();
     return null;
   };
-  G.rareClear = function () { const r = RR(); if (r.cur) clearCur('debug'); if (r.land) endLand('debug'); if (r.fever) endFever(r.fever); r.gild = null; };
+  G.rareClear = function () { const r = RR(); if (r.cur) clearCur('debug'); if (r.land) endLand('debug'); r.gild = null; };
 })(globalThis.G = globalThis.G || {});

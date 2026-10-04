@@ -30,6 +30,10 @@
     // fewer in a small party) and they swing at it every tankBiteEvery s; it walks tankWalk a second
     tankP: 0.68, tankArc: 0.09, tankHold: 30, tankWalk: 0.35, tankBiteEvery: 2,
     newKindBase: 0.12, newKindPer: 0.007, newKindMax: 0.38, wardedTake: 0.08, healerEvery: 2.2, healerPct: 0.12, callEvery: 3.2, callN: 7, chargeSpd: 4,
+    // 3.6: level-up cards: never in a boss fight or a march; past the first perkEarly s of play, one set every perkGap s
+    // at most (the points wait in the bank; past perkBank of them the extra ones are picked for you, if auto-pick is
+    // on); a set left alone is picked for you after perkAuto s
+    perkGap: 25, perkEarly: 180, perkBank: 3, perkAuto: 12,
   });
 
   // ---------- Content ----------
@@ -359,7 +363,7 @@
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
     const from = S.depth;
     // pushed back: the clear bar is lost and, past the first depth, a depth with it
-    if (!inRift) { S.bossMeter = 0; if (hadBoss && S.depth > 0) S.depth--; R.bossReady = false; }
+    if (!inRift) { S.bossMeter = 0; R.zoneT = 0; if (hadBoss && S.depth > 0) S.depth--; R.bossReady = false; }
     if (R.ground) R.ground.length = 0;
     R.btnDown = 0; h.hp = G.D.heroHp;
     for (const u of G.partyUnits()) reviveUnit(u.who, 1);
@@ -794,12 +798,18 @@
 
   // Arena position, the same angle mapping the stage draws with (the top,
   // under the HUD, stays clear). The spawn ring is radius 1.
+  // (3.6: the angle's cosine and sine are kept on the mob and redone only when its angle changes; G.mobX / G.mobY
+  // give the position without making an array, for the loops over the whole Horde)
+  const TH0 = -Math.PI / 2 + 0.55, THK = Math.PI * 2 - 1.1;
+  function trig(m) { if (m._ta !== m.a) { m._ta = m.a; const th = TH0 + m.a * THK; m._tc = Math.cos(th); m._ts = Math.sin(th); } }
   function mobXY(m) {
-    const th = -Math.PI / 2 + 0.55 + m.a * (Math.PI * 2 - 1.1);
+    trig(m);
     const r = 1 - 0.88 * m.p;
-    return [Math.cos(th) * r, Math.sin(th) * r];
+    return [m._tc * r, m._ts * r];
   }
   G.mobXY = mobXY;
+  G.mobX = m => { trig(m); return m._tc * (1 - 0.88 * m.p); };
+  G.mobY = m => { trig(m); return m._ts * (1 - 0.88 * m.p); };
 
   // How hard the Warden hits this depth: standard mobs they could kill per second
   const mightRatio = () => (G.D.heroDps || 0) / mobHp(dnow());
@@ -809,13 +819,24 @@
   // (2.3: and never less than a full Horde: a Warden too weak for the depth is overrun, not spared)
   const hordeScale = () => G.clamp(mightRatio() / TUNE.hordeRef, TUNE.hsMin, TUNE.hordeMax);
   G.hordeScale = hordeScale;
+  // 3.6: how much of the clear bar the zone's clock allows by now (R.zoneT: field time in this zone; see game.js TUNE.zoneMin)
+  const zoneMinNow = () => (G.S.depth >= (G.S.bestDepth || 0) ? TUNE.zoneMin : TUNE.zoneMinOld) || 0;
+  function zoneShare() { const z = zoneMinNow(); return z > 0 ? Math.min(1, (R.zoneT || 0) / z) : 1; }
+  G.zoneShare = zoneShare;
+  // set the zone's clock to match a clear bar (after a load, a lost fight, a wipe)
+  G.zoneSync = () => { const need = G.D.bossNeed || 8; R.zoneT = zoneMinNow() * Math.min(1, Math.max(0, (G.S.bossMeter || 0) / need)); };
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
     // a stronger Warden meets a heavier Horde: half of it in heft, half in numbers (spawnPack)
     const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
     const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : kind === 'guardian' ? 1 : TUNE.bigHp) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
-    const m = { id: ++R.mobUid, kind, w, hp: hp * (R.rift ? 1 : R.opHp || 1), max: hp * (R.rift ? 1 : R.opHp || 1), p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add };
+    const m = { id: ++R.mobUid, kind, w, hp: hp * (R.rift ? 1 : R.opHp || 1), max: hp * (R.rift ? 1 : R.opHp || 1), p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add,
+      // (3.6: the fields other code sets later, declared up front so every mob shares one shape and the loops over the
+      // whole Horde stay fast)
+      dead: false, gone: false, mod: null, name: null, stone: 0, br: 0, inv: null, move: null, held: 0, bit: null, kbAt: -9,
+      chill: 0, chillK: 0, _cp: null, over: 0, crit: false, gild: 0, gob: 0, swarm: 0, por: 0, amb: 0, spit: 0, chg: 0, champ: 0, wl: 0,
+      _ta: -1, _tc: 0, _ts: 0, _tg: 0 };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
       m.name = pick(RARE_A) + ' ' + pick(RARE_B);
@@ -892,27 +913,58 @@
 
   // Frontmost mobs first (they're about to bite), the tapped one before all.
   // reach limits how far from the Button the hero can strike.
+  // (3.6: one pass that keeps the best n, in place of a filter and a sort of the whole Horde on every swing)
+  const TB = [], TPR = [];
   function targets(n, reach) {
-    const minP = reach ? (1 - reach) / 0.88 : -1;
-    // Hoarders first, then heralds and Rift guardians, then whoever is closest
-    const pri = m => m.p + (m.kind === 'hoard' ? 1 : m.kind === 'guardian' ? 0.6 : 0);
-    const list = R.mobs.filter(m => m.p >= minP && !m.gone).sort((a, b) => pri(b) - pri(a));
-    const fi = R.focus ? list.findIndex(m => m.id === R.focus) : -1;
-    if (fi > 0) list.unshift(list.splice(fi, 1)[0]);
-    else if (fi < 0 && !R.mobs.some(m => m.id === R.focus && !m.dead)) R.focus = null;
-    return list.slice(0, n);
+    const minP = reach ? (1 - reach) / 0.88 : -1, foc = R.focus;
+    let k = 0, fm = null, focAlive = false;
+    if (!(n > 0)) n = 0;
+    const ms = R.mobs;
+    for (let i = 0; i < ms.length; i++) {
+      const m = ms[i];
+      if (foc != null && m.id === foc) { if (!m.dead) focAlive = true; if (m.p >= minP && !m.gone) { fm = m; continue; } }
+      if (!(m.p >= minP) || m.gone) continue;
+      // Hoarders first, then heralds and Rift guardians, then whoever is closest
+      const pr = m.p + (m.kind === 'hoard' ? 1 : m.kind === 'guardian' ? 0.6 : 0);
+      if (k === n && !(pr > TPR[k - 1])) continue;
+      let j = k < n ? k++ : k - 1;
+      while (j > 0 && TPR[j - 1] < pr) { TB[j] = TB[j - 1]; TPR[j] = TPR[j - 1]; j--; }
+      TB[j] = m; TPR[j] = pr;
+    }
+    if (foc != null && !fm && !focAlive) R.focus = null;
+    const out = [];
+    if (fm && n) out.push(fm);
+    for (let i = 0; i < k && out.length < n; i++) out.push(TB[i]);
+    for (let i = 0; i < k; i++) TB[i] = null;
+    return out;
   }
   // Everything within r of any of the targets, except the targets themselves
+  // (3.6: no arrays per mob, a box test before the distance, and the targets marked rather than searched)
+  let tgStamp = 0;
+  const CX = [], CY = [];
   function around(ts, r) {
     if (!(r > 0) || !ts.length) return [];
-    const cs = ts.map(mobXY), out = [], r2 = r * r;
-    for (const m of R.mobs) {
-      if (ts.includes(m)) continue;
-      const [x, y] = mobXY(m);
-      for (const c of cs) { const dx = x - c[0], dy = y - c[1]; if (dx * dx + dy * dy <= r2) { out.push(m); break; } }
+    const out = [], r2 = r * r, n = ts.length, st = ++tgStamp;
+    let x0 = 9, x1 = -9, y0 = 9, y1 = -9;
+    for (let i = 0; i < n; i++) {
+      const t = ts[i]; trig(t); t._tg = st;
+      const rr = 1 - 0.88 * t.p, x = t._tc * rr, y = t._ts * rr;
+      CX[i] = x; CY[i] = y;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    x0 -= r; x1 += r; y0 -= r; y1 += r;
+    const ms = R.mobs;
+    for (let j = 0; j < ms.length; j++) {
+      const m = ms[j];
+      if (m._tg === st) continue;
+      trig(m);
+      const rr = 1 - 0.88 * m.p, x = m._tc * rr, y = m._ts * rr;
+      if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+      for (let i = 0; i < n; i++) { const dx = x - CX[i], dy = y - CY[i]; if (dx * dx + dy * dy <= r2) { out.push(m); break; } }
     }
     return out;
   }
+  G.mobsAround = around;
   // The Hand guards the Button: it strikes where the horde is thickest among
   // the mobs that got close
   function smiteTarget() {
@@ -968,7 +1020,12 @@
     }
     // 2.4: a Warden far too strong for the depth clears it faster (up to 3 times on new ground, 6 on a depth
     // already beaten), so the easy depths go by quickly and the fight is where you are really tested
-    if (!m.add && !R.rift) S.bossMeter += m.w * G.clamp(mightRatio() / (TUNE.hordeRef * 2), 1, S.depth >= (S.bestDepth || 0) ? 3 : 6);
+    // (3.6: but never faster than the zone's own clock: a zone is fought for TUNE.zoneMin s of field time at least)
+    if (!m.add && !R.rift) {
+      // (and in the lord's zone, short of full while its Land Champion is still to come: js/champions.js)
+      const cap = (G.D.bossNeed || 8) * (R.chPend ? Math.min(0.55, zoneShare()) : zoneShare());
+      if (S.bossMeter < cap) S.bossMeter = Math.min(cap, S.bossMeter + m.w * G.clamp(mightRatio() / (TUNE.hordeRef * 2), 1, S.depth >= (S.bestDepth || 0) ? 3 : 6));
+    }
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
     else if (!m.add) {
@@ -1038,7 +1095,7 @@
     if (up) {
       if (h.lvl > S.rec.maxLevel) S.rec.maxLevel = h.lvl;
       h.perkPts = (h.perkPts || 0) + (h.lvl - before);
-      if (!h.offer) offerPerks();
+      if (!h.offer && offerOk()) offerPerks();
       G.dirty(); G.recalc();
       h.hp = G.D.heroHp;
       emit('levelUp', h.lvl);
@@ -1047,6 +1104,29 @@
   }
   G.gainXp = gainXp;
 
+  // 3.6: may a set of cards come up now? (not in a boss fight or a march; one set per perkGap s after the first minutes)
+  function offerOk() {
+    if (R.boss || R.march) return false;
+    const t = G.S.st.playTime || 0;
+    return t < TUNE.perkEarly || R.perkAt == null || t - R.perkAt >= TUNE.perkGap || t < R.perkAt;
+  }
+  G.perkOfferOk = offerOk;
+  // points banked past perkBank are spent for the player (the cards still come one set at a time)
+  function bankSpend() {
+    const h = G.S.hero;
+    let guard = 0;
+    while ((h.perkPts || 0) > TUNE.perkBank + (h.offer ? 1 : 0) && guard++ < 20) {
+      const open = Object.keys(G.PERKS).filter(k => perk(k) < G.PERKS[k].max);
+      if (!open.length) { h.perkPts = h.offer ? 1 : 0; return; }
+      const set = []; while (set.length < Math.min(3, open.length)) { const k = pick(open); if (!set.includes(k)) set.push(k); }
+      const id = G.autoPerk(set);
+      h.perks = h.perks || {};
+      h.perks[id] = (h.perks[id] || 0) + 1;
+      h.perkPts--;
+      G.dirty();
+      emit('perk', id, h.perks[id], 'bank');
+    }
+  }
   function offerPerks() {
     const h = G.S.hero;
     const open = Object.keys(G.PERKS).filter(k => perk(k) < G.PERKS[k].max);
@@ -1056,6 +1136,7 @@
     const want = Math.min(3, open.length + pickN.length);
     while (pickN.length < want) { const k = pick(open); if (!pickN.includes(k)) pickN.push(k); }
     h.offer = pickN; h.offerT = 0;
+    R.perkAt = G.S.st.playTime || 0;
     emit('perkOffer', pickN);
   }
   G.pickPerk = function (id) {
@@ -1071,7 +1152,7 @@
       G.S.rec.evos[id.slice(4)] = 1;
       emit('evolve', id.slice(4), first);
     } else emit('perk', id, h.perks[id]);
-    if (h.perkPts > 0) offerPerks();
+    if (h.perkPts > 0 && offerOk()) offerPerks();
     return true;
   };
 
@@ -1265,6 +1346,8 @@
     if (changed) { G.dirty(); G.recalc(); }
     if (R.abilCd > 0) R.abilCd -= dt;
     if (R.stun > 0) R.stun -= dt;
+    // the zone's clock: field time, not a boss fight, a march or a Rift
+    if (!R.boss && !R.march && !R.rift) R.zoneT = (R.zoneT || 0) + dt;
     if (R.reapT > 0 && (R.reapT -= dt) <= 0) { R.reap = 0; G.dirty(); }
     if (R.carn && (R.carnT += dt) > 2.5) { R.carn = 0; emit('carnage', 0); }
     // regen: slow, slower still with a boss on the field, so a fight can be lost
@@ -1433,7 +1516,10 @@
     }
     // a pending level-up choice is made for the player if they leave it
     // (the clock stops while a window covers the cards, so they can't be picked for you unseen)
-    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > 12 && h.autoPerk) G.pickPerk(G.autoPerk(h.offer));
+    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > TUNE.perkAuto && h.autoPerk) G.pickPerk(G.autoPerk(h.offer));
+    // 3.6: banked points: the next set when its time comes, and the overflow picked for the player
+    if (!h.offer && h.perkPts > 0 && offerOk()) offerPerks();
+    if (h.autoPerk && h.perkPts > TUNE.perkBank + (h.offer ? 1 : 0)) bankSpend();
     // hero attacks
     R.heroAcc += h.wdown > 0 ? 0 : dt * D.heroRate;
     let guard = 0;
@@ -1470,9 +1556,12 @@
   };
 
   G.heroBossStart = function () {
+    // 3.6: a set of cards on screen waits out the fight (it comes back, fresh, once the march is over)
+    const h = G.S.hero;
+    if (h && h.offer) { h.offer = null; h.offerT = 0; emit('perkHold'); }
     for (const m of R.mobs) emit('mobFlee', m);
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
-    R.bossAtkT = 2; R.hordeAcc = 0.5; R.surge = 0;
+    R.bossAtkT = 2; R.hordeAcc = 0.5; R.surge = 0; R.zoneT = 0;
   };
   // A slain boss takes its adds with it; a boss that leaves takes them away
   G.heroBossEnd = function (win) {
@@ -1486,7 +1575,7 @@
     h.perks = {}; h.perkPts = 0; h.offer = null;
     if (!keepClass) h.cls = null;
     if (G.worldReset) G.worldReset();
-    R.mobs.length = 0; if (R.shots) R.shots.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20; R.reap = 0; R.rift = null;
+    R.mobs.length = 0; if (R.shots) R.shots.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20; R.reap = 0; R.rift = null; R.zoneT = 0;
     G.S.rec.runStart = Date.now();
     R.btnDown = 0; h.wdown = 0;
     for (const m of G.S.party) { m.down = 0; m.acc = 0; }

@@ -21,6 +21,14 @@
   G.odState = od;
   G.odReady = () => od().m >= 1 && !(od().t > 0) && !R.town && !!(G.S.hero && G.S.hero.cls);
   G.odActive = () => od().t > 0;
+  // 3.6: a top-up from elsewhere (a crit hot streak): f of a full meter, never while it runs
+  G.odAdd = function (f) {
+    const o = od();
+    if (o.t > 0 || o.m >= 1 || !(f > 0)) return false;
+    o.m = Math.min(1, o.m + f);
+    if (o.m >= 1) emit('odReady');
+    return true;
+  };
 
   G.overdrive = function (how) {
     if (!G.odReady()) return false;

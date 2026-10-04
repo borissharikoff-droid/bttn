@@ -83,9 +83,14 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
   // The shared day, the same for friends in every time zone (omens, today's Rift board)
+  // (3.6: worked out at most once a second: the omen asks for it on every kill)
+  let dayAt = -1, dayKey = '';
   G.utcDayKey = function () {
-    const d = new Date();
-    return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+    const now = Date.now(), sec = Math.floor(now / 1000);
+    if (sec === dayAt && dayKey) return dayKey;
+    const d = new Date(now);
+    dayAt = sec;
+    return (dayKey = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0'));
   };
 
   // Sum of geometric series cost: buying `n` levels starting from level L.

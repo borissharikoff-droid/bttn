@@ -31,6 +31,13 @@
     smallChestK: 0.1,       // the little chests the Horde drops are worth a tenth of a real one
     smallItem: 0.05,        // and hold an item one time in twenty
     overflowK: 0.5,         // a full field: the lowest chest bursts and half of it is lost
+    goldBase: 1.08,         // 3.6: all gold, in place of the Lucky Spin's passive share (~8-10% of income for an idle player)
+    // 3.6: the pacing director (see G.director): the least time between two big moments' starts, the breath after
+    // a boss fight or a march, and the quiet after a fall (the blessing and the new run)
+    dirGap: 14, dirAfterBoss: 8, dirAfterFall: 12, dirSmallGap: 6,
+    // 3.6: a zone is fought for at least this long (s of field time) before its boss comes: the clear bar can't
+    // fill faster (it filled in a second or two after each march for a strong party); half that on ground already won
+    zoneMin: 24, zoneMinOld: 12,
   };
 
   // ---------- State ----------
@@ -87,11 +94,55 @@
     boss: null, bossReady: false,
   };
 
+  // ---------- The pacing director (3.6) ----------
+  // One clock for the big moments on the field: sudden events (js/events.js), Land Champions, invasions, rare
+  // visitors, land and chapter cards (the UI marks those). Never two at once, never during a boss, a march, the
+  // town, a cinematic or a window, a breath after a boss or a march ends, and dirGap seconds between two starts.
+  //   can(kind, prio)  prio 1 (default): all the rules; 2 ('must'): skips the gap between two starts;
+  //                    0 ('small': a Hoarder, a shrine, a breach): its own shorter gap, and never while a big one runs
+  //   mark(kind, secs) a big moment starts and lasts secs ('moment' event); end(kind) it ended early
+  //   quiet()          a big moment or a boss fight is on: hold the low-priority toasts and cards
+  //   hold(secs)       nothing big for a while (a fall, a blessing being chosen)
+  // Time is play time (S.st.playTime), so it runs the same in the Node playtests.
+  const ptime = () => (G.S && G.S.st && G.S.st.playTime) || 0;
+  function dirSt() {
+    let d = R.dir;
+    if (!d || d.S !== G.S) d = R.dir = { S: G.S, last: -1e9, kind: null, until: -1e9, bossEnd: -1e9, hold: -1e9, small: -1e9 };
+    return d;
+  }
+  G.director = {
+    can(kind, prio) {
+      const S = G.S, d = dirSt(), t = ptime();
+      if (prio == null) prio = 1;
+      if (!S || !S.hero || !S.hero.cls || R.boss || R.march || R.town || R.rift || R.cine > 0 || (G.uiBusy && G.uiBusy())) return false;
+      // nothing big while the tutorial shows the ropes (its own moments don't ask)
+      if (G.Tut && S.tut >= 0) return false;
+      if (t < d.hold || t < d.until) return false;
+      if (prio <= 0) return t - d.bossEnd >= TUNE.dirAfterBoss * 0.5 && t - Math.max(d.small, d.last) >= TUNE.dirSmallGap;
+      if (t - d.bossEnd < TUNE.dirAfterBoss) return false;
+      return prio >= 2 || t - d.last >= TUNE.dirGap;
+    },
+    mark(kind, secs) {
+      const d = dirSt(), t = ptime();
+      if (kind === 'small') { d.small = t; return; }
+      d.last = t; d.kind = kind; d.until = Math.max(d.until, t + Math.max(0, secs || 0));
+      emit('moment', kind, secs || 0);
+    },
+    end(kind) { const d = dirSt(); if (!kind || d.kind === kind) d.until = Math.min(d.until, ptime()); },
+    quiet() { return !!R.boss || ptime() < dirSt().until; },
+    hold(secs) { const d = dirSt(); d.hold = Math.max(d.hold, ptime() + (secs || 0)); },
+    // what it knows, for tests and the curious
+    state() { const d = dirSt(), t = ptime(); return { kind: d.kind, sinceLast: t - d.last, left: Math.max(0, d.until - t), sinceBoss: t - d.bossEnd, held: Math.max(0, d.hold - t) }; },
+  };
+  const dirBossEnd = () => { dirSt().bossEnd = ptime(); };
+  ['bossWin', 'bossFail', 'marchEnd', 'riftEnd'].forEach(k => G.on(k, dirBossEnd));
+  ['wipe', 'runOver', 'bless', 'blessOffer'].forEach(k => G.on(k, () => G.director.hold(TUNE.dirAfterFall)));
+
   // ---------- Derived stats ----------
   const D = G.D = {};
   function baseD() {
     return {
-      holdRate: 1, clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: 1, itemMult: 1,
+      holdRate: 1, clickAdd: 1, clickMult: 1, clickGpsPct: 0, gpsMult: 1, goldMult: TUNE.goldBase || 1, itemMult: 1,
       crit: 0.03, critMult: 3, chestProg: 1, chestNeed: TUNE.chestNeed, slots: 6, autoOpen: 0, looters: 1, luck: 0,
       comboCap: 50, comboPer: 0.005, autoCps: 0, essMult: 1, modChance: 0, mods: {}, merge: false, double: 0,
       bossMult: 1, bossTime: 30, petMult: 1, petSlots: 2, eggMult: 1, wispRate: 1, buffDur: 1,
@@ -208,10 +259,12 @@
   // tougher and harder-hitting, and pays more of everything; from level 3 the rarer gear comes sooner.
   const TORMENT_MAX = G.TORMENT_MAX = 10;
   // (a Rift is fought at its own level: Torment neither hardens it nor pays in it. any: the chosen level anyway, for the dial)
+  // (3.6: one frozen table per level, made once: this runs for every mob born and every kill)
+  const T_BY_N = [];
   function torment(any) {
     const n = G.S && (any || !R.rift) ? Math.min(G.S.torment || 0, tormentMax()) : 0;
-    return { n, mobHp: Math.pow(1.35, n), bite: Math.pow(1.2, n), bossHp: Math.pow(1.35, n), bossTime: 1 + 0.1 * n, horde: 1 + 0.08 * n,
-      affix: (n >= 4 ? 1 : 0) + (n >= 8 ? 1 : 0), gold: 1 + 0.35 * n, xp: 1 + 0.3 * n, luck: 0.12 * n, drop: 1 + 0.15 * n, fame: 1 + 0.12 * n, rarity: Math.floor(n / 3) };
+    return T_BY_N[n] || (T_BY_N[n] = Object.freeze({ n, mobHp: Math.pow(1.35, n), bite: Math.pow(1.2, n), bossHp: Math.pow(1.35, n), bossTime: 1 + 0.1 * n, horde: 1 + 0.08 * n,
+      affix: (n >= 4 ? 1 : 0) + (n >= 8 ? 1 : 0), gold: 1 + 0.35 * n, xp: 1 + 0.3 * n, luck: 0.12 * n, drop: 1 + 0.15 * n, fame: 1 + 0.12 * n, rarity: Math.floor(n / 3) }));
   }
   function tormentMax() { return Math.min(TORMENT_MAX, Math.floor((G.S.bestDepth || 0) / G.REALM_SIZE)); }
   G.torment = torment; G.tormentMax = tormentMax;
@@ -892,6 +945,7 @@
     b.wound = 1 - S.scar.k;
     if (G.heroBossEnd) G.heroBossEnd(false);
     S.bossMeter = Math.floor(D.bossNeed * 0.5);
+    if (G.zoneSync) G.zoneSync();
     emit('bossFail', b);
   }
   G.fleeBoss = () => { if (R.boss) bossFail(); };
@@ -1329,7 +1383,9 @@
     if (R.wisp) { R.wisp.t -= dt; if (R.wisp.t <= 0) { R.wisp = null; emit('wispGone'); } }
     else if (S.st.chests >= 8) {
       R.wispT -= dt * D.wispRate;
-      if (R.wispT <= 0) { R.wispT = rand(TUNE.wispMin, TUNE.wispMax); spawnWisp(); }
+      // (3.6: a wisp that is due waits for a quiet field: no boss fight, no march, room in the pacing director)
+      if (R.wispT <= 0 && !R.boss && !R.march && (!G.director || G.director.can('small', 0))) { R.wispT = rand(TUNE.wispMin, TUNE.wispMax); spawnWisp(); G.director.mark('small'); }
+      else if (R.wispT < 0) R.wispT = 0;
     }
     // Quest refill timers
     for (let i = 0; i < S.quests.length; i++) {
@@ -1388,6 +1444,8 @@
     if (!Array.isArray(S.feed)) S.feed = [];
     if (!Array.isArray(S.opened) || S.opened.length !== 7) S.opened = [0, 0, 0, 0, 0, 0, 0];
     S.chests = (S.chests || []).filter(c => c && c.tier >= 0 && c.tier <= 6);
+    // 3.6: a run blessing that no longer exists (High Roller) becomes its stand-in
+    if (G.blessFix) G.blessFix(S);
     G.S = S;
     if (G.ensureHero) G.ensureHero(S);
     if (R.mobs) R.mobs.length = 0; if (R.shots) R.shots.length = 0;
@@ -1397,6 +1455,7 @@
     // saves from before 1.0: the Journey gained 11 steps in between the old ones
     if (!('uq' in data) && G.Journey && G.Journey.fromV0) S.journey = G.Journey.fromV0(S.journey || 0);
     R.dirty = true; recalc();
+    if (G.zoneSync) G.zoneSync();
     if (S.hero && S.hero.cls) {
       if (!(data.hero && 'whp' in data.hero)) S.hero.whp = D.wardenHp;
       if (S.hero.hp <= 0 && G.TUNE.btnDown) R.btnDown = G.TUNE.btnDown;

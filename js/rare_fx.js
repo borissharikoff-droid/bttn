@@ -6,7 +6,7 @@
 //   * the reveals: queued into the game's big banner (G.UI.bannerShow) so they never stack with loot
 //     banners, and held back while a relic cinematic, a window or the town is up;
 //   * the merchant's shop, the well's wishes and the ghost's coin (they hold the field still while open,
-//     through G.uiBusy), the free-spin counter over the Lucky Spin, the secret land's tint and timer;
+//     through G.uiBusy), the secret land's tint and timer;
 //   * a codex of what has been seen (G.rareFx.openCodex()).
 // Browser only; strings sit in G.STR with fallbacks here.
 (function (G) {
@@ -29,7 +29,7 @@
     rfShopHi: 'Psst, friend. Bargains. Only for you, only now.', rfShopBuy: 'BUY', rfShopSold: 'SOLD', rfShopLeave: 'LEAVE', rfShopBye: 'Pleasure doing business!',
     rfShopNo: 'Not enough {0}', rfShards: 'shards', rfGold: 'gold',
     rfLandTag: 'A WRONG TURN...', rfLandBack: 'BACK ON THE ROAD', rfLandHaul: '+{0} gold · {1} chests · {2} drops',
-    rfFever: 'FREE-SPIN FEVER!', rfFeverSub: '{0} free spins on the bonus reel · up to ×10', rfFeverPill: 'FREE SPIN {0}/{1}', rfFeverEnd: 'FEVER OVER', rfFeverTot: '+{0} gold · {1} chests · {2} orbs',
+    rfTrove: 'CHEST TROVE!', rfTroveSub: '{0} chests rain down',
     rfHorde: 'THE GOLDEN HORDE!', rfHordeSub: 'The Stampede turned to gold: every kill pays ×8',
     rfWell: 'THE WISHING WELL', rfWellSub: 'Toss a coin, make a wish', rfWellPick: 'Toss a coin and make one wish:',
     rfGambler: 'THE GHOSTLY GAMBLER', rfGamblerSub: '“My gold, your luck. Double or nothing?”', rfGhostPot: 'On the table', rfFlip: 'FLIP ×2', rfTake: 'TAKE IT', rfWin: 'HEADS! ×2', rfLose: 'TAILS... gone', rfGhostBye: 'The ghost tips its hat.',
@@ -229,12 +229,6 @@
 .rfCoin { width: 34px; height: 34px; image-rendering: pixelated; margin: 2px auto; display: block; }
 .rfCoin.flip { animation: rfFlip .6s ease-in-out; }
 @keyframes rfFlip { 0% { transform: rotateY(0) translateY(0); } 50% { transform: rotateY(900deg) translateY(-26px); } 100% { transform: rotateY(1800deg) translateY(0); } }
-.csM.rfFev .csCab { box-shadow: 0 0 0 3px #ffd84a, 0 0 26px 6px #ff3b5c; animation: rfFevGlow .5s ease-in-out infinite alternate; }
-@keyframes rfFevGlow { to { box-shadow: 0 0 0 3px #fff3a0, 0 0 34px 10px #ffd84a; } }
-#rfFever { position: absolute; z-index: 5; transform: translate(-50%, -100%); pointer-events: none; font: 9px/1 ${FONT}; color: #0a0910; background: #ffd84a;
-  padding: 6px 9px 5px; border: 2px solid #0a0910; box-shadow: 0 0 16px #ff3b5c, 0 2px 0 #0a0910; white-space: nowrap; letter-spacing: .05em; }
-#rfFever b { color: #a8102c; margin-left: 6px; }
-#rfFever[hidden] { display: none; }
 .rfCodex { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; text-align: left; }
 .rfCodex > div { display: flex; gap: 8px; align-items: center; padding: 8px; background: #1d1929; border: 2px solid #0a0910; }
 .rfCodex img { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
@@ -310,7 +304,7 @@
     bell() { [1568, 2093, 1568, 2637].forEach((f, i) => tone('sine', f, f, i * 0.1, 0.5, 0.2)); },
     coin() { tone('square', 988, 988, 0, 0.06, 0.12); tone('square', 1319, 1319, 0.06, 0.18, 0.12); },
     buy() { arp([784, 988, 1175, 1568], 0.05, 'square', 0.16, 0.16); },
-    fever() { arp([392, 523, 659, 784, 1047, 784, 1047, 1319], 0.07, 'square', 0.18, 0.18); noise(0, 0.5, 0.3, 6000, 1200); },
+    trove() { arp([392, 523, 659, 784, 1047, 784, 1047, 1319], 0.07, 'square', 0.18, 0.18); noise(0, 0.5, 0.3, 6000, 1200); },
     land() { noise(0, 1.4, 0.5, 300, 4000); tone('sine', 110, 440, 0, 1.4, 0.25); arp([440, 554, 659, 880], 0.18, 'triangle', 0.2, 0.5); },
     wish() { arp([1047, 1319, 1568, 2093, 2637], 0.07, 'sine', 0.2, 0.6); },
     flip() { [0, 0.07, 0.14, 0.21, 0.28].forEach(t => tone('square', 1800, 2400, t, 0.04, 0.06)); },
@@ -323,7 +317,7 @@
   };
 
   // ================= Layers =================
-  let cv = null, ctx = null, W = 0, H = 0, DPR = 1, rect = null, wrap = null, hot = null, chips = null, feverEl = null;
+  let cv = null, ctx = null, W = 0, H = 0, DPR = 1, rect = null, wrap = null, hot = null, chips = null;
   function ensure() {
     if (cv && cv.isConnected) return true;
     const stage = document.getElementById('stage');
@@ -337,7 +331,6 @@
     hot.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
     wrap.appendChild(hot);
     chips = document.createElement('div'); chips.id = 'rfChips'; chips.hidden = true; wrap.appendChild(chips);
-    feverEl = document.createElement('div'); feverEl.id = 'rfFever'; feverEl.hidden = true; wrap.appendChild(feverEl);
     return true;
   }
   function resize() {
@@ -447,7 +440,6 @@
     const L = LOG(kind);
     if (kind === 'merchant') { SFX.bell(); reveal({ kind, title: T('rfMerchant'), sub: T('rfMerchantSub'), col: L.col, icon: icoUrl('rare_merchant', 5), stale: 14000, ok: still(o), ms: 2400 }); }
     else if (kind === 'land') reveal({ kind, tag: T('rfLandTag'), title: o.name.toUpperCase(), sub: o.sub, col: o.col, icon: icoUrl('ic_star', 7), sfx: 'land', ms: 3200, big: true, flash: 0.7, shake: 7 });
-    else if (kind === 'fever') reveal({ kind, title: T('rfFever'), sub: T('rfFeverSub', o.n), col: '#ff3b5c', icon: icoUrl('cs_seven', 9), sfx: 'fever', ms: 2600 });
     else if (kind === 'horde') reveal({ kind, title: T('rfHorde'), sub: T('rfHordeSub'), col: '#ffd84a', icon: icoUrl('ev_stampede', 6, { gold: true }), ms: 2600, big: true });
     else if (kind === 'well') reveal({ kind, title: T('rfWell'), sub: T('rfWellSub'), col: L.col, icon: icoUrl('rare_well', 5), stale: 16000, ok: still(o), ms: 2400 });
     else if (kind === 'gambler') reveal({ kind, title: T('rfGambler'), sub: T('rfGamblerSub'), col: L.col, icon: icoUrl('rare_ghost', 6), stale: 14000, ok: still(o), ms: 2400 });
@@ -610,7 +602,7 @@
   }
   G.on('rareOpen', c => { if (c.k === 'well') openWell(c); else if (c.k === 'gambler') openGhost(c); });
   function wishShow(k, got, src) {
-    const X = G.RARE_WISHES[k] || { name: k === 'mythic' ? 'A mythic pet' : k === 'fever' ? 'Free spins' : k === 'eggs' ? 'Eggs' : k, col: '#fff3a0', icon: 'ic_star' };
+    const X = G.RARE_WISHES[k] || { name: k === 'mythic' ? 'A mythic pet' : k === 'trove' ? 'A chest trove' : k === 'eggs' ? 'Eggs' : k, col: '#fff3a0', icon: 'ic_star' };
     const bits = [];
     if (got.gold) bits.push('+' + fmt(got.gold) + ' gold');
     if (got.orbs) bits.push(got.orbs + ' orbs');
@@ -618,7 +610,7 @@
     if (got.pet && G.PET_BY_ID[got.pet]) bits.push(G.PET_BY_ID[got.pet].name);
     if (got.uq && G.UNIQUES[got.uq]) bits.push(G.UNIQUES[got.uq].name);
     if (got.luck) bits.push('rare surprises ×3 for an hour');
-    if (got.spins) bits.push(got.spins + ' free spins');
+    if (got.chests) bits.push(got.chests + ' chests');
     SFX.wish();
     reveal({ tag: T('rfWishGranted'), title: X.name.toUpperCase(), sub: bits.join(' · '), col: X.col, icon: icoUrl(X.icon, 7), ms: 2400, noCount: 1, sfx: 'wish' });
   }
@@ -669,20 +661,8 @@
   });
   G.on('rareCandyEgg', () => { const u = px(), b = btnXY(u); floatText(b.x + rnd(-40, 40), b.y - 40 * u, '+1 EGG', '#ff8ad8', Math.round(clamp(u * 3, 9, 12)), 1.4); });
 
-  // ---------- Free-spin fever ----------
-  G.on('rareFeverPaid', (f, res, ex) => {
-    if (!ex || !(ex.gold || ex.chests || ex.orbs)) return;
-    const m = res.fever ? res.fever.mult : 1, el = $('#csRoot .csM');
-    if (!el || !rect) return;
-    const r = el.getBoundingClientRect(), u = px();
-    floatText(r.left + r.width / 2 - rect.left, r.top - rect.top - 30, '×' + m + (ex.gold ? ' +' + fmt(ex.gold) : ''), '#ffd84a', Math.round(clamp(u * 3.4, 10, 14)), 1.6);
-    burst(r.left + r.width / 2 - rect.left, r.top - rect.top + 10, ['#ffd84a', '#ff3b5c', '#ffffff'], 30, 260, { sz: 3 });
-  });
-  G.on('rareFeverEnd', f => {
-    const t = f.tot;
-    const sub = ['+' + fmt(t.gold) + ' gold'].concat(t.chests ? [t.chests + ' chests'] : [], t.orbs ? [t.orbs + ' orbs'] : [], t.sevens ? ['777 ×' + t.sevens] : []).join(' · ');
-    reveal({ tag: T('rfFever'), title: T('rfFeverEnd'), sub, col: '#ff3b5c', icon: icoUrl('cs_seven', 7), ms: 2400, noCount: 1, sfx: 'win' });
-  });
+  // ---------- A chest trove (the merchant's and the star's; 3.6: in place of Free-Spin Fever) ----------
+  G.on('rareTrove', (n, src) => { if (src === 'force' && n) toast(`<span><b style="color:#e0a060">${esc(T('rfTrove'))}</b> ${esc(T('rfTroveSub', n))}</span>`, 'ic_chest'); });
   G.on('rareMidas', () => { SFX.coin(); });
 
   // ================= Taps =================
@@ -720,19 +700,6 @@
       chips.style.top = wr.width < 600 && rb ? Math.round(rb.getBoundingClientRect().bottom - wr.top + 6) + 'px' : '';
     }
   }
-  function feverUpdate(r) {
-    const f = r.fever, el = $('#csRoot .csM');
-    if (el) el.classList.toggle('rfFev', !!f);
-    if (!f || !el || el.hidden || R.town || !rect) { feverEl.hidden = true; return; }
-    const b = el.getBoundingClientRect();
-    if (!b.width) { feverEl.hidden = true; return; }
-    const cur = f.cur || { i: 0, n: f.n, mult: 0 };
-    const txt = `${esc(T('rfFeverPill', Math.min(f.n, Math.max(1, cur.i)), f.n))}${cur.mult ? `<b>×${cur.mult}</b>` : ''}`;
-    if (feverEl._h !== txt) { feverEl.innerHTML = txt; feverEl._h = txt; }
-    feverEl.style.left = Math.round(b.left + b.width / 2 - rect.left) + 'px';
-    feverEl.style.top = Math.round(b.top - rect.top - 4) + 'px';
-    feverEl.hidden = false;
-  }
   function frame(now) {
     requestAnimationFrame(frame);
     try { step(now); } catch (e) { if (!frame.err) { frame.err = 1; console.error(e); } }
@@ -747,7 +714,6 @@
     // the secret land's (or the Golden Horde's) colours on the stage itself
     setFilter(R.town ? '' : r.land && r.land.on ? LAND_CLS[r.land.k] : r.gild ? 'rfGild' : '');
     chipsUpdate(r, now);
-    feverUpdate(r);
     const busy = c || r.land || r.gild || r.midas > 0 || parts.length || rings.length || floats.length;
     // the hot spot over a visitor
     placeHot(c);
@@ -918,7 +884,7 @@
   // ================= The codex =================
   function codexHtml() {
     const rows = G.rareCodex().map(e => {
-      const seen = e.n > 0, ic = { merchant: 'rare_merchant', well: 'rare_well', gambler: 'rare_ghost', star: 'rare_star', king: 'm_thief', fever: 'cs_seven', horde: 'ev_stampede', pet: 'p_goldling', land: 'ic_star', legend: 'ic_jackpot' }[e.id] || e.icon;
+      const seen = e.n > 0, ic = { merchant: 'rare_merchant', well: 'rare_well', gambler: 'rare_ghost', star: 'rare_star', king: 'm_thief', horde: 'ev_stampede', pet: 'p_goldling', land: 'ic_star', legend: 'ic_jackpot' }[e.id] || e.icon;
       return `<div class="${seen ? '' : 'no'}"><img src="${icoUrl(ic, 3, e.id === 'horde' || e.id === 'king' ? { gold: true } : null)}" alt=""><span><b style="color:${seen ? e.col : '#6d6784'}">${esc(seen ? e.name : T('rfUnseen'))}</b><small>${esc(seen ? T('rfSeenN', e.n) + ' · ' + e.desc : e.odds)}</small></span></div>`;
     }).join('');
     return `<div class="rfCodex">${rows}</div>`;

@@ -17,7 +17,9 @@
     hoardEvery: 150, hoardFirst: 40, hoardLife: 16,
     shrineEvery: 170, shrineFirst: 100, shrineLife: 12, shrineDur: 15,
     breachEvery: 300, breachFirst: 240, breachDur: 12, breachRate: 2.5,
-    invEvery: 420, invFirst: 300, invTime: 90, invNeed: 90, invBoss: 30, invFocus: 20, invBossTime: 40,
+    // (3.6: the invasion clock now runs on through new runs, and a due invasion comes in the next free window of the
+    // pacing director, ahead of a sudden event: about one every 6-8 minutes of play)
+    invEvery: 360, invFirst: 240, invTime: 90, invNeed: 90, invBoss: 30, invFocus: 20, invBossTime: 40,
     // the JACKPOT: odds per kill and per real chest, climbing by one each hour since the last; its gold in seconds of income
     jpKill: 5e-7, jpChest: 1.2e-5, jpGold: 3000,
     riftTime: 90, riftNeed: 40, riftGuard: 60,
@@ -109,7 +111,7 @@
     const items = [];
     // only the first floorN items are promised the floor; the rest roll on their own
     const fn = o.floorN != null ? o.floorN : n;
-    for (let i = 0; i < n; i++) items.push(i >= fn && chance(TUNE.orbShare) ? ['orb', rollOrb()] : ['gear', rollGear(i < fn ? floor : Math.max(0, floor - 2), i < fn ? o.rolls : 1, o.free)]);
+    for (let i = 0; i < n; i++) items.push(i >= fn && chance(TUNE.orbShare * (G.D.orbMult || 1)) ? ['orb', rollOrb()] : ['gear', rollGear(i < fn ? floor : Math.max(0, floor - 2), i < fn ? o.rolls : 1, o.free)]);
     if (uqChance && uqChance_(uqChance, o.src)) { const q = uniqueFor(d, o.boss); if (q) items.push(['uq', q]); }
     const val = ([k, w]) => k === 'uq' ? 9 : k === 'orb' ? (w === 'grace' ? 8 : 1) : w.r;
     items.sort((a, b) => val(a) - val(b));
@@ -177,7 +179,7 @@
     if (h.kills < 60 && !S.st.firstRare && chance(0.08)) { S.st.firstRare = 1; return drop('gear', G.pickItem(2, true), m); }
     let e = null;
     while (p > 0) {
-      if (chance(Math.min(1, p))) e = chance(TUNE.orbShare) ? drop('orb', rollOrb(), m) : drop('gear', rollGear(m.kind === 'magic' ? 1 : 0), m);
+      if (chance(Math.min(1, p))) e = chance(TUNE.orbShare * (G.D.orbMult || 1)) ? drop('orb', rollOrb(), m) : drop('gear', rollGear(m.kind === 'magic' ? 1 : 0), m);
       p -= 1;
     }
     return e;
@@ -329,6 +331,7 @@
     R.inv = { k: v.id, t: TUNE.invTime, T: TUNE.invTime, prog: 0, need: TUNE.invNeed, boss: null };
     R.surge = Math.max(R.surge || 0, 4);
     S_().st.invasions = (S_().st.invasions || 0) + 1;
+    if (G.director) G.director.mark('invasion', TUNE.invTime);
     emit('invasion', R.inv, v);
   }
   G.startInvasion = startInvasion;
@@ -347,6 +350,7 @@
     const r = R.inv;
     if (!r) return;
     R.inv = null;
+    if (G.director) G.director.end('invasion');
     // what's left of it goes home
     if (!won) for (const m of R.mobs.slice()) if (m.inv) { m.dead = true; R.mobs.splice(R.mobs.indexOf(m), 1); emit('mobFlee', m); }
     emit('invasionEnd', won, r);
@@ -513,22 +517,26 @@
       // the clock runs through boss fights too; the invasion waits for the fight to end
       if (R.invT == null) R.invT = S.st.invasions ? rand(0.8, 1.2) * TUNE.invEvery : TUNE.invFirst;
       if (R.invT > 0) R.invT -= dt;
-      if (R.invT <= 0 && !busy() && !(R.bossReady && S.set.autoBoss) && !R.ev) { R.invT = rand(0.8, 1.2) * TUNE.invEvery; startInvasion(); }
+      if (R.invT <= 0 && !busy() && !R.march && !R.champ && !(R.bossReady && S.set.autoBoss) && !R.ev && (!G.director || G.director.can('invasion', 1))) { R.invT = rand(0.8, 1.2) * TUNE.invEvery; startInvasion(); }
     }
-    // first-time timers: a Hoarder in the first minute, a shrine soon after
+    // first-time timers: a Hoarder in the first minute, a shrine soon after (3.6: counted from the tutorial's end)
+    const tut = !!(G.Tut && S.tut >= 0);
     if (R.hoardT == null) R.hoardT = S.st.hoards ? rand(0.6, 1.2) * TUNE.hoardEvery : TUNE.hoardFirst;
     if (R.shrineT == null) R.shrineT = S.st.shrines ? rand(0.6, 1.2) * TUNE.shrineEvery : TUNE.shrineFirst;
     if (R.breachT == null) R.breachT = S.st.breaches ? rand(0.7, 1.3) * TUNE.breachEvery : TUNE.breachFirst;
     // the first of each comes on a fixed clock; after that the land's rule speeds them up
     // (3.0: the clocks run through boss fights too, and what's due comes as soon as the fight is over)
-    R.hoardT = Math.max(0, R.hoardT - dt * (S.st.hoards ? L.hoard || 1 : 1));
-    if (!R.shrine && !R.shr) R.shrineT = Math.max(0, R.shrineT - dt * (S.st.shrines ? L.shrine || 1 : 1));
-    if (!R.breach && S.bestDepth >= 3) R.breachT = Math.max(0, R.breachT - dt * (L.breach || 1));
-    if (!busy()) {
-      if (R.hoardT <= 0) { R.hoardT = rand(0.7, 1.3) * TUNE.hoardEvery; spawnHoarder(); }
-      if (!R.shrine && !R.shr && R.shrineT <= 0) { R.shrineT = rand(0.7, 1.3) * TUNE.shrineEvery; spawnShrine(); }
-      if (!R.breach && S.bestDepth >= 3 && R.breachT <= 0) { R.breachT = rand(0.7, 1.3) * TUNE.breachEvery; openBreach(); }
+    if (!tut) {
+      R.hoardT = Math.max(0, R.hoardT - dt * (S.st.hoards ? L.hoard || 1 : 1));
+      if (!R.shrine && !R.shr) R.shrineT = Math.max(0, R.shrineT - dt * (S.st.shrines ? L.shrine || 1 : 1));
+      if (!R.breach && S.bestDepth >= 3) R.breachT = Math.max(0, R.breachT - dt * (L.breach || 1));
     }
+    // (3.6: what's due comes when the pacing director has room for a small moment: one at a time, never on a boss's heels)
+    const room = () => !busy() && !R.march && (!G.director || G.director.can('small', 0));
+    const took = () => { if (G.director) G.director.mark('small'); };
+    if (R.hoardT <= 0 && room()) { R.hoardT = rand(0.7, 1.3) * TUNE.hoardEvery; spawnHoarder(); took(); }
+    if (!R.shrine && !R.shr && R.shrineT <= 0 && room()) { R.shrineT = rand(0.7, 1.3) * TUNE.shrineEvery; spawnShrine(); took(); }
+    if (!R.breach && S.bestDepth >= 3 && R.breachT <= 0 && room()) { R.breachT = rand(0.7, 1.3) * TUNE.breachEvery; openBreach(); took(); }
     // an untouched shrine is claimed by the Warden
     if (R.shrine && (R.shrine.t -= dt) <= 0) G.useShrine('auto');
     // the Breach pours mobs out of one spot
@@ -553,7 +561,7 @@
     G.pickupAll();
     R.rift = null; R.shrine = null; R.shr = null; R.breach = null;
     if (R.inv) endInvasion(false);
-    R.invT = null;
+    // (3.6: the invasion clock runs on into the new run; it was reset with every fall, so invasions hardly ever came)
     if (G.R.ev && G.endEvent) G.endEvent(false);
   };
   // Leaving the screen for a while: the Rift collapses, the loot is gathered

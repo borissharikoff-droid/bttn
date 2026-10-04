@@ -11,7 +11,7 @@
     { id: 'quick', icon: 'ev_frenzy', name: 'Quick Hands', desc: 'Party attack speed +25%', fx: d => { d.spdMult *= 1.25; } },
     { id: 'fortune', icon: 'ic_chest', name: 'Fortune', desc: 'Better chests, chest bar +30%', fx: d => { d.luck += 0.3; d.chestProg *= 1.3; } },
     { id: 'livewire', icon: 'ic_bolt', name: 'Live Wire', desc: 'Overdrive charges twice as fast', fx: d => { d.odRate = (d.odRate || 1) * 2; } },
-    { id: 'roller', icon: 'ic_jackpot', name: 'High Roller', desc: 'The Lucky Spin fills twice as fast', fx: d => { d.spinRate = (d.spinRate || 1) * 2; } },
+    { id: 'seeker', icon: 'orb_ascent', name: 'Orb Seeker', desc: 'Orbs drop three times as often', fx: d => { d.orbMult = (d.orbMult || 1) * 3; } },
     { id: 'scholar', icon: 'ic_scroll', name: 'Scholar', desc: 'XP +60%: levels and perks come sooner', fx: d => { d.xpMult = (d.xpMult || 1) * 1.6; } },
     { id: 'slayer', icon: 'ic_skull', name: 'Giant Slayer', desc: 'Damage to bosses +50%', fx: d => { d.bossMult *= 1.5; } },
     // with a twist
@@ -21,6 +21,12 @@
   ];
   const BY = G.BLESS_BY_ID = {};
   B.forEach(b => { BY[b.id] = b; });
+  // 3.6: blessings that are gone (High Roller went with the Lucky Spin) turn into their stand-in
+  const GONE = G.BLESS_GONE = { roller: 'seeker' };
+  G.blessFix = S => {
+    if (S.bless && !BY[S.bless]) S.bless = GONE[S.bless] || null;
+    if (Array.isArray(S.blessOffer)) S.blessOffer = S.blessOffer.map(id => (BY[id] ? id : GONE[id])).filter((id, i, a) => id && a.indexOf(id) === i);
+  };
 
   // in recalc, after gear and before the totals (see game.js)
   G.blessFx = d => { const b = G.S && BY[G.S.bless]; if (b) b.fx(d); };

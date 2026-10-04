@@ -5,7 +5,13 @@
   const { SPR, clamp, rand, pick } = G;
   const St = G.Stage = {};
 
-  let cv, ctx, low, lctx, W = 200, H = 150, S = 3, DPR = 1;
+  // 3.6 (perf): two layers. `low` (#stagePx) is the pixel layer itself, W x H, scaled up by CSS with
+  // image-rendering: pixelated, so the compositor does the blow-up; `cv` (#stage, on top, takes the input)
+  // is a transparent hi-res layer for text and bars that clears only what it drew the frame before.
+  // The vignette, the red hurt edge and the flash are CSS layers between the two.
+  // DPR: the screen's (capped at 2), used for the field's pixel scale; TDPR: the text layer's (by quality tier).
+  let cv, ctx, low, lctx, W = 200, H = 150, S = 3, DPR = 1, TDPR = 1;
+  let fxVig = null, fxRed = null, fxFlash = null, fxRedA = -1, fxFlashA = -1, fxFlashCol = '', pxShift = '', vigOn = null;
   let groundCanvas = null, groundKey = '';
   const parts = [], texts = [], shots = [], beams = [], bolts = [], bullets = [], opening = [], flyers = [];
   const gibs = [], rings = [], coins = [], gems = [], glowFx = [];
@@ -22,37 +28,215 @@
   // how hard the party is being hit right now (drives the red edge), and the Button's damage not yet shown
   let hurtFx = 0, btnDmg = 0, btnDmgT = 0, beatT = 0;
   const fmtSmall = v => (v < 10 ? String(+v.toFixed(2)) : G.fmt(v));
+  // 3.6: the CRIT! word at most once in 0.6 s (the orange number already says it)
+  let critAt = -9;
+  const critWord = () => { if (time - critAt < 0.6) return false; critAt = time; return true; };
   // The Button is a spring: every click squashes it and it bounces back
   const btnSpring = { s: 1, v: 0 };
   const MAXP = 700, MAXG = 650;
   // 3.5: blows are drawn a size up where the field's pixels are small (a phone), so they read at arm's length
   let FXK = 1;
 
+  // ---------- 3.6: quality governor (G.Quality) ----------
+  // Tiers 0 (full) .. 3 (lightest), stepped by measured frame time with hysteresis. Settings → Reduce effects
+  // holds it at 2 or lighter. Other code may read it (guarded) to scale optional effects.
+  const PHONE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
+  const TIERS = [
+    { particles: 1, maxP: 700, maxG: 650, chunks: 5, gore: 60, decals: 1, mobCap: 1100, shadows: 2, glows: 2, pfxCap: 180, pfxQ: 1, fxDpr: 2, text: 2 },
+    { particles: 0.75, maxP: 520, maxG: 460, chunks: 4, gore: 40, decals: 1, mobCap: 800, shadows: 1, glows: 2, pfxCap: 140, pfxQ: 0.85, fxDpr: 2, text: 2 },
+    { particles: 0.5, maxP: 340, maxG: 300, chunks: 2, gore: 24, decals: 0.5, mobCap: 560, shadows: 1, glows: 1, pfxCap: 100, pfxQ: 0.6, fxDpr: 1, text: 1 },
+    { particles: 0.3, maxP: 220, maxG: 170, chunks: 1, gore: 12, decals: 0.25, mobCap: 380, shadows: 0, glows: 0, pfxCap: 70, pfxQ: 0.4, fxDpr: 1, text: 1 },
+  ];
+  const Q = G.Quality = Object.assign({ tier: PHONE ? 1 : 0, auto: true, phone: PHONE, fps: 60, work: 0, debug: false, textCap: PHONE ? 14 : 25, dmgCap: PHONE ? 5 : 8 }, TIERS[PHONE ? 1 : 0]);
+  const qs = { d: new Float32Array(240), w: new Float32Array(240), t: new Float64Array(240), n: 0, i: 0, warm: 2.5, last: -99, good: 0, downs: [], lockUp: 0, clock: 0 };
+  function applyTier(t, why) {
+    const lowfx = G.S && G.S.set && G.S.set.lowfx;
+    t = clamp(Math.round(t), lowfx ? 2 : 0, 3);
+    const changed = t !== Q.tier;
+    Q.tier = t; Object.assign(Q, TIERS[t]);
+    if (lowfx) Q.particles = Math.min(Q.particles, 0.45);
+    PFX.cap = Q.pfxCap;
+    if (changed) { qs.warm = 2; qs.n = 0; if (cv && textDpr() !== TDPR) St.resize(); G.emit && G.emit('quality', t, why || 'auto'); }
+    return t;
+  }
+  Q.set = (t, why) => applyTier(t, why || 'set');
+  // one sample per frame: the time since the last frame and the script work in it (ms)
+  Q.sample = function (dms, wms, skip) {
+    const now = (qs.clock += dms / 1000);
+    if (skip || !Q.auto || typeof document !== 'undefined' && document.hidden) { qs.warm = Math.max(qs.warm, 0.6); return; }
+    if (qs.warm > 0) { qs.warm -= dms / 1000; return; }
+    qs.d[qs.i] = Math.min(dms, 250); qs.w[qs.i] = wms; qs.t[qs.i] = now; qs.i = (qs.i + 1) % 240; if (qs.n < 240) qs.n++;
+    if (now - qs.last < 1) return;
+    // judge the last 2 seconds once a second
+    const ds = [], ws = [];
+    for (let k = 0; k < qs.n; k++) if (now - qs.t[k] <= 2) { ds.push(qs.d[k]); ws.push(qs.w[k]); }
+    if (ds.length < 8) return;
+    qs.last = now;
+    ds.sort((a, b) => a - b); ws.sort((a, b) => a - b);
+    const d50 = ds[ds.length >> 1], d90 = ds[Math.floor(ds.length * 0.9)], w50 = ws[ws.length >> 1];
+    Q.fps = Math.round(1000 / Math.max(1, d50)); Q.work = Math.round(w50 * 10) / 10;
+    const since = now - (Q._at || -99);
+    const slow = (d50 > 22 && w50 > 3) || w50 > 12 || (d90 > 45 && w50 > 4);
+    const fine = d50 < 17.9 && d90 < 24 && w50 < 6;
+    qs.good = fine ? qs.good + 1 : 0;
+    if (slow && Q.tier < 3 && since >= 4) {
+      Q._at = now; qs.downs = qs.downs.filter(x => now - x < 60); qs.downs.push(now);
+      if (qs.downs.length >= 3) qs.lockUp = now + 120;
+      applyTier(Q.tier + 1, 'slow');
+    } else if (qs.good >= 8 && Q.tier > (G.S && G.S.set && G.S.set.lowfx ? 2 : 0) && since >= 8 && now > qs.lockUp) {
+      Q._at = now; qs.good = 0; applyTier(Q.tier - 1, 'fast');
+    }
+  };
+  // the text layer's pixel ratio: the screen's on the full tiers, 1 on the light ones
+  function textDpr() { const d = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1); return Q.text >= 2 ? d : 1; }
+
+  // ---------- 3.6: one frame loop (main.js) and the hooks the fx files hang on it ----------
+  // St.onFrame(fn): fn(dt, now) is called every frame after the stage is drawn; it returns nothing.
+  const frameFns = [];
+  St.onFrame = fn => { if (typeof fn === 'function' && frameFns.indexOf(fn) < 0) frameFns.push(fn); return fn; };
+  St.runFrameFns = (dt, now) => { for (let i = 0; i < frameFns.length; i++) { try { frameFns[i](dt, now); } catch (e) { if ((frameFns[i]._err = (frameFns[i]._err || 0) + 1) < 3) console.error(e); } } };
+
+  // ---------- 3.6: the stage's place on the screen, cached (no layout reads every frame) ----------
+  let rectC = null, rectT = -1, wrapC = null;
+  function stageRect() {
+    if (!rectC || time - rectT > 0.5 || time < rectT) { rectC = cv.getBoundingClientRect(); rectT = time; }
+    return rectC;
+  }
+  St.rect = () => (cv ? stageRect() : null);
+  St.wrapRect = () => { if (!cv) return null; if (!wrapC || time - rectT > 0.5) { wrapC = cv.parentElement.getBoundingClientRect(); stageRect(); } return wrapC; };
+  St.invalidateRect = () => { rectC = null; wrapC = null; };
+
+  const STAGE_CSS = `
+#stagePx { position: absolute; left: 0; top: 0; max-width: none; pointer-events: none; image-rendering: pixelated; transform-origin: 0 0; }
+#stage { background: transparent; }
+.stFx { position: absolute; inset: 0; pointer-events: none; }
+#stageHurt, #stageFlash { opacity: 0; }
+#stageFlash { background: #fff; }`;
   St.init = function (canvas) {
     cv = canvas; ctx = cv.getContext('2d');
-    low = SPR.makeCanvas(W, H); lctx = low.getContext('2d');
+    if (P0) wrapTextCtx(ctx);
+    if (typeof document !== 'undefined') {
+      const st = document.createElement('style'); st.textContent = STAGE_CSS; (document.head || document.documentElement).appendChild(st);
+      low = document.createElement('canvas'); low.id = 'stagePx'; low.setAttribute('aria-hidden', 'true');
+      cv.parentElement.insertBefore(low, cv);
+      const mk = id => { const d = document.createElement('div'); d.id = id; d.className = 'stFx'; cv.parentElement.insertBefore(d, cv); return d; };
+      fxVig = mk('stageVig'); fxRed = mk('stageHurt'); fxFlash = mk('stageFlash');
+      if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => St.invalidateRect()).observe(cv.parentElement);
+      window.addEventListener('scroll', St.invalidateRect, true);
+    } else low = SPR.makeCanvas(W, H);
+    // a CPU canvas: thousands of tiny draws a frame, then the compositor scales it up
+    lctx = low.getContext('2d', { willReadFrequently: true }) || low.getContext('2d');
     bindInput();
     listen();
+    applyTier(Q.tier, 'boot');
     St.resize();
   };
 
   St.resize = function () {
     const r = cv.parentElement.getBoundingClientRect();
     DPR = Math.min(2, window.devicePixelRatio || 1);
+    TDPR = textDpr();
     const cw = Math.max(200, r.width), ch = Math.max(160, r.height);
     // a wide view of the field: on sharp screens the scale may be a half step (1.5 = 3 device pixels a pixel)
     const step = DPR >= 2 ? 0.5 : 1;
     // (2.4: a wider shot: the field shows about twice the ground it did, so the Horde has room to come from far off)
     S = clamp(Math.floor(Math.min(cw / 420, ch / 310) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
     W = Math.ceil(cw / S); H = Math.ceil(ch / S);
-    cv.width = Math.round(cw * DPR); cv.height = Math.round(ch * DPR);
+    cv.width = Math.round(cw * TDPR); cv.height = Math.round(ch * TDPR);
     cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
     low.width = W; low.height = H;
+    if (low.style) { low.style.width = W * S + 'px'; low.style.height = H * S + 'px'; }
+    // the vignette as it was drawn on the canvas: a circle from 35% of the short side to 75% of the long one
+    if (fxVig) {
+      fxVig.style.background = `radial-gradient(circle ${Math.round(Math.max(cw, ch) * 0.75)}px at 50% 55%, rgba(8,6,14,0) ${Math.round(Math.min(cw, ch) * 0.35)}px, rgba(8,6,14,0.62) ${Math.round(Math.max(cw, ch) * 0.75)}px)`;
+      fxRed.style.background = `radial-gradient(circle ${Math.round(Math.max(cw, ch) * 0.72)}px at 50% 55%, rgba(255,30,40,0) ${Math.round(Math.min(cw, ch) * 0.3)}px, rgba(255,30,40,1) ${Math.round(Math.max(cw, ch) * 0.72)}px)`;
+    }
+    dirtyN = 0; wipeAll = true;
+    St.invalidateRect();
+    geoStamp++;
+    bucketsFor(H);
     groundKey = '';
     computeSlots();
     heroKey = '';
     FXK = clamp(2.2 / S, 1, 1.4);
   };
+
+  // ---------- 3.6: the text layer clears only what it drew last frame ----------
+  // Every draw on it goes through these wrappers, which note a device-pixel box; the next frame clears
+  // just those boxes (or all of it when they add up to a lot).
+  let dirty = new Float32Array(1600), dirtyNext = new Float32Array(1600), dirtyN = 0, dirtyNextN = 0, dirtyAll = true, dirtyArea = 0;
+  let tK = 1, tOX = 0, tOY = 0, tFont = 8;
+  function markDev(x0, y0, x1, y1) {
+    if (dirtyAll) return;
+    x0 = Math.floor(x0) - 2; y0 = Math.floor(y0) - 2; x1 = Math.ceil(x1) + 2; y1 = Math.ceil(y1) + 2;
+    if (x0 < 0) x0 = 0; if (y0 < 0) y0 = 0; if (x1 > cv.width) x1 = cv.width; if (y1 > cv.height) y1 = cv.height;
+    if (x1 <= x0 || y1 <= y0) return;
+    const n = dirtyNextN;
+    // the stroke and the fill of one text land on the same box
+    if (n && dirtyNext[n - 4] === x0 && dirtyNext[n - 3] === y0 && dirtyNext[n - 2] === x1 && dirtyNext[n - 1] === y1) return;
+    dirtyArea += (x1 - x0) * (y1 - y0);
+    if (n >= dirtyNext.length || dirtyArea > cv.width * cv.height * 0.4) { dirtyAll = true; return; }
+    dirtyNext[n] = x0; dirtyNext[n + 1] = y0; dirtyNext[n + 2] = x1; dirtyNext[n + 3] = y1; dirtyNextN = n + 4;
+  }
+  // a box in the current (logical) transform
+  function mark(x0, y0, x1, y1) { markDev(x0 * tK + tOX, y0 * tK + tOY, x1 * tK + tOX, y1 * tK + tOY); }
+  St._mark = mark;
+  function markText(s, x, y) {
+    const len = s.length, f = tFont, pad = (ctx.lineWidth || 1) + 1;
+    const w = len * f * 1.06 + pad * 2, al = ctx.textAlign, bl = ctx.textBaseline;
+    const xa = al === 'center' ? x - w / 2 : al === 'right' || al === 'end' ? x - w : x - pad;
+    const ya = bl === 'middle' ? y - f * 0.75 - pad : bl === 'top' || bl === 'hanging' ? y - pad : bl === 'bottom' || bl === 'ideographic' ? y - f * 1.3 - pad : y - f * 1.15 - pad;
+    mark(xa, ya, xa + w, ya + f * 1.5 + pad * 2);
+  }
+  function wrapTextCtx(c) {
+    const P = CanvasRenderingContext2D.prototype;
+    const fontD = Object.getOwnPropertyDescriptor(P, 'font');
+    c.setTransform = function (a, b, cc, d, e, f) { tK = a; tOX = e; tOY = f; return P.setTransform.call(this, a, b, cc, d, e, f); };
+    if (fontD) Object.defineProperty(c, 'font', { configurable: true, get() { return fontD.get.call(this); }, set(v) { const n = parseFloat(v); if (n > 0) tFont = n; fontD.set.call(this, v); } });
+    c.fillText = function (s, x, y, mw) { s = String(s); markText(s, x, y); return arguments.length > 3 ? P.fillText.call(this, s, x, y, mw) : P.fillText.call(this, s, x, y); };
+    c.strokeText = function (s, x, y, mw) { s = String(s); markText(s, x, y); return arguments.length > 3 ? P.strokeText.call(this, s, x, y, mw) : P.strokeText.call(this, s, x, y); };
+    c.fillRect = function (x, y, w, h) { mark(Math.min(x, x + w), Math.min(y, y + h), Math.max(x, x + w), Math.max(y, y + h)); return P.fillRect.call(this, x, y, w, h); };
+    c.strokeRect = function (x, y, w, h) { const p = (this.lineWidth || 1); mark(x - p, y - p, x + w + p, y + h + p); return P.strokeRect.call(this, x, y, w, h); };
+    c.drawImage = function (img, a, b, cc, d) {
+      if (arguments.length === 3) mark(a, b, a + (img.width || 0), b + (img.height || 0));
+      else if (arguments.length === 5) mark(a, b, a + cc, b + d);
+      else mark(arguments[5], arguments[6], arguments[5] + arguments[7], arguments[6] + arguments[8]);
+      return P.drawImage.apply(this, arguments);
+    };
+  }
+  // start of the text pass: wipe last frame's boxes
+  let wipeAll = true;
+  function clearText() {
+    P0.setTransform.call(ctx, 1, 0, 0, 1, 0, 0); tK = 1; tOX = 0; tOY = 0;
+    if (wipeAll) ctx.clearRect(0, 0, cv.width, cv.height);
+    else for (let i = 0; i < dirtyN; i += 4) ctx.clearRect(dirty[i], dirty[i + 1], dirty[i + 2] - dirty[i], dirty[i + 3] - dirty[i + 1]);
+    dirtyN = 0; dirtyNextN = 0; dirtyAll = false; dirtyArea = 0; wipeAll = false;
+  }
+  // end of the text pass: what this frame drew is what the next one wipes
+  function endText() {
+    const t = dirty; dirty = dirtyNext; dirtyNext = t; dirtyN = dirtyNextN; dirtyNextN = 0;
+    if (dirtyAll) wipeAll = true;
+    P0.setTransform.call(ctx, 1, 0, 0, 1, 0, 0); tK = 1; tOX = 0; tOY = 0;
+  }
+  const P0 = typeof CanvasRenderingContext2D !== 'undefined' ? CanvasRenderingContext2D.prototype : null;
+
+  // the CSS layers: the vignette (off in town), the red edge and the flash; written only when they change
+  function setFx(red, fl) {
+    if (!fxVig) return;
+    const vOn = !G.R.town;
+    if (vOn !== vigOn) { vigOn = vOn; fxVig.style.display = vOn ? '' : 'none'; }
+    const r = red > 0.01 ? Math.round(red * 100) / 100 : 0;
+    if (r !== fxRedA) { fxRedA = r; fxRed.style.opacity = r; }
+    const f = fl > 0.005 ? Math.round(Math.min(0.85, fl) * 100) / 100 : 0;
+    if (f !== fxFlashA) { fxFlashA = f; fxFlash.style.opacity = f; }
+    if (f > 0 && flashCol !== fxFlashCol) { fxFlashCol = flashCol; fxFlash.style.background = flashCol; }
+  }
+  // the shake moves the pixel layer (a compositor transform); the text layer draws itself offset
+  function setShift(ox, oy) {
+    if (!low.style) return;
+    const k = ox || oy ? 'translate(' + ox * S + 'px,' + oy * S + 'px)' : '';
+    if (k !== pxShift) { pxShift = k; low.style.transform = k; }
+  }
 
   // ---------- Layout ----------
   function btnPos() { return { x: Math.round(W / 2), y: Math.round(H * 0.54) }; }
@@ -115,17 +299,24 @@
   const chestSpr = (c, v) => SPR.get((c.bag ? 'bag_' : miniChest(v, c) && SPR.defs['chestm_' + c.tier] ? 'chestm_' : 'chest_') + c.tier);
   St.chestScreen = function (c) { const v = vis.get(c.id); return v ? { x: v.x * S, y: v.y * S } : null; };
   // Logical stage point -> viewport pixels (for the tutorial pointer)
-  St.toScreen = function (x, y) { const r = cv.getBoundingClientRect(); return { x: r.left + x * S, y: r.top + y * S }; };
+  St.toScreen = function (x, y) { const r = stageRect(); return { x: r.left + x * S, y: r.top + y * S }; };
+  St.scale = () => S;
+  St.size = () => ({ W, H, S, dpr: TDPR });
   St.chestPoint = function (c) { const v = vis.get(c.id); return v ? St.toScreen(v.x, v.y - 12) : null; };
   St.mobPoint = function (m) { const q = mobPos(m); return St.toScreen(q.x, q.y - 18); };
   St.wispPoint = function () { return St._wispPos ? St.toScreen(St._wispPos.x, St._wispPos.y - 10) : null; };
   St.buttonPoint = function () { const b = btnPos(); return St.toScreen(b.x, b.y - 24); };
 
   // ---------- Particles & text ----------
+  // 3.6: particles come from a pool and leave by swapping with the last (no shift/splice on big arrays);
+  // the quality tier sets how many are made and how many may live at once
+  const pPool = [];
+  let pOver = 0;
   function stepDrawParts(vdt) {
-    for (let i = parts.length - 1; i >= 0; i--) {
+    let i = parts.length;
+    while (i-- > 0) {
       const p = parts[i]; p.life -= vdt;
-      if (p.life <= 0) { parts.splice(i, 1); continue; }
+      if (p.life <= 0) { const l = parts.pop(); if (i < parts.length) parts[i] = l; pPool.push(p); continue; }
       p.vy += p.grav * vdt; p.x += p.vx * vdt; p.y += p.vy * vdt;
       lctx.globalAlpha = Math.min(1, p.life / p.max * 1.6);
       lctx.fillStyle = p.col;
@@ -134,22 +325,55 @@
     }
     lctx.globalAlpha = 1;
   }
+  function newPart(x, y, col) {
+    // (Settings → Reduce effects and the light tiers make fewer)
+    if (Q.particles < 1 && Math.random() > Q.particles) return null;
+    let p;
+    if (parts.length >= Q.maxP) { p = parts[pOver = (pOver + 1) % parts.length]; }
+    else { p = pPool.pop() || {}; parts.push(p); }
+    p.x = x; p.y = y; p.col = col; p.size = 1; p.grav = 120; p.plus = false;
+    return p;
+  }
+  function partSet(p, o) {
+    if (!o) return;
+    if (o.vx !== undefined) p.vx = o.vx; if (o.vy !== undefined) p.vy = o.vy; if (o.life !== undefined) p.life = o.life;
+    if (o.size !== undefined) p.size = o.size; if (o.grav !== undefined) p.grav = o.grav; if (o.plus !== undefined) p.plus = o.plus;
+    if (o.col !== undefined) p.col = o.col;
+  }
   function part(x, y, col, o) {
-    // Settings → Reduce effects: about half the particles (for weak phones)
-    if (G.S.set && G.S.set.lowfx && Math.random() < 0.55) return;
-    if (parts.length > MAXP) parts.shift();
-    parts.push(Object.assign({ x, y, vx: rand(-40, 40), vy: rand(-70, -20), life: rand(0.4, 0.9), max: 0, col, size: 1, grav: 120 }, o || {}));
-    parts[parts.length - 1].max = parts[parts.length - 1].life;
+    const p = newPart(x, y, col); if (!p) return;
+    p.vx = rand(-40, 40); p.vy = rand(-70, -20); p.life = rand(0.4, 0.9);
+    partSet(p, o);
+    p.max = p.life;
   }
   function burst(x, y, col, n, speed, o) {
+    const arr = Array.isArray(col);
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = rand(speed * 0.4, speed);
-      part(x, y, Array.isArray(col) ? pick(col) : col, Object.assign({ vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20 }, o || {}));
+      const p = newPart(x, y, arr ? pick(col) : col); if (!p) continue;
+      p.vx = Math.cos(a) * s; p.vy = Math.sin(a) * s - 20; p.life = rand(0.4, 0.9);
+      partSet(p, o);
+      p.max = p.life;
     }
   }
+  // 3.6: floating texts are capped (fewer on a phone); a new one pushes out the oldest small one, and
+  // small damage numbers past their own cap are dropped rather than piled up
   function text(x, y, str, col, size, o) {
-    if (texts.length > 70) texts.shift();
-    texts.push(Object.assign({ x, y, str, col, size: size || 5, vy: -22, life: 1.1, max: 1.1, pop: 0.12 }, o || {}));
+    const big = !!(o && (o.big || o.card || o.callout));
+    if (!big && o && o.dmg) {
+      let n = 0; for (let i = 0; i < texts.length; i++) if (texts[i].dmg) n++;
+      if (n >= Q.dmgCap) { const i = texts.findIndex(q => q.dmg); if (i >= 0 && texts[i].max - texts[i].life > 0.25) texts.splice(i, 1); else return null; }
+    }
+    if (texts.length >= Q.textCap) {
+      let i = texts.findIndex(q => !q.big && !q.card);
+      if (i < 0 && !big) return null;
+      if (i < 0) i = texts.findIndex(q => !q.card);
+      if (i < 0) return null;
+      texts.splice(i, 1);
+    }
+    const t = Object.assign({ x, y, str, col, size: size || 5, vy: -22, life: 1.1, max: 1.1, pop: 0.12 }, o || {});
+    texts.push(t);
+    return t;
   }
   St.text = text;
   St.shake = v => { if (G.S.set.shake) shake = Math.max(shake, v); };
@@ -201,21 +425,20 @@
       const combo = ev.combo;
       const col = ev.mega ? '#7fe9ff' : ev.crit ? '#ff7a2e' : combo >= 150 ? '#ff7ae6' : combo >= 60 ? '#ffe27a' : '#ffffff';
       const size = ev.mega ? 9 : ev.crit ? 7 : 5;
-      if (!ev.crit && !ev.mega && texts.length > 26) texts.splice(texts.findIndex(q => !q.big), 1);
-      const live = clickTxt && texts.includes(clickTxt) && clickTxt.max - clickTxt.life < 0.35;
+      const live = clickTxt && clickTxt.life > 0 && texts.includes(clickTxt) && clickTxt.max - clickTxt.life < 0.35;
       if (!ev.crit && !ev.mega && live) {
-        clickTxt.sum += ev.gain; clickTxt.str = '+' + fmtSmall(clickTxt.sum); clickTxt.col = col;
+        clickTxt.sum += ev.gain; clickTxt.str = '+' + fmtSmall(clickTxt.sum); clickTxt.col = col; clickTxt.fitW = null;
         clickTxt.life = clickTxt.max = 0.8; clickTxt.pop = 0.12; clickTxt.size = Math.min(8, 5 + Math.log10(1 + clickTxt.n++));
       } else {
-        text(x, y, '+' + fmtSmall(ev.gain), col, size, ev.crit || ev.mega ? { life: 1.3, max: 1.3, big: true } : { life: 0.8, max: 0.8 });
-        if (!ev.crit && !ev.mega) { clickTxt = texts[texts.length - 1]; clickTxt.sum = ev.gain; clickTxt.n = 1; }
+        const t = text(x, y, '+' + fmtSmall(ev.gain), col, size, ev.crit || ev.mega ? { life: 1.1, max: 1.1, big: true } : { life: 0.8, max: 0.8, dmg: true });
+        if (!ev.crit && !ev.mega && t) { clickTxt = t; clickTxt.sum = ev.gain; clickTxt.n = 1; }
       }
       ring(b.x, b.y - 2, 22, 8, ev.crit ? '#ff7a2e' : '#ffffff', 0.16);
       // combo tiers: a quarter, half and full of the cap each announce themselves once
       const cap = G.D.comboCap || 50, tier = combo >= cap ? 3 : combo >= cap / 2 ? 2 : combo >= cap / 4 ? 1 : 0;
       if (tier > comboTier) { text(b.x, b.y - 46, tier === 3 ? G.t('overcharged') : G.t('comboUp', (1 + combo * G.D.comboPer).toFixed(2)), tier === 3 ? '#ff7ae6' : '#ffe27a', tier === 3 ? 6 : 4, { life: 1.2, max: 1.2, vy: -14, big: true }); ring(b.x, b.y - 4, 40, 20, tier === 3 ? '#ff7ae6' : '#ffe27a', 0.4); if (G.Audio && G.Audio.comboUp) G.Audio.comboUp(tier); }
       comboTier = tier;
-      if (ev.crit) { text(x, y - 9, G.t('crit'), '#ff4f4f', 5, { vy: -30 }); St.shake(2); }
+      if (ev.crit) { if (critWord()) text(x, y - 9, G.t('crit'), '#ff4f4f', 5, { vy: -30, life: 0.8, max: 0.8, dmg: true }); St.shake(2); }
       if (ev.mega) { text(x, y - 12, 'MEGA ×30', '#7fe9ff', 7, { vy: -30, life: 1.5, max: 1.5 }); St.shake(5); St.flash(0.25, '#7fe9ff'); }
       const n = ev.crit ? 10 : 4;
       burst(b.x, b.y - 4, ['#ffd84a', '#ffe27a', '#c98f10'], n, 70, { size: rand(1, 2) | 0 || 1 });
@@ -488,8 +711,9 @@
   St.zoneCard = zoneCard;
 
   // ---------- Input ----------
-  function toLogical(e) {
-    const r = cv.getBoundingClientRect();
+  function toLogical(e, fresh) {
+    if (fresh) { rectC = cv.getBoundingClientRect(); rectT = time; }
+    const r = stageRect();
     return { x: (e.clientX - r.left) / S, y: (e.clientY - r.top) / S };
   }
   function hitChest(p) {
@@ -540,7 +764,7 @@
   function bindInput() {
     cv.addEventListener('pointerdown', e => {
       e.preventDefault();
-      const p = toLogical(e);
+      const p = toLogical(e, true);
       const what = doPress(p);
       // (holding repeats only once Steady Hand is bought, at its rate)
       if (what === 'button' && G.S.set.hold && G.D.holdRate > 0) { holding = true; holdTimer = Math.max(0.1, 1 / G.D.holdRate); }
@@ -712,7 +936,7 @@
   }
   const DUST = ['#d8ccb2', '#b8a888', '#ece2cc'];
   function dust(v, sp) {
-    if (parts.length > MAXP - 80) return;
+    if (parts.length > Q.maxP - 80) return;
     const n = sp > 140 ? 2 : 1;
     for (let i = 0; i < n; i++) part(v.x - v.face * rand(1, 4), v.y - 1, pick(DUST), { vx: -v.vx * 0.15 + rand(-6, 6), vy: -rand(5, 13), grav: 22, life: rand(0.25, 0.42), size: Math.random() < 0.6 ? 2 : 1 });
   }
@@ -1330,7 +1554,10 @@
       const q = unitPos(who), max = who < 0 ? G.D.wardenHp : (G.D.party[who] || {}).hp || 1, f = dmg / Math.max(1, max);
       hurtFx = Math.min(1, hurtFx + f * 1.6);
       const big = f > 0.12 || src === 'boss' || src === 'slam' || src === 'barrage' || src === 'meteor';
-      if (big || Math.random() < 0.35) text(q.x + rand(-5, 5), q.y - 28, '-' + G.fmt(dmg), big ? '#ff3b3b' : '#ff6b6b', big ? 4 : 3, { life: 0.7, max: 0.7, vy: -18 });
+      // (3.6: hits on one hero within a quarter second add up into the number already up)
+      const hv = aVisOf(who), ht = hv.hurtTxt;
+      if (ht && ht.life > 0 && ht.max - ht.life < 0.25 && texts.includes(ht)) { ht.sum += dmg; ht.str = '-' + G.fmt(ht.sum); ht.fitW = null; if (big) { ht.col = '#ff3b3b'; ht.size = 4; } }
+      else if (big || Math.random() < 0.35) { const t = text(q.x + rand(-5, 5), q.y - 28, '-' + G.fmt(dmg), big ? '#ff3b3b' : '#ff6b6b', big ? 4 : 3, { life: 0.7, max: 0.7, vy: -18, dmg: !big }); if (t) { t.sum = dmg; hv.hurtTxt = t; } }
       if (big) { burst(q.x, q.y - 8, ['#ff3b3b', '#ffffff'], 5, 50); St.shake(2); }
     });
     // the Button: every bite shows, summed up a few times a second so a swarm reads as one big number
@@ -1451,19 +1678,95 @@
     }
     return null;
   }
+  // 3.6: the two ends of a mob's line are kept in its vis (they only change with its angle or the screen)
+  let geoStamp = 0;
+  function mobGeo(m, v) {
+    if (v.gs === geoStamp && v.ca === m.a) return;
+    v.gs = geoStamp; v.ca = m.a;
+    const bx = Math.round(W / 2), by = Math.round(H * 0.54);
+    const a = -Math.PI / 2 + 0.55 + m.a * (Math.PI * 2 - 1.1), j = ((m.id * 7919) % 97) / 97, c = Math.cos(a), sn = Math.sin(a);
+    v.sx = bx + c * W * 0.6; v.sy = by + sn * H * 0.56; v.ex = bx + c * (21 + j * 10); v.ey = by + sn * (11 + j * 6) + 4;
+  }
   function mobPos(m) {
+    const v = mobVis.get(m.id);
+    if (v) {
+      mobGeo(m, v);
+      const k = v.vp != null ? v.vp : m.p;
+      const bob = m.p < 1 ? Math.round(Math.abs(Math.sin(time * (m.kind === 'fodder' ? 14 : 9) + m.id)) * 1.5) : 0;
+      return { x: Math.round(v.sx + (v.ex - v.sx) * k), y: Math.round(v.sy + (v.ey - v.sy) * k) - bob };
+    }
     const b = btnPos();
     const a = -Math.PI / 2 + 0.55 + m.a * (Math.PI * 2 - 1.1);
     // the crowd at the Button spreads into a loose ring instead of one pile
     const j = ((m.id * 7919) % 97) / 97;
     const sx = b.x + Math.cos(a) * W * 0.6, sy = b.y + Math.sin(a) * H * 0.56;
     const ex = b.x + Math.cos(a) * (21 + j * 10), ey = b.y + Math.sin(a) * (11 + j * 6) + 4;
-    const v = mobVis.get(m.id);
-    const k = v && v.vp != null ? v.vp : m.p;
+    const k = m.p;
     const bob = m.p < 1 ? Math.round(Math.abs(Math.sin(time * (m.kind === 'fodder' ? 14 : 9) + m.id)) * 1.5) : 0;
     return { x: Math.round(sx + (ex - sx) * k), y: Math.round(sy + (ey - sy) * k) - bob };
   }
+  // ---------- 3.6: the draw list: integer-y buckets, drawn top to bottom ----------
+  // Entries are functions (chests, heroes, the Button...) or a mob's vis (v.m is the mob).
+  let BK = [], BKN = 0, frameRealm = null;
+  const BK0 = -96;
+  function bucketsFor(h) { BKN = Math.ceil(h) + 240; while (BK.length < BKN) BK.push([]); }
+  function bpush(y, e) { let i = Math.floor(y) - BK0; if (!(i >= 0)) i = 0; else if (i >= BKN) i = BKN - 1; BK[i].push(e); }
+  const DL = { push(o) { bpush(o.y, o.draw); } };
+  function drawBuckets() {
+    for (let i = 0; i < BKN; i++) {
+      const b = BK[i];
+      if (!b.length) continue;
+      for (let j = 0; j < b.length; j++) { const e = b[j]; if (typeof e === 'function') e(); else drawMobV(e.m, e, e.qx, e.qy, frameRealm, false); }
+      b.length = 0;
+    }
+  }
+  // which mobs are on screen this frame, where, and (over the tier's cap) which far small fry to leave out;
+  // then all their shadows in one go, then into the buckets
+  const mobsOn = [];
+  let keepK = 1;
+  const keepHash = id => ((id * 2654435761) >>> 0) / 4294967296;
+  function collectMobs(mobs, vdt) {
+    mobsOn.length = 0;
+    const kk = Math.min(1, vdt * 14);
+    let nFod = 0, nFar = 0;
+    for (let i = 0; i < mobs.length; i++) {
+      const m = mobs[i];
+      let v = mobVis.get(m.id);
+      if (!v) { v = { hit: 0 }; mobVis.set(m.id, v); }
+      v.vp = v.vp == null ? m.p : v.vp + (m.p - v.vp) * kk;
+      mobGeo(m, v);
+      const k = v.vp, bob = m.p < 1 ? Math.round(Math.abs(Math.sin(time * (m.kind === 'fodder' ? 14 : 9) + m.id)) * 1.5) : 0;
+      const x = Math.round(v.sx + (v.ex - v.sx) * k), y = Math.round(v.sy + (v.ey - v.sy) * k) - bob;
+      // still walking in from past the edge
+      if (x < -12 || x > W + 12 || y < -4 || y > H + 20) continue;
+      v.qx = x; v.qy = y; v.m = m;
+      v.fod = !!G.SMALL[m.kind];
+      if (v.fod) { nFod++; if (m.p < 0.7) nFar++; }
+      mobsOn.push(v);
+    }
+    // over the cap, the far small fry thin out evenly (by a fixed pick per mob, so none of them flickers)
+    const cap = Q.mobCap, over = nFod - cap;
+    const want = over > 0 && nFar > 0 ? clamp((nFar - over) / nFar, 0.15, 1) : 1;
+    keepK += (want - keepK) * Math.min(1, vdt * 2);
+    const keep = Math.round(keepK * 16) / 16;
+    const shadowsOn = Q.shadows;
+    lctx.fillStyle = 'rgba(0,0,0,0.28)';
+    for (let i = 0; i < mobsOn.length; i++) {
+      const v = mobsOn[i], m = v.m;
+      if (keep < 1 && v.fod && m.p < 0.7 && keepHash(m.id) >= keep) continue;
+      if (m.kind !== 'guardian') {
+        // the shadow (3.6: drawn for all mobs here, before anything stands on the ground)
+        if (shadowsOn || !v.fod) {
+          const w = m.fly ? 3 : m.jz > 0 ? Math.max(4, Math.round(10 - 5 * m.jz)) : v.fod ? 6 : 10, sx = Math.round(v.qx - w / 2), sy = v.qy - 1;
+          lctx.fillRect(sx, sy, w, 2);
+          if (shadowsOn > 1 || !v.fod) lctx.fillRect(sx + 1, sy - 1, w - 2, 1);
+        }
+      }
+      bpush(v.qy, v);
+    }
+  }
   function mobVisOf(m) { let v = mobVis.get(m.id); if (!v) { v = { hit: 0 }; mobVis.set(m.id, v); } return v; }
+  const QP = { x: 0, y: 0 };
   function hitMob(p) {
     let best = null, bd = 1e9;
     for (const m of G.R.mobs || []) {
@@ -1496,20 +1799,39 @@
     return SPR.get(fr(G.mobSkin ? G.mobSkin(m, realm) : realm.minion), m.kind === 'magic' ? { oc: '#3f7fff' } : m.kind === 'rare' ? { oc: '#ffd84a' } : null);
   }
   const MOB_BAR = { brute: '#e84a4a', magic: '#5a9cff', rare: '#ffd84a', tank: '#c8c8d4', spitter: '#b6ff5a', bomber: '#ff7a2e', leaper: '#b6ff5a', shieldwall: '#9ad8ff', blob: '#5ae8ff', blob1: '#5ae8ff', blob2: '#5ae8ff', mole: '#c8a070' };
-  function drawMob(m, q, realm) {
-    const spr = mobSprite(m, realm);
-    const v = mobVisOf(m);
+  // 3.6: a mob's sprites are looked up once (per land and kind) and kept in its vis; the walk frame is picked by time
+  const OC_MAGIC = { oc: '#3f7fff' }, OC_RARE = { oc: '#ffd84a' };
+  function mobSpriteV(m, v, realm) {
+    if (v.sr !== realm || v.sk !== m.kind) {
+      v.sr = realm; v.sk = m.kind; v.s0 = v.s1 = null; v.fr = 0;
+      if (!m.gob && !(m.inv && G.INV_BY_ID[m.inv]) && m.kind !== 'leaper' && m.kind !== 'hoard' && m.kind !== 'guardian') {
+        let id = null, opt = null;
+        if (m.kind === 'fodder') id = G.mobSkin ? G.mobSkin(m, realm) : realm.fodder;
+        else if (G.ARCHETYPES && G.ARCHETYPES[m.kind]) { const aid = 'a_' + m.kind + '_' + realm.id; if (SPR.defs[aid]) id = aid; else v.s0 = v.s1 = SPR.arch(m.kind, realm.id); }
+        else { id = G.mobSkin ? G.mobSkin(m, realm) : realm.minion; opt = m.kind === 'magic' ? OC_MAGIC : m.kind === 'rare' ? OC_RARE : null; }
+        if (id) { v.s0 = SPR.get(id, opt); v.s1 = G.mobFrame && SPR.defs[id + '_2'] ? SPR.get(id + '_2', opt) : v.s0; v.fr = m.kind === 'fodder' ? 7 : 4.5; }
+      }
+    }
+    if (!v.s0) return mobSprite(m, realm);
+    if (v.s1 === v.s0 || m.p >= 1 || m.held || m.p < 0) return v.s0;
+    return Math.floor(time * v.fr + m.id * 0.37) % 2 ? v.s1 : v.s0;
+  }
+  function drawMob(m, q, realm) { drawMobV(m, mobVisOf(m), q.x, q.y, realm, true); }
+  function drawMobV(m, v, qx, qy, realm, withShadow) {
+    const q = QP; QP.x = qx; QP.y = qy;
+    const spr = mobSpriteV(m, v, realm);
     const fod = !!G.SMALL[m.kind];
-    if (m.kind === 'guardian') { drawGuardian(m, spr, v, q); return; }
-    shadow(q.x, q.y - 1, m.fly ? 3 : m.jz > 0 ? Math.max(4, Math.round(10 - 5 * m.jz)) : fod ? 6 : 10);
-    if (m.br) glow(q.x, q.y - 5, fod ? 4 : 7, '#b36bff', 0.28);
+    if (m.kind === 'guardian') { drawGuardian(m, spr, v, { x: qx, y: qy }); return; }
+    if (withShadow) shadow(q.x, q.y - 1, m.fly ? 3 : m.jz > 0 ? Math.max(4, Math.round(10 - 5 * m.jz)) : fod ? 6 : 10);
+    const gl = Q.glows;
+    if (m.br && (gl > 1 || !fod)) glow(q.x, q.y - 5, fod ? 4 : 7, '#b36bff', 0.28);
     if (m.kind === 'hoard') {
       glow(q.x, q.y - 7, 9, '#ffd84a', 0.28 + 0.1 * Math.sin(time * 8));
       if (Math.random() < 0.35) part(q.x + rand(-4, 4), q.y - rand(2, 10), pick(['#ffd84a', '#fff3a0']), { vy: -10, vx: rand(-8, 8), grav: 60, life: 0.5 });
       if (v.hit > 0 && Math.random() < 0.5 && coins.length < 240) coins.push({ x: q.x, y: q.y - 8, vx: rand(-50, 50), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.4, 0.7), fly: 0 });
     }
     if (m.kind === 'magic') glow(q.x, q.y - 8, 7, '#3f7fff', 0.2 + 0.07 * Math.sin(time * 5 + m.id));
-    if (m.amb) glow(q.x, q.y - 6, 9, '#ff3b3b', 0.22 + 0.1 * Math.sin(time * 9 + m.id));
+    if (m.amb && (gl > 0 || !fod)) glow(q.x, q.y - 6, 9, '#ff3b3b', 0.22 + 0.1 * Math.sin(time * 9 + m.id));
     if (m.gob && Math.random() < 0.15 && coins.length < 200) coins.push({ x: q.x, y: q.y - 6, vx: rand(-20, 20), vy: rand(-50, -20), floor: q.y + rand(-2, 3), t: rand(0.4, 0.7), fly: 0 });
     // a spitter swells before it spits; a bomber's fuse fizzes, faster as it gets close
     if (m.kind === 'spitter' && m.p >= (G.TUNE.spitStop || 0.68) && m.atkT < 0.6) glow(q.x, q.y - 5, 5, '#b6ff5a', 0.25 + 0.5 * (0.6 - m.atkT));
@@ -1519,7 +1841,7 @@
     }
     if (m.kind === 'runner' && m.p > 0 && Math.random() < 0.15) part(q.x, q.y - 1, '#d8cfb8', { vx: 0, vy: -4, grav: 0, life: 0.3 });
     if (m.kind === 'rare') glow(q.x, q.y - 9, 10, '#ffd84a', 0.24 + 0.08 * Math.sin(time * 6));
-    if (!fod || m.id % 3 === 0) {
+    if (fod ? m.id % 3 === 0 && gl > 1 : gl > 0) {
       if (m.bT > 0) glow(q.x, q.y - 6, 6, '#ff7a2e', 0.22 + 0.08 * Math.sin(time * 12 + m.id));
       if (m.fz) glow(q.x, q.y - 6, 6, '#7fc8ff', 0.25);
     }
@@ -1530,8 +1852,8 @@
     if (m.pop > 0) y += Math.round(8 * m.pop / (G.TUNE.molePop || 0.45));
     if (m.kind === 'shieldwall' && m.blk > 0 && m.wall) glow(q.x + 1, q.y - 7, 6, '#9ad8ff', 0.12 + 0.05 * Math.sin(time * 6 + m.id));
     // a hit knocks it back from the Button for a moment, a small one further
-    if (v.hit > 0) { const b = btnPos(), dx = q.x - b.x, dy = q.y - b.y, l = Math.hypot(dx, dy) || 1, k = v.hit * (fod ? 34 : 18); x += Math.round(dx / l * k + rand(-1, 1)); y += Math.round(dy / l * k * 0.6); }
-    if (v.lunge > 0) { x += Math.sign(btnPos().x - q.x) * 2; v.lunge -= fdt; }
+    if (v.hit > 0) { const dx = q.x - Math.round(W / 2), dy = q.y - Math.round(H * 0.54), l = Math.hypot(dx, dy) || 1, k = v.hit * (fod ? 34 : 18); x += Math.round(dx / l * k + rand(-1, 1)); y += Math.round(dy / l * k * 0.6); }
+    if (v.lunge > 0) { x += Math.sign(Math.round(W / 2) - q.x) * 2; v.lunge -= fdt; }
     // the Warlord stands twice as tall, with a red aura and its name over it
     const sc = m.wl ? 2.2 : 1;
     if (m.wl) { glow(x, y - 14, 18, '#ff3b3b', 0.25 + 0.1 * Math.sin(time * 5)); if (Math.random() < 0.2) part(x + rand(-8, 8), y - 1, '#5a3a2a', { vx: rand(-10, 10), vy: -rand(4, 10), grav: 30, life: 0.4 }); }
@@ -1616,12 +1938,12 @@
       const r = aoePx(G.TUNE.smiteR);
       ring(t.x, t.y - 3, r.rx, r.ry, '#ffe27a', 0.22);
       burst(t.x, ty, ['#ffffff', '#ffe27a'], 5, 60, { life: 0.3 });
-      if (ev.crit) text(t.x, ty - 8, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 });
+      if (ev.crit && critWord()) text(t.x, ty - 8, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6, dmg: true });
       return;
     }
     // 3.5: the Warden's own blows are drawn like a companion's, in its class's style and a size up
     unitAttack(-1, ev, wt);
-    if (ev.crit && !ev.boss && ev.ids && ev.ids.length) { const m = mobById(ev.ids[0]); if (m) { const q = mobPos(m); text(q.x, q.y - 16, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6 }); } }
+    if (ev.crit && !ev.boss && ev.ids && ev.ids.length && critWord()) { const m = mobById(ev.ids[0]); if (m) { const q = mobPos(m); text(q.x, q.y - 16, G.t('crit'), '#ff7a2e', 3, { vy: -20, life: 0.6, max: 0.6, dmg: true }); } }
   }
 
   // ---------- Horde FX: the crunch ----------
@@ -1669,9 +1991,10 @@
     chunkCache.set(c, out);
     return out;
   }
+  let gOver = 0;
   function gib(o) {
-    if (gibs.length >= MAXG) gibs.splice(0, 40);
     o.max = o.life;
+    if (gibs.length >= Q.maxG) { gibs[gOver = (gOver + 1) % gibs.length] = o; return; }
     gibs.push(o);
   }
   // Break a sprite drawn at (x, y) (bottom-centre anchor, scale sc) into flying chunks
@@ -1696,21 +2019,34 @@
   // ground that slowly fades, so a slaughter leaves the arena stained
   let stain = null, stainCtx = null, stainFade = 0, stainSweep = 0;
   function stainLayer() {
-    if (!stain || stain.width !== W || stain.height !== H) { stain = SPR.makeCanvas(W, H); stainCtx = stain.getContext('2d'); }
+    if (!stain || stain.width !== W || stain.height !== H) { stain = SPR.makeCanvas(W, H); stainCtx = stain.getContext('2d', { willReadFrequently: true }); }
     return stainCtx;
   }
   St.clearStain = () => { if (stainCtx) stainCtx.clearRect(0, 0, W, H); };
-  function decal(x, y, col, r) {
-    const c = stainLayer();
-    const n = Math.round(r * 4);
-    x = Math.round(x); y = Math.round(y);
-    c.globalAlpha = 0.5; c.fillStyle = col;
+  // 3.6: a splat is stamped from one of six ready-made ones per colour and size (the same dots, painted once)
+  const splats = new Map();
+  function splat(col, r) {
+    const key = col + '|' + r + '|' + Math.floor(Math.random() * 6);
+    let c = splats.get(key);
+    if (c) return c;
+    if (splats.size > 480) splats.clear();
+    const R2 = Math.ceil(r * 1.6) + 1, w = R2 * 2 + 1, h = Math.ceil(r * 0.8) * 2 + 3;
+    c = SPR.makeCanvas(w, h); c.ox = R2; c.oy = h >> 1;
+    const x = c.getContext('2d'), n = Math.round(r * 4);
+    x.globalAlpha = 0.5; x.fillStyle = col;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * 6.28, d = Math.pow(Math.random(), 1.6) * r;
-      c.fillRect(x + Math.round(Math.cos(a) * d), y + Math.round(Math.sin(a) * d * 0.5), 1, 1);
+      x.fillRect(c.ox + Math.round(Math.cos(a) * d), c.oy + Math.round(Math.sin(a) * d * 0.5), 1, 1);
     }
-    for (let i = 0; i < 2; i++) { const a = Math.random() * 6.28; c.fillRect(x + Math.round(Math.cos(a) * r * 1.6), y + Math.round(Math.sin(a) * r * 0.8), 1, 1); }
-    c.globalAlpha = 1;
+    for (let i = 0; i < 2; i++) { const a = Math.random() * 6.28; x.fillRect(c.ox + Math.round(Math.cos(a) * r * 1.6), c.oy + Math.round(Math.sin(a) * r * 0.8), 1, 1); }
+    splats.set(key, c);
+    return c;
+  }
+  function decal(x, y, col, r) {
+    const c = stainLayer();
+    if (Array.isArray(col)) col = col[Math.floor(Math.random() * col.length)];
+    const sp = splat(col, Math.round(r * 2) / 2);
+    c.drawImage(sp, Math.round(x) - sp.ox, Math.round(y) - sp.oy);
   }
   function ring(x, y, rx, ry, col, life, arc) {
     if (rings.length > 40) rings.shift();
@@ -1722,24 +2058,30 @@
   const streak = { n: 0, t: 9, pop: 0 };
   let multiCd = 0, lastCount = 0;
   const STREAKS = [[50, 'sk_25'], [100, 'sk_50'], [200, 'sk_100'], [400, 'sk_200'], [800, 'sk_400'], [1500, 'sk_800'], [3000, 'sk_3000'], [6000, 'sk_6000'], [10000, 'sk_10000']];
+  let goreRealm = null, goreDepth = -1;
   function gore(m, gold, chest, src) {
+    const v0 = mobVis.get(m.id);
     const q = mobPos(m);
     mobVis.delete(m.id);
-    const realm = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
+    const dn = G.depthNow ? G.depthNow() : G.S.depth;
+    if (dn !== goreDepth || !goreRealm) { goreDepth = dn; goreRealm = G.REALMS[G.realmIndex(dn)]; }
+    const realm = goreRealm;
     const g = GORE[realm.id] || GORE.meadow;
-    const spr = mobSprite(m, realm);
     const fod = !!G.SMALL[m.kind];
+    // 3.6: past the tier's budget of full deaths this frame, small fry only leave their stain (and not every one)
+    const lite = fod && frameKills >= Q.gore;
+    const spr = lite ? null : v0 && v0.s0 && v0.sr === realm ? v0.s0 : mobSprite(m, realm);
     if (m.kind === 'guardian') { explodeSprite(spr, q.x, q.y, 2, 120, 1.8, g.style); decal(q.x, q.y, g.blood, 14); St.shake(7); hitstop = Math.max(hitstop, 0.2); slowmo = Math.max(slowmo, 0.8); }
     const over = Math.min(3, m.over || 0) + (m.crit ? 1 : 0) + (src === 'boss' ? 1.5 : 0);
     const force = 1 + over * 0.3 + (src === 'click' ? 0.35 : 0);
-    const fod2 = G.SMALL[m.kind];
     // when the Horde dies in heaps, each body throws fewer chunks so the frame keeps up
-    const n = fod2 ? (frameKills > 25 || gibs.length > MAXG * 0.7 ? 2 : 5) : m.kind === 'brute' || m.kind === 'bomber' || m.kind === 'spitter' ? 16 : m.kind === 'tank' ? 36 : 30;
-    explodeSprite(spr, q.x, q.y, 1, n, force, g.style);
-    decal(q.x, q.y - 1, g.blood, fod ? 2.5 : 4 + Math.min(4, m.w));
+    const n = fod ? (frameKills > 25 || gibs.length > Q.maxG * 0.7 ? Math.min(2, Q.chunks) : Q.chunks) : m.kind === 'brute' || m.kind === 'bomber' || m.kind === 'spitter' ? 16 : m.kind === 'tank' ? 36 : 30;
+    if (!lite) explodeSprite(spr, q.x, q.y, 1, n, force, g.style);
+    if (!fod || Q.decals >= 1 || keepHash(m.id) < Q.decals) decal(q.x, q.y - 1, g.blood, fod ? 2.5 : 4 + Math.min(4, m.w));
     // every land breaks differently
     const c = q.x, y = q.y - 5;
-    if (g.style === 'shatter') burst(c, y, ['#ffffff', '#d8f0ff'], fod ? 3 : 8, 90, { grav: 200, life: 0.35 });
+    if (lite) { /* the stain is enough */ }
+    else if (g.style === 'shatter') burst(c, y, ['#ffffff', '#d8f0ff'], fod ? 3 : 8, 90, { grav: 200, life: 0.35 });
     else if (g.style === 'embers') for (let i = 0; i < (fod ? 3 : 8); i++) part(c + rand(-4, 4), y, pick(['#ffb347', '#ff6a2e', '#ffd84a']), { vx: rand(-15, 15), vy: rand(-50, -20), grav: -30, life: rand(0.5, 1.1) });
     else if (g.style === 'spores') for (let i = 0; i < (fod ? 3 : 7); i++) part(c + rand(-5, 5), y, pick(['#c84ae8', '#ff7ab0', '#f4ecd8']), { vx: rand(-10, 10), vy: rand(-25, -8), grav: -8, life: rand(0.8, 1.5) });
     else if (g.style === 'ink') for (let i = 0; i < (fod ? 2 : 7); i++) part(c + rand(-4, 4), y, pick(['#1f3a6a', '#2a4a8a', '#f4ecd8']), { vx: rand(-25, 25), vy: rand(-40, -10), grav: 160, life: rand(0.4, 0.8) });
@@ -1797,7 +2139,7 @@
   function stepGibs(dt) {
     for (let i = gibs.length - 1; i >= 0; i--) {
       const g = gibs[i]; g.life -= dt;
-      if (g.life <= 0) { gibs.splice(i, 1); continue; }
+      if (g.life <= 0) { const l = gibs.pop(); if (i < gibs.length) gibs[i] = l; continue; }
       if (g.rest) continue;
       if (g.style === 'dissolve') { g.vy -= 40 * dt; g.vx *= 0.96; g.x += g.vx * dt; g.y += g.vy * dt; continue; }
       g.vy += 320 * dt; g.x += g.vx * dt; g.y += g.vy * dt;
@@ -2571,7 +2913,7 @@
     if ((townTopT -= fdt) <= 0 || !townTop) {
       townTopT = 1;
       // (in town the land box is hidden: only the buttons at the top right stay)
-      const el = typeof document !== 'undefined' && document.querySelector('.hud.top .hudBtns'), cr = cv.getBoundingClientRect();
+      const el = typeof document !== 'undefined' && document.querySelector('.hud.top .hudBtns'), cr = stageRect();
       townTop = el ? Math.max(0, (el.getBoundingClientRect().bottom - cr.top) / S) : 20;
     }
     if (narrowTown()) {
@@ -2672,7 +3014,7 @@
     return rev ? l.reverse() : l;
   }
   St.townHit = p => hitTown(p);
-  St.townPoint = id => { const t = TOWN.find(x => x.id === id); if (!t) return null; const q = townPlace(t), r = cv.getBoundingClientRect(); return { x: r.left + q.x * S, y: r.top + q.y0 * S }; };
+  St.townPoint = id => { const t = TOWN.find(x => x.id === id); if (!t) return null; const q = townPlace(t), r = stageRect(); return { x: r.left + q.x * S, y: r.top + q.y0 * S }; };
   function drawTown(dt) {
     const k = W + 'x' + H + (SPR.defs.tw_forge ? 'a' : '') + townRows().r1;
     if (k !== townKey || !townGround) { townKey = k; townGround = buildTownGround(); }
@@ -2724,12 +3066,12 @@
     const vgl = lctx.createRadialGradient(cx, cy, 30, cx, cy, Math.max(W, H) * 0.7);
     vgl.addColorStop(0, 'rgba(255,210,140,0.06)'); vgl.addColorStop(1, 'rgba(10,8,20,0.45)');
     lctx.fillStyle = vgl; lctx.fillRect(0, 0, W, H);
-    // blit, then the names on the hi-res layer
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#0c0b12'; ctx.fillRect(0, 0, cv.width, cv.height);
-    const kk = S * DPR;
-    ctx.drawImage(low, 0, 0, W * kk, H * kk);
-    if (flash > 0) { ctx.globalAlpha = Math.min(0.85, flash); ctx.fillStyle = flashCol; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1; flash = Math.max(0, flash - dt * 1.8); }
+    // the pixel layer is on screen as it is; then the names on the hi-res layer
+    setShift(0, 0); setFx(0, flash);
+    if (flash > 0) flash = Math.max(0, flash - dt * 1.8);
+    const kk = S * TDPR;
+    clearText();
+    ctx.imageSmoothingEnabled = false;
     ctx.setTransform(kk, 0, 0, kk, 0, 0);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
     for (const t of TOWN) {
@@ -2754,7 +3096,7 @@
     ctx.strokeText(sub, W / 2, ty + 9); ctx.fillStyle = '#e8e0d0'; ctx.fillText(sub, W / 2, ty + 9);
     }
     drawTexts(dt);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    endText();
   }
 
   St.frame = function (dt) {
@@ -2768,7 +3110,7 @@
       multiCd = big ? 0.5 : 0.3;
       hitstop = Math.max(hitstop, big ? 0.05 : 0.02); St.shake(big ? 3 : 1.5);
       const b = btnPos();
-      if (cardT <= 0) text(b.x + rand(-40, 40), b.y + 30 + rand(0, 6), '×' + frameKills, big ? '#ff9a3a' : '#ffe27a', big ? 6 : 4, { life: 0.9, max: 0.9, vy: -20 });
+      if (cardT <= 0) text(b.x + rand(-40, 40), b.y + 30 + rand(0, 6), '×' + frameKills, big ? '#ff9a3a' : '#ffe27a', big ? 6 : 4, { life: 0.9, max: 0.9, vy: -20, dmg: !big });
       if (big && G.Audio && G.Audio.heap) G.Audio.heap(frameKills);
     }
     frameKills = 0;
@@ -2781,12 +3123,12 @@
     hurtFx = Math.max(0, hurtFx - dt * 1.1);
     if (btnDmg > 0 && (btnDmgT -= dt) <= 0) {
       const b = btnPos(), f = btnDmg / Math.max(1, G.D.heroHp);
-      text(b.x + rand(-12, 12), b.y - 30, '-' + fmtSmall(btnDmg), f > 0.08 ? '#ff3b3b' : '#ff7a7a', f > 0.08 ? 5 : 4, { life: 0.75, max: 0.75, vy: -20 });
+      text(b.x + rand(-12, 12), b.y - 30, '-' + fmtSmall(btnDmg), f > 0.08 ? '#ff3b3b' : '#ff7a7a', f > 0.08 ? 5 : 4, { life: 0.75, max: 0.75, vy: -20, dmg: f <= 0.08 });
       btnDmg = 0; btnDmgT = 0.22;
     }
     const lowHp = G.S.hero && G.S.hero.cls && !(G.R.btnDown > 0) && G.S.hero.hp < G.D.heroHp * 0.3;
     if (lowHp && (beatT -= dt) <= 0) { beatT = 0.85; if (G.Audio && G.Audio.heartbeat) G.Audio.heartbeat(); }
-    if (killGold > 0 && (killGoldT -= dt) <= 0) { const b = btnPos(); text(b.x + rand(-6, 6), b.y + 16, '+' + fmtSmall(killGold), '#f0c850', 3, { life: 0.8, max: 0.8, vy: -10 }); killGold = 0; killGoldT = 0.3; }
+    if (killGold > 0 && (killGoldT -= dt) <= 0) { const b = btnPos(); text(b.x + rand(-6, 6), b.y + 16, '+' + fmtSmall(killGold), '#f0c850', 3, { life: 0.8, max: 0.8, vy: -10, dmg: true }); killGold = 0; killGoldT = 0.45; }
     // hit-stop and slow motion only touch the visuals; the game keeps its own clock
     const vdt = dt * (hitstop > 0 ? 0.08 : slowmo > 0 ? 0.3 : 1);
     if (hitstop > 0) hitstop -= dt;
@@ -2829,8 +3171,8 @@
     stepGround(vdt);
     drawJackpot(dt);
 
-    // Collect drawables sorted by y
-    const list = [];
+    // Collect drawables by y (3.6: into integer-y buckets, no sort; mobs go in as their cached vis)
+    const list = DL;
     const b = btnPos();
 
     // Chests
@@ -2880,14 +3222,8 @@
     // Mobs and the hero
     if (G.S.hero && G.S.hero.cls) stepParty(dt);
     const mrealm = realm;
-    for (const m of R.mobs || []) {
-      const v = mobVisOf(m);
-      v.vp = v.vp == null ? m.p : v.vp + (m.p - v.vp) * Math.min(1, vdt * 14);
-      const q = mobPos(m);
-      // still walking in from past the edge
-      if (q.x < -12 || q.x > W + 12 || q.y < -4 || q.y > H + 20) continue;
-      list.push({ y: q.y, draw: () => drawMob(m, q, mrealm) });
-    }
+    frameRealm = realm;
+    collectMobs(R.mobs || [], vdt);
     if (G.mobs2) for (const dg of G.mobs2.digs()) {
       const q = mobPos({ id: 0, a: dg.a, p: dg.p });
       if (q.x < -12 || q.x > W + 12 || q.y < -4 || q.y > H + 20) continue;
@@ -2901,8 +3237,8 @@
     // Button or boss
     if (bossVis && bossDmg.acc > 0 && (bossDmg.t -= dt) <= 0) {
       const bp = bossPos();
-      text(bp.x + rand(-18, 18), bp.y - 26 - rand(0, 10), '-' + G.fmt(bossDmg.acc), bossDmg.crit ? '#ff7a2e' : '#ffffff', bossDmg.crit ? 5 : 4, { life: 0.7, max: 0.7, vy: -26 });
-      bossDmg.acc = 0; bossDmg.crit = false; bossDmg.t = 0.16;
+      text(bp.x + rand(-18, 18), bp.y - 26 - rand(0, 10), '-' + G.fmt(bossDmg.acc), bossDmg.crit ? '#ff7a2e' : '#ffffff', bossDmg.crit ? 5 : 4, { life: 0.7, max: 0.7, vy: -26, dmg: true });
+      bossDmg.acc = 0; bossDmg.crit = false; bossDmg.t = Q.phone ? 0.3 : 0.22;
     }
     if (!bossVis) bossDmg.acc = 0;
     if (bossVis) {
@@ -2937,8 +3273,7 @@
       } });
     } else St._wispPos = null;
 
-    list.sort((a, c) => a.y - c.y);
-    for (const d of list) d.draw();
+    drawBuckets();
     drawPortals();
     drawMeteors();
     drawIncoming(dt);
@@ -3047,35 +3382,21 @@
     if (G.hasBuff('frenzy')) { lctx.globalAlpha = 0.07 + 0.03 * Math.sin(time * 6); lctx.fillStyle = '#ffd84a'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; }
     if (G.hasBuff('storm')) { lctx.globalAlpha = 0.06 + 0.04 * Math.sin(time * 14); lctx.fillStyle = '#7fe9ff'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; }
 
-    // ---- Blit to display ----
+    // ---- Show it: the pixel layer is on screen already; the shake moves it, the CSS layers do the light ----
     let ox = 0, oy = 0;
     if (shake > 0) { ox = Math.round(rand(-shake, shake)); oy = Math.round(rand(-shake, shake)); shake = Math.max(0, shake - dt * 30); }
     if (kick > 0) { oy += 1; kick = 0; } // a one-frame downward kick on every click
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#0c0b12';
-    ctx.fillRect(0, 0, cv.width, cv.height);
-    const k = S * DPR;
-    ctx.drawImage(low, ox * k, oy * k, W * k, H * k);
-    // Vignette
-    const vg = ctx.createRadialGradient(cv.width / 2, cv.height * 0.55, Math.min(cv.width, cv.height) * 0.35, cv.width / 2, cv.height * 0.55, Math.max(cv.width, cv.height) * 0.75);
-    vg.addColorStop(0, 'rgba(8,6,14,0)');
-    vg.addColorStop(1, 'rgba(8,6,14,0.62)');
-    ctx.fillStyle = vg; ctx.fillRect(0, 0, cv.width, cv.height);
-    // hurt: the edges run red, and pulse while the Button is low
+    setShift(ox, oy);
+    // hurt: the edges run red, and pulse while the Button is low (3.6: and while a DOOM gathers)
     const lowK = G.S.hero && G.S.hero.cls && !(G.R.btnDown > 0) && G.D.heroHp ? clamp(1 - G.S.hero.hp / (G.D.heroHp * 0.3), 0, 1) : 0;
-    const red = Math.min(0.6, hurtFx * 0.6 + lowK * (0.16 + 0.12 * Math.sin(time * 7)) + (G.R.btnDown > 0 ? 0.22 : 0));
-    if (red > 0.01) {
-      const rg = ctx.createRadialGradient(cv.width / 2, cv.height * 0.55, Math.min(cv.width, cv.height) * 0.3, cv.width / 2, cv.height * 0.55, Math.max(cv.width, cv.height) * 0.72);
-      rg.addColorStop(0, 'rgba(255,30,40,0)'); rg.addColorStop(1, 'rgba(255,30,40,' + red.toFixed(3) + ')');
-      ctx.fillStyle = rg; ctx.fillRect(0, 0, cv.width, cv.height);
-    }
-    if (flash > 0) {
-      ctx.globalAlpha = Math.min(0.85, flash);
-      ctx.fillStyle = flashCol; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.globalAlpha = 1; flash = Math.max(0, flash - dt * 1.8);
-    }
+    const doomK = R.boss && R.boss.move && R.boss.move.k === 'doom' ? clamp(1 - R.boss.move.t / R.boss.move.T, 0, 1) : 0;
+    const red = Math.min(0.6, hurtFx * 0.6 + lowK * (0.16 + 0.12 * Math.sin(time * 7)) + (G.R.btnDown > 0 ? 0.22 : 0) + (doomK ? (0.12 + 0.3 * doomK) * (0.6 + 0.4 * Math.sin(time * (8 + 10 * doomK))) : 0));
+    setFx(red, flash);
+    if (flash > 0) flash = Math.max(0, flash - dt * 1.8);
     // ---- Hi-res layer: text & bars ----
+    const k = S * TDPR;
+    clearText();
+    ctx.imageSmoothingEnabled = false;
     ctx.setTransform(k, 0, 0, k, ox * k, oy * k);
     drawNames();
     drawEventNames();
@@ -3098,8 +3419,14 @@
     else if (bossVis && R.boss) { drawBossBar(); drawMoveName(); }
     else if (R.bossReady && !R.inv) drawReady(b);
     if (hoverChest) drawChestTip(hoverChest);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (Q.debug) drawQualityDebug();
+    endText();
   };
+  function drawQualityDebug() {
+    ctx.font = crisp(3) + 'px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12';
+    const s = 'Q' + Q.tier + ' ' + Q.fps + 'fps ' + Q.work + 'ms ' + (G.R.mobs ? G.R.mobs.length : 0) + 'm ' + parts.length + 'p ' + texts.length + 't';
+    ctx.strokeText(s, 4, H - 10); ctx.fillStyle = '#7fe9ff'; ctx.fillText(s, 4, H - 10);
+  }
 
   function line(x0, y0, x1, y1) {
     x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
@@ -3204,19 +3531,31 @@
     }
     if (zoneFade > 0) { lctx.globalAlpha = Math.min(1, zoneFade); lctx.fillStyle = '#0c0b12'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; zoneFade = Math.max(0, zoneFade - dt * 1.6); }
   }
+  // 3.6: the Shoreline's water: the same waves, painted once per frame of a 64-frame loop (2π s) into a strip
+  const WATER_N = 64, WATER_ROWS = 12;
+  let waterC = null, waterX = null, waterDone = null, waterW = 0;
+  const rgba32 = hex => { const [r, g, b] = G.hexToRgb(hex); return (255 << 24) | (b << 16) | (g << 8) | r; };
   function drawWater() {
-    const cfg = SPR.REALM_GROUND.shore;
-    const rows = 12;
-    for (let y = 0; y < rows; y++) for (let x = 0; x < W; x += 1) {
-      const wave = Math.sin(x * 0.3 + time * 2 + y * 0.8);
-      const edge = rows - 2 + Math.round(Math.sin(x * 0.15 + time) * 1.5);
-      if (y > edge) continue;
-      let col = cfg.water[0];
-      if (wave > 0.7) col = cfg.water[1];
-      if (wave > 0.95 && (x + y) % 3 === 0) col = cfg.water[2];
-      if (y === edge) col = '#e8f4ff';
-      lctx.fillStyle = col; lctx.fillRect(x, y, 1, 1);
+    const cfg = SPR.REALM_GROUND.shore, rows = WATER_ROWS;
+    if (!waterC || waterW !== W) { waterW = W; waterC = SPR.makeCanvas(W, rows * WATER_N); waterX = waterC.getContext('2d', { willReadFrequently: true }); waterDone = new Uint8Array(WATER_N); }
+    const fi = Math.floor(((time % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2) * WATER_N) % WATER_N;
+    if (!waterDone[fi]) {
+      waterDone[fi] = 1;
+      const t = fi / WATER_N * Math.PI * 2, img = waterX.createImageData(W, rows), px = new Uint32Array(img.data.buffer);
+      const c0 = rgba32(cfg.water[0]), c1 = rgba32(cfg.water[1]), c2 = rgba32(cfg.water[2]), foam = rgba32('#e8f4ff');
+      for (let y = 0; y < rows; y++) for (let x = 0; x < W; x++) {
+        const wave = Math.sin(x * 0.3 + t * 2 + y * 0.8);
+        const edge = rows - 2 + Math.round(Math.sin(x * 0.15 + t) * 1.5);
+        if (y > edge) continue;
+        let col = c0;
+        if (wave > 0.7) col = c1;
+        if (wave > 0.95 && (x + y) % 3 === 0) col = c2;
+        if (y === edge) col = foam;
+        px[y * W + x] = col;
+      }
+      waterX.putImageData(img, 0, fi * rows);
     }
+    lctx.drawImage(waterC, 0, fi * rows, W, rows, 0, 0, W, rows);
   }
 
   // PoE-style drop: a thud of dust, a beam for the good stuff, a name tag
@@ -3420,7 +3759,7 @@
   const FONT = '"Press Start 2P", "BTTN Body", monospace';
   // Press Start 2P is only crisp on an 8px device grid, so snap logical sizes to it.
   // at least 8 CSS px on any screen, on the 8-device-px grid
-  function crisp(size) { const k = S * DPR, g = 8 * Math.ceil(DPR); return Math.max(g, Math.round(size * k / 8) * 8) / k; }
+  function crisp(size) { const k = S * TDPR, g = 8 * Math.ceil(TDPR); return Math.max(g, Math.round(size * k / 8) * 8) / k; }
   function drawTexts(dt) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

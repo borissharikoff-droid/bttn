@@ -22,11 +22,12 @@
 
   Object.assign(TUNE, {
     spellOn: 1,          // 0 turns the spells off
-    spellIdle: 19,       // seconds in the field that fill the charge by themselves (the idle's pace)
-    spellClicks: 70,     // manual clicks that fill it (an active clicker's pace, on top of the time)
+    // (3.6: about one every 30 s for the idle, 15-20 s for a clicker; it was every 6-10 s)
+    spellIdle: 40,       // seconds in the field that fill the charge by themselves (the idle's pace)
+    spellClicks: 300,    // manual clicks that fill it (an active clicker's pace, on top of the time)
     spellKill: 0.0015,   // charge per kill...
-    spellKillCap: 0.01,  // ...but no more than this much a second from kills
-    spellGap: 5.5,       // never two spells closer than this many seconds
+    spellKillCap: 0.008, // ...but no more than this much a second from kills
+    spellGap: 10,        // never two spells closer than this many seconds
     spellMinMobs: 4,     // on the open field, wait for at least this many mobs in sight
     spellPow: 1.4,         // all spell damage (each spell's own numbers are Warden hits, in G.SPELL_DEFS)
     spellBoss: 0.8,      // on a boss: this many seconds of the Warden's damage, per spell
@@ -70,7 +71,9 @@
   G.spellState = st;
   const xy = m => G.mobXY(m);
   // on screen (the arena's edge is off it, the top is under the HUD)
-  const inSight = m => !m.dead && !m.gone && m.p >= 0.16 && (() => { const [x, y] = xy(m); return Math.abs(x) < 0.78 && y > -0.6 && y < 0.56; })();
+  // (3.6: G.mobX / G.mobY where it runs over the whole Horde: no array per mob)
+  const mx = m => (G.mobX ? G.mobX(m) : xy(m)[0]), my = m => (G.mobY ? G.mobY(m) : xy(m)[1]);
+  const inSight = m => { if (m.dead || m.gone || m.p < 0.16) return false; const x = mx(m), y = my(m); return Math.abs(x) < 0.78 && y > -0.6 && y < 0.56; };
   const sight = () => R.mobs.filter(inSight);
   const d2 = (ax, ay, bx, by) => (ax - bx) * (ax - bx) + (ay - by) * (ay - by);
   // the thickest spot of the horde: a few mobs tried, the one with the most weight around it wins
@@ -86,7 +89,7 @@
       const m = list[Math.floor(rnd() * list.length)], [x, y] = xy(m);
       if (avoid && avoid.some(a => d2(a.x, a.y, x, y) < r * r * 2.2)) continue;
       let s = 0;
-      for (const o of list) { const [ox, oy] = xy(o); if (d2(x, y, ox, oy) <= r * r) s += Math.sqrt(o.w || 1); }
+      for (const o of list) { if (d2(x, y, mx(o), my(o)) <= r * r) s += Math.sqrt(o.w || 1); }
       s *= 1 + 0.4 * m.p; // nearer the Button counts for more
       if (s > bs) { bs = s; best = { x, y }; }
     }
@@ -225,21 +228,21 @@
     if (ev.m !== undefined) {
       // an orb flies to its mob; if that one is gone, to whoever is nearest where it was
       let m = ev.m && !ev.m.dead && R.mobs.includes(ev.m) ? ev.m : null;
-      if (!m) { let bd = 0.16; for (const o of R.mobs) { if (o.dead || o.gone || o.p < 0) continue; const [x, y] = xy(o), q = d2(x, y, ev.x, ev.y); if (q < bd) { bd = q; m = o; } } }
+      if (!m) { let bd = 0.16; for (const o of R.mobs) { if (o.dead || o.gone || o.p < 0) continue; const q = d2(mx(o), my(o), ev.x, ev.y); if (q < bd) { bd = q; m = o; } } }
       if (m) { [ev.x, ev.y] = xy(m); lead = m; ev.m = m; }
     }
     if (ev.chain) {
       // a bolt on the thickest spot near the storm, then hop to hop to the nearest not yet struck
       const hit = sp.chainHit || (sp.chainHit = new Set());
       const list = sight().filter(m => !hit.has(m.id));
-      const pool = list.filter(m => { const [x, y] = xy(m); return d2(x, y, ev.x, ev.y) <= 0.36 * 0.36; });
+      const pool = list.filter(m => d2(mx(m), my(m), ev.x, ev.y) <= 0.36 * 0.36);
       let cur = pool.length ? pool[Math.floor(rnd() * pool.length)] : list[0];
       ev.path = [];
       for (let k = 0; cur && k < ev.chain; k++) {
         mobs.push(cur); hit.add(cur.id);
         const [cx, cy] = xy(cur); ev.path.push([cx, cy]);
         let nx = null, bd = 0.3 * 0.3;
-        for (const o of list) { if (hit.has(o.id) || o.dead) continue; const [x, y] = xy(o), q = d2(x, y, cx, cy); if (q < bd) { bd = q; nx = o; } }
+        for (const o of list) { if (hit.has(o.id) || o.dead) continue; const q = d2(mx(o), my(o), cx, cy); if (q < bd) { bd = q; nx = o; } }
         cur = nx;
       }
       if (ev.path.length) [ev.x, ev.y] = ev.path[0];
@@ -248,7 +251,7 @@
       const r2 = ev.r * ev.r, i2 = ev.r0 > 0 ? ev.r0 * ev.r0 : -1;
       for (const m of R.mobs) {
         if (m.dead || m.gone || m.p < 0) continue;
-        const [x, y] = xy(m), q = d2(x, y, ev.x, ev.y);
+        const q = d2(mx(m), my(m), ev.x, ev.y);
         if (q <= r2 && q > i2) mobs.push(m);
       }
       if (lead && !mobs.includes(lead)) mobs.unshift(lead);
@@ -279,7 +282,8 @@
     return !TUNE.spellOn || !S || !S.hero || !S.hero.cls || R.town || R.march || R.cine > 0 || tutOn();
   }
   // the charge holds (but keeps filling) while the Button is broken or the Overdrive is going off
-  const held = () => R.btnDown > 0 || (G.odActive && G.odActive());
+  // (3.6: and for the first moments of a big moment's card, so the two don't land on each other)
+  const held = () => R.btnDown > 0 || (G.odActive && G.odActive()) || (G.director && G.director.state && G.director.state().sinceLast < 2.5);
   // fighting: a boss on the field, or enough of the Horde in sight
   function fighting() {
     if (R.boss) return true;

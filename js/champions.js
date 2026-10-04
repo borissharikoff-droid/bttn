@@ -73,6 +73,8 @@
   const landKey = d => Math.floor(Math.max(0, d) / G.REALM_SIZE);
   const run = () => { const S = S_(); if (!S.champRun || typeof S.champRun !== 'object') S.champRun = {}; return S.champRun; };
   G.on('ascend', () => { const S = S_(); S.champRun = {}; if (R.champ) clearChamp('run'); R.chL = null; });
+  // (3.6: its end frees the pacing director for the next big moment)
+  ['champKill', 'champEscape', 'champGone'].forEach(k => G.on(k, () => { if (G.director) G.director.end('champ'); }));
 
   // what the party and the Hand put into one marked target each second: the party's steady damage, and the
   // clicks (held or tapped, whichever is faster lately) each loosing a partial volley
@@ -103,7 +105,7 @@
   // ---------- Coming in ----------
   function busy() {
     const S = S_();
-    return !!(R.boss || R.bossReady || R.rift || R.inv || R.town || R.cine > 0 || R.stun > 0 || (R.ev && R.ev.k !== 'jackpot') || (G.Tut && !(S.tut < 0)) || !S.hero || !S.hero.cls);
+    return !!(R.boss || R.bossReady || R.rift || R.inv || R.march || R.town || R.cine > 0 || R.stun > 0 || (R.ev && R.ev.k !== 'jackpot') || (G.Tut && !(S.tut < 0)) || !S.hero || !S.hero.cls);
   }
   function spawn(ri, mech, key) {
     const S = S_(), d = G.depthNow();
@@ -112,7 +114,7 @@
     const a = rand(0.12, 0.88);
     const m = G.makeMob('brute', a, -0.02);
     // its own creature: none of a brute's land quirks or an invasion's colours
-    delete m.stone; delete m.inv; delete m.mod;
+    m.stone = 0; m.inv = null; m.mod = null;
     m.champ = 1 + (key != null ? key : landKey(S.depth)); m.wl = 1; m.move = 'champ';
     m.w = TUNE.champW; m.hp = m.max = champHp(d, M); m.cp = m.p;
     const c = R.champ = {
@@ -126,6 +128,7 @@
     // the party marks it: everyone (and the Hand) strikes it first, until you tap something else
     if (!R.focus) R.focus = m.id;
     S.st.champSeen = (S.st.champSeen || 0) + 1;
+    if (G.director) G.director.mark('champ', TUNE.champLife);
     emit('champSpawn', c);
     return c;
   }
@@ -300,6 +303,7 @@
     const c = R.champ;
     if (c) { champTick(c, dt); return; }
     if (R.chRetry > 0) R.chRetry -= dt;
+    R.chPend = false;
     // where the party is: the clock restarts in every new land
     if (R.rift || !S.hero || !S.hero.cls) return;
     const key = landKey(S.depth), zone = G.zoneOf ? G.zoneOf(S.depth) : S.depth % G.REALM_SIZE;
@@ -311,8 +315,13 @@
     if (run()[key] || R.chRetry > 0 || (S.st.playTime || 0) < 150) return;
     // past the land's first zone, 20-45 s in; in the lord's zone it comes for sure
     // (and only with the clear bar well short of full, so the fight isn't cut off by the boss)
-    const ok = (zone >= 1 && L.t >= L.delay) || (zone >= G.REALM_SIZE - 1 && L.zt >= 8);
+    const must = zone >= G.REALM_SIZE - 1;
+    const ok = (zone >= 1 && L.t >= L.delay) || (must && L.zt >= 8);
+    // 3.6: in the lord's zone a champion still to come holds the clear bar short of the boss (see hero.js) until
+    // the field is free for it; and it comes through the pacing director like every big moment
+    R.chPend = must && !(G.Tut && !(S.tut < 0));
     if (!ok || busy() || S.bossMeter > (G.D.bossNeed || 1) * 0.6) return;
+    if (G.director && !G.director.can('champ', must ? 2 : 1)) return;
     run()[key] = 1;
     spawn(G.realmIndex(S.depth), null, key);
   });
