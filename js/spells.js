@@ -23,10 +23,10 @@
   Object.assign(TUNE, {
     spellOn: 1,          // 0 turns the spells off
     // (3.6: about one every 30 s for the idle, 15-20 s for a clicker; it was every 6-10 s)
-    spellIdle: 40,       // seconds in the field that fill the charge by themselves (the idle's pace)
-    spellClicks: 300,    // manual clicks that fill it (an active clicker's pace, on top of the time)
+    spellIdle: 30,       // seconds in the field that fill the charge by themselves (the idle's pace)
+    spellClicks: 250,    // manual clicks that fill it (an active clicker's pace, on top of the time)
     spellKill: 0.0015,   // charge per kill...
-    spellKillCap: 0.008, // ...but no more than this much a second from kills
+    spellKillCap: 0.006, // ...but no more than this much a second from kills
     spellGap: 10,        // never two spells closer than this many seconds
     spellMinMobs: 4,     // on the open field, wait for at least this many mobs in sight
     spellPow: 1.4,         // all spell damage (each spell's own numbers are Warden hits, in G.SPELL_DEFS)
@@ -85,11 +85,13 @@
     }
     let best = null, bs = -1;
     const tries = Math.min(list.length, 14);
+    // (3.6: the weight round each try is counted on an even sample of at most 240 of the Horde in sight)
+    const step = Math.max(1, Math.floor(list.length / 240)), off = step > 1 ? Math.floor(rnd() * step) : 0;
     for (let i = 0; i < tries; i++) {
       const m = list[Math.floor(rnd() * list.length)], [x, y] = xy(m);
       if (avoid && avoid.some(a => d2(a.x, a.y, x, y) < r * r * 2.2)) continue;
       let s = 0;
-      for (const o of list) { if (d2(x, y, mx(o), my(o)) <= r * r) s += Math.sqrt(o.w || 1); }
+      for (let j = off; j < list.length; j += step) { const o = list[j]; if (d2(x, y, mx(o), my(o)) <= r * r) s += Math.sqrt(o.w || 1); }
       s *= 1 + 0.4 * m.p; // nearer the Button counts for more
       if (s > bs) { bs = s; best = { x, y }; }
     }
@@ -263,7 +265,7 @@
       if (m.dead) continue;
       let dmg = hp * ev.hit * (lead && m !== lead && ev.sp != null ? ev.sp : 1);
       if (m.kind === 'guardian') dmg *= 0.5;
-      if (ev.chill) { m.chill = Math.max(m.chill || 0, ev.chill); m.chillK = Math.max(ev.chillK || TUNE.spellChill, m.chill > 0 && m.chillK || 0); if (m._cp == null) m._cp = m.p; }
+      if (ev.chill) { sp.chilled = st().chillN = (st().chillN || 0) + 1; m.chill = Math.max(m.chill || 0, ev.chill); m.chillK = Math.max(ev.chillK || TUNE.spellChill, m.chill > 0 && m.chillK || 0); if (m._cp == null) m._cp = m.p; }
       if (ev.push && m.p > 0 && !m.move && m.kind !== 'guardian') m.p = Math.max(-0.05, m.p - ev.push / Math.sqrt(Math.max(0.03, m.w || 1)));
       G.dealHit(m, dmg, 'spell', false);
       if (m.dead) kills++;
@@ -283,7 +285,7 @@
   }
   // the charge holds (but keeps filling) while the Button is broken or the Overdrive is going off
   // (3.6: and for the first moments of a big moment's card, so the two don't land on each other)
-  const held = () => R.btnDown > 0 || (G.odActive && G.odActive()) || (G.director && G.director.state && G.director.state().sinceLast < 2.5);
+  const held = () => R.btnDown > 0 || (G.odActive && G.odActive()) || (G.director && G.director.state && (G.director.state().sinceLast < 2.5 || G.director.state().sinceSmall < 2));
   // fighting: a boss on the field, or enough of the Horde in sight
   function fighting() {
     if (R.boss) return true;
@@ -302,14 +304,16 @@
       if (sp.t >= sp.T && sp.i >= sp.ev.length) { s.live.splice(i, 1); emit('spellEnd', sp); }
     }
     // chills: a share of each step a chilled mob takes is taken back (and of its bites)
-    for (const m of R.mobs) {
+    // (3.6: the Horde is only walked while some of it is chilled)
+    if (s.chillN > 0) { let n = 0; for (const m of R.mobs) {
       if (!(m.chill > 0)) continue;
+      n++;
       const k = Math.min(0.95, m.chillK || TUNE.spellChill);
       if (m._cp != null && !m.move && !m.dead) { const d = m.p - m._cp; if (d > 0) m.p -= d * k; }
       if (m.p >= 1 || m.held) m.atkT += dt * k;
       m._cp = m.p;
       if ((m.chill -= dt) <= 0) { m.chill = 0; m._cp = null; }
-    }
+    } s.chillN = n; }
     // the charge
     if (s.gap > 0) s.gap -= dt;
     if (blocked()) { s.kAcc = 0; return; }
@@ -320,7 +324,7 @@
     }
     if (s.m >= 1 && s.gap <= 0 && fight && !held()) cast(pickKind(), 'auto');
   });
-  G.hook('kill', (m, src) => { if (src !== 'spell') st().kAcc += TUNE.spellKill; });
+  G.hook('kill', (m, src) => { if (src !== 'spell') st().kAcc += TUNE.spellKill * (m.ck || 1); });
   G.hook('click', () => { const s = st(); if (s.m < 1 && !blocked()) s.m = Math.min(1, s.m + 1 / TUNE.spellClicks); });
   // a new run, an ascension: nothing carries over
   G.on('ascend', () => { const s = st(); s.live.length = 0; s.m = 0; });

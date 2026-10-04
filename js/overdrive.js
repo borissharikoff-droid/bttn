@@ -44,11 +44,10 @@
   function pulse() {
     const o = od(), D = G.D, hit = (D.heroHit || 1) * TUNE.odHit;
     let n = 0;
-    for (const m of R.mobs.slice()) {
-      if (m.dead || m.p < 0.05) continue;
-      G.dealHit(m, m.kind === 'guardian' ? hit * 0.5 : hit, 'overdrive', false);
-      n++;
-    }
+    for (const m of R.mobs) if (!m.dead && m.p >= 0.05) n++;
+    // (3.6: the nova rolls out from the Button over a few frames: G.fieldWave in js/hero.js; at once without it)
+    if (G.fieldWave) G.fieldWave(hit, 'overdrive', { dur: 0.18, guardK: 0.5, minP: 0.05 });
+    else for (const m of R.mobs.slice()) if (!m.dead && m.p >= 0.05) G.dealHit(m, m.kind === 'guardian' ? hit * 0.5 : hit, 'overdrive', false);
     if (R.boss && G.hitBoss) G.hitBoss((D.heroDps || 0) * TUNE.odBoss);
     o.n++;
     emit('odPulse', n, o.n);
@@ -70,7 +69,7 @@
       if (o.m >= 1) emit('odReady');
     } else if ((o.full += dt) >= TUNE.odAuto && G.S.hero.autoOd !== 0) G.overdrive('auto');
   });
-  G.hook('kill', () => { const o = od(); if (!(o.t > 0)) o.kAcc += TUNE.odKill; });
+  G.hook('kill', m => { const o = od(); if (!(o.t > 0)) o.kAcc += TUNE.odKill * ((m && m.ck) || 1); });
   G.hook('click', () => { const o = od(); if (!(o.t > 0) && o.m < 1) o.m = Math.min(1, o.m + TUNE.odClick); });
   // twice the attack speed for the party while it lasts
   G.hook('stats', d => {

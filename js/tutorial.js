@@ -74,11 +74,11 @@
     help_15: 'Your powers', help_15t: 'Z Smite (18 s): break wind-ups, hit hard. X Ward (26 s): no damage for 3.5 s. C Mend (40 s): heal and raise everyone.',
     help_16: 'Torment', help_16t: 'Conquer a land to open a Torment level (up to ten). Raise it with + under the land name: tougher foes, more rewards.',
     help_17: 'Town', help_17t: 'Everything but Upgrades is in town: tap TOWN (or press T) between fights; the field waits. EQUIP BEST at the Forge dresses the party in one tap. Build up each building for a bonus that lasts through ascension.',
-    help_18: 'Lucky Spin', help_18t: 'Kills fill the spin meter. When the slot machine pops up, tap it (or R): gold, chests, Frenzy, XP, orbs; 7-7-7 is the big one. Tap the ? bubbles mobs drop for a quick boost. Crits in a row chain for extra damage.',
+    help_18: 'Bubbles and crit chains', help_18t: 'Tap the ? bubbles mobs drop for a quick boost: double gold or damage, a purse, a loot magnet or longer buffs. Crits in a row chain for extra damage; every tenth link tops up Overdrive.',
     help_19: 'Relics', help_19t: 'The rarest drop there is: a white bag from a boss (about 1 in 600; 1 in 200 for a lord; more at higher Torment; never in Rifts). Each relic changes how you play. The Museum keeps the list.',
     help_20: 'Holding the Button', help_20t: 'Hold Space or the Button to click 1 time a second; each Steady Hand level (Upgrades) adds one, up to 10.',
     help_10: 'Carnage', help_10t: 'Kill without a 2.5-second pause to raise gold and XP, up to +40%.',
-    help_21: 'Shortcuts', help_21t: 'In a building, the bar on top jumps to any other one (or swipe; keys 1–0, ← →); FIELD goes back. Lock gear so it is never scrapped. Hold an upgrade to keep buying. Tap the gold rate to see where gold comes from. Settings → Play: auto-perks, Overdrive, spins, fewer effects.',
+    help_21: 'Shortcuts', help_21t: 'In a building, the bar on top jumps to any other one (or swipe; keys 1–0, ← →); FIELD goes back. Lock gear so it is never scrapped. Hold an upgrade to keep buying. Tap the gold rate to see where gold comes from. Settings → Play: auto-perks, Overdrive, fewer effects.',
   });
 
   // ---------- Pointer targets ----------
@@ -165,6 +165,9 @@
   G.tutFreeze = () => G.S.tut === 0 && !(G.S.clicks > 0) && !!(G.S.hero && G.S.hero.cls);
   const TOWN_TIPS = { seat: 1, shards: 1, orb: 1, asc: 1, ess: 1, rift: 1, wall: 1 };
   const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1, spitter: 1, bomber: 1, powers: 1 };
+  // 3.6: in a boss fight only the fight's own tips speak; the rest wait (unseen) for after it
+  const BOSS_TIPS = { powers: 1, move: 1, break: 1 };
+  const quiet = () => { try { return !!(G.director && G.director.quiet && G.director.quiet()); } catch (e) { return false; } };
 
   function seen() { const S = G.S; S.seen = S.seen || {}; S.seen.tips = S.seen.tips || {}; return S.seen; }
   const veteran = S => S.clicks > 60 || S.ascensions > 0 || S.st.bossKills > 0 || S.maxDepth > 0 || S.goldTotal > 5000;
@@ -185,8 +188,8 @@
       }
     });
     G.on('buttonBreak', () => { if (!active() && !seen().tips.break && !G.R.rift) showTip({ id: 'break', text: 'tip_break' }); });
-    G.on('potion', () => { if (!active() && !seen().tips.potion) showTip({ id: 'potion', text: 'tip_potion' }); });
-    window.addEventListener('resize', () => place());
+    G.on('potion', () => { if (!active() && !seen().tips.potion && !G.R.boss) showTip({ id: 'potion', text: 'tip_potion' }); });
+    window.addEventListener('resize', () => place(true));
     Tut.maybeIntro();
     // A returning player on a new device: the cloud prompt goes first, the intro only if they keep this fresh save
     G.on('cloudNewer', () => { if (closeIntro) closeIntro(true); });
@@ -204,7 +207,7 @@
     paid[STEPS[i].id] = 1;
     const reward = i === STEPS.length - 1 ? null : Math.max(25, Math.round(G.D.incomeRef * 20));
     if (!first) { /* replaying the tutorial pays nothing */ }
-    else if (reward) { G.addGold(reward, 'tutorial'); G.UI.toast(esc(t('tu_reward', G.fmt(reward) + ' ' + t('gold').toLowerCase())), 'ach', 'ic_coin'); }
+    else if (reward) { G.addGold(reward, 'tutorial'); G.UI.toast(esc(t('tu_reward', G.fmt(reward) + ' ' + t('gold').toLowerCase())), 'ach', 'ic_coin', { k: 'gold', it: reward }); }
     else { G.S.eggs += 1; G.UI.toast(esc(t('tu_reward', '1 ' + t('eggs').toLowerCase())), 'ach', 'ic_egg'); }
     S.tut = i + 1;
     while (active() && STEPS[S.tut].skip && STEPS[S.tut].skip(S)) S.tut++;
@@ -214,6 +217,9 @@
     if (G.Audio) G.Audio.achievement();
   }
 
+  // (3.6: the arrow's target is looked up four times a second, not on every update: each look reads the layout)
+  let pointT = 0, pointK = '';
+  const pointDue = () => { const now = performance.now(); if (lastKey !== pointK || now - pointT >= 240) { pointK = lastKey; pointT = now; return true; } return false; };
   // Called ~8 times a second from UI.update
   Tut.update = function () {
     const S = G.S;
@@ -221,7 +227,7 @@
     const inTown = !!(G.R && G.R.town);
     if (inTown) {
       const st = active() && STEPS[S.tut];
-      if (st && !st.town) { render(st.id + ':town', t('tu_toField') + ' ' + t(val(st.text, S)), t('tu_step', S.tut + 1, STEPS.length), st.manual); point(P.el('#btnTown')); return; }
+      if (st && !st.town) { render(st.id + ':town', t('tu_toField') + ' ' + t(val(st.text, S)), t('tu_step', S.tut + 1, STEPS.length), st.manual); if (pointDue()) point(P.el('#btnTown')); return; }
       if (!st && tip && !TOWN_TIPS[tip.id]) { tip = null; hide(); return; }
     }
     const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
@@ -234,10 +240,11 @@
     }
     if (!S.hero || !S.hero.cls) { hide(); return; }
     // tips for things that come and go (a Hoarder, loot, a shrine, a boss move) may cut into the tutorial
+    if (tip && G.R.boss && !BOSS_TIPS[tip.id]) { tip = null; hide(); }
     if (tip) {
       tipT -= 0.12;
       if (tipT <= 0 || (tip.until && tip.until(S))) { finishTip(); return; }
-      point(tip.point ? tip.point() : null);
+      if (pointDue()) point(tip.point ? tip.point() : null);
       return;
     }
     if (active()) {
@@ -245,21 +252,23 @@
       if (stepAt.i !== S.tut) { stepAt.i = S.tut; stepAt.t = performance.now(); }
       const target = val(st.point, S);
       const inPanel = !!(target && target.el && target.el.closest('#panel'));
-      const ev = !inPanel && S.tut >= 3 && TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && tp.when(S));
+      const ev = !inPanel && S.tut >= 3 && TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && (!G.R.boss || BOSS_TIPS[tp.id]) && tp.when(S));
       if (ev) { showTip(ev); return; }
       if (st.skip && st.skip(S)) { S.tut++; if (!active()) S.tut = -1; return; }
       // a step that finishes on its own still stays up long enough to be read
       if (st.done && st.done(S) && performance.now() - stepAt.t > (st.minT || 3500)) { complete(); return; }
       render(st.id, t(val(st.text, S)), t('tu_step', S.tut + 1, STEPS.length), st.manual);
-      point(val(st.point, S));
+      if (pointDue()) point(val(st.point, S));
       return;
     }
     if (G.Stage.busyCelebrating && G.Stage.busyCelebrating()) return; // don't talk over a big drop
     // the wall tip comes back for each new wall
     if (S.scar && S.scar.n >= 3 && seen().tips.wall && seen().wallD !== S.scar.d) { delete seen().tips.wall; seen().wallD = S.scar.d; }
-    const rest = performance.now() < nextTipAt;
+    // (a big moment or a title card on the field: the tips that can wait, wait)
+    const rest = performance.now() < nextTipAt || quiet() || !!(G.Stage.cardBusy && G.Stage.cardBusy());
     for (const tp of TIPS) {
       if (seen().tips[tp.id] || (inTown && !TOWN_TIPS[tp.id])) continue;
+      if (G.R.boss && !BOSS_TIPS[tp.id]) continue;
       // tips about something on screen right now can't wait; the rest keep their distance
       if (rest && !EVENT_TIPS[tp.id]) continue;
       if (tp.when(S)) { showTip(tp); return; }
@@ -292,36 +301,69 @@
           <div class="acts">${manual ? `<button class="btn gold" data-ok>${esc(t('tu_ok'))}</button>` : ''}${active() ? `<button class="linkBtn" data-skip>${esc(t('tu_skip'))}</button>` : ''}</div></div>`;
       c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
     }
+    const was = c.hidden;
     c.hidden = false;
-    place();
+    place(was || lastKey === k && performance.now() - shownT < 50);
   }
-  // The bubble sits above the meters by default and moves out of the way when
-  // the pointer's target would be underneath it (small screens, top-of-stage targets).
-  let aim = null, placedY = null, aimEl = null;
-  function place() {
+  // The bubble sits above the meters by default and moves out of the way of what it points at, the Button (and the
+  // party or the boss at it), the boss's bar, the toasts, the hold plate, a banner or a champion's card, and on a
+  // desktop the level-up cards (3.6: on a wide field it docks to a side, not the middle; narrower on a phone).
+  let aim = null, placedY = null, placedX = null, aimEl = null;
+  function rectOf(sel) {
+    const e = typeof sel === 'string' ? $(sel) : sel;
+    if (!e || e.hidden || (e.offsetParent === null && getComputedStyle(e).position !== 'fixed')) return null;
+    const r = e.getBoundingClientRect(); return r.width && r.height ? r : null;
+  }
+  // the boss's bar on the canvas: centred under whatever HUD box is over it (as js/stage.js lays it out)
+  function bossBand(r) {
+    const bb = G.R.boss && G.UI.bossBarRect ? G.UI.bossBarRect() : null;
+    return bb ? { left: bb.left - 6, right: bb.right + 6, top: r.top, bottom: bb.bottom } : null;
+  }
+  let placeT = 0;
+  function place(force) {
     const c = $('#coach'), w = $('#stageWrap');
     if (!c || c.hidden || !w) return;
-    const r = w.getBoundingClientRect();
-    const width = Math.min(r.width - 20, 460);
-    c.style.width = width + 'px';
-    c.style.left = (r.left + (r.width - width) / 2) + 'px';
+    // (it reads the page's layout: a few times a second is plenty, unless what it says just changed)
+    const now = performance.now();
+    if (!force && now - placeT < 300) return;
+    placeT = now;
+    const r = w.getBoundingClientRect(), wide = r.width >= 700;
+    const width = Math.round(wide ? Math.min(r.width - 20, 400) : Math.min(r.width - 12, 360));
+    if (c._w !== width) { c._w = width; c.style.width = width + 'px'; }
     const meters = document.querySelector('.hud.bottom');
     const bottom = meters ? meters.getBoundingClientRect().top : r.bottom;
     const h = c.offsetHeight;
-    const spots = [Math.max(r.top + 50, bottom - h - 10), r.top + 50, window.innerHeight - h - 10];
-    // keep off what is being pointed at, and off the Button and its boss skull where the player keeps tapping
-    const bp = G.Stage.buttonPoint(), sc = G.Stage.toScreen(1, 0).x - G.Stage.toScreen(0, 0).x;
-    const btn = { top: bp.y - 30 * sc, bottom: bp.y + 40 * sc };
-    const off = (a, y) => !a || y >= a.bottom || y + h <= a.top;
-    const clear = y => off(aim, y) && off(btn, y);
-    let y = placedY !== null && spots.includes(placedY) && clear(placedY) ? placedY : spots.find(clear);
-    if (y === undefined) y = spots.find(y2 => off(aim, y2));
+    let top = r.top + 50;
+    for (const sel of ['.hud.top .realm', '.hud.top .hudBtns']) { const q = rectOf(sel); if (q) top = Math.max(top, q.bottom + 6); }
+    const band = bossBand(r);
+    if (band) top = Math.max(top, band.bottom + 4);
+    // (a phone's field is small: the bubble would rather sit over the panel below it than on the field's top)
+    const low = window.innerHeight - h - 10;
+    const ys = wide ? [Math.max(top, bottom - h - 10), top, low] : [Math.max(top, bottom - h - 10), low, top];
+    const xs = wide ? [r.left + 10, r.right - width - 10, r.left + (r.width - width) / 2] : [r.left + (r.width - width) / 2];
+    // what it keeps off: the target, the Button where the player keeps tapping, and whatever else is up
+    const bp = G.UI.btnRect ? G.UI.btnRect(8) : null;
+    const avoid = [bp, band];
+    const ts = $('#toasts'); if (ts && ts.children.length) avoid.push(rectOf(ts));
+    const hp = document.querySelector('#holdPlate:not(.away) .hpIn'); if (hp) avoid.push(hp.getBoundingClientRect());
+    const bn = $('#banner'); if (bn && !bn.hidden && bn.firstElementChild) avoid.push(bn.firstElementChild.getBoundingClientRect());
+    avoid.push(rectOf('#champCard'));
+    if (G.UI.cardRect) avoid.push(G.UI.cardRect());
+    if (wide) avoid.push(rectOf('#perks'));
+    const hit = (a, x, y) => !!a && x < a.right && x + width > a.left && y < a.bottom && y + h > a.top;
+    const clear = (x, y) => !hit(aim, x, y) && !avoid.some(a => hit(a, x, y));
     // what it points at is in the panel: keep the panel clear, even if the bubble has to cover part of the stage
-    if (aimEl && aimEl.closest('#panel') && y === spots[2]) y = spots.slice(0, 2).find(y2 => off(btn, y2)) || spots[0];
-    if (y === undefined) y = spots[0];
-    if (y !== placedY) shownT = performance.now();
-    placedY = y;
-    c.style.top = y + 'px';
+    const panelAim = !!(aimEl && aimEl.closest('#panel'));
+    const cand = [];
+    ys.forEach(y => { if (!(panelAim && y === low)) xs.forEach(x => cand.push([x, y])); });
+    let best = placedX !== null && cand.find(([x, y]) => x === placedX && y === placedY && clear(x, y));
+    if (!best) best = cand.find(([x, y]) => clear(x, y));
+    if (!best) best = cand.find(([x, y]) => !hit(aim, x, y) && !hit(bp, x, y));
+    if (!best) best = cand[0];
+    const [x, y] = best;
+    if (y !== placedY || x !== placedX) shownT = performance.now();
+    placedY = y; placedX = x;
+    c.style.left = Math.round(x) + 'px'; c.style.top = Math.round(y) + 'px';
   }
   function point(p) {
     const el = $('#pointer');
@@ -344,7 +386,7 @@
     place();
   }
   function hidePointer() { const el = $('#pointer'); if (el) el.hidden = true; if (lastHl) { lastHl.classList.remove('tut-hl'); lastHl = null; } }
-  function hide() { const c = $('#coach'); if (c) c.hidden = true; lastKey = ''; placedY = null; aim = null; hidePointer(); }
+  function hide() { const c = $('#coach'); if (c) c.hidden = true; lastKey = ''; placedY = null; placedX = null; aim = null; hidePointer(); }
 
   // ---------- Intro ----------
   // slide 2: the Horde closes in on the Button from both sides, wave after wave, and the Button flinches at every blow
@@ -425,7 +467,7 @@
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_town', 17], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14], ['ic_coin', 18], [G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', 19], ['ic_clock', 20], ['ic_gear', 21]];
+    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_town', 17], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14], [G.SPR.defs.cs_bubble ? 'cs_bubble' : 'ic_coin', 18], [G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', 19], ['ic_clock', 20], ['ic_gear', 21]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
       <div class="helpRow"><span></span><div><b>${esc(t('help_bars'))}</b><div class="helpBars">${[['ic_skull', 'tipClear'], ['ic_heart', 'tipHp'], ['ic_chest', 'tipChest'], ['ic_coin', 'tipCombo']].map(([ic, k]) => `<p>${img(ic, 2)} ${esc(t(k))}</p>`).join('')}</div></div></div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;

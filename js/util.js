@@ -78,8 +78,10 @@
 
   G.useSeed = seed => { G.rng = seed == null ? Math.random : seeded(seed); };
 
+  // (3.6: today's key is worked out at most once a second; the daily bounty asks for it on every kill)
+  let todayAt = -1, todayK = '';
   function todayKey(d) {
-    d = d || new Date();
+    if (!d) { const now = Date.now(), sec = Math.floor(now / 1000); if (sec === todayAt && todayK) return todayK; todayAt = sec; d = new Date(now); return (todayK = todayKey(d)); }
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
   // The shared day, the same for friends in every time zone (omens, today's Rift board)

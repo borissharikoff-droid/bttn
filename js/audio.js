@@ -32,8 +32,10 @@
     if (last[key] && now - last[key] < ms) return false;
     last[key] = now; return true;
   }
+  // 3.6: no sound nodes at all for a muted bus or a hidden tab (they were made and played into silence)
+  const quiet = bus => { const s = G.S && G.S.set; if (!s || !(s.vol > 0) || (typeof document !== 'undefined' && document.hidden)) return true; return bus === musicBus ? !s.music : !s.sound; };
   function tone(freq, dur, type, vol, when, slide, bus) {
-    if (!ac) return;
+    if (!ac || quiet(bus || sfxBus)) return;
     const t = ac.currentTime + (when || 0);
     const o = ac.createOscillator(), g = ac.createGain();
     o.type = type || 'square';
@@ -53,7 +55,7 @@
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   }
   function noise(dur, vol, when, hp) {
-    if (!ac) return;
+    if (!ac || quiet(sfxBus)) return;
     ensureNoise();
     const t = ac.currentTime + (when || 0);
     const s = ac.createBufferSource(); s.buffer = noiseBuf;
@@ -65,7 +67,7 @@
   }
   // Low-passed noise: the body of a crunch
   function thud(dur, vol, when, lp) {
-    if (!ac) return;
+    if (!ac || quiet(sfxBus)) return;
     ensureNoise();
     const t = ac.currentTime + (when || 0);
     const s = ac.createBufferSource(); s.buffer = noiseBuf;

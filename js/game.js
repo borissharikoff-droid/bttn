@@ -107,9 +107,11 @@
   const ptime = () => (G.S && G.S.st && G.S.st.playTime) || 0;
   function dirSt() {
     let d = R.dir;
-    if (!d || d.S !== G.S) d = R.dir = { S: G.S, last: -1e9, kind: null, until: -1e9, bossEnd: -1e9, hold: -1e9, small: -1e9 };
+    if (!d || d.S !== G.S) d = R.dir = { S: G.S, last: -1e9, kind: null, act: {}, bossEnd: -1e9, hold: -1e9, small: -1e9 };
     return d;
   }
+  // until when a big moment is still on: the latest end of those running (each kind ends on its own)
+  function dirUntil(d) { let u = -1e9; for (const k in d.act) if (d.act[k] > u) u = d.act[k]; return u; }
   G.director = {
     can(kind, prio) {
       const S = G.S, d = dirSt(), t = ptime();
@@ -117,7 +119,7 @@
       if (!S || !S.hero || !S.hero.cls || R.boss || R.march || R.town || R.rift || R.cine > 0 || (G.uiBusy && G.uiBusy())) return false;
       // nothing big while the tutorial shows the ropes (its own moments don't ask)
       if (G.Tut && S.tut >= 0) return false;
-      if (t < d.hold || t < d.until) return false;
+      if (t < d.hold || t < dirUntil(d)) return false;
       if (prio <= 0) return t - d.bossEnd >= TUNE.dirAfterBoss * 0.5 && t - Math.max(d.small, d.last) >= TUNE.dirSmallGap;
       if (t - d.bossEnd < TUNE.dirAfterBoss) return false;
       return prio >= 2 || t - d.last >= TUNE.dirGap;
@@ -125,14 +127,14 @@
     mark(kind, secs) {
       const d = dirSt(), t = ptime();
       if (kind === 'small') { d.small = t; return; }
-      d.last = t; d.kind = kind; d.until = Math.max(d.until, t + Math.max(0, secs || 0));
+      d.last = t; d.kind = kind; d.act[kind] = Math.max(d.act[kind] || -1e9, t + Math.max(0, secs || 0));
       emit('moment', kind, secs || 0);
     },
-    end(kind) { const d = dirSt(); if (!kind || d.kind === kind) d.until = Math.min(d.until, ptime()); },
-    quiet() { return !!R.boss || ptime() < dirSt().until; },
+    end(kind) { const d = dirSt(); if (kind) delete d.act[kind]; else d.act = {}; },
+    quiet() { return !!R.boss || ptime() < dirUntil(dirSt()); },
     hold(secs) { const d = dirSt(); d.hold = Math.max(d.hold, ptime() + (secs || 0)); },
     // what it knows, for tests and the curious
-    state() { const d = dirSt(), t = ptime(); return { kind: d.kind, sinceLast: t - d.last, left: Math.max(0, d.until - t), sinceBoss: t - d.bossEnd, held: Math.max(0, d.hold - t) }; },
+    state() { const d = dirSt(), t = ptime(); return { kind: d.kind, sinceLast: t - d.last, sinceSmall: t - d.small, left: Math.max(0, dirUntil(d) - t), sinceBoss: t - d.bossEnd, held: Math.max(0, d.hold - t) }; },
   };
   const dirBossEnd = () => { dirSt().bossEnd = ptime(); };
   ['bossWin', 'bossFail', 'marchEnd', 'riftEnd'].forEach(k => G.on(k, dirBossEnd));

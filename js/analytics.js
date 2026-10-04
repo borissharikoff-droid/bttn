@@ -109,7 +109,9 @@
   setInterval(() => {
     if (document.hidden) return;
     const s = S();
-    ev('hb', { pt: Math.round((s.st && s.st.playTime) || 0), d: s.depth || 0, l: (s.hero && s.hero.lvl) || 0, p: (s.party || []).length, tn: G.R && G.R.town ? 1 : 0 });
+    // (3.6: and how smooth it runs for them: the frame rate and the quality tier the game settled on)
+    const Q = G.Quality;
+    ev('hb', { pt: Math.round((s.st && s.st.playTime) || 0), d: s.depth || 0, l: (s.hero && s.hero.lvl) || 0, p: (s.party || []).length, tn: G.R && G.R.town ? 1 : 0, fps: Q ? Q.fps | 0 : undefined, q: Q ? Q.tier : undefined, fx: s.set && s.set.lowfx ? 1 : 0 });
   }, 30000);
   // errors (to fix what breaks for real players)
   let errN = 0;

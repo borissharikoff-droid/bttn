@@ -13,13 +13,13 @@
     groundMax: 60,
     // seconds on the ground before the Warden gathers it
     lingerOrb: 1.2, lingerGear: 2.6, lingerGood: 4.5, lingerUnique: 7,
-    dropBrute: 0.12, dropMagic: 0.55, dropFodder: 0.0011, orbShare: 0.03,
+    dropBrute: 0.12, dropMagic: 0.55, dropFodder: 0.0011, orbShare: 0.033, // (3.6: orbs a tenth more, for the Lucky Spin's gems)
     hoardEvery: 150, hoardFirst: 40, hoardLife: 16,
     shrineEvery: 170, shrineFirst: 100, shrineLife: 12, shrineDur: 15,
     breachEvery: 300, breachFirst: 240, breachDur: 12, breachRate: 2.5,
     // (3.6: the invasion clock now runs on through new runs, and a due invasion comes in the next free window of the
     // pacing director, ahead of a sudden event: about one every 6-8 minutes of play)
-    invEvery: 360, invFirst: 240, invTime: 90, invNeed: 90, invBoss: 30, invFocus: 20, invBossTime: 40,
+    invEvery: 300, invFirst: 200, invTime: 90, invNeed: 90, invBoss: 30, invFocus: 20, invBossTime: 40,
     // the JACKPOT: odds per kill and per real chest, climbing by one each hour since the last; its gold in seconds of income
     jpKill: 5e-7, jpChest: 1.2e-5, jpGold: 3000,
     riftTime: 90, riftNeed: 40, riftGuard: 60,
@@ -34,7 +34,9 @@
   const shrineOn = k => !!(R.shr && R.shr.t > 0 && R.shr.k === k);
 
   // The land the Horde is fighting in: the campaign's, or the Rift's
-  G.landNow = () => G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)];
+  // (3.6: kept until the depth changes: it is asked on every kill)
+  let landD = -1, landV = null;
+  G.landNow = () => { const d = G.depthNow ? G.depthNow() : G.S.depth; if (d !== landD || !landV) { landD = d; landV = G.REALMS[G.realmIndex(d)]; } return landV; };
 
   // Everything that raises how much the Horde drops
   function lootMult() {
@@ -174,7 +176,9 @@
     if (m.kind === 'magic' && !S.st.firstMagic) { S.st.firstMagic = 1; return drop('gear', G.pickItem(3, true), m); }
     // everything else drops by its weight: a brute's worth of fodder drops about what a brute does
     // fodder: a pack drops what it did before 2.1, however many more bodies it now comes in
-    let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder / ((G.TUNE.packMul || 1) * m.w / G.MOB_KINDS.fodder.w) : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
+    // (3.6: a heavier small one, standing for m.ck of the bodies it was balanced at, drops for all of them)
+    const ck = m.ck || 1;
+    let p = m.kind === 'magic' ? TUNE.dropMagic : m.kind === 'fodder' ? TUNE.dropFodder * ck / ((G.TUNE.packMul || 1) * m.w / ck / G.MOB_KINDS.fodder.w) : TUNE.dropBrute * ((G.MOB_KINDS[m.kind] || {}).w || 1);
     p *= k * (G.torment ? G.torment().drop : 1);
     if (h.kills < 60 && !S.st.firstRare && chance(0.08)) { S.st.firstRare = 1; return drop('gear', G.pickItem(2, true), m); }
     let e = null;
@@ -241,8 +245,11 @@
   G.on('classChosen', () => {
     const S = S_();
     if (S.hero.kills || S.depth || R.mobs.length) return;
-    for (let i = 0; i < 36; i++) G.makeMob('fodder', 0.32 + i * 0.01 + rand(-0.015, 0.015), rand(0.45, 0.68));
-    for (let i = 0; i < 24; i++) G.makeMob('fodder', 0.72 + i * 0.007 + rand(-0.01, 0.01), rand(0.25, 0.45));
+    // (3.6: in the bodies the opening field holds: fewer, a little heavier)
+    if (G.crowdUpdate) G.crowdUpdate();
+    const cn = n => (G.crowdN ? G.crowdN(n) : n), n1 = cn(36), n2 = cn(24);
+    for (let i = 0; i < n1; i++) G.makeMob('fodder', 0.32 + i * 0.36 / n1 + rand(-0.015, 0.015), rand(0.45, 0.68));
+    for (let i = 0; i < n2; i++) G.makeMob('fodder', 0.72 + i * 0.17 / n2 + rand(-0.01, 0.01), rand(0.25, 0.45));
     G.makeMob('brute', 0.5, 0.4);
     R.hordeAcc = 1;
   });
@@ -262,10 +269,10 @@
     G.recalc(); G.dirty();
     emit('landStar', i, bit, G.starCount());
   }
-  G.landKill = function () {
+  G.landKill = function (m, n) {
     if (R.rift) return; // a Rift's Horde is its own
     const i = G.realmIndex(S_().depth), r = landRec(i);
-    r.k++;
+    r.k += n || 1;
     if (!(r.s & 2) && r.k >= G.STAR_KILLS(i)) star(i, 2);
   };
   G.on('bossWin', (rew, b) => {

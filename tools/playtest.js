@@ -134,6 +134,9 @@ function run(name, seed, minutes) {
         else if (low) G.usePower('mend');
         else if (b && !(b.inv > 0)) G.usePower('smite');
       }
+      // PT_TUT=1: the tutorial ends 15 s after the first boss falls, as for a real player (sudden events, falls and
+      // run blessings then happen too); without it the bots stay in the tutorial's shelter, as the numbers in GDD.md assume
+      if (process.env.PT_TUT && s.tut >= 0 && first.boss != null && t - first.boss >= 15) { s.tut = -1; if (!s.bless && G.blessOffer) G.blessOffer(); }
       G.tick(dt);
       if (Math.round(t / dt) % 5 === 0) { crowd.push(G.R.mobs.length); chests.field.push(G.S.chests.length); press.n++; const hf = s.hero.hp / Math.max(1, G.D.heroHp); if (hf < 0.5) press.low++; if (hf < 0.2) press.crit++; if (G.R.boss) press.boss++; if (!G.R.boss && !G.R.town) { press.fn = (press.fn || 0) + 1; if (G.R.mobs.some(m => m.p >= 0.97)) press.reach = (press.reach || 0) + 1; (press.might = press.might || []).push(G.mightRatio()); } }
       // events: tap the shrine, chase the Hoarder

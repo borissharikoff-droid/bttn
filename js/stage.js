@@ -42,11 +42,15 @@
   // holds it at 2 or lighter. Other code may read it (guarded) to scale optional effects.
   const PHONE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
   const TIERS = [
-    { particles: 1, maxP: 700, maxG: 650, chunks: 5, gore: 60, decals: 1, mobCap: 1100, shadows: 2, glows: 2, pfxCap: 180, pfxQ: 1, fxDpr: 2, text: 2 },
-    { particles: 0.75, maxP: 520, maxG: 460, chunks: 4, gore: 40, decals: 1, mobCap: 800, shadows: 1, glows: 2, pfxCap: 140, pfxQ: 0.85, fxDpr: 2, text: 2 },
-    { particles: 0.5, maxP: 340, maxG: 300, chunks: 2, gore: 24, decals: 0.5, mobCap: 560, shadows: 1, glows: 1, pfxCap: 100, pfxQ: 0.6, fxDpr: 1, text: 1 },
-    { particles: 0.3, maxP: 220, maxG: 170, chunks: 1, gore: 12, decals: 0.25, mobCap: 380, shadows: 0, glows: 0, pfxCap: 70, pfxQ: 0.4, fxDpr: 1, text: 1 },
+    { particles: 1, maxP: 700, maxG: 650, chunks: 5, gore: 60, decals: 1, mobCap: 1100, shadows: 2, glows: 2, pfxCap: 180, pfxQ: 1, fxDpr: 2, text: 2, rings: 40 },
+    { particles: 0.75, maxP: 520, maxG: 460, chunks: 4, gore: 40, decals: 1, mobCap: 800, shadows: 1, glows: 2, pfxCap: 140, pfxQ: 0.85, fxDpr: 2, text: 1.5, rings: 30 },
+    { particles: 0.5, maxP: 340, maxG: 300, chunks: 2, gore: 24, decals: 0.5, mobCap: 560, shadows: 1, glows: 1, pfxCap: 100, pfxQ: 0.6, fxDpr: 1, text: 1, rings: 22 },
+    { particles: 0.3, maxP: 140, maxG: 100, chunks: 1, gore: 12, decals: 0.25, mobCap: 380, shadows: 0, glows: 0, pfxCap: 70, pfxQ: 0.4, fxDpr: 1, text: 1, rings: 14 },
   ];
+  // (a phone's field is a third of a desktop's: it draws fewer of the far small fry)
+  if (PHONE) { const cap = [800, 600, 420, 250]; TIERS.forEach((t, i) => { t.mobCap = cap[i]; }); }
+  // the share of the crowd the game may field at each tier (js/hero.js may scale its body count by it; weight is kept)
+  [1, 0.9, 0.78, 0.65].forEach((k, i) => { TIERS[i].crowd = k; });
   const Q = G.Quality = Object.assign({ tier: PHONE ? 1 : 0, auto: true, phone: PHONE, fps: 60, work: 0, debug: false, textCap: PHONE ? 14 : 25, dmgCap: PHONE ? 5 : 8 }, TIERS[PHONE ? 1 : 0]);
   const qs = { d: new Float32Array(240), w: new Float32Array(240), t: new Float64Array(240), n: 0, i: 0, warm: 2.5, last: -99, good: 0, downs: [], lockUp: 0, clock: 0 };
   function applyTier(t, why) {
@@ -63,6 +67,9 @@
   // one sample per frame: the time since the last frame and the script work in it (ms)
   Q.sample = function (dms, wms, skip) {
     const now = (qs.clock += dms / 1000);
+    // Settings → Reduce effects holds the tier at 2 or lighter (and lets go of the hold when it is turned off)
+    const lf = !!(G.S && G.S.set && G.S.set.lowfx);
+    if (lf !== qs.lf) { const was = qs.lf; qs.lf = lf; if (was !== undefined || lf) applyTier(lf ? Math.max(2, Q.tier) : Q.tier, 'lowfx'); }
     if (skip || !Q.auto || typeof document !== 'undefined' && document.hidden) { qs.warm = Math.max(qs.warm, 0.6); return; }
     if (qs.warm > 0) { qs.warm -= dms / 1000; return; }
     qs.d[qs.i] = Math.min(dms, 250); qs.w[qs.i] = wms; qs.t[qs.i] = now; qs.i = (qs.i + 1) % 240; if (qs.n < 240) qs.n++;
@@ -73,22 +80,36 @@
     if (ds.length < 8) return;
     qs.last = now;
     ds.sort((a, b) => a - b); ws.sort((a, b) => a - b);
-    const d50 = ds[ds.length >> 1], d90 = ds[Math.floor(ds.length * 0.9)], w50 = ws[ws.length >> 1];
-    Q.fps = Math.round(1000 / Math.max(1, d50)); Q.work = Math.round(w50 * 10) / 10;
+    const d50 = ds[ds.length >> 1], d90 = ds[Math.floor(ds.length * 0.9)], d95 = ds[Math.floor(ds.length * 0.95)], w50 = ws[ws.length >> 1];
+    let dm = 0; for (let k = 0; k < ds.length; k++) dm += ds[k]; dm /= ds.length;
+    Q.fps = Math.round(1000 / Math.max(1, dm)); Q.work = Math.round(w50 * 10) / 10;
     const since = now - (Q._at || -99);
-    const slow = (d50 > 22 && w50 > 3) || w50 > 12 || (d90 > 45 && w50 > 4);
-    const fine = d50 < 17.9 && d90 < 24 && w50 < 6;
+    // slow: under ~47 frames a second with real work in them (a display stuck at 30 Hz with no work is left alone)
+    // (or one frame in twenty or more missing its turn: a stutter)
+    const slow = (dm > 21 && w50 > 3) || w50 > 12 || (d90 > 45 && w50 > 4) || (d95 > 30 && dm > 17.4 && w50 > 2);
+    const fine = dm < 17.4 && d95 < 24 && w50 < 6;
     qs.good = fine ? qs.good + 1 : 0;
-    if (slow && Q.tier < 3 && since >= 4) {
+    if (slow && Q.tier < 3 && since >= (dm > 30 ? 2 : 4)) {
+      // a step back down soon after a step up: wait twice as long before the next step up
+      if (qs.upAt != null && now - qs.upAt < 30) qs.upNeed = Math.min(300, (qs.upNeed || 15) * 2);
       Q._at = now; qs.downs = qs.downs.filter(x => now - x < 60); qs.downs.push(now);
       if (qs.downs.length >= 3) qs.lockUp = now + 120;
       applyTier(Q.tier + 1, 'slow');
-    } else if (qs.good >= 8 && Q.tier > (G.S && G.S.set && G.S.set.lowfx ? 2 : 0) && since >= 8 && now > qs.lockUp) {
-      Q._at = now; qs.good = 0; applyTier(Q.tier - 1, 'fast');
+    } else if (qs.good >= (qs.upNeed || 15) && Q.tier > (G.S && G.S.set && G.S.set.lowfx ? 2 : 0) && since >= 20 && now > qs.lockUp) {
+      Q._at = now; qs.good = 0; qs.upAt = now; applyTier(Q.tier - 1, 'fast');
     }
   };
   // the text layer's pixel ratio: the screen's on the full tiers, 1 on the light ones
-  function textDpr() { const d = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1); return Q.text >= 2 ? d : 1; }
+  // (tier 1 keeps it on a small screen, but a big sharp one (a retina laptop: 6 MP and more) goes to 1:
+  // Press Start 2P is a pixel font, so at 1 it is the same letters a step coarser)
+  function textDpr() {
+    const d = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1);
+    if (Q.text >= 2) return d;
+    if (Q.text > 1 && cv) { const r = cv.parentElement.getBoundingClientRect(); if (r.width * r.height * d * d <= 3e6) return d; }
+    return 1;
+  }
+  // the fx overlays' ratio: never above 1 on a big sharp screen (their pixels are big anyway)
+  Q.fxRatio = (w, h) => { const d = Math.min(Q.fxDpr || 1, (typeof window !== 'undefined' && window.devicePixelRatio) || 1); return w * h * d * d > 2.5e6 ? 1 : d; };
 
   // ---------- 3.6: one frame loop (main.js) and the hooks the fx files hang on it ----------
   // St.onFrame(fn): fn(dt, now) is called every frame after the stage is drawn; it returns nothing.
@@ -97,14 +118,21 @@
   St.runFrameFns = (dt, now) => { for (let i = 0; i < frameFns.length; i++) { try { frameFns[i](dt, now); } catch (e) { if ((frameFns[i]._err = (frameFns[i]._err || 0) + 1) < 3) console.error(e); } } };
 
   // ---------- 3.6: the stage's place on the screen, cached (no layout reads every frame) ----------
-  let rectC = null, rectT = -1, wrapC = null;
+  // (read in St.readLayout at the start of a frame, before anything writes to the page, so it never forces a layout)
+  let rectC = null, rectT = -1, wrapC = null, layT = -9;
   function stageRect() {
-    if (!rectC || time - rectT > 0.5 || time < rectT) { rectC = cv.getBoundingClientRect(); rectT = time; }
+    if (!rectC) { rectC = cv.getBoundingClientRect(); rectT = time; }
     return rectC;
   }
   St.rect = () => (cv ? stageRect() : null);
-  St.wrapRect = () => { if (!cv) return null; if (!wrapC || time - rectT > 0.5) { wrapC = cv.parentElement.getBoundingClientRect(); stageRect(); } return wrapC; };
-  St.invalidateRect = () => { rectC = null; wrapC = null; };
+  St.wrapRect = () => { if (!cv) return null; if (!wrapC) wrapC = cv.parentElement.getBoundingClientRect(); return wrapC; };
+  St.invalidateRect = () => { rectC = null; wrapC = null; layT = -9; };
+  St.readLayout = function () {
+    if (!cv || (time - layT < 0.5 && time >= layT)) return;
+    layT = time;
+    rectC = cv.getBoundingClientRect(); rectT = time; wrapC = cv.parentElement.getBoundingClientRect();
+    readHud();
+  };
 
   const STAGE_CSS = `
 #stagePx { position: absolute; left: 0; top: 0; max-width: none; pointer-events: none; image-rendering: pixelated; transform-origin: 0 0; }
@@ -142,7 +170,7 @@
     // (2.4: a wider shot: the field shows about twice the ground it did, so the Horde has room to come from far off)
     S = clamp(Math.floor(Math.min(cw / 420, ch / 310) / step) * step, DPR >= 2 ? 1.5 : 2, 6);
     W = Math.ceil(cw / S); H = Math.ceil(ch / S);
-    cv.width = Math.round(cw * TDPR); cv.height = Math.round(ch * TDPR);
+    cv.width = Math.round(cw * TDPR); cv.height = Math.round(ch * TDPR); tFontStr = ''; tState = {};
     cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
     low.width = W; low.height = H;
     if (low.style) { low.style.width = W * S + 'px'; low.style.height = H * S + 'px'; }
@@ -165,7 +193,7 @@
   // Every draw on it goes through these wrappers, which note a device-pixel box; the next frame clears
   // just those boxes (or all of it when they add up to a lot).
   let dirty = new Float32Array(1600), dirtyNext = new Float32Array(1600), dirtyN = 0, dirtyNextN = 0, dirtyAll = true, dirtyArea = 0;
-  let tK = 1, tOX = 0, tOY = 0, tFont = 8;
+  let tK = 1, tOX = 0, tOY = 0, tFont = 8, tFontStr = '', tState = {};
   function markDev(x0, y0, x1, y1) {
     if (dirtyAll) return;
     x0 = Math.floor(x0) - 2; y0 = Math.floor(y0) - 2; x1 = Math.ceil(x1) + 2; y1 = Math.ceil(y1) + 2;
@@ -182,30 +210,107 @@
   function mark(x0, y0, x1, y1) { markDev(x0 * tK + tOX, y0 * tK + tOY, x1 * tK + tOX, y1 * tK + tOY); }
   St._mark = mark;
   function markText(s, x, y) {
-    const len = s.length, f = tFont, pad = (ctx.lineWidth || 1) + 1;
-    const w = len * f * 1.06 + pad * 2, al = ctx.textAlign, bl = ctx.textBaseline;
+    const lw = tState.lineWidth !== undefined ? tState.lineWidth : ctx.lineWidth;
+    const len = s.length, f = tFont, pad = (lw || 1) + 1;
+    const w = len * f * 1.06 + pad * 2, al = tState.textAlign !== undefined ? tState.textAlign : ctx.textAlign, bl = tState.textBaseline !== undefined ? tState.textBaseline : ctx.textBaseline;
     const xa = al === 'center' ? x - w / 2 : al === 'right' || al === 'end' ? x - w : x - pad;
     const ya = bl === 'middle' ? y - f * 0.75 - pad : bl === 'top' || bl === 'hanging' ? y - pad : bl === 'bottom' || bl === 'ideographic' ? y - f * 1.3 - pad : y - f * 1.15 - pad;
     mark(xa, ya, xa + w, ya + f * 1.5 + pad * 2);
   }
+  // 3.6: an outlined text (a strokeText and then the fillText of the same words at the same spot, the pattern
+  // every text on this layer uses) is drawn once into a small canvas and stamped from then on: stroking glyphs
+  // is the costliest thing this layer did. The wrappers hold a stroke back until they see its fill.
+  const txtCache = new Map();
+  let txtArea = 0, txtScratch = null, txtSeen = new Set(), txtSeenPrev = new Set();
   function wrapTextCtx(c) {
     const P = CanvasRenderingContext2D.prototype;
     const fontD = Object.getOwnPropertyDescriptor(P, 'font');
-    c.setTransform = function (a, b, cc, d, e, f) { tK = a; tOX = e; tOY = f; return P.setTransform.call(this, a, b, cc, d, e, f); };
-    if (fontD) Object.defineProperty(c, 'font', { configurable: true, get() { return fontD.get.call(this); }, set(v) { const n = parseFloat(v); if (n > 0) tFont = n; fontD.set.call(this, v); } });
-    c.fillText = function (s, x, y, mw) { s = String(s); markText(s, x, y); return arguments.length > 3 ? P.fillText.call(this, s, x, y, mw) : P.fillText.call(this, s, x, y); };
-    c.strokeText = function (s, x, y, mw) { s = String(s); markText(s, x, y); return arguments.length > 3 ? P.strokeText.call(this, s, x, y, mw) : P.strokeText.call(this, s, x, y); };
-    c.fillRect = function (x, y, w, h) { mark(Math.min(x, x + w), Math.min(y, y + h), Math.max(x, x + w), Math.max(y, y + h)); return P.fillRect.call(this, x, y, w, h); };
-    c.strokeRect = function (x, y, w, h) { const p = (this.lineWidth || 1); mark(x - p, y - p, x + w + p, y + h + p); return P.strokeRect.call(this, x, y, w, h); };
+    const desc = {};
+    let pend = null, xf = 0;
+    const xfStack = [];
+    const cur = k => (tState[k] !== undefined ? tState[k] : desc[k] ? desc[k].get.call(c) : c[k]);
+    function flush() { if (!pend) return; const p = pend; pend = null; markText(p[0], p[1], p[2]); P.strokeText.call(c, p[0], p[1], p[2]); }
+    c._flush = flush;
+    function sprite(s, x, y) {
+      const fill = cur('fillStyle');
+      if (typeof fill !== 'string' || fill.charCodeAt(0) !== 35) return false;
+      const k = tK, lw = cur('lineWidth'), sst = cur('strokeStyle'), al = cur('textAlign'), bl = cur('textBaseline'), lj = cur('lineJoin');
+      const key = s + '\u0001' + tFontStr + '\u0001' + k + '\u0001' + lw + '\u0001' + sst + '\u0001' + fill + '\u0001' + al + bl + lj;
+      let sp = txtCache.get(key);
+      if (!sp) {
+        // (a text is stamped from its second frame on: one that changes every frame is drawn as it is)
+        txtSeen.add(key);
+        if (!txtSeenPrev.has(key)) return false;
+        const m = /^([\d.]+)px(.*)$/.exec(tFontStr);
+        if (!m) return false;
+        const fd = parseFloat(m[1]) * k, font = fd + 'px' + m[2];
+        if (!txtScratch) txtScratch = document.createElement('canvas').getContext('2d');
+        txtScratch.font = font;
+        const pad = Math.ceil(lw * k / 2) + 2, w = Math.ceil(txtScratch.measureText(s).width) + pad * 2, h = Math.ceil(fd * 1.8) + pad * 2;
+        if (txtArea + w * h > 4e6 || txtCache.size > 400) { txtCache.clear(); txtArea = 0; }
+        sp = document.createElement('canvas'); sp.width = w; sp.height = h;
+        sp.ax = al === 'center' ? Math.round(w / 2) : al === 'right' || al === 'end' ? w - pad : pad;
+        sp.ay = bl === 'middle' ? Math.round(h / 2) : bl === 'top' || bl === 'hanging' ? pad : bl === 'bottom' || bl === 'ideographic' ? h - pad : h - pad - Math.ceil(fd * 0.4);
+        const g = sp.getContext('2d');
+        g.font = font; g.textAlign = al; g.textBaseline = bl; g.lineJoin = lj; g.lineWidth = lw * k; g.strokeStyle = sst;
+        g.strokeText(s, sp.ax, sp.ay); g.fillStyle = fill; g.fillText(s, sp.ax, sp.ay);
+        txtCache.set(key, sp); txtArea += w * h;
+      }
+      const dx = x - sp.ax / k, dy = y - sp.ay / k;
+      mark(dx, dy, dx + sp.width / k, dy + sp.height / k);
+      P.drawImage.call(c, sp, dx, dy, sp.width / k, sp.height / k);
+      return true;
+    }
+    c.setTransform = function (a, b, cc, d, e, f) { flush(); tK = a; tOX = e; tOY = f; return P.setTransform.call(this, a, b, cc, d, e, f); };
+    // (setting the same font again is skipped: it is the costliest call on this layer)
+    const fs = [];
+    if (fontD) Object.defineProperty(c, 'font', { configurable: true, get() { return fontD.get.call(this); }, set(v) { if (v === tFontStr) return; flush(); tFontStr = v; const n = parseFloat(v); if (n > 0) tFont = n; fontD.set.call(this, v); } });
+    // the same for the other state the text pass sets over and over (forgotten on save/restore and on a resize);
+    // a held-back stroke is drawn before anything it depends on changes (the fill colour is not one of them)
+    const ST = ['fillStyle', 'strokeStyle', 'lineWidth', 'textAlign', 'textBaseline', 'lineJoin', 'globalAlpha'];
+    for (const k of ST) {
+      const d = Object.getOwnPropertyDescriptor(P, k);
+      if (!d || !d.set) continue;
+      desc[k] = d;
+      Object.defineProperty(c, k, { configurable: true, get() { return d.get.call(this); }, set(v) { if (tState[k] === v) return; if (k !== 'fillStyle') flush(); tState[k] = v; d.set.call(this, v); } });
+    }
+    c.save = function () { flush(); fs.push(tFontStr, tFont); xfStack.push(xf); return P.save.call(this); };
+    c.restore = function () { flush(); if (fs.length) { tFont = fs.pop(); tFontStr = fs.pop(); } xf = xfStack.length ? xfStack.pop() : 0; tState = {}; return P.restore.call(this); };
+    for (const k of ['translate', 'scale', 'rotate', 'transform']) c[k] = function () { flush(); xf = 1; return P[k].apply(this, arguments); };
+    c.fillText = function (s, x, y, mw) {
+      s = String(s);
+      if (pend && arguments.length < 4 && !xf && pend[0] === s && pend[1] === x && pend[2] === y) { pend = null; if (sprite(s, x, y)) return; markText(s, x, y); P.strokeText.call(this, s, x, y); P.fillText.call(this, s, x, y); return; }
+      flush();
+      markText(s, x, y); return arguments.length > 3 ? P.fillText.call(this, s, x, y, mw) : P.fillText.call(this, s, x, y);
+    };
+    c.strokeText = function (s, x, y, mw) {
+      s = String(s);
+      flush();
+      if (arguments.length < 4 && !xf && typeof document !== 'undefined') { pend = [s, x, y]; return; }
+      markText(s, x, y); return arguments.length > 3 ? P.strokeText.call(this, s, x, y, mw) : P.strokeText.call(this, s, x, y);
+    };
+    c.fillRect = function (x, y, w, h) { flush(); mark(Math.min(x, x + w), Math.min(y, y + h), Math.max(x, x + w), Math.max(y, y + h)); return P.fillRect.call(this, x, y, w, h); };
+    c.strokeRect = function (x, y, w, h) { flush(); const p = (tState.lineWidth || 1); mark(x - p, y - p, x + w + p, y + h + p); return P.strokeRect.call(this, x, y, w, h); };
     c.drawImage = function (img, a, b, cc, d) {
+      flush();
       if (arguments.length === 3) mark(a, b, a + (img.width || 0), b + (img.height || 0));
       else if (arguments.length === 5) mark(a, b, a + cc, b + d);
       else mark(arguments[5], arguments[6], arguments[5] + arguments[7], arguments[6] + arguments[8]);
       return P.drawImage.apply(this, arguments);
     };
+    c.measureText = function (t) { return P.measureText.call(this, t); };
+  }
+  // a text's width in the current font, remembered
+  const mwCache = new Map();
+  function measureW(str) {
+    const key = tFontStr + '\u0001' + str;
+    let w = mwCache.get(key);
+    if (w === undefined) { if (mwCache.size > 600) mwCache.clear(); w = ctx.measureText(str).width; mwCache.set(key, w); }
+    return w;
   }
   // start of the text pass: wipe last frame's boxes
   let wipeAll = true;
+  St._wipe = () => { wipeAll = true; };
   function clearText() {
     P0.setTransform.call(ctx, 1, 0, 0, 1, 0, 0); tK = 1; tOX = 0; tOY = 0;
     if (wipeAll) ctx.clearRect(0, 0, cv.width, cv.height);
@@ -214,6 +319,8 @@
   }
   // end of the text pass: what this frame drew is what the next one wipes
   function endText() {
+    if (ctx._flush) ctx._flush();
+    { const t = txtSeenPrev; txtSeenPrev = txtSeen; txtSeen = t; txtSeen.clear(); }
     const t = dirty; dirty = dirtyNext; dirtyNext = t; dirtyN = dirtyNextN; dirtyNextN = 0;
     if (dirtyAll) wipeAll = true;
     P0.setTransform.call(ctx, 1, 0, 0, 1, 0, 0); tK = 1; tOX = 0; tOY = 0;
@@ -237,6 +344,35 @@
     const k = ox || oy ? 'translate(' + ox * S + 'px,' + oy * S + 'px)' : '';
     if (k !== pxShift) { pxShift = k; low.style.transform = k; }
   }
+
+  // 3.6: where the HUD sits over the field (logical px), read at most twice a second: names and plates keep clear of it
+  let hudBoxes = [], hudRead = false;
+  const HUD_SEL = ['.hud.top .realm', '.hud.top .hudBtns', '.hud.bottom', '#toasts'];
+  function hudBoxesNow() { if (!hudRead) readHud(); return hudBoxes; }
+  function readHud() {
+    hudRead = true; hudBoxes = [];
+    if (typeof document === 'undefined' || !cv) return hudBoxes;
+    const hb = document.querySelector('.hud.bottom'); hudBottomH = hb ? hb.offsetHeight : 90;
+    const el = document.querySelector('.hud.top .hudBtns'), c = stageRect();
+    townTop = el ? Math.max(0, (el.getBoundingClientRect().bottom - c.top) / S) : 20;
+    for (const sel of HUD_SEL) {
+      const el = document.querySelector(sel);
+      if (!el || el.hidden || !el.offsetParent) continue;
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      if (sel === '#toasts' && !el.children.length) continue;
+      hudBoxes.push({ x0: (r.left - c.left) / S, y0: (r.top - c.top) / S, x1: (r.right - c.left) / S, y1: (r.bottom - c.top) / S, sel });
+    }
+    return hudBoxes;
+  }
+  St.hudBoxes = hudBoxesNow;
+  // is a box (logical) on the free field, clear of the HUD?
+  function onFree(x0, y0, x1, y1) {
+    const hb = hudBoxesNow();
+    for (let i = 0; i < hb.length; i++) { const b = hb[i]; if (x0 < b.x1 && x1 > b.x0 && y0 < b.y1 && y1 > b.y0) return false; }
+    return true;
+  }
+  St.onFree = onFree;
 
   // ---------- Layout ----------
   function btnPos() { return { x: Math.round(W / 2), y: Math.round(H * 0.54) }; }
@@ -313,13 +449,13 @@
   const pPool = [];
   let pOver = 0;
   function stepDrawParts(vdt) {
-    let i = parts.length;
+    let i = parts.length, lastCol = null;
     while (i-- > 0) {
       const p = parts[i]; p.life -= vdt;
       if (p.life <= 0) { const l = parts.pop(); if (i < parts.length) parts[i] = l; pPool.push(p); continue; }
       p.vy += p.grav * vdt; p.x += p.vx * vdt; p.y += p.vy * vdt;
       lctx.globalAlpha = Math.min(1, p.life / p.max * 1.6);
-      lctx.fillStyle = p.col;
+      if (p.col !== lastCol) { lastCol = p.col; lctx.fillStyle = lastCol; }
       if (p.plus) { const x = Math.round(p.x), y = Math.round(p.y); lctx.fillRect(x - 1, y, 3, 1); lctx.fillRect(x, y - 1, 1, 3); }
       else lctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
     }
@@ -382,35 +518,60 @@
   function rarityCol(r) { return G.RARITIES[r].color; }
   // Title cards sit under the HUD: lower on narrow screens, where the HUD takes more room
   const cardY = k => Math.round(H * (W * S < 600 ? k + 0.1 : k));
-  // Title cards take turns: each card's lines appear together, the next card when this one is done
+  // Title cards take turns: each card's lines appear together, the next card when this one is done.
+  // 3.6: three priorities: 0 (a streak callout) only on a quiet screen, 1 (a land, a zone, a shrine...) waits its
+  // turn, 2 (a boss's phase, an event, a wipe) cuts in. At most three wait; the low ones go first.
   const cardQ = [];
   let cardT = 0;
   let lastCard = null;
+  const CARD_MAX = 3;
+  const cardBlock = { y1: 0, until: -1 };
+  const dirQuiet = () => { try { return !!(G.director && G.director.quiet && G.director.quiet()); } catch (e) { return false; } };
   function cardText(off, str, col, size, o) {
     o = o || {};
     let g = lastCard;
-    if (off === 0 || !g || g.shown) {
-      g = { items: [], life: 0, callout: !!o.callout, age: 0, tag: o.tag };
+    // (a card whose first line is not at the top (a new kind, its two lines) starts its own card when the last
+    // one has a line there already, rather than landing on top of it)
+    const clash = g && !g.shown && !g.dropped && off !== 0 && g.items.some(it => Math.abs(it.off - off) < 7);
+    if (off === 0 || !g || g.shown || clash || o.own || (g.dropped && g.at !== time)) {
+      const prio = o.prio != null ? o.prio : o.now ? 2 : o.callout ? 0 : 1;
+      if (prio === 0 && (cardT > 0 || cardQ.length || dirQuiet())) { lastCard = { dropped: true, at: time, items: [] }; return; }
+      g = { items: [], life: 0, callout: prio === 0, prio, age: 0, tag: o.tag, at: time };
+      if (prio >= 1) for (let i = cardQ.length - 1; i >= 0; i--) if (cardQ[i].prio === 0) cardQ.splice(i, 1);
       // an urgent card (a boss changing phase) cuts in front and replaces whatever is up
       if (o.now) { cardQ.unshift(g); cardT = 0; for (let i = texts.length - 1; i >= 0; i--) if (texts[i].card) texts.splice(i, 1); }
       else cardQ.push(g);
       lastCard = g;
     }
+    if (g.dropped) return;
     g.items.push({ off, str, col, size, o });
     g.life = Math.max(g.life, o.life || 1.1);
-    // streak callouts are only worth showing on time
-    while (cardQ.length > 5) { const i = cardQ.findIndex(x => x.callout); cardQ.splice(i >= 0 ? i : 0, 1); }
+    while (cardQ.length > CARD_MAX) {
+      let i = cardQ.findIndex(x => x.prio === 0);
+      if (i < 0) i = cardQ.findIndex(x => x.prio < 2 && x !== g);
+      cardQ.splice(i >= 0 ? i : 0, 1);
+    }
   }
   function stepCards(dt) {
     for (const g of cardQ) g.age += dt;
     if (cardT > 0) { cardT -= dt; return; }
-    while (cardQ.length && cardQ[0].callout && (cardQ[0].age > 1 || jp)) cardQ.shift();
+    while (cardQ.length && cardQ[0].callout && (cardQ[0].age > 1 || jp || dirQuiet())) cardQ.shift();
     const g = cardQ.shift();
     if (!g) return;
     g.shown = true;
-    const y0 = cardY(0.27);
-    for (const it of g.items) text(W / 2, y0 + it.off, it.str, it.col, it.size, Object.assign({}, it.o, { life: g.life, max: g.life, card: true }));
-    cardT = g.life * 0.8;
+    const life = g.life * (g.prio >= 2 ? 1 : 0.85);
+    // in a boss fight the card goes over the boss's head, under its bar (smaller on a phone), never on the boss
+    let y0 = cardY(0.27), sc = 1;
+    if (bossVis && G.R.boss) {
+      sc = W * S < 600 ? 0.75 : 0.85;
+      let maxOff = 0, lastSz = 4; for (const it of g.items) if (it.off >= maxOff) { maxOff = it.off; lastSz = it.size; }
+      const top = (barBottom || Math.ceil(50 / S) + 14) + g.items[0].size * sc * 0.7 + 2;
+      y0 = Math.round(clamp(bossTop() - 4 - maxOff * sc - lastSz * sc * 0.6, top, cardY(0.27)));
+      cardBlock.y1 = y0 + maxOff * sc + lastSz * sc * 0.6; cardBlock.until = time + life;
+    }
+    for (const it of g.items) text(W / 2, y0 + it.off * sc, it.str, it.col, it.size * sc, Object.assign({}, it.o, { life, max: life, card: true }));
+    cardT = life * 0.75;
+    if (g.tag === 'land' && G.director && G.director.mark) { try { G.director.mark('card', life); } catch (e) { /* optional */ } }
   }
   St.cardBusy = () => cardT > 0;
 
@@ -556,7 +717,7 @@
       cardText(0, G.t('surge'), '#ff4f4f', 7, { life: 2, max: 2, vy: -4, big: true });
       St.shake(3); St.flash(0.18, '#ff3b3b');
     });
-    G.on('rareSpawn', () => cardText(12, G.t('rareComing'), '#ffd84a', 4, { life: 1.8, max: 1.8, vy: -4 }));
+    G.on('rareSpawn', () => cardText(0, G.t('rareComing'), '#ffd84a', 5, { life: 1.8, max: 1.8, vy: -4, big: true }));
     G.on('buttonBreak', () => {
       const b = btnPos();
       St.shake(6); St.flash(0.5, '#ff3b3b');
@@ -679,7 +840,7 @@
       groundKey = ''; if (!march) St.flash(0.3, '#000000');
       // a title card for the new land and its rule
       const R_ = G.REALMS[r];
-      cardText(0, G.realmName(G.S.depth).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true });
+      cardText(0, G.realmName(G.S.depth).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true, tag: 'land' });
       cardText(11, R_.rule + ': ' + R_.ruleDesc, '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
       cardText(19, G.t('zoneCard', 1, G.ZONE_NAME(G.S.depth)), '#ffffff', 3, { life: 3, max: 3, vy: -3 });
     });
@@ -839,7 +1000,7 @@
     return { x: clamp(bp.x + Math.cos(th) * (hh.w + 16), 10, W - 10), y: clamp(bp.y - hh.h + Math.sin(th) * (hh.h + 12), 24, H - 30) };
   }
   St.weakPoint = () => { const p = weakPos(); return p && { x: p.x * S, y: p.y * S }; };
-  function hitWeak(p) { const w = weakPos(); return !!w && Math.abs(p.x - w.x) < 11 && Math.abs(p.y - w.y) < 11; }
+  function hitWeak(p) { const w = weakPos(), r = G.R.boss && G.R.boss.move && G.R.boss.move.k === 'doom' ? 15 : 11; return !!w && Math.abs(p.x - w.x) < r && Math.abs(p.y - w.y) < r; }
   function bossHalf() { const c = bossVis.sprite.canvas, s = bossScale(); return { w: c.width * s / 2, h: c.height * s / 2 }; }
   function bossPos() { const b = btnPos(); return { x: b.x, y: b.y - 2 }; }
 
@@ -1077,15 +1238,23 @@
     }
     lctx.globalAlpha = 1;
   }
+  // (3.6: each ring is painted once into a stamp, the same dots, and stamped)
+  const ringStamps = new Map();
   function footRing(x, y, rx, col, a) {
+    const key = rx + col + a;
+    let c = ringStamps.get(key);
     const ry = Math.max(2, Math.round(rx * 0.38)), n = Math.round(rx * 4);
-    lctx.fillStyle = col;
-    for (let j = 0; j < n; j++) {
-      const t = j / n * Math.PI * 2, sy = Math.sin(t);
-      lctx.globalAlpha = a * (sy > 0 ? 1 : 0.45);
-      lctx.fillRect(Math.round(x + Math.cos(t) * rx), Math.round(y - 1 + sy * ry), 1, 1);
+    if (!c) {
+      c = SPR.makeCanvas(rx * 2 + 3, ry * 2 + 3); c.ox = rx + 1; c.oy = ry + 1;
+      const g = c.getContext('2d'); g.fillStyle = col;
+      for (let j = 0; j < n; j++) {
+        const t = j / n * Math.PI * 2, sy = Math.sin(t);
+        g.globalAlpha = a * (sy > 0 ? 1 : 0.45);
+        g.fillRect(c.ox + Math.round(Math.cos(t) * rx), c.oy + Math.round(sy * ry), 1, 1);
+      }
+      ringStamps.set(key, c);
     }
-    lctx.globalAlpha = 1;
+    lctx.drawImage(c, Math.round(x) - c.ox, Math.round(y - 1) - c.oy);
   }
   function drawUnit(u, v, q) {
     const warden = u.who < 0;
@@ -1349,7 +1518,8 @@
   function px(x, y, s) { lctx.fillRect(Math.round(x - (s >> 1)), Math.round(y - (s >> 1)), s, s); }
   function drawPfx(dt) {
     // a slow frame thins the sparkle
-    PFX.q = clamp(PFX.q + (fdt > 0.024 ? -dt * 2 : dt * 0.5), 0.35, 1);
+    // (3.6: and the quality tier caps it)
+    PFX.q = clamp(PFX.q + (fdt > 0.024 ? -dt * 2 : dt * 0.5), 0.35, Math.max(0.35, Q.pfxQ));
     for (let i = pfx.length - 1; i >= 0; i--) {
       const f = pfx[i];
       f.t += dt;
@@ -1716,7 +1886,12 @@
     for (let i = 0; i < BKN; i++) {
       const b = BK[i];
       if (!b.length) continue;
-      for (let j = 0; j < b.length; j++) { const e = b[j]; if (typeof e === 'function') e(); else drawMobV(e.m, e, e.qx, e.qy, frameRealm, false); }
+      for (let j = 0; j < b.length; j++) {
+        const e = b[j];
+        if (typeof e === 'function') e();
+        else if (e.plain) { const spr = mobSpriteV(e.m, e, frameRealm); lctx.drawImage(spr, Math.round(e.qx - spr.width / 2), e.qy - spr.height); }
+        else drawMobV(e.m, e, e.qx, e.qy, frameRealm, false);
+      }
       b.length = 0;
     }
   }
@@ -1725,8 +1900,10 @@
   const mobsOn = [];
   let keepK = 1;
   const keepHash = id => ((id * 2654435761) >>> 0) / 4294967296;
+  const named = [];
+  let focusId = null;
   function collectMobs(mobs, vdt) {
-    mobsOn.length = 0;
+    mobsOn.length = 0; named.length = 0; focusId = G.R.focus;
     const kk = Math.min(1, vdt * 14);
     let nFod = 0, nFar = 0;
     for (let i = 0; i < mobs.length; i++) {
@@ -1741,7 +1918,10 @@
       if (x < -12 || x > W + 12 || y < -4 || y > H + 20) continue;
       v.qx = x; v.qy = y; v.m = m;
       v.fod = !!G.SMALL[m.kind];
+      // a plain small one (no glow, no hit, not in the air): drawn by the short path
+      v.plain = m.kind === 'fodder' && !m.br && !m.amb && !(m.bT > 0) && !m.fz && !(m.jz > 0) && !m.fly && !(m.pop > 0) && !(v.hit > 0) && !(v.lunge > 0) && !m.wl && !m.gob && !m.inv && focusId !== m.id;
       if (v.fod) { nFod++; if (m.p < 0.7) nFar++; }
+      else if (m.kind === 'hoard' || m.kind === 'guardian' || m.kind === 'rare' || (m.kind === 'magic' && m.mod)) named.push(m);
       mobsOn.push(v);
     }
     // over the cap, the far small fry thin out evenly (by a fixed pick per mob, so none of them flickers)
@@ -1751,9 +1931,11 @@
     const keep = Math.round(keepK * 16) / 16;
     const shadowsOn = Q.shadows;
     lctx.fillStyle = 'rgba(0,0,0,0.28)';
+    let drawn = 0;
     for (let i = 0; i < mobsOn.length; i++) {
       const v = mobsOn[i], m = v.m;
       if (keep < 1 && v.fod && m.p < 0.7 && keepHash(m.id) >= keep) continue;
+      drawn++;
       if (m.kind !== 'guardian') {
         // the shadow (3.6: drawn for all mobs here, before anything stands on the ground)
         if (shadowsOn || !v.fod) {
@@ -1764,6 +1946,7 @@
       }
       bpush(v.qy, v);
     }
+    Q.drawn = drawn; Q.onScreen = mobsOn.length; Q.far = nFar;
   }
   function mobVisOf(m) { let v = mobVis.get(m.id); if (!v) { v = { hit: 0 }; mobVis.set(m.id, v); } return v; }
   const QP = { x: 0, y: 0 };
@@ -1973,7 +2156,8 @@
     if (out) return out;
     out = [];
     try {
-      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      // (a sprite built by SPR keeps its pixels: no read-back)
+      const d = c._px && c._px.length === c.width * c.height * 4 ? c._px : c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
       for (let y = 0; y < c.height; y += 2) for (let x = 0; x < c.width; x += 2) {
         let col = null, n = 0;
         for (let k = 0; k < 4; k++) {
@@ -2049,13 +2233,13 @@
     c.drawImage(sp, Math.round(x) - sp.ox, Math.round(y) - sp.oy);
   }
   function ring(x, y, rx, ry, col, life, arc) {
-    if (rings.length > 40) rings.shift();
+    if (rings.length >= Q.rings) rings.shift();
     rings.push({ x, y, rx, ry, col, life, max: life, arc });
   }
   // Splash radius in arena units -> pixels (the arena is squashed vertically)
   const aoePx = a => ({ rx: a * W * 0.62, ry: a * W * 0.62 * 0.55 });
 
-  const streak = { n: 0, t: 9, pop: 0 };
+  const streak = { n: 0, t: 9, pop: 0, at: -99 };
   let multiCd = 0, lastCount = 0;
   const STREAKS = [[50, 'sk_25'], [100, 'sk_50'], [200, 'sk_100'], [400, 'sk_200'], [800, 'sk_400'], [1500, 'sk_800'], [3000, 'sk_3000'], [6000, 'sk_6000'], [10000, 'sk_10000']];
   let goreRealm = null, goreDepth = -1;
@@ -2111,9 +2295,10 @@
     if (gold && !fod && !m.add && m.kind !== 'bomber') { if (m.kind === 'rare' || m.kind === 'magic') text(c, q.y - 16, '+' + G.fmt(gold), '#ffd84a', 4, { life: 0.8, max: 0.8 }); else { killGold += gold; if (killGoldT <= 0) killGoldT = 0.3; } }
     // kill streak
     streak.n = G.carnage ? Math.max(G.R.carn, 0) : streak.n + 1; streak.t = 0; streak.pop = 0.15;
-    const sk = streak.n !== streak.last && STREAKS.find(s => s[0] === streak.n);
+    const sk = streak.n !== streak.last && streak.n >= 200 && time - streak.at > 30 && STREAKS.find(s => s[0] === streak.n);
     streak.last = streak.n;
     if (sk) {
+      streak.at = time;
       for (let i = texts.length - 1; i >= 0; i--) if (texts[i].callout) texts.splice(i, 1);
       cardText(0, G.t(sk[1]), streak.n >= 3000 ? '#ff4fe0' : streak.n >= 400 ? '#ff4f7e' : '#ffe27a', streak.n >= 200 ? 8 : 7, { life: 1.8, max: 1.8, vy: -5, big: true, callout: true });
       St.shake(2 + Math.log2(streak.n / 50));
@@ -2150,10 +2335,11 @@
     }
   }
   function drawGibs(resting) {
+    let lastCol = null;
     for (const g of gibs) {
       if (!!g.rest !== resting) continue;
       lctx.globalAlpha = Math.min(1, g.life / 0.4);
-      lctx.fillStyle = g.col;
+      if (g.col !== lastCol) { lastCol = g.col; lctx.fillStyle = lastCol; }
       lctx.fillRect(Math.round(g.x), Math.round(g.y), g.s, g.s);
     }
     lctx.globalAlpha = 1;
@@ -2171,7 +2357,7 @@
         k.fly += dt;
         const dx = b.x - k.x, dy = b.y - 6 - k.y, d = Math.hypot(dx, dy);
         const sp = 60 + k.fly * 520;
-        if (d < 4) { coins.splice(i, 1); part(b.x + rand(-6, 6), b.y - 6, '#fff3a0', { vx: rand(-20, 20), vy: rand(-30, -10), grav: 0, life: 0.25 }); if (G.Audio && G.Audio.coin && Math.random() < 0.3) G.Audio.coin(); continue; }
+        if (d < 4) { const l = coins.pop(); if (i < coins.length) coins[i] = l; part(b.x + rand(-6, 6), b.y - 6, '#fff3a0', { vx: rand(-20, 20), vy: rand(-30, -10), grav: 0, life: 0.25 }); if (G.Audio && G.Audio.coin && Math.random() < 0.3) G.Audio.coin(); continue; }
         k.x += dx / d * Math.min(d, sp * dt); k.y += dy / d * Math.min(d, sp * dt);
       }
       lctx.fillStyle = '#c98f10'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y), 3, 1);
@@ -2191,7 +2377,7 @@
       } else {
         k.fly += dt;
         const dx = tx - k.x, dy = ty - k.y, d = Math.hypot(dx, dy), sp = 70 + k.fly * 600;
-        if (d < 4) { gems.splice(i, 1); part(tx + rand(-4, 4), ty + rand(-4, 4), k.col, { vx: 0, vy: -15, grav: 0, life: 0.25 }); if (G.Audio && G.Audio.gem) G.Audio.gem(); continue; }
+        if (d < 4) { const l = gems.pop(); if (i < gems.length) gems[i] = l; part(tx + rand(-4, 4), ty + rand(-4, 4), k.col, { vx: 0, vy: -15, grav: 0, life: 0.25 }); if (G.Audio && G.Audio.gem) G.Audio.gem(); continue; }
         k.x += dx / d * Math.min(d, sp * dt); k.y += dy / d * Math.min(d, sp * dt);
       }
       const x = Math.round(k.x), y = Math.round(k.y);
@@ -2261,7 +2447,9 @@
   function blit(c, x, y, sc, alpha) {
     sc = sc || 1;
     if (alpha !== undefined) lctx.globalAlpha = alpha;
-    lctx.drawImage(c, Math.round(x - c.width * sc / 2), Math.round(y - c.height * sc), c.width * sc, c.height * sc);
+    // (unscaled: the plain three-argument draw, the quickest)
+    if (sc === 1) lctx.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height));
+    else lctx.drawImage(c, Math.round(x - c.width * sc / 2), Math.round(y - c.height * sc), c.width * sc, c.height * sc);
     if (alpha !== undefined) lctx.globalAlpha = 1;
   }
   const whiteCache = new WeakMap();
@@ -2403,22 +2591,31 @@
   // Plates on the hi-res layer, stacked so they never overlap
   function drawLabels() {
     labels = [];
-    const list = (G.R.ground || []).map(e => ({ e, v: gvis.get(e.id) })).filter(o => o.v && o.v.landed);
-    list.sort((a, b) => loud(b.e) - loud(a.e) || a.e.id - b.e.id);
-    const filter = G.S.set.filter;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const busy = list.length > 16;
-    const free = (x, y, w, h) => !labels.some(r => x < r.x + r.w + 1 && x + w + 1 > r.x && y < r.y + r.h + 1 && y + h + 1 > r.y);
-    for (const { e, v } of list) {
+    // (3.6: only the loot that will wear a plate is sorted, not the whole floor every frame)
+    const ground = G.R.ground || [], filter = G.S.set.filter;
+    let landedN = 0;
+    for (let i = 0; i < ground.length; i++) { const v = gvis.get(ground[i].id); if (v && v.landed) landedN++; }
+    const busy = landedN > 16, list = [];
+    for (let i = 0; i < ground.length; i++) {
+      const e = ground[i], v = gvis.get(e.id);
+      if (!v || !v.landed) continue;
       const st = lstyle(e);
       if (st.dim && filter) continue;
       // 2.2: only the loot that matters wears a plate (epic and up, the better orbs, uniques); the rest
       // shows on hover, and a crowded floor keeps only the best
       if ((filter ? loud(e) < 3 : busy && loud(e) < 2) && hoverLoot !== e) continue;
+      list.push({ e, v, L: loud(e) });
+    }
+    if (!list.length) return;
+    list.sort((a, b) => b.L - a.L || a.e.id - b.e.id);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const free = (x, y, w, h) => !labels.some(r => x < r.x + r.w + 1 && x + w + 1 > r.x && y < r.y + r.h + 1 && y + h + 1 > r.y);
+    for (const { e, v } of list) {
+      const st = lstyle(e);
       const sz = crisp(st.sz);
       ctx.font = sz + 'px ' + FONT;
       const txt = lname(e);
-      const w = Math.ceil(ctx.measureText(txt).width) + 4, h = Math.ceil(sz) + 2;
+      const w = Math.ceil(measureW(txt)) + 4, h = Math.ceil(sz) + 2;
       const x0 = clamp(Math.round(v.x - w / 2), 1, W - w - 1), y0 = Math.round(v.y - 10 - h);
       // try beside it first, then stack upwards
       let x = x0, y = y0, ok = false;
@@ -2437,6 +2634,8 @@
       if (!ok) continue;
       const pop = v.pop > 0 ? 1 + v.pop * 1.5 : 1;
       labels.push({ x, y, w, h, e });
+      // (a popped plate is drawn scaled: its box is noted as drawn, the wrappers only know the plain transform)
+      if (pop > 1) mark(x + w / 2 - w * pop / 2 - 2, y + h / 2 - h * pop / 2 - 2, x + w / 2 + w * pop / 2 + 2, y + h / 2 + h * pop / 2 + 2);
       ctx.save();
       if (pop > 1) { ctx.translate(x + w / 2, y + h / 2); ctx.scale(pop, pop); ctx.translate(-(x + w / 2), -(y + h / 2)); }
       if (st.bg) { ctx.fillStyle = st.bg; ctx.fillRect(x, y, w, h); }
@@ -2632,16 +2831,24 @@
       if ((n.t -= dt) <= 0) { incoming.splice(i, 1); continue; }
       const e = ringPos(n.a, 0), b = btnPos(), x = clamp(e.x, 14, W - 14), y = clamp(e.y, 30, H - 40);
       const dx = b.x - x, dy = b.y - y, l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l, on = Math.floor(n.t * 6) % 2;
-      lctx.fillStyle = on ? (IN_COL[n.k] || '#ff4f4f') : '#ffffff';
-      // a chevron pointing in
-      for (let j = 0; j < 7; j++) { const w = 7 - j; for (let k = -w; k <= w; k++) lctx.fillRect(Math.round(x + ux * j - uy * k * 0.6), Math.round(y + uy * j + ux * k * 0.6), 1, 1); }
+      // a chevron pointing in (3.6: painted once per arrow in both its colours, then stamped)
+      const X = Math.round(x), Y = Math.round(y);
+      if (!n.spr || n.sx !== X || n.sy !== Y) {
+        n.sx = X; n.sy = Y; n.spr = [];
+        for (const col of [IN_COL[n.k] || '#ff4f4f', '#ffffff']) {
+          const c = SPR.makeCanvas(25, 25), g = c.getContext('2d'); g.fillStyle = col;
+          for (let j = 0; j < 7; j++) { const w = 7 - j; for (let k = -w; k <= w; k++) g.fillRect(Math.round(x + ux * j - uy * k * 0.6) - X + 12, Math.round(y + uy * j + ux * k * 0.6) - Y + 12, 1, 1); }
+          n.spr.push(c);
+        }
+      }
+      lctx.drawImage(n.spr[on ? 0 : 1], X - 12, Y - 12);
       n.lx = x + ux * 14; n.ly = y + uy * 14;
     }
   }
   function drawIncomingNames() {
     if (!incoming.length) return;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
-    for (const n of incoming) { if (n.lx == null) continue; const s2 = G.t('in_' + n.k); ctx.strokeText(s2, n.lx, n.ly); ctx.fillStyle = IN_COL[n.k] || '#ff4f4f'; ctx.fillText(s2, n.lx, n.ly); }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 2; ctx.strokeStyle = '#0c0b12';
+    for (const n of incoming) { if (n.lx == null) continue; const s2 = G.t('in_' + n.k); if (!nameFree(n.lx, n.ly, s2, crisp(3))) continue; ctx.strokeText(s2, n.lx, n.ly); ctx.fillStyle = IN_COL[n.k] || '#ff4f4f'; ctx.fillText(s2, n.lx, n.ly); }
   }
   // the Portal Storm's portals: drawn over the ground, tapped shut
   let wlMark = null;
@@ -2759,14 +2966,15 @@
       if (G.Audio && G.Audio.boom) G.Audio.boom();
     });
     G.on('spitHit', () => { const b = btnPos(); btnHurtT = 0.12; burst(b.x + rand(-12, 12), b.y - 8, ['#b6ff5a', '#8ad83a', '#ffffff'], 6, 50, { life: 0.35 }); });
+    // (3.6: a wave is a word over the Button, not a title card; the boss row says it too)
     G.on('wave', n => {
-      cardText(0, G.t('waveN', n), '#ff9a3a', 7, { life: 1.8, max: 1.8, vy: -4, big: true, callout: true });
-      cardText(11, G.t('waveSub'), '#ffe27a', 3, { life: 1.8, max: 1.8, vy: -4 });
+      const b = btnPos();
+      if (cardT <= 0 && !bossVis) text(b.x, b.y - 54, G.t('waveN', n), '#ff9a3a', 5, { life: 1.3, max: 1.3, vy: -6, big: true });
       St.shake(2);
     });
     G.on('landStar', (i, bit) => {
       const R_ = G.REALMS[i], b = btnPos();
-      cardText(0, '\u2605 ' + G.t('landStar', R_.name).toUpperCase(), '#ffd84a', 7, { life: 3, max: 3, vy: -3, big: true });
+      cardText(0, '\u2605 ' + G.t('landStar', R_.name).toUpperCase(), '#ffd84a', 7, { life: 3, max: 3, vy: -3, big: true, tag: 'land' });
       St.flash(0.25, '#ffd84a');
       burst(b.x, b.y - 20, ['#ffd84a', '#fff3a0', '#ffffff'], 40, 130);
       ring(b.x, b.y - 6, 50, 26, '#ffd84a', 0.6);
@@ -2787,7 +2995,7 @@
     G.on('kindFirst', k => {
       const now = performance.now(), at = Math.max(now, kindAt);
       kindAt = at + 3600;
-      setTimeout(() => { const A = G.ARCHETYPES[k], R_ = G.REALMS[G.realmIndex(G.S.depth)]; cardText(10, G.t('newKind', (R_.mobs && R_.mobs[k]) || A.name), '#b6ff5a', 4, { life: 3.4, vy: -3 }); cardText(18, A.desc, '#e8f8d0', 3, { life: 3.4, vy: -3 }); }, at - now);
+      setTimeout(() => { const A = G.ARCHETYPES[k], R_ = G.REALMS[G.realmIndex(G.S.depth)]; cardText(10, G.t('newKind', (R_.mobs && R_.mobs[k]) || A.name), '#b6ff5a', 4, { life: 3.4, vy: -3, own: true }); cardText(18, A.desc, '#e8f8d0', 3, { life: 3.4, vy: -3 }); }, at - now);
     });
     // 3.4 (js/mobs2.js): the new kinds show what they're doing
     G.on('leapCrouch', m => { const q = mobPos(m); text(q.x, q.y - 14, '!', '#b6ff5a', 5, { life: 0.6, max: 0.6, vy: -10 }); });
@@ -2812,7 +3020,7 @@
       if (G.Audio && G.Audio.bossHit) G.Audio.bossHit();
     });
     G.on('torment', n => { cardText(0, n ? G.t('tormentCard', n) : G.t('tormentN', 0, G.tormentMax()), n ? '#ff3b5c' : '#ffffff', 6, { life: 1.6, max: 1.6, vy: -3, big: true }); if (n) St.flash(0.15 + 0.03 * n, '#ff2a4a'); });
-    G.on('shieldBreak', () => { const p = bossPos(); text(p.x, p.y - 52, G.t('shieldBroken'), '#7ad0ff', 5, { life: 1.4, max: 1.4, vy: -10 }); burst(p.x, p.y - 14, ['#7ad0ff', '#ffffff'], 30, 110); ring(p.x, p.y - 10, 60, 34, '#7ad0ff', 0.4); });
+    G.on('shieldBreak', () => { const p = bossPos(); text(p.x, overBoss(10), G.t('shieldBroken'), '#7ad0ff', 5, { life: 1.4, max: 1.4, vy: -6 }); burst(p.x, p.y - 14, ['#7ad0ff', '#ffffff'], 30, 110); ring(p.x, p.y - 10, 60, 34, '#7ad0ff', 0.4); });
     G.on('bossLeech', () => { const p = bossPos(); if (Math.random() < 0.6) text(p.x + rand(-10, 10), p.y - 30, '+', '#ff3b5c', 4, { life: 0.6, max: 0.6, vy: -20 }); });
     G.on('bossEnrage', b => {
       const p = bossPos();
@@ -2823,7 +3031,7 @@
     });
     G.on('bossStagger', (b, k) => {
       const p = bossPos();
-      text(p.x, p.y - 44, G.t('staggered'), '#ffffff', 7, { life: 1.4, max: 1.4, vy: -10, big: true });
+      text(p.x, overBoss(14), G.t('staggered'), '#ffffff', 7, { life: 1.4, max: 1.4, vy: -6, big: true });
       ring(p.x, p.y - 10, 80, 44, '#ffffff', 0.5); ring(p.x, p.y - 10, 50, 28, G.BOSS_MOVES[k].col, 0.4);
       burst(p.x, p.y - 14, ['#ffffff', G.BOSS_MOVES[k].col, '#ffe27a'], 40, 120);
       hitstop = Math.max(hitstop, 0.1); St.shake(5); St.flash(0.3, '#ffffff'); bossHitT = 0.2;
@@ -2834,12 +3042,12 @@
       if (k === 'slam') { St.shake(8); St.flash(0.35, '#ff3b3b'); ring(bp.x, bp.y - 2, 70, 38, '#ff3b3b', 0.5); burst(bp.x, bp.y - 4, ['#ff3b3b', '#3a3a44', '#ffffff'], 40, 110); }
       if (k === 'summon') { ring(p.x, p.y - 10, 90, 50, '#b36bff', 0.6); St.flash(0.2, '#6b2fb8'); }
       if (k === 'doom') { St.shake(12); St.flash(0.6, '#ff2ad4'); ring(bp.x, bp.y - 2, 140, 80, '#ff2ad4', 0.7); burst(bp.x, bp.y - 4, ['#ff2ad4', '#0c0b12', '#ffffff'], 80, 160); hitstop = Math.max(hitstop, 0.12); }
-      text(p.x, p.y - 44, G.BOSS_MOVES[k].name + '!', G.BOSS_MOVES[k].col, 6, { life: 1.2, max: 1.2, vy: -10 });
+      text(p.x, overBoss(12), G.BOSS_MOVES[k].name + '!', G.BOSS_MOVES[k].col, 6, { life: 1.2, max: 1.2, vy: -6 });
       if (G.Audio && G.Audio.boom) G.Audio.boom();
     });
     G.on('bossRage', () => {
       const p = bossPos();
-      text(p.x, p.y - 40, G.t('enraged'), '#ff3b3b', 7, { life: 1.8, max: 1.8, vy: -8, big: true });
+      cardText(0, G.t('enraged'), '#ff3b3b', 7, { life: 1.8, max: 1.8, vy: -3, big: true, now: true, tag: 'phase' });
       St.flash(0.35, '#ff3b3b'); St.shake(6);
       if (G.Audio && G.Audio.horn) G.Audio.horn();
     });
@@ -2894,9 +3102,9 @@
     { id: 'rift', spr: 'tw_rift', w: [0.89, 1], n: [0.9, 2] },
   ];
   St.TOWN = TOWN;
-  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; critters.length = 0; townHover = null; townTop = 0; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
+  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; critters.length = 0; townHover = null; hudRead = false; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
   G.on('build', id => { const t = TOWN.find(x => x.id === id); if (!t || !G.R.town) return; const q = townPlace(t); burst(q.x, q.y0 + q.h / 2, ['#ffd84a', '#ffffff', '#ffe27a'], 40, 90); ring(q.x, q.y - 4, 30, 14, '#ffd84a', 0.6); St.flash(0.15, '#ffe27a'); });
-  let townGround = null, townKey = '', townHover = null;
+  let townGround = null, townKey = '', townHover = null, townVig = null, townVigK = '';
   const sprOr = id => (SPR.defs[id] ? SPR.get(id) : null);
   const narrowTown = () => W < 400;
   // a building still to open stands as scaffolding; one built up three times or more takes its grander look
@@ -2908,14 +3116,10 @@
     return SPR.defs[t.spr] ? t.spr : null;
   }
   // the town is laid out below the top HUD: the back row stands its tallest building's height under it
-  let townTop = 0, townTopT = 0;
+  let townTop = 0;
   function townRows() {
-    if ((townTopT -= fdt) <= 0 || !townTop) {
-      townTopT = 1;
-      // (in town the land box is hidden: only the buttons at the top right stay)
-      const el = typeof document !== 'undefined' && document.querySelector('.hud.top .hudBtns'), cr = stageRect();
-      townTop = el ? Math.max(0, (el.getBoundingClientRect().bottom - cr.top) / S) : 20;
-    }
+    // (in town the land box is hidden: only the buttons at the top right stay; read with the HUD, St.readLayout)
+    if (!townTop) hudBoxesNow();
     if (narrowTown()) {
       const r0 = Math.round(townTop + 70), r2 = H - 6, r1 = Math.round((r0 + r2) / 2);
       return { rows: [r0, r1, r2], r1: r0, r2, mid: r1, wellY: r1 - 2 };
@@ -3062,10 +3266,15 @@
     stepVillagers(dt, cx, cy);
     if (Math.random() < 0.08) part(rand(0, W), rand(rw.r1 - 30, H), pick(['#e8ff8a', '#ffe27a']), { vx: rand(-4, 4), vy: rand(-4, 4), grav: 0, life: rand(1.5, 3) });
     stepDrawParts(dt);
-    // warm evening light, darker at the edges
-    const vgl = lctx.createRadialGradient(cx, cy, 30, cx, cy, Math.max(W, H) * 0.7);
-    vgl.addColorStop(0, 'rgba(255,210,140,0.06)'); vgl.addColorStop(1, 'rgba(10,8,20,0.45)');
-    lctx.fillStyle = vgl; lctx.fillRect(0, 0, W, H);
+    // warm evening light, darker at the edges (3.6: painted once per size)
+    const vk = W + 'x' + H + '@' + cx + ',' + cy;
+    if (vk !== townVigK) {
+      townVigK = vk; townVig = SPR.makeCanvas(W, H);
+      const x = townVig.getContext('2d'), vgl = x.createRadialGradient(cx, cy, 30, cx, cy, Math.max(W, H) * 0.7);
+      vgl.addColorStop(0, 'rgba(255,210,140,0.06)'); vgl.addColorStop(1, 'rgba(10,8,20,0.45)');
+      x.fillStyle = vgl; x.fillRect(0, 0, W, H);
+    }
+    lctx.drawImage(townVig, 0, 0);
     // the pixel layer is on screen as it is; then the names on the hi-res layer
     setShift(0, 0); setFx(0, flash);
     if (flash > 0) flash = Math.max(0, flash - dt * 1.8);
@@ -3082,7 +3291,7 @@
       // what it wants from you: a red mark when there's something to do, a gold arrow when you can build it up
       const ping = open && G.UI && G.UI.bldPing && G.UI.bldPing(t.id), up = open && G.UI && G.UI.bldCanBuild && G.UI.bldCanBuild(t.id);
       if (ping || up) {
-        const w = ctx.measureText(nm).width, bx = q.x + w / 2 + 3, by = y - 1 + Math.sin(time * 5) * 0.8;
+        const w = measureW(nm), bx = q.x + w / 2 + 3, by = y - 1 + Math.sin(time * 5) * 0.8;
         ctx.fillStyle = '#0c0b12'; ctx.fillRect(bx - 2, by - 2, 4, 4);
         ctx.fillStyle = ping ? '#ff4f4f' : '#ffd84a'; ctx.fillRect(bx - 1.5, by - 1.5, 3, 3);
       }
@@ -3099,7 +3308,12 @@
     endText();
   }
 
+  // (a section timer for profiling: St._sect = {} turns it on)
+  let secT = 0;
+  let secOps = 0;
+  function SEC(k) { const o = St._sect; if (!o) return; const n = performance.now(); o[k] = (o[k] || 0) + n - secT; secT = n; if (typeof window !== 'undefined' && window.__opc != null) { o['#' + k] = (o['#' + k] || 0) + window.__opc - secOps; secOps = window.__opc; } }
   St.frame = function (dt) {
+    if (St._sect) { secT = performance.now(); St._sect.n = (St._sect.n || 0) + 1; if (typeof window !== 'undefined' && window.__opc != null) secOps = window.__opc; }
     time += dt; fdt = dt || 1 / 60;
     if (G.R.town) { if (late.length) flushLate(); pfx.length = 0; pend.clear(); drawTown(dt); return; }
     // several kills in one frame weigh more
@@ -3144,6 +3358,7 @@
     const gk = realm.id + '|' + zone + '|' + W + 'x' + H;
     if (gk !== groundKey) { if (groundKey.split('|')[0] !== realm.id) St.clearStain(); if (groundKey && !march) zoneFade = 1; groundKey = gk; groundCanvas = buildGround(realm.id, zone); }
     buildHeroes();
+    SEC('pre');
 
     // hold-to-click
     if (holding) { holdTimer -= dt; if (holdTimer <= 0) { holdTimer = 1 / Math.max(0.5, G.D.holdRate || 0); if (G.D.holdRate > 0) G.manualClick(); } }
@@ -3158,6 +3373,7 @@
       marchFx(dt, k);
       if (k >= 1) march = null;
     } else lctx.drawImage(groundCanvas, 0, 0);
+    SEC('ground');
     if (realm.id === 'shore') drawWater();
     drawDecals(dt);
     stepGibs(vdt);
@@ -3223,7 +3439,9 @@
     if (G.S.hero && G.S.hero.cls) stepParty(dt);
     const mrealm = realm;
     frameRealm = realm;
+    SEC('world');
     collectMobs(R.mobs || [], vdt);
+    SEC('collect');
     if (G.mobs2) for (const dg of G.mobs2.digs()) {
       const q = mobPos({ id: 0, a: dg.a, p: dg.p });
       if (q.x < -12 || q.x > W + 12 || q.y < -4 || q.y > H + 20) continue;
@@ -3273,7 +3491,9 @@
       } });
     } else St._wispPos = null;
 
+    SEC('list');
     drawBuckets();
+    SEC('buckets');
     drawPortals();
     drawMeteors();
     drawIncoming(dt);
@@ -3373,6 +3593,7 @@
       }
     }
     // Particles
+    SEC('fx');
     stepDrawParts(vdt);
     drawGibs(false);
     // the party's blows go over the gore, so they read in the thick of it
@@ -3394,13 +3615,14 @@
     setFx(red, flash);
     if (flash > 0) flash = Math.max(0, flash - dt * 1.8);
     // ---- Hi-res layer: text & bars ----
+    SEC('parts');
     const k = S * TDPR;
-    clearText();
+    clearText(); SEC('t-clear');
     ctx.imageSmoothingEnabled = false;
     ctx.setTransform(k, 0, 0, k, ox * k, oy * k);
-    drawNames();
+    drawNames(); SEC('t-names');
     drawEventNames();
-    drawLabels();
+    drawLabels(); SEC('t-labels');
     drawIncomingNames();
     // the Warlord's name and health over its head
     if (wlMark && G.R.ev && G.R.ev.k === 'warlord') {
@@ -3411,14 +3633,16 @@
       ctx.strokeText(G.t('warlordName'), q.x, q.y - 5); ctx.fillStyle = '#ff7a2e'; ctx.fillText(G.t('warlordName'), q.x, q.y - 5);
     }
     wlMark = null;
-    drawTexts(dt);
+    SEC('t-misc');
+    drawTexts(dt); SEC('t-texts');
     drawJackpotText();
     drawTapHints();
-    drawStreak();
+    drawStreak(); SEC('t-streak');
     if (R.rift) { /* the Rift's bar and clock live in the HUD row under the field */ }
     else if (bossVis && R.boss) { drawBossBar(); drawMoveName(); }
     else if (R.bossReady && !R.inv) drawReady(b);
     if (hoverChest) drawChestTip(hoverChest);
+    SEC('text');
     if (Q.debug) drawQualityDebug();
     endText();
   };
@@ -3497,15 +3721,38 @@
     lctx.globalAlpha = 1;
   }
   St.marching = () => !!march;
-  G.on('marchStart', (T, newLand) => { march = { t: 0, T, prev: groundCanvas, land: newLand }; St.clearStain(); if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); });
+  G.on('marchStart', (T, newLand) => { march = { t: 0, T, prev: groundCanvas, land: newLand }; St.clearStain(); if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); if (newLand) setTimeout(prewarmLand, 120); });
+  // 3.6: a new land's mob looks (and their gib chunks) are made during the march, not on first sight in the fight
+  function prewarmLand() {
+    try {
+      const ri = G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth), realm = G.REALMS[ri], sk = G.MOB_SKINS && G.MOB_SKINS[ri];
+      const ids = [realm.fodder, realm.minion].concat(sk ? sk.fodder.concat(sk.brute) : []);
+      if (G.ARCHETYPES) for (const k in G.ARCHETYPES) ids.push('a_' + k + '_' + realm.id);
+      for (const id of ids) {
+        if (!SPR.defs[id]) continue;
+        for (const v of [id, id + '_2']) if (SPR.defs[v]) chunks(SPR.get(v));
+        SPR.get(id, OC_MAGIC); SPR.get(id, OC_RARE);
+      }
+    } catch (e) { /* only a head start */ }
+  }
+  // a zone's light, painted once per screen size
+  const zoneLights = {};
+  function zoneLight(k, paint) {
+    const key = k + W + 'x' + H;
+    let c = zoneLights[k];
+    if (!c || c.key !== key) { c = zoneLights[k] = SPR.makeCanvas(W, H); c.key = key; paint(c.getContext('2d')); }
+    return c;
+  }
   function drawZoneFx(dt) {
     if (G.R.rift) return;
     const z = G.ZONE_LOOK(G.zoneOf(G.depthNow ? G.depthNow() : G.S.depth)), b = btnPos();
     if (z === 0) {
-      // low sun from the east: warm light across the field
-      const lg = lctx.createLinearGradient(0, 0, W * 0.8, H);
-      lg.addColorStop(0, 'rgba(255,196,120,0.26)'); lg.addColorStop(0.55, 'rgba(255,196,120,0.05)'); lg.addColorStop(1, 'rgba(255,196,120,0)');
-      lctx.fillStyle = lg; lctx.fillRect(0, 0, W, H);
+      // low sun from the east: warm light across the field (3.6: painted once per size)
+      lctx.drawImage(zoneLight('dawn', x => {
+        const lg = x.createLinearGradient(0, 0, W * 0.8, H);
+        lg.addColorStop(0, 'rgba(255,196,120,0.26)'); lg.addColorStop(0.55, 'rgba(255,196,120,0.05)'); lg.addColorStop(1, 'rgba(255,196,120,0)');
+        x.fillStyle = lg; x.fillRect(0, 0, W, H);
+      }), 0, 0);
     }
     if (z === 1) {
       // midday: clouds drift over and drag their shadows across the ground
@@ -3520,9 +3767,11 @@
     if (z === 2 && Math.random() < 0.35) part(W + 4, rand(0, H), pick(['#c86a2a', '#e8a040', '#a04a1a']), { vx: -rand(20, 40), vy: rand(4, 12), grav: 0, life: rand(2, 4) });
     if (z === 3) {
       // the night closes in, the Button lights the ground round it
-      const rg = lctx.createRadialGradient(b.x, b.y, 30, b.x, b.y, Math.max(W, H) * 0.6);
-      rg.addColorStop(0, 'rgba(10,12,40,0)'); rg.addColorStop(1, 'rgba(6,8,26,0.5)');
-      lctx.fillStyle = rg; lctx.fillRect(0, 0, W, H);
+      lctx.drawImage(zoneLight('night', x => {
+        const rg = x.createRadialGradient(b.x, b.y, 30, b.x, b.y, Math.max(W, H) * 0.6);
+        rg.addColorStop(0, 'rgba(10,12,40,0)'); rg.addColorStop(1, 'rgba(6,8,26,0.5)');
+        x.fillStyle = rg; x.fillRect(0, 0, W, H);
+      }), 0, 0);
       if (Math.random() < 0.3) part(rand(0, W), rand(20, H), pick(['#d8ff7a', '#fff3a0']), { vx: rand(-4, 4), vy: rand(-4, 4), grav: 0, life: rand(1, 2.5) });
     }
     if (z === 4) {
@@ -3732,7 +3981,9 @@
       // the weak point: a pulsing target beside the boss, the only thing that breaks the move
       const wp = weakPos();
       if (wp) {
-        const pr = 6 + Math.sin(time * 14) * 1.5;
+        // (a DOOM's weak point is twice the size, with a ring that closes in as the time runs out)
+        const dm = b.move.k === 'doom', pr = (6 + Math.sin(time * 14) * 1.5) * (dm ? 1.8 : 1);
+        if (dm) { lctx.globalAlpha = 0.5; lctx.strokeStyle = M.col; lctx.lineWidth = 1; lctx.beginPath(); lctx.arc(wp.x, wp.y, pr + 4 + 14 * (1 - k), 0, 6.3); lctx.stroke(); lctx.globalAlpha = 1; }
         lctx.lineWidth = 2; lctx.strokeStyle = '#0c0b12'; lctx.beginPath(); lctx.arc(wp.x, wp.y, pr + 1, 0, 6.3); lctx.stroke();
         lctx.lineWidth = 1; lctx.strokeStyle = Math.floor(time * 10) % 2 ? '#ffffff' : M.col; lctx.beginPath(); lctx.arc(wp.x, wp.y, pr, 0, 6.3); lctx.stroke();
         lctx.fillStyle = M.col; lctx.fillRect(Math.round(wp.x) - 1, Math.round(wp.y) - 1, 3, 3);
@@ -3786,12 +4037,19 @@
     ctx.globalAlpha = 1;
   }
   // Rare monsters wear their names, as in PoE
+  // (3.6: a name that would sit on the HUD is left off; on a phone the magic mobs' mods are left off too)
+  const nameFree = (x, y, str, sz) => { const w = str.length * sz * 0.55 + 2; return onFree(x - w, y - sz, x + w, y + sz); };
   function drawNames() {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12';
-    for (const m of G.R.mobs || []) {
+    // (only the mobs that wear a name, as the frame found them)
+    const ms = named;
+    for (let i = 0; i < ms.length; i++) {
+      const m = ms[i];
+      if (m.dead) continue;
       if (m.kind === 'hoard' || m.kind === 'guardian') {
         const q = mobPos(m), hoard = m.kind === 'hoard', y = hoard ? q.y - 25 : q.y - 44;
         const nm = m.gob ? G.t('goblin') : hoard ? G.t('hoarder') : m.inv && G.INV_BY_ID[m.inv] ? G.INV_BY_ID[m.inv].bossName : G.t('riftGuardian');
+        if (!nameFree(q.x, y, nm, crisp(hoard ? 3 : 4))) continue;
         ctx.font = crisp(hoard ? 3 : 4) + 'px ' + FONT;
         ctx.strokeText(nm, q.x, y); ctx.fillStyle = m.gob ? '#8ae07a' : hoard ? '#ffd84a' : '#ff9ab4'; ctx.fillText(nm, q.x, y);
         if (hoard) { const k = clamp(m.life / (m.gob ? (G.R.ev && G.R.ev.T) || 20 : G.TUNE.hoardLife), 0, 1); ctx.fillStyle = '#0c0b12'; ctx.fillRect(q.x - 9, y + 3, 18, 2); ctx.fillStyle = k > 0.3 ? '#b36bff' : '#ff4f4f'; ctx.fillRect(q.x - 9, y + 3, 18 * k, 1); }
@@ -3799,27 +4057,30 @@
         continue;
       }
       if (m.kind === 'magic' && m.mod) {
+        if (Q.phone) continue;
         const q = mobPos(m);
-        ctx.font = crisp(3) + 'px ' + FONT;
         const mod = G.RARE_MODS[m.mod].name;
+        if (!nameFree(q.x, q.y - 22, mod, crisp(3))) continue;
+        ctx.font = crisp(3) + 'px ' + FONT;
         ctx.strokeText(mod, q.x, q.y - 22); ctx.fillStyle = '#8ac8ff'; ctx.fillText(mod, q.x, q.y - 22);
         continue;
       }
       if (m.kind !== 'rare') continue;
       const q = mobPos(m);
+      if (!nameFree(q.x, q.y - 25, m.name, crisp(3) * 1.6)) continue;
       ctx.font = crisp(3) + 'px ' + FONT;
       ctx.strokeText(m.name, q.x, q.y - 27); ctx.fillStyle = '#ffd84a'; ctx.fillText(m.name, q.x, q.y - 27);
       const mod = G.RARE_MODS[m.mod].name;
       ctx.strokeText(mod, q.x, q.y - 23); ctx.fillStyle = '#c8b4ff'; ctx.fillText(mod, q.x, q.y - 23);
     }
   }
-  let hudBottomH = 0, hudBottomT = 0;
+  let hudBottomH = 0;
   function drawStreak() {
     const c = G.carnage ? G.carnage() : { n: streak.n, tier: 0 };
     const n = Math.max(c.n, 0);
     if (n < 10 || (G.S.hero && G.S.hero.offer)) return;
     // the kill counter lives just above the bars at the bottom, clear of the title cards
-    if (!hudBottomH || (hudBottomT -= fdt) <= 0) { hudBottomT = 1; const el = typeof document !== 'undefined' && document.querySelector('.hud.bottom'); hudBottomH = el ? el.offsetHeight : 90; }
+    if (!hudBottomH) hudBoxesNow();
     const y = H - Math.ceil(hudBottomH / S) - 12;
     const pop = streak.pop > 0 ? 1 + streak.pop * 2 : 1;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -3843,44 +4104,77 @@
     }
     ctx.globalAlpha = 1;
   }
+  // 3.6: the boss bar never collides: it sits under whatever HUD is over its span, the name is cut to the room
+  // the timer leaves it (the depth is in the land box already), the wounds line goes under the name
+  let barY = 0, barBottom = 0, barFitK = '', barFitS = '';
+  function fitText(str, maxW) {
+    if (ctx.measureText(str).width <= maxW) return str;
+    let lo = 0, hi = str.length;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (ctx.measureText(str.slice(0, mid) + '…').width <= maxW) lo = mid; else hi = mid - 1; }
+    return lo > 0 ? str.slice(0, lo).trimEnd() + '…' : '';
+  }
+  function bossBarSpot() {
+    const w = Math.min(W - 20, 170), x = Math.round((W - w) / 2);
+    let y = Math.ceil(50 / S);
+    for (const hb of hudBoxesNow()) if (hb.sel !== '.hud.bottom' && hb.sel !== '#toasts' && x < hb.x1 + 2 && x + w > hb.x0 - 2) y = Math.max(y, Math.ceil(hb.y1 + 8 / S));
+    return { x, y, w };
+  }
   function drawBossBar() {
     const b = G.R.boss;
-    const w = Math.min(W - 20, 170), x = Math.round((W - w) / 2);
-    // on narrow screens the bar would run into the land strip: it goes under it
-    let y = Math.ceil(50 / S);
-    if (x * S < 230) { const el = document.querySelector('#realmBox'), r = el && el.getBoundingClientRect(), c = cv.getBoundingClientRect(); if (r && r.height) y = Math.max(y, Math.ceil((r.bottom - c.top + 8) / S)); }
+    const { x, y, w } = bossBarSpot();
+    barY = y;
     ctx.fillStyle = '#0c0b12'; ctx.fillRect(x - 1, y - 1, w + 2, 7);
     ctx.fillStyle = '#3a1a1e'; ctx.fillRect(x, y, w, 5);
     const k = clamp(b.hp / b.max, 0, 1);
     ctx.fillStyle = b.lord ? '#ff3b5c' : '#e84a4a'; ctx.fillRect(x, y, Math.round(w * k), 5);
     ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x, y, Math.round(w * k), 1);
-    ctx.font = crisp(4) + 'px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.font = crisp(4) + 'px ' + FONT; ctx.textBaseline = 'top';
     ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
-    const name = (b.affix && b.affix.length ? b.affix.map(a => G.t('aff_' + a)).join(' ') + ' ' : '') + G.L(G.bossName(b.d)) + '  ·  ' + G.t('depthShort') + ' ' + (b.d + 1);
-    ctx.strokeText(name, x, y + 8); ctx.fillStyle = b.lord ? '#ff9ab4' : '#ffffff'; ctx.fillText(name, x, y + 8);
-    ctx.textAlign = 'right';
     const tt = b.enr > 0 ? G.t('enrageT', Math.ceil(b.enr)) : Math.ceil(b.t) + 's';
+    const tw = measureW(tt);
+    const full = (b.affix && b.affix.length ? b.affix.map(a => G.t('aff_' + a)).join(' ') + ' ' : '') + G.L(G.bossName(b.d));
+    const fk = full + '|' + Math.round((w - tw - 6) * 10) + '|' + crisp(4);
+    if (fk !== barFitK) { barFitK = fk; barFitS = fitText(full, w - tw - 6); }
+    ctx.textAlign = 'left';
+    ctx.strokeText(barFitS, x, y + 8); ctx.fillStyle = b.lord ? '#ff9ab4' : '#ffffff'; ctx.fillText(barFitS, x, y + 8);
+    ctx.textAlign = 'right';
+    ctx.strokeText(tt, x + w, y + 8); ctx.fillStyle = b.enr > 0 || b.t < 6 ? '#ff4f4f' : '#ffe27a'; ctx.fillText(tt, x + w, y + 8);
+    let bottom = y + 8 + crisp(4) + 1;
     if (b.scar < 1) {
       const ws = G.t('wounded', Math.round((1 - b.scar) * 100)) + (b.rally ? ' · ' + G.t('rally', Math.round(b.rally * 100)) : '');
       // on its own line under the name, so the two never overlap
       ctx.font = crisp(3) + 'px ' + FONT; ctx.textAlign = 'left';
-      ctx.strokeText(ws, x, y + 15); ctx.fillStyle = '#ff9a7a'; ctx.fillText(ws, x, y + 15);
-      ctx.font = crisp(4) + 'px ' + FONT; ctx.textAlign = 'right';
+      ctx.strokeText(ws, x, bottom + 1); ctx.fillStyle = '#ff9a7a'; ctx.fillText(ws, x, bottom + 1);
+      bottom += crisp(3) + 2;
     }
-    ctx.strokeText(tt, x + w, y + 8); ctx.fillStyle = b.t < 6 ? '#ff4f4f' : '#ffe27a'; ctx.fillText(tt, x + w, y + 8);
+    barBottom = bottom;
     const hpT = G.fmt(Math.max(0, b.hp)) + ' / ' + G.fmt(b.max);
     ctx.textAlign = 'center'; ctx.font = crisp(3) + 'px ' + FONT;
     ctx.fillStyle = '#ffffff'; ctx.fillText(hpT, x + w / 2, y + 1);
   }
+  // the top of the boss sprite, for words over it
+  function bossTop() { if (!bossVis) return btnPos().y - 40; return bossPos().y - bossHalf().h * 2; }
+  // a word just over the boss's head (never up under the bar)
+  function overBoss(sz) { const y = bossTop() - sz * 0.6 - 2; const lo = (barBottom || Math.ceil(50 / S) + 14) + sz * 0.6; return Math.max(lo, y); }
+  // 3.6: DOOM reads from across the room: its name, a countdown and the taps left, big and pulsing
   function drawMoveName() {
     const b = G.R.boss;
     if (!b || !b.move || !bossVis) return;
     const M = G.BOSS_MOVES[b.move.k], bp = bossPos(), h = bossVis.sprite.canvas.height * bossScale();
-    ctx.font = crisp(4) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineWidth = 1.5; ctx.strokeStyle = '#0c0b12';
-    const s = M.name + ' · ' + G.t('tapIt', b.move.need - b.move.n);
-    const y = bp.y - h - 18 + (Math.floor(time * 8) % 2);
-    ctx.strokeText(s, bp.x, y); ctx.fillStyle = M.col; ctx.fillText(s, bp.x, y);
+    const doom = b.move.k === 'doom';
+    ctx.font = crisp(doom ? 6 : 4) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = doom ? 2.2 : 1.5; ctx.strokeStyle = '#0c0b12';
+    const s = doom ? M.name + ' ' + Math.max(1, Math.ceil(b.move.t)) : M.name + ' · ' + G.t('tapIt', b.move.need - b.move.n);
+    let y = bp.y - h - 18 + (Math.floor(time * 8) % 2);
+    if (barBottom) y = Math.max(y, barBottom + (doom ? 6 : 4));
+    // (under a card that is up over the boss's head)
+    if (time < cardBlock.until) y = Math.max(y, cardBlock.y1 + (doom ? 7 : 5));
+    ctx.strokeText(s, bp.x, y); ctx.fillStyle = doom ? (Math.floor(time * 6) % 2 ? '#ffffff' : M.col) : M.col; ctx.fillText(s, bp.x, y);
+    if (doom) {
+      ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1.5;
+      const s2 = G.t('tapIt', b.move.need - b.move.n);
+      ctx.strokeText(s2, bp.x, y + 8); ctx.fillStyle = '#ffd0f4'; ctx.fillText(s2, bp.x, y + 8);
+    }
   }
   function drawReady(b) {
     const y = b.y - 44 + Math.sin(time * 5) * 1.5;

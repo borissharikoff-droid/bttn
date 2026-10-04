@@ -31,7 +31,8 @@
     const out = { main: '#9a9aa8', dark: '#6e6e7c', acc: '#ffd84a' };
     try {
       const c = SPR.get(id.indexOf('_') > 0 && SPR.defs[id] ? id : 'it_' + id);
-      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      // (3.6: a sprite built by SPR keeps its pixels: no read-back)
+      const d = c._px || c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
       const n = {};
       for (let i = 0; i < d.length; i += 4) {
         if (d[i + 3] < 128) continue;
@@ -51,8 +52,13 @@
   Doll.itemCols = itemCols;
 
   const type = g => g ? G.ITEM_TYPE[g.id] : null;
+  // (3.6: kept on the hero while its class and the four items it wears are the same objects)
   function gearKey(h) {
-    return h.cls + '|' + G.SLOTS.map(s => h.eq[s] ? h.eq[s].id + ':' + h.eq[s].r + (h.eq[s].q || '') : '-').join(',');
+    const eq = h.eq, c = h._gkC;
+    if (c && c.cls === h.cls && c.eq === eq && c.a === eq.weapon && c.b === eq.ability && c.c === eq.armor && c.d === eq.ring) return c.k;
+    const k = h.cls + '|' + G.SLOTS.map(s => eq[s] ? eq[s].id + ':' + eq[s].r + (eq[s].q || '') : '-').join(',');
+    try { Object.defineProperty(h, '_gkC', { value: { cls: h.cls, eq, a: eq.weapon, b: eq.ability, c: eq.armor, d: eq.ring, k }, configurable: true, writable: true, enumerable: false }); } catch (e) { /* a frozen object: no cache */ }
+    return k;
   }
 
   // ---------- One frame of the body ----------

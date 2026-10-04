@@ -182,7 +182,7 @@
     }
     // Soul Harvest: small fry give a sliver, the big ones a whole soul
     if (rk.souls) {
-      souls += small ? 0.15 : 1.5;
+      souls += small ? 0.15 * (m.ck || 1) : 1.5; // (3.6: a heavier small one, m.ck of the old bodies, counts for all of them)
       if (souls >= P.soulsEvery) {
         souls = Math.min(souls - P.soulsEvery, P.soulsEvery * 0.5);
         const h = hp(), k = P.soulHeal * rk.souls;
@@ -199,7 +199,7 @@
     // Momentum
     if (rk.momentum) {
       const cap = P.momMax * rk.momentum, before = Math.floor(momS);
-      momS = Math.min(cap, momS + (small ? 0.1 : 1)); momLast = T;
+      momS = Math.min(cap, momS + (small ? 0.1 * (m.ck || 1) : 1)); momLast = T;
       if (Math.floor(momS) !== before) G.dirty();
     }
   });

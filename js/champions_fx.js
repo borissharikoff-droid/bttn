@@ -104,31 +104,96 @@
   let stealSnd = 0;
 
   // ================= Layers =================
-  let cv = null, ctx = null, card = null, cardT = null, W = 0, H = 0, DPR = 1, rect = null;
+  let cv = null, ctx = null, card = null, cardT = null, W = 0, H = 0, DPR = 1, rect = null, shown = false;
   function ensure() {
     if (cv && cv.isConnected) return true;
     const stage = document.getElementById('stage'), wrap = document.getElementById('stageWrap');
     if (!stage || !wrap) return false;
-    cv = document.createElement('canvas'); cv.id = 'champFx';
+    cv = document.createElement('canvas'); cv.id = 'champFx'; cv.width = 1; cv.height = 1; cv.style.display = 'none'; shown = false;
     stage.insertAdjacentElement('afterend', cv);
     ctx = cv.getContext('2d');
-    card = document.createElement('div'); card.id = 'champCard'; card.hidden = true;
+    trackCtx(ctx);
+    if (!card) { card = document.createElement('div'); card.id = 'champCard'; card.hidden = true; }
     wrap.appendChild(card);
     return true;
   }
+  // 3.6: the stage's cached box (no layout read each frame); the backing store at the quality tier's ratio
   function resize() {
-    const r = cv.getBoundingClientRect();
+    const s = St(), r = s && s.wrapRect ? s.wrapRect() : cv.getBoundingClientRect();
     rect = r;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const q = G.Quality, dpr = q && q.fxRatio ? q.fxRatio(r.width, r.height) : Math.min(q && q.fxDpr ? q.fxDpr : 2, window.devicePixelRatio || 1);
     if (Math.round(r.width * dpr) !== cv.width || Math.round(r.height * dpr) !== cv.height || dpr !== DPR) {
-      DPR = dpr; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
+      DPR = dpr; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); wipe = true;
     }
     W = r.width; H = r.height;
   }
-  // the card at the top of the field: one at a time, the newest wins
+  function show(on) { if (cv && on !== shown) { shown = on; cv.style.display = on ? '' : 'none'; } }
+  // 3.6: it clears only the boxes it drew last frame: every draw notes its box (in CSS px)
+  let box = [], boxNext = [], wipe = true, boxArea = 0, xf = 0, pb = null;
+  function note(x0, y0, x1, y1) {
+    if (wipe) return;
+    if (x1 < x0) { const t = x0; x0 = x1; x1 = t; } if (y1 < y0) { const t = y0; y0 = y1; y1 = t; }
+    x0 = Math.max(0, Math.floor(x0) - 3); y0 = Math.max(0, Math.floor(y0) - 3); x1 = Math.min(W, Math.ceil(x1) + 3); y1 = Math.min(H, Math.ceil(y1) + 3);
+    if (x1 <= x0 || y1 <= y0) return;
+    boxArea += (x1 - x0) * (y1 - y0);
+    if (boxArea > W * H * 0.45 || boxNext.length > 2400) { wipe = true; return; }
+    boxNext.push(x0, y0, x1, y1);
+  }
+  function trackCtx(c) {
+    const P = CanvasRenderingContext2D.prototype;
+    c.fillRect = function (x, y, w, h) { if (!xf) note(x, y, x + w, y + h); return P.fillRect.call(this, x, y, w, h); };
+    c.fillText = function (t, x, y) { if (!xf) noteText(t, x, y); return P.fillText.call(this, t, x, y); };
+    c.strokeText = function (t, x, y) { if (!xf) noteText(t, x, y); return P.strokeText.call(this, t, x, y); };
+    c.beginPath = function () { pb = null; return P.beginPath.call(this); };
+    const ext = (x, y) => { if (!pb) pb = [x, y, x, y]; else { if (x < pb[0]) pb[0] = x; if (y < pb[1]) pb[1] = y; if (x > pb[2]) pb[2] = x; if (y > pb[3]) pb[3] = y; } };
+    c.moveTo = function (x, y) { ext(x, y); return P.moveTo.call(this, x, y); };
+    c.lineTo = function (x, y) { ext(x, y); return P.lineTo.call(this, x, y); };
+    c.ellipse = function (x, y, rx, ry, a, b, e) { ext(x - rx, y - ry); ext(x + rx, y + ry); return P.ellipse.call(this, x, y, rx, ry, a, b, e); };
+    c.fill = function () { if (pb && !xf) note(pb[0], pb[1], pb[2], pb[3]); return P.fill.apply(this, arguments); };
+    c.stroke = function () { if (pb && !xf) { const w = this.lineWidth || 1; note(pb[0] - w, pb[1] - w, pb[2] + w, pb[3] + w); } return P.stroke.apply(this, arguments); };
+    c.translate = function (x, y) { xf++; return P.translate.call(this, x, y); };
+    c.restore = function () { xf = 0; return P.restore.call(this); };
+  }
+  function noteText(t, x, y) {
+    const f = parseFloat(ctx.font) || 10, w = String(t).length * f * 1.1 + 8;
+    note(x - w, y - f * 1.6, x + w, y + f * 0.6);
+  }
+  function clearBoxes() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (wipe) ctx.clearRect(0, 0, cv.width, cv.height);
+    else for (let i = 0; i < box.length; i += 4) ctx.clearRect(box[i] * DPR, box[i + 1] * DPR, (box[i + 2] - box[i]) * DPR, (box[i + 3] - box[i + 1]) * DPR);
+    wipe = false; boxArea = 0; boxNext.length = 0; xf = 0;
+  }
+  function endBoxes() { const t = box; box = boxNext; boxNext = t; boxNext.length = 0; if (wipe) box.length = 0; }
+  // the card at the top of the field: one at a time (3.6: a new one waits until the one up has had its time,
+  // unless it is the same champion's next news and the first has been up a while)
+  const cardQ = [];
+  let cardUp = null, cardUpAt = 0;
   function showCard(o) {
     if (!ensure()) return;
+    const now = performance.now();
+    if (cardUp && !card.hidden && !o.now) {
+      const minUp = Math.min(cardUp.ms || 2800, 1600);
+      if (now - cardUpAt < minUp) {
+        if (cardQ.length >= 2) cardQ.shift();
+        cardQ.push(o);
+        setTimeout(pumpCard, minUp - (now - cardUpAt) + 30);
+        return;
+      }
+    }
+    putCard(o);
+  }
+  function pumpCard() {
+    if (!cardQ.length) return;
+    const now = performance.now();
+    if (cardUp && !card.hidden && now - cardUpAt < Math.min(cardUp.ms || 2800, 1600)) { setTimeout(pumpCard, 120); return; }
+    putCard(cardQ.shift());
+  }
+  function putCard(o) {
     clearTimeout(cardT);
+    cardUp = o; cardUpAt = performance.now();
+    if (G.director && G.director.mark && o.big) { try { G.director.mark('card', (o.ms || 2800) / 1000); } catch (e) { /* the director is optional */ } }
+    card.classList.remove('out');
     card.className = (o.big ? 'big' : '') + (o.dim ? ' dim' : '');
     card.innerHTML = '';
     const box = document.createElement('div'); box.className = 'chBox'; box.style.setProperty('--c', o.col || '#ffd84a');
@@ -143,7 +208,7 @@
     }
     card.appendChild(box);
     card.hidden = false;
-    cardT = setTimeout(() => { card.classList.add('out'); cardT = setTimeout(() => { card.hidden = true; }, 380); }, o.ms || 2800);
+    cardT = setTimeout(() => { card.classList.add('out'); cardT = setTimeout(() => { card.hidden = true; cardUp = null; if (cardQ.length) pumpCard(); }, 380); }, o.ms || 2800);
   }
 
   // ================= Where things are =================
@@ -221,6 +286,7 @@
     const cx = W / 2, cy = H * 0.54, dx = f.x - cx, dy = f.y - cy, pad = 26;
     const k = Math.min((W / 2 - pad) / Math.max(1, Math.abs(dx)), (H / 2 - pad) / Math.max(1, Math.abs(dy)));
     const x = cx + dx * Math.min(1, k), y = clamp(cy + dy * Math.min(1, k), 70, H - 90), a = Math.atan2(dy, dx);
+    note(x - 16, y - 16, x + 16, y + 16);
     ctx.save(); ctx.translate(x, y); ctx.rotate(a);
     ctx.globalAlpha = 0.65 + 0.35 * Math.sin(t * 8);
     ctx.fillStyle = '#0a0910'; ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -11); ctx.lineTo(-8, 11); ctx.closePath(); ctx.fill();
@@ -310,17 +376,31 @@
   // ================= The frame =================
   let last = 0, idle = true;
   function frame(now) {
+    if (G.Stage && G.Stage.onFrame) { G.Stage.onFrame(step); return; }
     requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - (last || now)) / 1000); last = now;
+    step((now - (last || now)) / 1000, now); last = now;
+  }
+  function step(dtIn, now) {
+    const dt = Math.min(0.05, dtIn || 0);
     const c = R.champ, busy = c || parts.length || rings.length || flyers.length || floats.length || celebr.length;
-    if (!busy) { if (!idle && ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); } idle = true; return; }
+    if (!busy || R.town) {
+      if (!idle && ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); box.length = 0; show(false); }
+      idle = true;
+      if (R.town) { parts.length = 0; rings.length = 0; flyers.length = 0; floats.length = 0; celebr.length = 0; }
+      return;
+    }
     if (!ensure()) return;
+    if (idle) wipe = true;
     idle = false;
     resize();
+    show(true);
+    clearBoxes();
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.clearRect(0, 0, W, H);
     ctx.imageSmoothingEnabled = false;
-    if (R.town) return;
+    drawAll(dt, now, c);
+    endBoxes();
+  }
+  function drawAll(dt, now, c) {
     const t = now / 1000, u = px();
     if (c) {
       if (c._hitT > 0) c._hitT -= dt * 3;
@@ -416,6 +496,7 @@
       if (!f) continue;
       if (e.k === 'kill') {
         // golden rays turning out of the spot it fell
+        const R0 = 70 * u * (0.4 + k) + 6 * u; note(f.x - R0, f.y - 12 * u - R0, f.x + R0, f.y - 12 * u + R0);
         ctx.save(); ctx.translate(f.x, f.y - 12 * u); ctx.rotate(t * 0.8);
         ctx.globalAlpha = 0.5 * (1 - k);
         for (let r = 0; r < 10; r++) {
@@ -540,6 +621,6 @@
   });
 
   // for testing: the current overlay pieces
-  G.champFx = { card: showCard, sfx: SFX, state: () => ({ parts: parts.length, rings: rings.length, card: card && !card.hidden ? card.textContent : null }) };
-  requestAnimationFrame(frame);
+  G.champFx = { card: showCard, sfx: SFX, _wipe: () => { wipe = true; }, state: () => ({ parts: parts.length, rings: rings.length, card: card && !card.hidden ? card.textContent : null, queued: cardQ.length }) };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(frame)); else requestAnimationFrame(frame);
 })(globalThis.G = globalThis.G || {});

@@ -12,7 +12,13 @@
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
     // the arena is never empty: lots of small bodies, capped for the frame rate
-    mobMax: 1100, packMul: 3, minCrowd: 135, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
+    mobMax: 850, packMul: 3, minCrowd: 135, spitStop: 0.68, spitEvery: 2.4, bombR: 0.16, bombPow: 1.4,
+    // 3.6: the crowd. The Horde was balanced at mobRef small bodies; it now draws at most mobMax (fewer on phones and on
+    // the low quality tiers), and each small one weighs (and bleeds, bites and pays) as much more as there are fewer of
+    // them, so the fight is the same. The first lands start thinner and fill up: crowdFrom of the bodies at depth 0,
+    // crowdPer more a depth, and in a run's first crowdRun s on those lands half again fewer (some of that weight is
+    // really gone: the opening is gentler, crowdKeep of the thinning comes back as heft)
+    mobRef: 1100, crowdFrom: 0.3, crowdPer: 0.08, crowdRun: 40, crowdRunFrom: 0.45, crowdRunTo: 6, crowdKeep: 0.5,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.8,
@@ -34,6 +40,8 @@
     // at most (the points wait in the bank; past perkBank of them the extra ones are picked for you, if auto-pick is
     // on); a set left alone is picked for you after perkAuto s
     perkGap: 25, perkEarly: 180, perkBank: 3, perkAuto: 12,
+    // 3.6: a wipe ends the run only once this run has reached this depth (the end of its first land)
+    fallFrom: 3,
   });
 
   // ---------- Content ----------
@@ -363,7 +371,8 @@
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
     const from = S.depth;
     // pushed back: the clear bar is lost and, past the first depth, a depth with it
-    if (!inRift) { S.bossMeter = 0; R.zoneT = 0; if (hadBoss && S.depth > 0) S.depth--; R.bossReady = false; }
+    // (3.6: the zone's clock runs on: a party that falls now and then still gets its boss once the bar is back)
+    if (!inRift) { S.bossMeter = 0; if (hadBoss && S.depth > 0) S.depth--; R.bossReady = false; }
     if (R.ground) R.ground.length = 0;
     R.btnDown = 0; h.hp = G.D.heroHp;
     for (const u of G.partyUnits()) reviveUnit(u.who, 1);
@@ -371,7 +380,9 @@
     R.bossHold = 25; // and no boss comes on its own for a while
     G.dirty(); G.recalc();
     // 3.1: past the first minutes the Button's fall ends the run (fame, then a new run from the checkpoint)
-    const fell = !inRift && G.runOver && !(S.tut >= 0) && (S.st.playTime || 0) > 150;
+    // (3.6: not in a run's first land: a party still learning to hold depth 1 is pushed back, not sent to a new run
+    // every minute or two, each time with a blessing to pick)
+    const fell = !inRift && G.runOver && !(S.tut >= 0) && (S.st.playTime || 0) > 150 && (S.maxDepth || 0) >= TUNE.fallFrom;
     R.fell = fell;
     emit('wipe', from, S.depth, inRift, hadBoss);
     if (fell) G.runOver();
@@ -761,14 +772,22 @@
   // it just dies in a much bigger heap.
   // (2.3: the first lands are thicker, 3.5 times at depth 0, easing to nothing by depth 40, so the
   // early game is a fight too and not a stroll a fresh Warden outgrows in minutes)
-  function mobHp(d) { return TUNE.mobBase * Math.pow(TUNE.mobGrowth, d) * (1 + TUNE.earlyHp * Math.max(0, 1 - d / TUNE.earlyTo)); }
+  // (3.6: kept per depth, and worked out again if a TUNE number it uses changes)
+  const HPC = []; let hpB, hpG, hpE, hpT;
+  function mobHp(d) {
+    if (hpB !== TUNE.mobBase || hpG !== TUNE.mobGrowth || hpE !== TUNE.earlyHp || hpT !== TUNE.earlyTo) { HPC.length = 0; hpB = TUNE.mobBase; hpG = TUNE.mobGrowth; hpE = TUNE.earlyHp; hpT = TUNE.earlyTo; }
+    let v = HPC[d];
+    if (v === undefined) { v = TUNE.mobBase * Math.pow(TUNE.mobGrowth, d) * (1 + TUNE.earlyHp * Math.max(0, 1 - d / TUNE.earlyTo)); if (d >= 0 && d < 4096 && d === (d | 0)) HPC[d] = v; }
+    return v;
+  }
   function mobAtk(d) { return TUNE.mobAtkBase * Math.pow(TUNE.mobAtkGrowth, d); }
   G.mobHp = mobHp; G.mobAtk = mobAtk;
   // Bosses are worth a few dozen mobs at first and grow into real walls by
   // the second land: from then on a boss needs a Warden strong for this depth.
   G.bossHp = d => mobHp(d) * Math.min(TUNE.bossHpMobs, 40 + 30 * d) * (G.isLord(d) ? TUNE.lordHp : 1);
   // (3.3: the first levels cost more, so the opening isn't a blur of level-up cards)
-  function xpNeed(l) { return Math.floor(10 * Math.pow(1.21, l - 1) + 14 * l); }
+  const XPC = [];
+  function xpNeed(l) { return XPC[l] || (XPC[l] = Math.floor(10 * Math.pow(1.21, l - 1) + 14 * l)); }
   G.xpNeed = xpNeed;
 
   G.MOB_KINDS = {
@@ -819,16 +838,28 @@
   // (2.3: and never less than a full Horde: a Warden too weak for the depth is overrun, not spared)
   const hordeScale = () => G.clamp(mightRatio() / TUNE.hordeRef, TUNE.hsMin, TUNE.hordeMax);
   G.hordeScale = hordeScale;
+  // 3.6: how many small bodies the field holds now, and how much each weighs against the mobRef it was balanced for
+  function crowdUpdate() {
+    const d = dnow(), base = Math.max(40, Math.min(TUNE.mobMax, TUNE.mobRef));
+    let ramp = R.rift ? 1 : Math.min(1, TUNE.crowdFrom + TUNE.crowdPer * d);
+    if (!R.rift && d < TUNE.crowdRunTo) ramp *= Math.min(1, TUNE.crowdRunFrom + (1 - TUNE.crowdRunFrom) * (R.runT || 0) / TUNE.crowdRun);
+    R.crowdCap = Math.max(40, Math.round(base * ramp)); R.crowdD = d;
+    R.crowdK = TUNE.mobRef / base * Math.pow(1 / ramp, TUNE.crowdKeep);
+  }
+  const crowdCap = () => { if (R.crowdCap == null || R.crowdD !== dnow()) crowdUpdate(); return R.crowdCap; };
+  // a swarm of n small ones (as balanced at mobRef bodies) in the bodies the field holds now
+  const crowdN = n => Math.max(1, Math.round(n / (R.crowdK || 1)));
+  G.crowdN = crowdN; G.crowdCap = crowdCap; G.crowdUpdate = crowdUpdate;
   // 3.6: how much of the clear bar the zone's clock allows by now (R.zoneT: field time in this zone; see game.js TUNE.zoneMin)
   const zoneMinNow = () => (G.S.depth >= (G.S.bestDepth || 0) ? TUNE.zoneMin : TUNE.zoneMinOld) || 0;
   function zoneShare() { const z = zoneMinNow(); return z > 0 ? Math.min(1, (R.zoneT || 0) / z) : 1; }
   G.zoneShare = zoneShare;
-  // set the zone's clock to match a clear bar (after a load, a lost fight, a wipe)
+  // set the zone's clock to match a clear bar (after a load or a lost fight)
   G.zoneSync = () => { const need = G.D.bossNeed || 8; R.zoneT = zoneMinNow() * Math.min(1, Math.max(0, (G.S.bossMeter || 0) / need)); };
   function makeMob(kind, a, p, add) {
     const K = G.MOB_KINDS[kind];
     // a stronger Warden meets a heavier Horde: half of it in heft, half in numbers (spawnPack)
-    const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5)));
+    const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5))) * (G.SMALL[kind] ? R.crowdK || 1 : 1);
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
     const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : kind === 'guardian' ? 1 : TUNE.bigHp) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
     const m = { id: ++R.mobUid, kind, w, hp: hp * (R.rift ? 1 : R.opHp || 1), max: hp * (R.rift ? 1 : R.opHp || 1), p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add,
@@ -836,7 +867,8 @@
       // whole Horde stay fast)
       dead: false, gone: false, mod: null, name: null, stone: 0, br: 0, inv: null, move: null, held: 0, bit: null, kbAt: -9,
       chill: 0, chillK: 0, _cp: null, over: 0, crit: false, gild: 0, gob: 0, swarm: 0, por: 0, amb: 0, spit: 0, chg: 0, champ: 0, wl: 0,
-      _ta: -1, _tc: 0, _ts: 0, _tg: 0 };
+      // ck: how many of the bodies the Horde was balanced at this one stands for (see crowdUpdate)
+      ck: G.SMALL[kind] ? R.crowdK || 1 : 1, _ta: -1, _tc: 0, _ts: 0, _tg: 0 };
     if (kind === 'rare') {
       m.mod = pick(Object.keys(G.RARE_MODS));
       m.name = pick(RARE_A) + ' ' + pick(RARE_B);
@@ -852,6 +884,7 @@
     // an invasion's mobs wear its colours and count toward holding it off
     if (R.inv && !add && kind !== 'hoard') m.inv = R.inv.k;
     R.mobs.push(m);
+    if (!m.add) R.bornW = (R.bornW || 0) + w;
     emit('mobSpawn', m);
     if (G.NEW_KINDS && G.NEW_KINDS.includes(kind) && !add) { const sn = G.S.seen = G.S.seen || {}; sn.kinds = sn.kinds || {}; if (!sn.kinds[kind]) { sn.kinds[kind] = 1; emit('kindFirst', kind); } }
     return m;
@@ -872,11 +905,11 @@
   // that streams in behind it (p below 0 is still off the arena)
   function spawnPack(add, at) {
     const d = dnow(), a = at != null ? at + rand(-0.04, 0.04) : G.rng(), roll = G.rng(), L = land();
-    if (R.mobs.length >= TUNE.mobMax) return;
-    const room = () => R.mobs.length < TUNE.mobMax;
+    if (R.mobs.length >= crowdCap()) return;
+    const room = () => R.mobs.length < crowdCap();
     // packs are thick: 1.4 times what they were, and more again for a Warden who outclasses the depth
     const more = add ? 1 : TUNE.packMul * Math.sqrt(Math.max(1, (R.hs || 1) / 1.5));
-    const swarm = (kind, n, spread, tail) => { n = Math.round(n * (G.SMALL[kind] ? more : 1)); for (let i = 0; i < n && room(); i++) makeMob(kind, a + rand(-spread, spread), -rand(0, tail || 0.3), add); };
+    const swarm = (kind, n, spread, tail) => { n = G.SMALL[kind] ? crowdN(n * more) : Math.round(n); for (let i = 0; i < n && room(); i++) makeMob(kind, a + rand(-spread, spread), -rand(0, tail || 0.3), add); };
     if (add) { swarm('fodder', randInt(30, 50), 0.08, 0.25); return; }
     const rc = 0.03 * om().champ * (L.rare || 1), mc = rc + 0.07 * om().champ * (L.champ || 1);
     if (d >= 1 && roll < rc) { emit('packIn', a, 'rare'); makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
@@ -965,6 +998,30 @@
     return out;
   }
   G.mobsAround = around;
+  // 3.6: a blow that sweeps the whole field rolls out from the Button over a few frames, as a ring, instead of landing
+  // on every mob in one tick (an Overdrive pulse or a Skull Blast was a thousand hits and hundreds of deaths in a frame)
+  //   G.fieldWave(dmg, src, { dur, guardK, minP }) : dmg to every mob the ring passes over (guardK: share for guardians)
+  const WAVES = [], WLIST = [], WALK = [];
+  G.fieldWave = function (dmg, src, o) {
+    o = o || {};
+    WAVES.push({ t: 0, dur: o.dur || 0.2, dmg, src, gk: o.guardK == null ? 1 : o.guardK, minP: o.minP == null ? -9 : o.minP, hit: new Set() });
+  };
+  function stepWaves(dt) {
+    for (let i = WAVES.length - 1; i >= 0; i--) {
+      const w = WAVES[i];
+      w.t += dt;
+      const reach = w.t >= w.dur ? 9 : 1.15 * w.t / w.dur, list = WLIST; list.length = 0;
+      for (let j = 0; j < R.mobs.length; j++) list.push(R.mobs[j]);
+      for (let j = 0; j < list.length; j++) {
+        const m = list[j];
+        if (m.dead || m.p < w.minP || w.hit.has(m) || 1 - 0.88 * m.p > reach) continue;
+        w.hit.add(m);
+        dealHit(m, m.kind === 'guardian' ? w.dmg * w.gk : w.dmg, w.src, false);
+      }
+      if (reach >= 9) WAVES.splice(i, 1);
+    }
+  }
+  G.fieldWavesClear = () => { WAVES.length = 0; };
   // The Hand guards the Button: it strikes where the horde is thickest among
   // the mobs that got close
   function smiteTarget() {
@@ -1003,16 +1060,21 @@
     const S = G.S, D = G.D, h = S.hero, L = land();
     m.dead = true;
     for (const f of G.HOOKS.kill) f(m, src);
-    if (!m.add) { const t0 = carnTier(); R.carn++; R.carnT = 0; if (R.carn > (S.st.bestStreak || 0)) S.st.bestStreak = R.carn; if (carnTier() > t0) emit('carnage', carnTier()); }
+    // (3.6: kills count in the bodies the Horde was balanced at: a heavier small one counts for the several it stands for)
+    R.kAcc = (R.kAcc || 0) + (m.ck || 1);
+    const kn = Math.floor(R.kAcc); R.kAcc -= kn;
+    if (!m.add) { const t0 = carnTier(); R.carn += kn; R.carnT = 0; if (R.carn > (S.st.bestStreak || 0)) S.st.bestStreak = R.carn; if (carnTier() > t0) emit('carnage', carnTier()); }
     const cm = 1 + 0.1 * carnTier();
-    const i = R.mobs.indexOf(m);
-    if (i >= 0) R.mobs.splice(i, 1);
+    // (3.6: out of the list in one step: the last mob takes its place; the order of R.mobs means nothing, and
+    // splicing out of the middle of a thousand bodies, hundreds of times in one AoE tick, was the cost of the spikes)
+    const ms = R.mobs, i = ms.lastIndexOf(m);
+    if (i >= 0) { const last = ms.pop(); if (i < ms.length) ms[i] = last; }
     const K = G.MOB_KINDS[m.kind];
     const gold = D.incomeRef * TUNE.mobGold * m.w * K.gold * (m.add ? 0.4 : 1) * (1 + 0.2 * perk('greed')) * (evo('midas') ? 2 : 1) * om().gold * (shrine('greed') ? 2 : 1) * cm * evMul('gold');
     G.addGold(gold, 'mob');
     gainXp(2.5 * (1 + dnow()) * m.w * (m.kind === 'rare' ? 1.5 : 1) * (m.br ? 1.5 : 1) * (shrine('slaughter') ? 2 : 1) * (D.xpMult || 1) * (L.xp || 1) * cm * evMul('xp'));
-    h.kills++;
-    if (G.landKill && !m.add) G.landKill(m);
+    h.kills += kn;
+    if (G.landKill && !m.add && kn) G.landKill(m, kn);
     if (m.kind === 'magic' || m.kind === 'rare') h.elites++;
     if (m.kind === 'rare') {
       S.st.rares = (S.st.rares || 0) + 1;
@@ -1023,7 +1085,7 @@
     // (3.6: but never faster than the zone's own clock: a zone is fought for TUNE.zoneMin s of field time at least)
     if (!m.add && !R.rift) {
       // (and in the lord's zone, short of full while its Land Champion is still to come: js/champions.js)
-      const cap = (G.D.bossNeed || 8) * (R.chPend ? Math.min(0.55, zoneShare()) : zoneShare());
+      const cap = (G.D.bossNeed || 8) * (R.chPend ? Math.min(0.9, zoneShare()) : zoneShare());
       if (S.bossMeter < cap) S.bossMeter = Math.min(cap, S.bossMeter + m.w * G.clamp(mightRatio() / (TUNE.hordeRef * 2), 1, S.depth >= (S.bestDepth || 0) ? 3 : 6));
     }
     let chest = null;
@@ -1050,8 +1112,7 @@
     if (perk('leech')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.003 * perk('leech') * (G.SMALL[m.kind] ? 0.3 : 4) * (evo('bloodpact') ? 4 : 1));
     if (uq('sporeheart')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.004 * (G.SMALL[m.kind] ? 0.3 : 4));
     if (uq('reaper')) { R.reap = Math.min(40, R.reap + 1); R.reapT = 6; }
-    G.questProgress('kills', 1);
-    if (G.Journey) G.Journey.bountyKill();
+    if (kn) { G.questProgress('kills', kn); if (G.Journey) G.Journey.bountyKill(kn); }
     emit('mobDie', m, gold, chest, src);
     if (m.mod === 'splitter') spores(m, 22);
     else if (L.split && !m.add && (m.kind === 'brute' || m.kind === 'magic' || m.kind === 'tank') && chance(L.split)) { spores(m, 18); emit('spores', m); }
@@ -1063,7 +1124,7 @@
     if (R.rift && G.riftKill) G.riftKill(m);
     if (m.inv && G.invasionKill) G.invasionKill(m);
   }
-  function spores(m, n) { for (let k = 0; k < n && R.mobs.length < TUNE.mobMax; k++) makeMob('fodder', m.a + rand(-0.04, 0.04), m.p - rand(0, 0.08), m.add); }
+  function spores(m, n) { n = crowdN(n); for (let k = 0; k < n && R.mobs.length < TUNE.mobMax; k++) makeMob('fodder', m.a + rand(-0.04, 0.04), m.p - rand(0, 0.08), m.add); }
   function bomb(m) {
     const near = around([m], TUNE.bombR).filter(o => !o.dead);
     emit('bomb', m, TUNE.bombR);
@@ -1107,6 +1168,8 @@
   // 3.6: may a set of cards come up now? (not in a boss fight or a march; one set per perkGap s after the first minutes)
   function offerOk() {
     if (R.boss || R.march) return false;
+    // (and not on top of a big moment's start, or a Hoarder's or a shrine's: js/game.js G.director)
+    if (G.director && G.director.state) { const d = G.director.state(); if (d.sinceLast < 3 || d.sinceSmall < 2) return false; }
     const t = G.S.st.playTime || 0;
     return t < TUNE.perkEarly || R.perkAt == null || t - R.perkAt >= TUNE.perkGap || t < R.perkAt;
   }
@@ -1137,6 +1200,7 @@
     while (pickN.length < want) { const k = pick(open); if (!pickN.includes(k)) pickN.push(k); }
     h.offer = pickN; h.offerT = 0;
     R.perkAt = G.S.st.playTime || 0;
+    if (G.director) G.director.mark('small');
     emit('perkOffer', pickN);
   }
   G.pickPerk = function (id) {
@@ -1322,12 +1386,12 @@
       case 'wing': R.hb.wing = 8; break;
       case 'skull':
         if (R.boss) G.hitBoss(hit * 8 * D.bossMult);
-        for (const m of R.mobs.slice()) dealHit(m, hit * 8, 'ability');
+        G.fieldWave(hit * 8, 'ability', { dur: 0.25 });
         break;
       case 'egg':
         if (R.boss) G.hitBoss(hit * 15 * D.bossMult);
         else { const t = targets(1)[0]; if (t) dealHit(t, hit * 11, 'ability'); }
-        for (const m of R.mobs.slice()) dealHit(m, hit * 4, 'ability');
+        G.fieldWave(hit * 4, 'ability', { dur: 0.25 });
         break;
     }
     G.dirty(); G.recalc();
@@ -1340,6 +1404,7 @@
     const S = G.S, D = G.D, h = S.hero;
     if (!h || !h.cls) return;
     for (const f of G.HOOKS.tick) f(dt);
+    if (WAVES.length) stepWaves(dt);
     // ability buffs
     let changed = false;
     for (const k in R.hb) { if (R.hb[k] > 0) { R.hb[k] -= dt; if (R.hb[k] <= 0) changed = true; } }
@@ -1348,6 +1413,8 @@
     if (R.stun > 0) R.stun -= dt;
     // the zone's clock: field time, not a boss fight, a march or a Rift
     if (!R.boss && !R.march && !R.rift) R.zoneT = (R.zoneT || 0) + dt;
+    R.runT = (R.runT || 0) + dt;
+    crowdUpdate();
     if (R.reapT > 0 && (R.reapT -= dt) <= 0) { R.reap = 0; G.dirty(); }
     if (R.carn && (R.carnT += dt) > 2.5) { R.carn = 0; emit('carnage', 0); }
     // regen: slow, slower still with a boss on the field, so a fight can be lost
@@ -1384,11 +1451,13 @@
           }
         }
         // the arena is never empty: fewer than minCrowd on the field brings the next pack now
-        if (R.hordeAcc < 1) { let vis = 0; for (const m of R.mobs) if (!m.add && m.p >= 0 && ++vis >= TUNE.minCrowd) break; if (vis < TUNE.minCrowd) R.hordeAcc = 1; }
-        if (R.hordeAcc >= 1 && aliveWeight(false) < cap && R.mobs.length < TUNE.mobMax) {
-          const w0 = aliveWeight(false);
+        const minC = Math.min(TUNE.minCrowd, Math.round(crowdCap() * 0.6));
+        if (R.hordeAcc < 1) { let vis = 0; for (const m of R.mobs) if (!m.add && m.p >= 0 && ++vis >= minC) break; if (vis < minC) R.hordeAcc = 1; }
+        // (3.6: one pass for the weight on the field; what the pack brings is counted as it is born, see makeMob)
+        if (R.hordeAcc >= 1 && R.mobs.length < crowdCap() && aliveWeight(false) < cap) {
+          const w0 = R.bornW || 0;
           spawnPack(false);
-          R.hordeAcc -= Math.max(0.5, aliveWeight(false) - w0);
+          R.hordeAcc -= Math.max(0.5, (R.bornW || 0) - w0);
         }
       }
     }
@@ -1399,7 +1468,10 @@
     // the tank's line this tick
     const tk = R.boss || !(G.S.party && G.S.party.length) ? null : tankUp(); let blocked = 0; const tkA = R.tankA == null ? 0.5 : R.tankA;
     if (tk) stepTank(dt);
-    for (const m of R.mobs.slice()) {
+    // (a copy, as mobs die and are born in the loop; 3.6: into one array kept for it, not a new one every tick)
+    const walk = WALK; walk.length = 0; for (let i = 0; i < R.mobs.length; i++) walk.push(R.mobs[i]);
+    for (let wi = 0; wi < walk.length; wi++) {
+      const m = walk[wi];
       if (m.dead) continue;
       if (m.move && G.moveMob) { G.moveMob(m, dt); continue; }
       // 2.5: menders and callers hold at range; chargers break into a run once they're close
@@ -1412,7 +1484,7 @@
             if (n) emit('mend', m, n);
           } else {
             m.atkT = TUNE.callEvery * rand(0.85, 1.15);
-            for (let i = 0; i < TUNE.callN && R.mobs.length < TUNE.mobMax; i++) makeMob('fodder', m.a + rand(-0.03, 0.03), m.p - rand(0.05, 0.15), true);
+            for (let i = 0, cn = crowdN(TUNE.callN); i < cn && R.mobs.length < TUNE.mobMax; i++) makeMob('fodder', m.a + rand(-0.03, 0.03), m.p - rand(0.05, 0.15), true);
             emit('call', m);
           }
         }
@@ -1556,6 +1628,7 @@
   };
 
   G.heroBossStart = function () {
+    WAVES.length = 0;
     // 3.6: a set of cards on screen waits out the fight (it comes back, fresh, once the march is over)
     const h = G.S.hero;
     if (h && h.offer) { h.offer = null; h.offerT = 0; emit('perkHold'); }
@@ -1575,7 +1648,7 @@
     h.perks = {}; h.perkPts = 0; h.offer = null;
     if (!keepClass) h.cls = null;
     if (G.worldReset) G.worldReset();
-    R.mobs.length = 0; if (R.shots) R.shots.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20; R.reap = 0; R.rift = null; R.zoneT = 0;
+    R.mobs.length = 0; if (R.shots) R.shots.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20; R.reap = 0; R.rift = null; R.zoneT = 0; R.runT = 0; WAVES.length = 0;
     G.S.rec.runStart = Date.now();
     R.btnDown = 0; h.wdown = 0;
     for (const m of G.S.party) { m.down = 0; m.acc = 0; }

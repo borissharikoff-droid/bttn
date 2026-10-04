@@ -1197,3 +1197,163 @@ body.lowfx .tw.inR, body.lowfx .tw.inL, body.lowfx .blessCard, body.lowfx .teamC
   .twWho { padding: 4px 6px; }
 }
 @media (max-width: 700px) { .twHead.open small { white-space: normal; } .twHead > div { cursor: pointer; } }
+
+/* ======================= 3.6: a clear field, and pulses the compositor can run ======================= */
+/* the bars at the bottom: the label starts after the icon, never under it, and is cut rather than spilling out */
+.meter > span { display: block; left: 17px; right: 4px; top: 0; bottom: 0; text-align: center; line-height: 12px; overflow: hidden; text-overflow: ellipsis; padding: 0; }
+.meter.ev > span { left: 4px; }
+@media (max-width: 860px) { .meter > span { line-height: 8px; left: 15px; right: 2px; padding: 0; } }
+/* toasts: one corner; a fresh one bumps without a layout */
+#toasts { z-index: 7; }
+.toast { pointer-events: none; }
+.toast > span { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 860px) { #toasts { top: 50px; width: min(60%, 250px); } .toast { font-size: 14px; line-height: 1.15; } }
+/* the big banner (loot, uniques, rare reveals): in the free field between the top HUD and the Button, never on it.
+   ui.js sets its top and height to that band and scales the card down to fit */
+#banner { inset: auto 0 auto 0; top: 12%; height: 32%; place-items: center; overflow: visible; }
+#banner .inner { transform-origin: 50% 50%; }
+#banner h2 { font-size: 14px; margin-bottom: 6px; }
+#banner .ico { width: 64px; height: 64px; filter: drop-shadow(0 0 12px currentColor); }
+#banner p { font-size: 18px; margin-top: 4px; }
+#banner p.sub { font-size: 14px; color: #ffe0c0; }
+#stageWrap #banner .inner.rfB { padding: 16px 24px 14px; }
+#stageWrap #banner .inner.rfB::before { width: 300px; height: 300px; margin: -150px 0 0 -150px; opacity: .5; }
+#stageWrap #banner .inner.rfB .rfIco { width: 72px; height: 72px; }
+#stageWrap #banner .inner.rfB h2 { font-size: 16px; margin-bottom: 8px; }
+@media (max-width: 860px) {
+  #banner h2 { font-size: 11px; margin-bottom: 4px; }
+  #banner .ico { width: 40px; height: 40px; }
+  #banner p { font-size: 15px; }
+  #banner p.sub { font-size: 13px; }
+  #stageWrap #banner .inner.rfB { padding: 8px 12px; max-width: 94vw; }
+  #stageWrap #banner .inner.rfB::before { width: 200px; height: 200px; margin: -100px 0 0 -100px; }
+  #stageWrap #banner .inner.rfB .rfIco { width: 44px; height: 44px; }
+  #stageWrap #banner .inner.rfB h2 { font-size: 12px; margin-bottom: 4px; }
+  #stageWrap #banner .inner.rfB .rfTag, #stageWrap #banner .inner.rfB .rfNth { display: none; }
+  #stageWrap #banner .inner.rfB p { font-size: 13px; margin-top: 2px; }
+  #stageWrap #banner .inner.rfB .rfFirst { margin-top: 4px; font-size: 7px; padding: 4px 6px 3px; }
+}
+/* the level-up cards: only the cards take taps; on a desktop they stand in a column at the field's right edge,
+   off the Button and the party round it */
+@media (min-width: 861px) {
+  #perks { pointer-events: none; }
+  #perks .card { pointer-events: auto; }
+  #perks { left: auto; right: 12px; transform: none; width: min(300px, 32%); align-items: stretch; gap: 4px; }
+  #perks h3 { font-size: 11px; text-align: right; }
+  #perks .cards { flex-direction: column; gap: 5px; }
+  #perks .card { flex: none; display: grid; grid-template-columns: 34px minmax(0, 1fr); grid-template-rows: auto auto auto; column-gap: 8px; row-gap: 1px; align-items: center; text-align: left; padding: 5px 8px 6px; }
+  #perks .card img { grid-row: 1 / 4; width: 32px; height: 32px; }
+  #perks .card b, #perks .card small { text-align: left; }
+  #perks .card small { font-size: 13px; line-height: 1.1; }
+  #perks .auto { font-size: 12px; text-align: right; }
+}
+/* the coach: narrower and lighter on a phone */
+@media (max-width: 860px) {
+  #coach { grid-template-columns: 34px minmax(0, 1fr); gap: 6px; padding: 6px 8px; font-size: 14px; line-height: 1.2; }
+  #coach .guide { width: 34px; height: 34px; }
+  #coach .guide img { width: 28px; height: 28px; }
+  #coach .say p { margin-top: 2px; }
+  #coach .btn { padding: 6px 10px; }
+}
+/* HOLD SPACE: big on a desktop, compact on a phone; ui.js puts it where the field is free */
+#holdPlate { top: 9%; z-index: 4; animation: none; transition: opacity .25s; }
+#holdPlate.pop .hpIn { animation: hpPop .5s cubic-bezier(.2,1.6,.4,1) both; }
+#holdPlate.out { animation: hpOut .45s ease-in forwards; }
+@keyframes hpPop { from { transform: scale(.4); opacity: 0; } }
+#holdPlate b { font-size: 26px; }
+#holdPlate .hpKey { animation-name: hpPress2; }
+@keyframes hpPress2 { 0%, 15% { transform: none; } 25%, 80% { transform: translateY(6px); } 90%, 100% { transform: none; } }
+@media (max-width: 860px) { #holdPlate .hpIn { padding: 6px 12px 8px; gap: 3px; } #holdPlate b { font-size: 14px; } #holdPlate .hpArt { height: 26px; } #holdPlate .hpFinger { width: 24px; } }
+/* an upgrade just put on: a little ▲ on the wearer's chip */
+.pchip.gotUp::after { content: '\25B2'; position: absolute; right: -3px; top: -7px; font: 9px/1 var(--font-display); color: var(--good); text-shadow: 1px 1px 0 var(--ink); animation: upRise 1.8s ease-out both; pointer-events: none; }
+@keyframes upRise { 0% { transform: translateY(4px); opacity: 0; } 15% { transform: none; opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(-4px); opacity: 0; } }
+/* the boss fight's ✕: on a touch screen it sits at the left end of the boss bar, away from the powers, and asks first */
+#btnRetreat.arm { background: #a01c1c; font: 8px/1 var(--font-display); padding: 4px 6px; animation: none; }
+@media (pointer: coarse), (max-width: 700px) { .bossRow #btnRetreat { order: -1; } }
+#modal .note.tip { color: #ffe0a0; }
+#modal .note.tip b { color: var(--gold); }
+
+/* ---------- phones: more field. The land box is two short lines, the goal one line, Torment a small pill;
+   the bottom HUD's rows are thinner ---------- */
+@media (max-width: 700px) {
+  .hud.top { top: 10px; padding: 4px 6px; gap: 6px; }
+  .realm { font-size: 9px; line-height: 1.5; padding: 2px 6px 3px 5px; max-width: calc(100% - 190px); min-width: 0; }
+  #realmBox { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .zoneRow { font-size: 13px; gap: 4px; }
+  .torment { gap: 2px; padding: 1px 2px; font-size: 7px; }
+  .torment span { min-width: 0; padding: 0 2px; white-space: nowrap; }
+  .torment button { width: 16px; height: 16px; font-size: 9px; }
+  .goalBox { max-width: none; width: max-content; max-width: 100%; margin-top: 3px; padding: 2px 6px 3px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .goalBox b { font-size: 7px; }
+  .goalBox i { height: 2px; margin-top: 2px; }
+  #rivalLine { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .evOn .goalBox, .evOn #rivalLine { display: none !important; }
+  .hudBtns { gap: 4px; }
+  .hud.bottom { gap: 3px; padding: 4px 6px 5px; }
+  .partyHud { gap: 3px; }
+  .pchip { width: 30px; }
+  .pchip img { width: 24px; height: 22px; }
+  .pseat { width: 30px; min-height: 30px; }
+  .bossRow { gap: 4px; }
+  .btn.fight { min-height: 28px; padding: 3px 8px; }
+  .hpRow { gap: 4px; }
+  .abil { width: 32px; height: 32px; }
+  .abil img { width: 24px; height: 24px; }
+  .pw { width: 32px; height: 32px; }
+  .pw img { width: 24px; height: 24px; }
+  .meters { gap: 4px; }
+  .buffs { gap: 3px; }
+  .buff { padding: 3px 5px; font-size: 7px; }
+}
+@media (pointer: coarse) and (max-width: 700px) { .btn.fight { min-width: 40px; min-height: 30px; font-size: 16px; } .iconBtn { width: 32px; height: 32px; } }
+@media (max-width: 380px) { .realm { max-width: calc(100% - 178px); } .townBtn b { font-size: 7px; } }
+
+/* ---------- 3.6: decorative pulses on transform and opacity only (box-shadow and filter repaint every step) ---------- */
+.pips i { position: relative; }
+.pips i.cur { animation: none; }
+.pips i.cur::after { content: ''; position: absolute; inset: -2px; box-shadow: 0 0 6px #fff; opacity: 0; animation: fadePulse 1s ease-in-out infinite; pointer-events: none; }
+@keyframes fadePulse { 50% { opacity: 1; } }
+#btnTown { position: relative; }
+#btnTown.ping { animation: none; }
+#btnTown.ping::after, .townBtn.glow::after, .btn.pulse::after { content: ''; position: absolute; inset: -3px; box-shadow: 0 0 0 3px #ffd84aaa, 0 0 10px #ffd84a66; opacity: 0; animation: fadePulse 1.4s ease-in-out infinite; pointer-events: none; }
+.townBtn.glow, .btn.pulse { animation: none; }
+.btn.pulse { position: relative; }
+.row.can { animation: none; position: relative; }
+.row.can::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px #ffd84a88, 0 0 8px #ffd84a33; opacity: 0; animation: fadePulse 2.4s ease-in-out infinite; pointer-events: none; }
+.pseat { position: relative; }
+.pseat.open { animation: seatBob 1.2s ease-in-out infinite; }
+.pseat.open::after { content: ''; position: absolute; inset: -2px; box-shadow: 0 0 12px 2px rgba(255,216,74,.6); opacity: 0; animation: fadePulse 1.2s ease-in-out infinite; pointer-events: none; }
+@keyframes seatBob { 50% { transform: translateY(-1px); } }
+.meter.hpm.low { animation: none; }
+.meter.hpm.low::after { content: ''; position: absolute; inset: -2px; box-shadow: 0 0 10px #ff3b3b; opacity: 0; animation: fadePulse .8s ease-in-out infinite; pointer-events: none; }
+#bossWrap.enr { animation: none; }
+#bossWrap.enr::before { content: ''; position: absolute; inset: -2px; box-shadow: 0 0 4px 2px #ffd84a, 0 0 16px #ff2a2a; opacity: 0; animation: fadePulse .5s steps(2) infinite; pointer-events: none; z-index: 1; }
+.pw.od.ready { animation: none; }
+.pw.od.ready::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px #ffffff, 0 0 14px #ffffff; opacity: 0; animation: fadePulse .5s steps(2) infinite; pointer-events: none; z-index: 3; }
+.btn.fight { animation: none; position: relative; }
+.btn.fight::after, .abil.ready::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,.2); opacity: 0; animation: fadePulse .9s ease-in-out infinite; pointer-events: none; }
+.btn.fight.long::after, .btn.fight.riftBtn::after, #btnRetreat::after, #btnRetreat.arm::after { animation: none; display: none; }
+.abil.ready { animation: none; }
+.abil.ready::after { z-index: 3; animation-duration: 1.1s; }
+.node.avail { animation: none; }
+.node.avail::after { content: ''; position: absolute; inset: -2px; box-shadow: 0 0 12px var(--c); opacity: 0; animation: fadePulse 1.1s ease-in-out infinite; pointer-events: none; }
+.slot.r6:not(.none), .gear.r6 { animation: none; }
+.slot.r6:not(.none)::before, .gear.r6::before { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px #fff, 0 0 10px #bfe8ff; opacity: 0; animation: fadePulse 2.5s linear infinite; pointer-events: none; }
+.pchip.down { animation: none; }
+.pchip.down::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px #ffd84a; opacity: 0; animation: fadePulse 1s steps(2) infinite; pointer-events: none; }
+.evRow img { will-change: transform; }
+
+/* Settings → Reduce effects, and a system that asks for less motion: every decorative loop rests */
+body.lowfx .pips i.cur::after, body.lowfx #btnTown.ping::after, body.lowfx .townBtn.glow::after, body.lowfx .btn.pulse::after, body.lowfx .row.can::after,
+body.lowfx .pseat.open, body.lowfx .pseat.open::after, body.lowfx .meter.hpm.low::after, body.lowfx #bossWrap.enr::before, body.lowfx .pw.od.ready::after,
+body.lowfx .btn.fight::after, body.lowfx .abil.ready::after, body.lowfx .node.avail::after, body.lowfx .slot.r6::before, body.lowfx .gear.r6::before, body.lowfx .pchip.down::after,
+body.lowfx .evRow img, body.lowfx #banner .ico, body.lowfx #coach .guide img, body.lowfx #pointer img, body.lowfx .tut-hl, body.lowfx .hatch .egg, body.lowfx .introTitle span,
+body.lowfx .march .mL, body.lowfx .march .mR, body.lowfx .siege *, body.lowfx .handArt *, body.lowfx .pchip.gotUp::after, body.lowfx #holdPlate .hpIn { animation: none !important; }
+body.lowfx .pips i.cur::after, body.lowfx #btnTown.ping::after, body.lowfx .townBtn.glow::after, body.lowfx .row.can::after, body.lowfx .meter.hpm.low::after,
+body.lowfx #bossWrap.enr::before, body.lowfx .pw.od.ready::after, body.lowfx .pchip.down::after, body.lowfx .pseat.open::after { opacity: .7; }
+body.lowfx .btn.fight::after, body.lowfx .abil.ready::after, body.lowfx .node.avail::after, body.lowfx .slot.r6::before, body.lowfx .gear.r6::before { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .pips i.cur::after, #btnTown.ping::after, .townBtn.glow::after, .row.can::after, .meter.hpm.low::after, #bossWrap.enr::before, .pw.od.ready::after, .pchip.down::after, .pseat.open::after { opacity: .7; }
+}
+/* a phone's town quick bar scrolls sideways: its right edge fades to say there is more */
+@media (max-width: 700px) { .twNav { -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), rgba(0,0,0,.25) 100%); mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), rgba(0,0,0,.25) 100%); } }

@@ -151,6 +151,9 @@
   // ================= Styles =================
   const css = `
 #rareFx { position: absolute; left: 0; top: 0; width: 100%; height: 100%; max-width: none; pointer-events: none; }
+#rareFx[hidden], #rfTint[hidden] { display: none; }
+/* 3.6: a secret land's tinted edge: a still CSS layer, not a gradient painted over the field every frame */
+#rfTint { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 45%, var(--rt, rgba(255,190,40,.35)) 100%); }
 #stage.rfVault { filter: sepia(.72) saturate(2.3) hue-rotate(-14deg) brightness(1.06); }
 #stage.rfCandy { filter: hue-rotate(285deg) saturate(1.5) brightness(1.1); }
 #stage.rfUpside { filter: invert(.88) hue-rotate(180deg) saturate(1.3); }
@@ -317,30 +320,63 @@
   };
 
   // ================= Layers =================
-  let cv = null, ctx = null, W = 0, H = 0, DPR = 1, rect = null, wrap = null, hot = null, chips = null;
+  let cv = null, ctx = null, W = 0, H = 0, DPR = 1, rect = null, wrap = null, hot = null, chips = null, tint = null;
+  let rectT = -1e9, rectDirty = true, idleAt = 0;
+  // the small DOM bits (the tap spot over a visitor, the chips, the land's tint): made with the first frame that has a stage
   function ensure() {
-    if (cv && cv.isConnected) return true;
+    if (hot && hot.isConnected) return true;
     const stage = document.getElementById('stage');
     wrap = document.getElementById('stageWrap');
     if (!stage || !wrap) return false;
-    cv = document.createElement('canvas'); cv.id = 'rareFx';
-    stage.insertAdjacentElement('afterend', cv);
-    ctx = cv.getContext('2d');
+    tint = document.createElement('div'); tint.id = 'rfTint'; tint.hidden = true;
+    stage.insertAdjacentElement('afterend', tint);
     hot = document.createElement('button'); hot.type = 'button'; hot.className = 'rfHot'; hot.hidden = true; hot.setAttribute('aria-label', 'Rare visitor');
     hot.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); tapHot(); });
     hot.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
     wrap.appendChild(hot);
     chips = document.createElement('div'); chips.id = 'rfChips'; chips.hidden = true; wrap.appendChild(chips);
+    rectDirty = true;
     return true;
   }
-  function resize() {
-    const r = cv.getBoundingClientRect();
-    rect = r;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    if (Math.round(r.width * dpr) !== cv.width || Math.round(r.height * dpr) !== cv.height || dpr !== DPR) { DPR = dpr; cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
-    W = r.width; H = r.height;
+  // 3.6: the canvas is made the first time there is something to draw (not at boot), kept at CSS-pixel resolution
+  // (1.5x at most on the full quality tier, where it was up to 2x), drawn only while something is on, hidden when idle
+  // and its pixels let go after a few idle seconds
+  function ensureCv() {
+    if (cv && cv.isConnected) { if (cv.hidden) { cv.hidden = false; rectDirty = true; } return true; }
+    const stage = document.getElementById('stage');
+    if (!stage) return false;
+    cv = document.createElement('canvas'); cv.id = 'rareFx';
+    stage.insertAdjacentElement('afterend', cv);
+    ctx = cv.getContext('2d');
+    rectDirty = true;
+    return true;
   }
-  function px() { const s = St(); if (!s || !s.toScreen) return 3; const a = s.toScreen(0, 0), b = s.toScreen(1, 0); return Math.max(1, b.x - a.x); }
+  const lowQ = () => !!((G.Quality && G.Quality.tier >= 2) || (G.S && G.S.set && G.S.set.lowfx));
+  // the field's size and place: read on a resize, or at most twice a second while something is on (never every frame)
+  function measure(now) {
+    if (!rectDirty && rect && now - rectT < 500) return;
+    const el = cv && cv.isConnected && !cv.hidden ? cv : document.getElementById('stage');
+    if (!el) return;
+    rectDirty = false; rectT = now;
+    const r = el.getBoundingClientRect();
+    rect = r; W = r.width; H = r.height;
+    if (cv && !cv.hidden) {
+      const q = G.Quality, dpr = Math.min((q && q.tier >= 1) || lowQ() ? 1 : 1.5, window.devicePixelRatio || 1);
+      const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+      if (w !== cv.width || h !== cv.height || dpr !== DPR) { DPR = dpr; cv.width = w; cv.height = h; }
+    }
+  }
+  window.addEventListener('resize', () => { rectDirty = true; });
+  // what the handlers below call before placing anything: the canvas and the field's rect, now
+  function need() { if (ensure() && ensureCv()) measure(performance.now()); return !!rect; }
+  let pxT = -1, pxV = 3;
+  function px() {
+    need();
+    const now = performance.now();
+    if (now - pxT < 250) return pxV;
+    const s = St(); if (!s || !s.toScreen) return 3;
+    const a = s.toScreen(0, 0), b = s.toScreen(1, 0); pxT = now; pxV = Math.max(1, b.x - a.x); return pxV;
+  }
   function feetOf(o, u) {
     const s = St(); if (!s || !s.mobPoint || !rect) return null;
     const q = s.mobPoint({ id: o.id || -77, a: o.a, p: o.p, kind: 'brute' });
@@ -428,9 +464,11 @@
     (SFX[o.sfx || 'reveal'] || SFX.reveal)();
     const s = St();
     if (s) { s.flash && s.flash(o.flash || 0.45, o.col || '#ffd84a'); s.shake && s.shake(o.shake || 5); }
-    if (rect) { const u = px(); burst(W / 2, H * 0.45, [o.col || '#ffd84a', '#ffffff', '#fff3a0'], o.big ? 140 : 70, o.big ? 420 : 300, { sz: 3, grav: 160 }); ring(W / 2, H * 0.45, 10 * u, 120 * u, o.col || '#ffd84a', 0.9, 4); }
+    if (need()) { const u = px(); burst(W / 2, H * 0.45, [o.col || '#ffd84a', '#ffffff', '#fff3a0'], o.big ? 140 : 70, o.big ? 420 : 300, { sz: 3, grav: 160 }); ring(W / 2, H * 0.45, 10 * u, 120 * u, o.col || '#ffd84a', 0.9, 4); }
   }
   const toast = (html, icon) => { if (G.UI && G.UI.toast) G.UI.toast(html, 'ach', icon); };
+  // 3.6: a reveal still waiting or on screen (js/rare.js holds a hatch card back until it has played)
+  G.rareRevealBusy = () => { if (queue.length || live) return true; const bn = document.getElementById('banner'); return !!(bn && !bn.hidden && bn.querySelector('.rfB')); };
 
   // ================= What each one looks like =================
   // a visitor's reveal only while it is still there and nobody has tapped it yet
@@ -692,13 +730,25 @@
     if (r.midas > 0) out.push(`<span class="rfChip" style="--c:#ffd84a">${esc(T('rfMidas'))}<i>${Math.ceil(r.midas)}s</i></span>`);
     if ((S.st.rareLuckT || 0) > (S.st.playTime || 0)) out.push(`<span class="rfChip" style="--c:#8ae07a">${esc(T('rfLuck'))}<i>${Math.ceil((S.st.rareLuckT - S.st.playTime) / 60)}m</i></span>`);
     const html = out.join('');
-    if (chips._h !== html) { chips.innerHTML = html; chips._h = html; }
-    chips.hidden = !out.length || !!R.town;
-    // on a narrow field: under the land's name box, not over it
-    if (!chips.hidden && wrap) {
+    const changed = chips._h !== html;
+    if (changed) { chips.innerHTML = html; chips._h = html; }
+    const hid = !out.length || !!R.town;
+    if (chips.hidden !== hid) chips.hidden = hid;
+    // on a narrow field: under the land's name box, not over it (3.6: measured when it changes, or twice a second)
+    if (!hid && wrap && (changed || now - (chips._t || 0) > 500)) {
+      chips._t = now;
       const wr = wrap.getBoundingClientRect(), rb = $('.hud.top .realm');
-      chips.style.top = wr.width < 600 && rb ? Math.round(rb.getBoundingClientRect().bottom - wr.top + 6) + 'px' : '';
+      const top = wr.width < 600 && rb ? Math.round(rb.getBoundingClientRect().bottom - wr.top + 6) + 'px' : '';
+      if (chips.style.top !== top) chips.style.top = top;
     }
+  }
+  // the secret land's tint as a still layer (see #rfTint)
+  const TINT = { vault: 'rgba(255,190,40,0.35)', candy: 'rgba(255,110,210,0.32)', upside: 'rgba(90,232,255,0.3)' };
+  function setTint(k) {
+    if (!tint || tint._k === k) return;
+    tint._k = k;
+    if (k) tint.style.setProperty('--rt', TINT[k] || TINT.vault);
+    tint.hidden = !k;
   }
   function frame(now) {
     requestAnimationFrame(frame);
@@ -708,16 +758,24 @@
     const dt = Math.min(0.05, (now - (last || now)) / 1000); last = now;
     if (!G.S || !ensure()) return;
     wrapBusy();
-    pumpReveals(); watchLive();
+    pumpReveals(); if (live) watchLive();
     const r = G.rareState(), c = r.cur;
-    resize();
-    // the secret land's (or the Golden Horde's) colours on the stage itself
-    setFilter(R.town ? '' : r.land && r.land.on ? LAND_CLS[r.land.k] : r.gild ? 'rfGild' : '');
+    // the secret land's (or the Golden Horde's) colours on the stage itself (3.6: a filter over the whole field costs
+    // a frame's worth on a slow machine, so the low quality tiers keep only the tint)
+    setFilter(R.town || lowQ() ? '' : r.land && r.land.on ? LAND_CLS[r.land.k] : r.gild ? 'rfGild' : '');
+    setTint(!R.town && r.land && r.land.on ? r.land.k : '');
     chipsUpdate(r, now);
-    const busy = c || r.land || r.gild || r.midas > 0 || parts.length || rings.length || floats.length;
+    const busy = c || (r.land && r.land.on) || r.gild || r.midas > 0 || parts.length || rings.length || floats.length;
+    if (!busy) {
+      // idle: nothing drawn, nothing measured; the canvas hides and lets go of its pixels after a few seconds
+      if (hot && !hot.hidden) hot.hidden = true;
+      if (!idle) { idle = true; idleAt = now; if (ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); } }
+      if (cv && !cv.hidden && now - idleAt > 3000) { cv.hidden = true; cv.width = 1; cv.height = 1; }
+      return;
+    }
+    need();
     // the hot spot over a visitor
     placeHot(c);
-    if (!busy) { if (!idle) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); } idle = true; return; }
     idle = false;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, H);
@@ -765,15 +823,20 @@
   function placeHot(c) {
     if (!hot) return;
     const tappable = c && !R.town && ((c.k === 'merchant' && (c.st === 'in' || c.st === 'wait')) || ((c.k === 'well' || c.k === 'gambler') && !c.open && !c.done) || (c.k === 'star' && !c.caught));
-    if (!tappable || !rect) { hot.hidden = true; return; }
+    if (!tappable || !rect) { if (!hot.hidden) hot.hidden = true; return; }
     const u = px(), f = curSpot(c, u, performance.now() / 1000);
-    if (!f || f.x < 8 || f.x > W - 8 || f.y < 16 || f.y > H) { hot.hidden = true; return; }
+    if (!f || f.x < 8 || f.x > W - 8 || f.y < 16 || f.y > H) { if (!hot.hidden) hot.hidden = true; return; }
     const big = c.k === 'star' ? 1.4 : 1;
     const w = Math.round(clamp(20 * u, 52, 84) * big), h = Math.round(clamp(24 * u, 60, 96) * (c.k === 'star' ? 0.9 : 1));
-    hot.style.width = w + 'px'; hot.style.height = h + 'px';
-    hot.style.margin = (c.k === 'star' ? -h / 2 : -h + 6) + 'px 0 0 ' + (-w / 2) + 'px';
-    hot.style.left = Math.round(f.x) + 'px'; hot.style.top = Math.round(f.y) + 'px';
-    hot.hidden = false;
+    // (3.6: written only when it moved)
+    const key = w + ',' + h + ',' + Math.round(f.x) + ',' + Math.round(f.y) + ',' + c.k;
+    if (hot._k !== key) {
+      hot._k = key;
+      hot.style.width = w + 'px'; hot.style.height = h + 'px';
+      hot.style.margin = (c.k === 'star' ? -h / 2 : -h + 6) + 'px 0 0 ' + (-w / 2) + 'px';
+      hot.style.left = Math.round(f.x) + 'px'; hot.style.top = Math.round(f.y) + 'px';
+    }
+    if (hot.hidden) hot.hidden = false;
   }
   function plate(name, x, y, u, col, k, kc) {
     const size = Math.round(clamp(u * 2.6, 8, 11)), bw = clamp(40 * u, 60, 120);
@@ -855,11 +918,8 @@
   // a secret land's weather: gold dust, candy confetti, loot bubbles rising
   function drawLand(land, dt, u, t) {
     const col = land.col;
-    // a tinted edge round the field
-    const g = ctx.createRadialGradient(W / 2, H * 0.5, Math.min(W, H) * 0.35, W / 2, H * 0.5, Math.max(W, H) * 0.75);
-    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, land.k === 'vault' ? 'rgba(255,190,40,0.35)' : land.k === 'candy' ? 'rgba(255,110,210,0.32)' : 'rgba(90,232,255,0.3)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    const n = land.k === 'candy' ? 3 : 2;
+    // (the tinted edge round the field is #rfTint, a still CSS layer; 3.6)
+    const n = (land.k === 'candy' ? 3 : 2) * (lowQ() ? 0.5 : 1);
     for (let i = 0; i < n; i++) {
       if (parts.length > 500) break;
       if (land.k === 'vault') parts.push({ x: rnd(0, W), y: -6, vx: rnd(-10, 10), vy: rnd(40, 90), life: rnd(3, 6), max: 6, col: Math.random() < 0.6 ? '#ffd84a' : '#fff3a0', sz: 2, grav: 0 });

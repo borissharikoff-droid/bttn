@@ -5,9 +5,9 @@
   const { rand, randInt, chance, emit } = G;
   const R = G.R, TUNE = G.TUNE;
   Object.assign(TUNE, {
-    // the first a minute and a half after the tutorial, then every 55-95 s (3.6: and only when the pacing director
+    // the first a minute and a half after the tutorial, then every 45-85 s (3.6: and only when the pacing director
     // lets a big moment in, so the real gap is about 60-120 s)
-    evFirst: 90, evMin: 55, evMax: 95,
+    evFirst: 90, evMin: 45, evMax: 85,
     metEvery: 0.38, metFall: 1.2,        // a meteor every 0.38 s, 1.2 s from the sky to the ground
   });
 
@@ -99,7 +99,7 @@
     mk('magic', 0, 0.6); mk('magic', 0.03, 0.56);
     mk('brute', -0.03, 0.62); mk('brute', 0.05, 0.58);
     if ((S_().bestDepth || 0) >= 10) mk('rare', 0.01, 0.5);
-    for (let i = 0; i < 40 && R.mobs.length < TUNE.mobMax; i++) G.makeMob('fodder', a + rand(-0.06, 0.06), rand(0.4, 0.65));
+    for (let i = 0, n = G.crowdN ? G.crowdN(40) : 40; i < n && R.mobs.length < TUNE.mobMax; i++) G.makeMob('fodder', a + rand(-0.06, 0.06), rand(0.4, 0.65));
   }
   function goblins(ev) {
     const n = randInt(5, 8), d = G.depthNow();
@@ -182,8 +182,10 @@
       for (let i = ev.met.length - 1; i >= 0; i--) { const mt = ev.met[i]; if ((mt.t -= dt) <= 0) { ev.met.splice(i, 1); meteorHit(mt); } }
     } else if (ev.k === 'swarm') {
       // a flood of little ones from every side over the first seconds
-      while (ev.acc >= 0.05 && ev.n < 260 && R.mobs.length < TUNE.mobMax) {
-        ev.acc -= 0.05; ev.n++;
+      // (3.6: as many bodies as the field holds now; each is heavier when there are fewer)
+      const swN = G.crowdN ? G.crowdN(260) : 260, swE = 0.05 * 260 / swN;
+      while (ev.acc >= swE && ev.n < swN && R.mobs.length < TUNE.mobMax) {
+        ev.acc -= swE; ev.n++;
         const m = G.makeMob('fodder', G.rng(), -rand(0, 0.15));
         m.hp = m.max = m.hp * 0.35; m.swarm = 1;
       }

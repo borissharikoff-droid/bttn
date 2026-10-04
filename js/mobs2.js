@@ -105,16 +105,17 @@
   };
   function aliveW() { let w = 0; for (const m of R.mobs) if (!m.add) w += m.w; return w; }
   function capW(d) { return (TUNE.hordeCap + Math.min(10, d / 4)) * Math.max(1, (R.hs || 1) / 1.5) * TUNE.m2CapMul; }
-  const room = () => R.mobs.length < TUNE.mobMax;
+  const room = () => R.mobs.length < (G.crowdCap ? G.crowdCap() : TUNE.mobMax);
+  const cn = n => (G.crowdN ? G.crowdN(n) : Math.round(n));
   const more = () => (TUNE.packMul || 1) * Math.sqrt(Math.max(1, (R.hs || 1) / 1.5));
   function firstSeen(k) {
     const S = G.S, sn = S.seen = S.seen || {};
     sn.kinds = sn.kinds || {};
     if (!sn.kinds[k]) { sn.kinds[k] = 1; emit('kindFirst', k); }
   }
-  function made(m) { const s = st(); s.n.spawn[m.kind] = (s.n.spawn[m.kind] || 0) + 1; return m; }
+  function made(m) { const s = st(); s.n.spawn[m.kind] = (s.n.spawn[m.kind] || 0) + 1; s.liveN = (s.liveN || 0) + 1; return m; }
   function tagAlong(a, spread) {
-    const n = Math.round(randInt(TUNE.m2Fodder[0], TUNE.m2Fodder[1]) * more());
+    const n = cn(randInt(TUNE.m2Fodder[0], TUNE.m2Fodder[1]) * more());
     for (let i = 0; i < n && room(); i++) G.makeMob('fodder', a + rand(-spread, spread), -rand(0, 0.3));
   }
 
@@ -132,7 +133,7 @@
       }
       tagAlong(a, 0.07);
     } else if (k === 'gnat') {
-      const c = Math.round(randInt(TUNE.gnatN[0], TUNE.gnatN[1]) * more());
+      const c = cn(randInt(TUNE.gnatN[0], TUNE.gnatN[1]) * more());
       for (let i = 0; i < c && room(); i++, n++) {
         const m = made(G.makeMob('gnat', a + rand(-0.04, 0.04), -rand(0, 0.35)));
         m.a0 = m.a; m.ph = rand(0, 6.283); m.fly = 1; m.hz = TUNE.gnatHz * rand(0.75, 1.25);
@@ -189,15 +190,17 @@
     else stepDigs(s, dt);
     stepWalls(s, dt);
     // the new kinds' own moves (the hook runs before hero.js walks the Horde)
-    for (const m of R.mobs) {
+    // (3.6: the Horde is walked only while some of these are on the field)
+    if (s.liveN > 0) { let n = 0; for (const m of R.mobs) {
       if (m.dead) continue;
       const k = m.kind;
+      if (k === 'gnat' || k === 'leaper' || k === 'mole') n++;
       if (k === 'gnat') {
         m.ph += m.hz * dt;
         m.a = clamp01(m.a0 + Math.sin(m.ph) * TUNE.gnatAmp * (1 - 0.7 * Math.max(0, m.p)));
       } else if (k === 'leaper') stepLeaper(m, dt);
       else if (k === 'mole' && m.pop > 0) m.pop = Math.max(0, m.pop - dt);
-    }
+    } s.liveN = n; }
     // a new pack now and then
     if (busy() || G.realmIndex(d) < TUNE.m2FromLand) return;
     if (s.t == null) s.t = TUNE.m2Every * rand(0.5, 1);

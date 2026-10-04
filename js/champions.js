@@ -242,7 +242,7 @@
   function summon(c) {
     const m = c.m;
     let n = 0;
-    for (let i = 0; i < 8 && R.mobs.length < TUNE.mobMax; i++, n++) G.makeMob('fodder', clamp(m.a + rand(-0.04, 0.04), 0, 1), m.p - rand(0.02, 0.1), true);
+    for (let i = 0, k = G.crowdN ? G.crowdN(8) : 8; i < k && R.mobs.length < TUNE.mobMax; i++, n++) G.makeMob('fodder', clamp(m.a + rand(-0.04, 0.04), 0, 1), m.p - rand(0.02, 0.1), true);
     if (R.mobs.length < TUNE.mobMax) { G.makeMob(chance(0.3) ? 'magic' : 'brute', m.a + rand(-0.03, 0.03), m.p - 0.05); n++; }
     emit('champSummon', c, n);
   }
@@ -319,8 +319,8 @@
     const ok = (zone >= 1 && L.t >= L.delay) || (must && L.zt >= 8);
     // 3.6: in the lord's zone a champion still to come holds the clear bar short of the boss (see hero.js) until
     // the field is free for it; and it comes through the pacing director like every big moment
-    R.chPend = must && !(G.Tut && !(S.tut < 0));
-    if (!ok || busy() || S.bossMeter > (G.D.bossNeed || 1) * 0.6) return;
+    R.chPend = must && L.zt < 90 && !(G.Tut && !(S.tut < 0));
+    if (!ok || busy() || S.bossMeter > (G.D.bossNeed || 1) * (must ? 0.95 : 0.6)) return;
     if (G.director && !G.director.can('champ', must ? 2 : 1)) return;
     run()[key] = 1;
     spawn(G.realmIndex(S.depth), null, key);

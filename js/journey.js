@@ -130,7 +130,11 @@
   ];
   const DEF = { xp: 1, mobHp: 1, gold: 1, horde: 1, champ: 1, loot: 1, thunder: 0, bossHp: 1, bossRew: 1, luck: 0, wisp: 1 };
   function hashDay(k) { let h = 7; for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) >>> 0; return h; }
+  // (3.6: the day is looked up once per tick of play, not on every kill)
   G.omen = function () {
+    const pt = G.S && G.S.st ? G.S.st.playTime : -1;
+    if (G.omen._v && G.omen._pt === pt) return G.omen._v;
+    G.omen._pt = pt;
     const k = G.utcDayKey ? G.utcDayKey() : G.todayKey();
     if (G.omen._k !== k) { G.omen._k = k; G.omen._v = Object.assign({}, DEF, G.OMENS[hashDay(k) % G.OMENS.length]); }
     return G.omen._v;
@@ -142,11 +146,11 @@
     const S = G.S, k = G.todayKey();
     if (S.bounty.day !== k) { S.bounty = { day: k, n: 0, done: false }; }
   }
-  J.bountyKill = function () {
+  J.bountyKill = function (n) {
     const S = G.S;
     if (!S.bounty || S.bounty.day !== G.todayKey()) bounty();
     if (S.bounty.done) return;
-    if (++S.bounty.n >= J.BOUNTY) {
+    if ((S.bounty.n += n || 1) >= J.BOUNTY) {
       S.bounty.done = true;
       const got = give({ eggs: 3, chest: Math.min(6, 1 + Math.floor(S.bestDepth / 8)) });
       G.emit('bounty', got);

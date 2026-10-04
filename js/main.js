@@ -36,23 +36,25 @@
   // 3.6: the one frame loop. The game ticks every frame; the field (and the fx layers hung on it with
   // G.Stage.onFrame) is drawn every frame too, except under a window: a modal (the game waits) gets the
   // field at about 8 frames a second, a window that covers the whole field (the town's on a phone) none.
-  let coverDt = 0, coverK = '', coverFull = false, coverT = 0;
+  let coverDt = 0, coverK = '', coverFull = false, coverMost = false, coverT = 0;
   const townWin = () => document.getElementById('townWin');
   function covered(dt) {
     const tw = townWin(), open = !!(tw && !tw.hidden), modal = !!(G.uiBusy && G.uiBusy());
     const k = (open ? 'w' : '') + (modal ? 'm' : '');
     // how much of the field the town window hides: measured when it opens (and once a second while open)
     if (k !== coverK || (open && (coverT -= dt) <= 0)) {
-      coverK = k; coverT = 1; coverFull = false;
+      coverK = k; coverT = 1; coverFull = false; coverMost = false;
       if (open) {
         const st = document.getElementById('stageWrap'), a = tw.getBoundingClientRect(), b = st && st.getBoundingClientRect();
         if (b && b.width > 0) {
           const ix = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)), iy = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
           coverFull = ix * iy >= b.width * b.height * 0.92;
+          coverMost = ix * iy >= b.width * b.height * 0.6;
         }
       }
     }
-    return coverFull ? 2 : modal ? 1 : 0;
+    // 2: nothing shows (no drawing), 1: a modal or a window over most of it (a low rate), 0: in full
+    return coverFull ? 2 : modal || coverMost ? 1 : 0;
   }
   function step(now) {
     let dt = (now - last) / 1000; last = now;
@@ -69,6 +71,8 @@
     }
     dt = Math.min(dt, 0.1);
     const t0 = performance.now();
+    // layout is read first, before the tick and the UI write to the page (no forced layouts mid-frame)
+    if (G.Stage.readLayout) G.Stage.readLayout();
     G.tick(dt);
     const cov = covered(dt);
     let drew = true;

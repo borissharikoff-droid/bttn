@@ -691,6 +691,8 @@
   function pumpPull() {
     const r = RR(), q = r.pullQ;
     if (!q || !q.length || R.boss || R.march || blocked() || (S_().st.playTime || 0) < q[0].at) return;
+    // (and until the reveal cards on screen have played, if the show says so; never more than 20 s late)
+    if (G.rareRevealBusy && G.rareRevealBusy() && (S_().st.playTime || 0) < q[0].at + 20) return;
     const { res } = q.shift();
     if (G.director) G.director.mark('card', 3);
     r.pull = true; try { emit('pull', [res]); } finally { r.pull = false; }

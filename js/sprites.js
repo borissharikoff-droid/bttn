@@ -1748,8 +1748,51 @@
     }
     const c = document.createElement('canvas'); c.width = w; c.height = h; return c;
   }
-  SPR.makeCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  // 3.6 (perf): every canvas made here is a CPU canvas (willReadFrequently): sprites are drawn into the stage's
+  // CPU pixel layer, and reading one back (outlines, gibs, colours) never stalls on the GPU
+  SPR.makeCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; try { c.getContext('2d', { willReadFrequently: true }); } catch (e) { /* old browser: a plain canvas */ } return c; };
 
+  // 3.6: a sprite is built straight into its pixels (one putImageData, no per-pixel draws and no read-back);
+  // its pixels stay on the canvas (c._px) for whoever needs them (the stage's gibs)
+  const RGBA = new Map();
+  function rgba32(col) {
+    let v = RGBA.get(col);
+    if (v !== undefined) return v;
+    v = null;
+    if (typeof col === 'string' && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(col)) { const [r, g, b] = G.hexToRgb(col); v = ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0; }
+    RGBA.set(col, v);
+    return v;
+  }
+  function buildFast(ctx, d, recolor, oc) {
+    const w = d.w + 2, h = d.h + 2;
+    const img = ctx.createImageData(w, h), px = new Uint32Array(img.data.buffer);
+    for (let y = 0; y < d.h; y++) {
+      const row = d.px[y];
+      for (let x = 0; x < d.w; x++) {
+        const ch = row[x];
+        if (ch === '.') continue;
+        let col = d.pal[ch];
+        if (!col) continue;
+        if (recolor) col = recolor(col);
+        const v = rgba32(col);
+        if (v === null) return null;
+        px[(y + 1) * w + x + 1] = v;
+      }
+    }
+    if (oc) {
+      const o = rgba32(oc);
+      if (o === null) return null;
+      const solid = new Uint8Array(w * h);
+      for (let i = 0; i < w * h; i++) solid[i] = px[i] >>> 24 ? 1 : 0;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (solid[i]) continue;
+        if ((x > 0 && solid[i - 1]) || (x < w - 1 && solid[i + 1]) || (y > 0 && solid[i - w]) || (y < h - 1 && solid[i + w])) px[i] = o;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return img.data;
+  }
   // get(id, {gold, dark, noOutline, outlineColor}) -> canvas (w+2)x(h+2) (outline adds 1px border)
   function get(id, o) {
     o = o || {};
@@ -1760,8 +1803,13 @@
     if (!d) return null;
     c = SPR.makeCanvas(d.w + 2, d.h + 2);
     const ctx = c.getContext('2d');
-    drawDef(ctx, d, 1, 1, o.gold ? toGold : o.dark ? toShadow : null);
-    if (!o.noOutline) outline(ctx, d.w + 2, d.h + 2, o.oc || (o.dark ? '#3a3850' : OUTLINE));
+    const rc = o.gold ? toGold : o.dark ? toShadow : null, oc = o.noOutline ? null : o.oc || (o.dark ? '#3a3850' : OUTLINE);
+    const data = buildFast(ctx, d, rc, oc);
+    if (data) c._px = data;
+    else {
+      drawDef(ctx, d, 1, 1, rc);
+      if (oc) outline(ctx, d.w + 2, d.h + 2, oc);
+    }
     SPR.cache[key] = c;
     return c;
   }

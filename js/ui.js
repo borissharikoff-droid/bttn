@@ -45,15 +45,18 @@
   UI.snapPixels = snapPixels;
   // 2.3: the Torment dial: shows once the first land is conquered
   function updateTorment() {
-    const el = $('#torment'); if (!el || !G.S) return;
-    const mx = G.tormentMax(), T = G.torment(true), busy = !!(G.R.boss || G.R.rift);
+    const el = document.getElementById('torment'); if (!el || !G.S) return;
+    const mx = G.tormentMax(), busy = !!(G.R.boss || G.R.rift);
     // (on a phone the boss's bar takes its place at the top while the fight is on)
-    el.hidden = mx < 1 || (busy && window.innerWidth < 700);
-    if (el.hidden) return;
-    setText($('#tormentN'), t('tormentN', T.n, mx));
-    el.classList.toggle('on', T.n > 0);
-    const [lo, hi] = el.querySelectorAll('button');
-    lo.disabled = busy || T.n <= 0; hi.disabled = busy || T.n >= mx;
+    const hid = mx < 1 || (busy && window.innerWidth < 700);
+    if (el.hidden !== hid) el.hidden = hid;
+    if (hid) return;
+    const T = G.torment(true);
+    setText(el._n || (el._n = el.querySelector('#tormentN')), t(window.innerWidth <= 700 ? 'tormentNShort' : 'tormentN', T.n, mx));
+    setClass(el, 'on', T.n > 0);
+    const [lo, hi] = el._b || (el._b = el.querySelectorAll('button'));
+    if (lo.disabled !== (busy || T.n <= 0)) lo.disabled = busy || T.n <= 0;
+    if (hi.disabled !== (busy || T.n >= mx)) hi.disabled = busy || T.n >= mx;
     const tip = (T.n ? t('tormentTip', T.n, '×' + T.mobHp.toFixed(2), '×' + T.bite.toFixed(2), '×' + T.bossHp.toFixed(2), '×' + T.gold.toFixed(2), '×' + T.xp.toFixed(2), '+' + Math.round((T.drop - 1) * 100) + '%') + (T.rarity ? ' ' + t('tormentRar', T.rarity) : '') : t('tormentZero')) + ' ' + t('tormentMore') + (busy ? ' ' + t('tormentBusy') : '');
     if (el.title !== tip) el.title = tip;
   }
@@ -121,6 +124,8 @@
     const S = G.S;
     S.seen = S.seen || {};
     S.seen.tabs = S.seen.tabs || {};
+    // (3.6: the Lucky Spin's 'Spin at once' switch went with it)
+    if (S.set) delete S.set.autoSpin;
     // (what's in the bag on the first look isn't news; gold is counted by source for the breakdown)
     if (PF().seenU == null && S.hero) bagSeen();
     if (!G.goldBySrc) G.goldBySrc = {};
@@ -142,9 +147,26 @@
     if (!S.hero.cls) setTimeout(() => UI.pickClass(), 300);
   };
   // the page in view: the Forge and Enchanter count as the Party page, for the tips that point there
-  // the chapter card (waits for a relic show or another window to finish)
+  // 3.6: a big card waits for the field to be free: no window, relic show or boss fight; and for a while (maxWait)
+  // also no march, title card or banner on the field and room in the pacing director. Then it counts as a big moment.
+  function whenFree(fn, o) {
+    o = o || {};
+    const t0 = performance.now();
+    const go = () => {
+      const R = G.R, St = G.Stage || {}, waited = performance.now() - t0;
+      const hard = !$('#modal').hidden || !$('#intro').hidden || (G.relicShow && G.relicShow()) || R.boss || !(G.S.hero && G.S.hero.cls);
+      let soft = false;
+      try { soft = !!(R.march || (St.marching && St.marching()) || (St.cardBusy && St.cardBusy()) || bannerBusy || (o.dir && G.director && G.director.can && !G.director.can('card', 2))); } catch (e) { soft = false; }
+      if (hard || (soft && waited < (o.maxWait || 20000))) { setTimeout(go, 400); return; }
+      if (G.director && G.director.mark) { try { G.director.mark('card', o.secs || 4); } catch (e) { /* the director is optional */ } }
+      fn();
+    };
+    setTimeout(go, o.delay || 0);
+  }
+  UI.whenFree = whenFree;
+  // the chapter card (3.6: after the march and the new land's title card, never on top of them)
   UI.chapter = function (li) {
-    if (!$('#modal').hidden || (G.relicShow && G.relicShow()) || G.R.boss) { setTimeout(() => UI.chapter(li), 1500); return; }
+    if (!$('#modal').hidden || (G.relicShow && G.relicShow()) || G.R.boss) { whenFree(() => UI.chapter(li), { dir: true, secs: 5 }); return; }
     const nx = G.REALMS[li + 1], d = (li + 2) * G.REALM_SIZE - 1;
     const opened = [];
     const tm = G.tormentMax ? G.tormentMax() : 0;
@@ -155,7 +177,7 @@
     G.Audio && G.Audio.achievement && G.Audio.achievement();
   };
   UI.rankText = x => t(x.k, x.tg || (x.cd ? x.cd.toFixed(1) : Math.round((x.spd || x.hp || x.dmg) * 100)));
-  G.on('rankUp', x => UI.toast(`<b>${esc(t('rankUp'))}</b>&nbsp;${esc(t('lvl'))} ${x.lv}: ${esc(UI.rankText(x))}`, 'ach', 'ic_star'));
+  G.on('rankUp', x => UI.toast(`<b>${esc(t('rankUp'))}</b>&nbsp;${esc(t('lvl'))} ${x.lv}: ${esc(UI.rankText(x))}`, 'ach', 'ic_star', { k: 'rank', p: 0 }));
   UI.tab = () => (tw.id === 'forge' || tw.id === 'enchant' ? 'hero' : curTab());
   UI.townId = () => tw.id;
   UI.bldOf = id => TAB_BLD[id] || null;
@@ -165,9 +187,9 @@
 
   // ---------- The Hand's powers: three buttons with their cooldowns ----------
   function updatePowers() {
-    const el = $('#powers'), h = G.S.hero;
+    const el = $id('powers'), h = G.S.hero;
     if (!el) return;
-    el.hidden = !(h && h.cls);
+    setHid(el, !(h && h.cls));
     if (el.hidden) return;
     if (!el.children.length) {
       el.innerHTML = Object.keys(G.POWERS).map(id => { const P = G.POWERS[id]; return `<button class="pw" data-pw="${id}" title="${esc(t('pw_' + id) + ' (' + P.key + '): ' + t('pw_' + id + '_d'))}" aria-label="${esc(t('pw_' + id))}">${img(P.icon, '', 3)}<i></i><kbd>${P.key}</kbd></button>`; }).join('')
@@ -180,24 +202,24 @@
     const odB = el.querySelector('[data-od]');
     if (odB) {
       const o = G.odState(), on = o.t > 0;
-      odB.querySelector('i').style.height = (on ? 0 : (1 - o.m) * 100) + '%';
+      setHgt(odB._i || (odB._i = odB.querySelector('i')), on ? 0 : (1 - o.m) * 100);
       setClass(odB, 'ready', G.odReady()); setClass(odB, 'on', on);
     }
-    for (const b of el.querySelectorAll('[data-pw]')) {
+    for (const b of el._pw || (el._pw = el.querySelectorAll('[data-pw]'))) {
       const id = b.dataset.pw, cd = G.R.pw[id] || 0, tot = G.POWERS[id].cd;
-      b.querySelector('i').style.height = (cd > 0 ? cd / tot * 100 : 0) + '%';
+      setHgt(b._i || (b._i = b.querySelector('i')), cd > 0 ? cd / tot * 100 : 0);
       setClass(b, 'ready', !(cd > 0));
     }
   }
   // ---------- A sudden event: its name, its clock and how it's going ----------
   let evIcoK = null;
   function updateEventBar() {
-    const R = G.R, ev = R.ev, row = $('#evRow');
-    row.hidden = !ev;
+    const R = G.R, ev = R.ev, row = $id('evRow');
+    setHid(row, !ev);
     if (!ev) return;
     const e = G.EV_BY_ID[ev.k];
     if (evIcoK !== ev.k) { evIcoK = ev.k; $('#evIco').src = ic(e.icon, 2); $('#evWrap').style.setProperty('--ev', e.col); }
-    $('#evMeter').style.width = Math.max(0, ev.t / ev.T) * 100 + '%';
+    setW($id('evMeter'), Math.max(0, ev.t / ev.T) * 100);
     let more = '';
     if (ev.k === 'goblins') more = t('evGoblins', ev.ids.filter(id => !R.mobs.some(m => m.id === id)).length, ev.ids.length);
     else if (ev.k === 'ambush') more = t('evAmbush', ev.ids.filter(id => R.mobs.some(m => m.id === id)).length);
@@ -206,42 +228,46 @@
     else if (ev.k === 'meteors') more = t('evTap');
     else if (ev.k === 'portals') more = t('evPortals', (ev.por || []).length);
     else if (ev.k === 'warlord') { const w = G.R.mobs.find(m => m.wl); more = w ? Math.ceil(w.hp / w.max * 100) + '%' : ''; }
-    setText($('#evText'), e.name + ' · ' + Math.ceil(Math.max(0, ev.t)) + 's' + (more ? ' · ' + more : ''));
+    setText($id('evText'), e.name + ' · ' + Math.ceil(Math.max(0, ev.t)) + 's' + (more ? ' · ' + more : ''));
   }
   // ---------- The party on the field: a chip per unit, tap a fallen one to raise them ----------
   let phKey = '';
   function updatePartyHud() {
-    const el = $('#partyHud'), h = G.S.hero;
+    const el = $id('partyHud'), h = G.S.hero;
     // 3.4: the team is always on show, from the first minute: the Warden, each companion, and the empty seats
     // (an open one pulses with a +, a locked one says the depth that opens it)
     const units = h && h.cls ? G.partyUnits() : [];
-    el.hidden = !units.length || (G.S.tut >= 0 && G.S.tut < 3);
+    setHid(el, !units.length || (G.S.tut >= 0 && G.S.tut < 3));
     if (!units.length) return;
     const slots = G.partySlots ? G.partySlots() : 0, seats = [];
     for (let k = G.S.party.length; k < 3; k++) seats.push(k < slots ? 'open' : 'lock');
-    const key = units.map(u => u.cls + JSON.stringify(u.eq && G.SLOTS.map(s => u.eq[s] ? u.eq[s].id + (u.eq[s].q || '') : ''))).join('|') + '|' + seats.join(',');
+    let key = seats.join(',');
+    for (const u of units) { key += '|' + u.cls; if (u.eq) for (const s of G.SLOTS) { const g = u.eq[s]; key += ',' + (g ? g.id + (g.q || '') : ''); } }
     if (key !== phKey) {
       phKey = key;
       el.innerHTML = units.map(u => `<button class="pchip r_${u.role}" data-who="${u.who}" aria-label="${esc(u.who < 0 ? t('wardenName') : L(G.CLASS_BY_ID[u.cls].name))}"><img src="${G.Doll.portrait({ cls: u.cls, eq: u.eq }, 2, true)}" alt=""><i><u></u></i><b></b></button>`).join('')
         + seats.map((s, k) => s === 'open' ? `<button class="pseat open" data-seat title="${esc(t('seatOpen'))}">+</button>` : `<button class="pseat lock" data-seatlock title="${esc(t('recruitAt', G.PARTY_AT[G.S.party.length + k]))}">${img('ic_key', '', 2)}<small>D${G.PARTY_AT[G.S.party.length + k] + 1}</small></button>`).join('');
     }
     const chips = el.children, rate = G.reviveRate ? G.reviveRate() : 1;
-    el.title = t('partyHint');
+    setTitle(el, t('partyHint'));
     units.forEach((u, i) => {
       const c = chips[i]; if (!c) return;
       const down = u.down > 0, k = Math.max(0, Math.min(1, u.hp / (u.max || 1)));
       setClass(c, 'down', down);
       setClass(c, 'low', !down && k < 0.35);
       // a hit shows as a red flash on the chip
-      if (c._k != null && k < c._k - 0.02) { c.classList.remove('hit'); void c.offsetWidth; c.classList.add('hit'); }
+      if (c._k != null && k < c._k - 0.02 && !down) pulse(c, [{ background: '#ff3b3b', transform: 'translateY(-2px)' }, { transform: 'none' }], 300);
       c._k = k;
-      c.querySelector('u').style.width = (down ? 0 : k * 100) + '%';
-      setText(c.querySelector('b'), down ? Math.ceil(u.down / rate) + 's' : '');
+      if (!c._u) { c._u = c.querySelector('u'); c._t = c.querySelector('b'); }
+      setW(c._u, down ? 0 : k * 100);
+      setText(c._t, down ? Math.ceil(u.down / rate) + 's' : '');
+      // (an upgrade just put on: a little ▲)
+      setClass(c, 'gotUp', !!(UI._chipUp && performance.now() - (UI._chipUp[u.who] || -1e9) < 1800));
     });
   }
   function bindPartyHud() {
     $('#partyHud').addEventListener('click', e => {
-      if (e.target.closest('[data-seat]')) { G.Audio.unlock(); if (G.enterTown()) UI.townOpen('tavern', 'tavern'); else UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
+      if (e.target.closest('[data-seat]')) { G.Audio.unlock(); if (G.enterTown()) UI.townOpen('tavern', 'tavern'); else UI.toast(esc(t('townNo')), '', 'ic_tomb', { p: 2 }); return; }
       if (e.target.closest('[data-seatlock]')) { UI.teamCard(); return; }
       const c = e.target.closest('.pchip'); if (!c) return;
       const who = +c.dataset.who;
@@ -249,7 +275,7 @@
       // a standing unit: open their page in the Party tab
       selWho = who; selGear = null; tw.who = who;
       // (QoL: between fights a tap walks straight to their gear at the Forge)
-      if (G.R.town || (!G.R.boss && !G.R.inv && G.enterTown())) UI.townOpen('forge'); else UI.toast(esc(t('chipTown')), '', 'ic_sword');
+      if (G.R.town || (!G.R.boss && !G.R.inv && G.enterTown())) UI.townOpen('forge'); else UI.toast(esc(t('chipTown')), '', 'ic_sword', { p: 2 });
     });
     $('#btnFold').addEventListener('click', () => { $('#app').classList.toggle('fold'); $('#btnFold').textContent = $('#app').classList.contains('fold') ? '▴' : '▾'; setTimeout(() => G.Stage && G.Stage.resize && G.Stage.resize(), 0); });
   }
@@ -269,7 +295,7 @@
       UI.unfold();
       if (id === 'town') {
         if (G.R.town) { if (tab === 'set') { tab = 'upg'; UI.render(); } return; }
-        if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); }
+        if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb', { p: 2 }); }
         return;
       }
       if (id === 'upg' && G.R.town) { G.leaveTown(); tab = 'upg'; UI.render(); return; }
@@ -288,7 +314,7 @@
       return;
     }
     // any other page: walk into town and open its building
-    if (!G.R.town && !G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
+    if (!G.R.town && !G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb', { p: 2 }); return; }
     UI.townOpen(TAB_BLD[id], id);
   };
 
@@ -296,7 +322,7 @@
     // (phones have less to spare: a smaller Horde at most)
     if (window.innerWidth < 700) G.TUNE.mobMax = Math.min(G.TUNE.mobMax, 750);
     bindTown();
-    $('#btnTown').addEventListener('click', () => { G.Audio.unlock(); if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } });
+    $('#btnTown').addEventListener('click', () => { G.Audio.unlock(); if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb', { p: 2 }); } });
     G.on('town', on => {
       // QoL: leave town from inside a building and the next visit opens it again (not while the tutorial walks you)
       if (!on) { PF().resume = tw.id || null; UI.townClose(true); }
@@ -321,7 +347,13 @@
     [['#bossWrap', 'tipClear'], ['#hpWrap', 'tipHp'], ['#chestWrap', 'tipChest'], ['#comboWrap', 'tipCombo'], ['#btnAbil', 'tipAbil']].forEach(([sel, k]) => { const el = $(sel); if (el) el.title = t(k); });
     $('#btnMusic img').src = ic('ic_echo', 3);
     $('#btnFight').addEventListener('click', () => { G.Audio.unlock(); G.startBoss(); });
-    $('#btnRetreat').addEventListener('click', () => { if (G.R.rift) G.riftEnd(false, 'left'); else G.fleeBoss(); });
+    $('#btnRetreat').addEventListener('click', () => {
+      // (3.6: on a touch screen the first tap only arms it: it sits a thumb away from the powers)
+      const b = $('#btnRetreat');
+      if (matchMedia('(pointer: coarse)').matches && !b._arm) { b._arm = 1; b.classList.add('arm'); b.textContent = t('retreatSure'); clearTimeout(b._armT); b._armT = setTimeout(() => disarmRetreat(b), 2500); return; }
+      disarmRetreat(b);
+      if (G.R.rift) G.riftEnd(false, 'left'); else G.fleeBoss();
+    });
     $('#btnRift').addEventListener('click', () => { G.Audio.unlock(); UI.go('rift'); });
     $('#btnAbil').addEventListener('click', () => { G.Audio.unlock(); if (!G.castAbility()) G.Audio.error(); });
   }
@@ -354,7 +386,7 @@
       }
       else if (e.code === 'KeyV') { if (!G.uiBusy() && G.overdrive && !G.overdrive('key')) G.Audio.error(); }
       else if (e.code === 'KeyQ') { G.castAbility(); }
-      else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); } }
+      else if (e.code === 'KeyT') { if (G.uiBusy()) return; if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb', { p: 2 }); } }
       else if (e.code === 'Escape' && !$('#modal').hidden && $('#modal').dataset.locked !== '1') { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; }
       else if (e.code === 'Escape' && G.R.town && !G.uiBusy()) { if (!$('#townWin').hidden) UI.townClose(); else G.leaveTown(); }
       else if (e.code === 'KeyZ') { if (!G.uiBusy()) G.usePower('smite'); }
@@ -365,18 +397,19 @@
 
   // ---------- Events ----------
   function listen() {
-    G.on('achievement', a => { UI.toast(`<span>${esc(t('achievement'))}: <b>${esc(L(a.name))}</b></span>`, 'ach', 'ic_trophy'); if (curTab() === 'ach') UI.render(); });
-    G.on('questDone', q => UI.toast(`<b>${esc(t('questDone'))}</b>`, '', 'ic_scroll'));
-    G.on('landStar', (i, bit, n) => { zoneKey = ''; UI.toast(`<span><b style="color:#ffd84a">\u2605 ${esc(G.REALMS[i].name)} · ${esc(t('starName_' + bit))}</b><br><small>${esc(t('starBonus', n === 1 ? t('star1') : t('starsN', n), '+' + +(n * G.STAR_BONUS * 100).toFixed(1) + '%'))}</small></span>`, 'ach', 'ic_star'); });
-    G.on('realm', r => UI.toast(`<span>${esc(t('newLands', G.realmName(G.S.depth)))} · <b>${esc(G.REALMS[r].rule)}</b></span>`, 'ach', 'ic_star'));
-    G.on('potion', p => UI.toast(`<span>${esc(t('potionDrink', L(p.name)))} <b>${esc(p.short)} ${G.S.pots[p.id]}/${G.D.potCap}</b></span>`, '', 'pot_' + p.id));
+    G.on('achievement', a => { UI.toast(`<span>${esc(t('achievement'))}: <b>${esc(L(a.name))}</b></span>`, 'ach', 'ic_trophy', { k: 'ach' }); if (curTab() === 'ach') UI.render(); });
+    G.on('questDone', q => UI.toast(`<b>${esc(t('questDone'))}</b>`, '', 'ic_scroll', { k: 'quest', p: 0 }));
+    G.on('landStar', (i, bit, n) => { zoneKey = ''; UI.toast(`<span><b style="color:#ffd84a">\u2605 ${esc(G.REALMS[i].name)} · ${esc(t('starName_' + bit))}</b><br><small>${esc(t('starBonus', n === 1 ? t('star1') : t('starsN', n), '+' + +(n * G.STAR_BONUS * 100).toFixed(1) + '%'))}</small></span>`, 'ach', 'ic_star', { k: 'star' }); });
+    // (a new land: the field's own title card names it and its rule; no toast on top of it)
+    G.on('potion', p => UI.toast(`<span>${esc(t('potionDrink', L(p.name)))} <b>${esc(p.short)} ${G.S.pots[p.id]}/${G.D.potCap}</b></span>`, '', 'pot_' + p.id, { k: 'potion', p: 0 }));
     G.on('jackpot', (m, gold) => UI.toast(`<b>${esc(t('jpToast', fmt(gold)))}</b>`, 'ach', 'ic_jackpot'));
     G.on('chestOpen', loot => {
       if (loot.source === 'offline') return;
       if (!loot.items.length) return; // a little chest of coin
       const top = loot.items.reduce((a, b) => (b.it.r > a.it.r ? b : a), loot.items[0]);
       if (top.it.r >= 4 && (top.isNew || top.it.r >= 6)) UI.banner(top.it);
-      else if (top.isNew) UI.toast(`<span style="color:${G.RARITIES[top.it.r].color}">${esc(L(top.it.name))}</span>&nbsp;<b>${esc(t('newPet'))}</b>`, '', 'it_' + top.it.id);
+      // (3.6: a first find is news from blue up; the commoner ones show as NEW in the Forge and the Museum)
+      else if (top.isNew && top.it.r >= 2) UI.toast(`<span style="color:${G.RARITIES[top.it.r].color}">${esc(L(top.it.name))}</span>&nbsp;<b>${esc(t('newPet'))}</b>`, '', 'it_' + top.it.id, { k: 'new', p: 0 });
       dirtyTab('coll'); dirtyTab('quests');
     });
     G.on('bossWin', (rew) => {
@@ -384,7 +417,7 @@
       // 3.0: a land's lord falls for the first time: its chapter of the story, and where the road goes next
       if (rew && rew.lord && !G.R.rift) {
         const li = G.realmIndex(rew.d), sn = G.S.seen = G.S.seen || {}; sn.ch = sn.ch || {};
-        if (!sn.ch[li]) { sn.ch[li] = 1; setTimeout(() => UI.chapter(li), 2600); }
+        if (!sn.ch[li]) { sn.ch[li] = 1; whenFree(() => UI.chapter(li), { dir: true, secs: 5, delay: 2000 }); }
       }
       // a land conquered opens the next Torment level
       const mx = G.tormentMax(), sn = G.S.seen = G.S.seen || {};
@@ -398,11 +431,14 @@
       if (G.partySlots && G.partySlots() > S.party.length) k = 'wipeWhy_seat';
       else if (h.bag.some(g => { const sl = G.slotOf(g.id); return G.powerWith(sl, g, -1) > G.powerWith(sl, h.eq[sl], -1); })) k = 'wipeWhy_gear';
       else if (boss) k = 'wipeWhy_boss';
-      setTimeout(() => UI.toast(`<span><b>${esc(t('wipeWhy'))}</b> ${esc(t(k))}</span>`, '', 'ic_skull'), 1800);
+      // (when the run is over the tip goes in its card instead: one place, not a toast behind it)
+      UI._wipeTip = { k, at: performance.now() };
+      // (and in the tutorial the coach does the teaching)
+      if (!(G.S.tut >= 0)) setTimeout(() => { if (performance.now() - (UI._runOverAt || -1e9) > 4000) UI.toast(`<span><b>${esc(t('wipeWhy'))}</b> ${esc(t(k))}</span>`, '', 'ic_skull', { k: 'wipe' }); }, 1800);
     });
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'asc')) UI.update(true); if (kind === 'node' && curTab() === 'stars') UI.render(); });
-    G.on('ascend', (g, death) => { if (g && !death) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame'); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
+    G.on('ascend', (g, death) => { if (g && !death) UI.toast(`<b>${esc(t('ascDone', fmt(g)))}</b>`, 'ach', 'ic_fame', { p: 2 }); UI.render(); if (!G.S.hero.cls) setTimeout(() => UI.pickClass(), 400); });
     // 3.4: BUILD YOUR TEAM: when a seat opens (and from a locked seat on the party bar), a big card shows the five
     // classes and their roles, with a straight way to the Tavern
     UI.teamCard = function (slot) {
@@ -416,58 +452,90 @@
       G.Audio && G.Audio.levelUp && G.Audio.levelUp();
       return m;
     };
-    G.on('slotOpen', slot => setTimeout(() => UI.teamCard(slot), 1600));
+    G.on('slotOpen', slot => whenFree(() => UI.teamCard(slot), { dir: true, secs: 4, delay: 1600 }));
     // 3.4: a huge plate at the start: YOU CAN HOLD SPACE (on a phone: HOLD THE BUTTON). It goes once the
-    // player has held for a second and a half (or after a while), and comes back each session until they have
+    // player has held for a second and a half, and comes back each session until they have.
+    // 3.6: it waits for the tutorial's first step (one instruction at a time), shows for 12 s at most, sits where the
+    // field is free (never on the Button, the coach, a title card or a card at the top) and steps aside for them.
     UI.holdPlate = function () {
       const S = G.S;
       if ((S.seen && S.seen.hold) || $('#holdPlate')) return;
+      // (the first step of the tutorial says "press the Button": the plate comes after it)
+      if (S.tut === 0 || !(S.hero && S.hero.cls) || !$('#intro').hidden) { clearTimeout(UI._holdTm); UI._holdTm = setTimeout(UI.holdPlate, 1500); return; }
       const touch = matchMedia('(pointer: coarse)').matches;
       const el = document.createElement('div');
-      el.id = 'holdPlate';
+      el.id = 'holdPlate'; el.className = 'away';
       el.innerHTML = `<div class="hpIn"><small>${esc(t('holdYouCan'))}</small><b>${esc(t(touch ? 'holdTouch' : 'holdKey'))}</b>
         <div class="hpArt">${touch ? `<img class="hpFinger" src="${ic('ic_finger', 6)}" alt="">` : `<span class="hpKey">SPACE</span>`}</div>
         <p>${esc(t('holdWhy'))}</p></div>`;
       $('#stageWrap').appendChild(el);
-      let held = 0, life = 0;
+      let held = 0, life = 0, n = 0;
       const iv = setInterval(() => {
         if (!el.isConnected) { clearInterval(iv); return; }
         if (S.seen && S.seen.hold) { el.classList.add('out'); clearInterval(iv); setTimeout(() => el.remove(), 600); return; }
-        const busy = !!(G.uiBusy() || G.R.town);
-        el.classList.toggle('away', busy);
-        if (busy) return;
-        life += 0.1;
         const on = (G.Stage.isHolding && G.Stage.isHolding()) || performance.now() - (UI._holdKeyT || 0) < 250;
         held = on ? held + 0.1 : Math.max(0, held - 0.05);
+        // where it may sit, looked at three times a second
+        let spot = el._spot;
+        if (n++ % 3 === 0 || on) spot = el._spot = holdSpot(el);
+        const away = !spot || G.uiBusy() || G.R.town;
+        if (away !== el.classList.contains('away')) { el.classList.toggle('away', away); if (!away && !el._popped) { el._popped = 1; el.classList.add('pop'); } }
+        if (!away && el._top !== spot) { el._top = spot; el.style.top = spot + 'px'; }
         el.style.setProperty('--hk', Math.min(1, held / 1.5));
-        el.classList.toggle('on', !!on);
-        if (held >= 1.5 || life > 40) {
+        setClass(el, 'on', !!on);
+        if (!away) life += 0.1;
+        if (held >= 1.5 || life > 12) {
           if (held >= 1.5) { S.seen.hold = 1; G.dirty && G.dirty(); G.Audio && G.Audio.levelUp && G.Audio.levelUp(); el.classList.add('done'); }
           el.classList.add('out'); clearInterval(iv); setTimeout(() => el.remove(), 600);
         }
       }, 100);
     };
-    G.on('classChosen', () => setTimeout(UI.holdPlate, 1200));
+    // the plate's place: under the top HUD and over the Button, or under the Button over the bottom HUD; null when
+    // neither is free of the coach, a title card, a banner or a champion's card
+    function holdSpot(el) {
+      const w = $('#stageWrap'), box = el.firstElementChild; if (!w || !box) return null;
+      const wr = w.getBoundingClientRect(), h = box.offsetHeight || 80, bw = box.offsetWidth || 300;
+      if (bannerBusy) return null;
+      if (G.Stage.cardBusy && G.Stage.cardBusy()) return null;
+      let top = 8;
+      for (const s of ['.hud.top .realm', '.hud.top .hudBtns', '#xpBar']) { const e = $(s); if (e && !e.hidden && e.offsetParent) top = Math.max(top, e.getBoundingClientRect().bottom - wr.top + 6); }
+      const hb = $('.hud.bottom'), bottom = (hb ? hb.getBoundingClientRect().top : wr.bottom) - wr.top - 8;
+      const br = btnRect(6);
+      const bTop = br ? br.top - wr.top : wr.height * 0.4, bBot = br ? br.bottom - wr.top : wr.height * 0.6;
+      const x0 = wr.left + (wr.width - bw) / 2, x1 = x0 + bw;
+      const avoid = [];
+      for (const s of ['#coach', '#champCard', '#toasts', '#perks']) { const e = $(s); if (e && !e.hidden && e.offsetParent !== null && (s !== '#toasts' || e.children.length)) avoid.push(e.getBoundingClientRect()); }
+      const free = y => y >= top - 1 && !avoid.some(r => r.left < x1 && r.right > x0 && r.top < wr.top + y + h && r.bottom > wr.top + y);
+      // over the Button (the middle of the free band), else under it
+      const ups = [Math.round(Math.max(top, (top + bTop - h) / 2)), Math.round(top)].filter(y => y + h <= bTop);
+      const downs = [Math.round(bBot + 4)].filter(y => y + h <= bottom);
+      const y = ups.concat(downs).find(free);
+      return y === undefined ? null : y;
+    }
+    G.on('classChosen', () => { clearTimeout(UI._holdTm); UI._holdTm = setTimeout(UI.holdPlate, 1200); });
     setTimeout(() => { if (G.S.hero && G.S.hero.cls) UI.holdPlate(); }, 3000);
     // 3.3: a new run's blessings: three cards, after whatever window is up (the fall, a class pick) closes
     UI.blessCards = function () {
-      const S = G.S, o = S.blessOffer;
-      if (!o || !o.length) return;
+      const S = G.S; if (G.blessFix) G.blessFix(S); const o = (S.blessOffer || []).filter(id => G.BLESS_BY_ID[id]);
+      if (!o.length) return;
       if (!$('#modal').hidden || !$('#intro').hidden || (G.relicShow && G.relicShow()) || !(S.hero && S.hero.cls)) { setTimeout(UI.blessCards, 600); return; }
       const m = UI.modal(t('blessTitle'), `<p class="note">${esc(t('blessHint'))}</p><div class="blessCards">${o.map(id => { const b = G.BLESS_BY_ID[id]; return `<button class="blessCard ${b.twist ? 'twist' : ''}" data-bless="${id}">${img(G.SPR.defs[b.icon] ? b.icon : 'ic_star', '', 5)}<b>${esc(b.name)}</b><small>${esc(b.desc)}</small>${b.twist ? `<em>${esc(t('blessTwist'))}</em>` : ''}</button>`; }).join('')}</div>`, [], true);
       m.querySelectorAll('[data-bless]').forEach(el => el.addEventListener('click', () => {
-        if (G.chooseBlessing(el.dataset.bless)) { m.hidden = true; m.innerHTML = ''; G.Audio && G.Audio.levelUp && G.Audio.levelUp(); UI.toast(`<b>${esc(t('blessOn'))}</b>&nbsp;${esc(G.BLESS_BY_ID[el.dataset.bless].name)}`, 'ach', G.BLESS_BY_ID[el.dataset.bless].icon); UI.update(true); }
+        if (G.chooseBlessing(el.dataset.bless)) { m.hidden = true; m.innerHTML = ''; G.Audio && G.Audio.levelUp && G.Audio.levelUp(); UI.toast(`<b>${esc(t('blessOn'))}</b>&nbsp;${esc(G.BLESS_BY_ID[el.dataset.bless].name)}`, 'ach', G.BLESS_BY_ID[el.dataset.bless].icon, { p: 2 }); UI.update(true); }
       }));
     };
     G.on('blessOffer', () => setTimeout(UI.blessCards, 1900));
     setTimeout(() => { if (G.S.blessOffer) UI.blessCards(); }, 2500);
     // 3.1: the Button fell: the run's tally, the fame it earned, and where the next one starts
+    G.on('runOver', () => { UI._runOverAt = performance.now(); });
     G.on('runOver', sum => setTimeout(() => {
+      const wt = UI._wipeTip && performance.now() - UI._wipeTip.at < 8000 ? UI._wipeTip.k : null;
       const m = UI.modal(t('fellTitle'), `<div class="fell">
         <p class="story">${esc(t('fellText'))}</p>
         <div class="fellStats"><span>${esc(t('fellDepth'))}</span><b>${sum.depth + 1}</b><span>${esc(t('fellTime'))}</span><b>${esc(G.fmtTime(sum.secs))}</b><span>${esc(t('fellLvl'))}</span><b>${sum.lvl}</b><span>${esc(t('fellGold'))}</span><b>${fmt(sum.gold)}</b></div>
         <p class="fellFame">${img('ic_fame', '', 3)} <b>+${fmt(sum.fame)}</b> ${esc(t('fame').toLowerCase())} <small>(${esc(t('fellTotal', fmt(sum.total)))})</small></p>
         <p class="note">${esc(t('fellKeep'))}</p>
+        ${wt ? `<p class="note tip"><b>${esc(t('wipeWhy'))}</b> ${esc(t(wt))}</p>` : ''}
         <p class="next">${esc(t('fellNext', G.realmName(sum.next), sum.next + 1))}</p></div>`,
         [{ label: t('fellAgain'), cls: 'gold' }, { label: t('fellSpend'), fn: () => { if (G.enterTown()) UI.townOpen('temple'); } }], true);
       return m;
@@ -475,7 +543,7 @@
     G.on('quests', () => dirtyTab('quests'));
     G.on('questClaim', () => { if (curTab() === 'quests') UI.render(); });
     G.on('daily', () => { if (curTab() === 'quests') UI.render(); });
-    G.on('journey', (st, got) => { UI.toast(`<span><b>${esc(t('journeyDone'))}</b> · ${esc(st.text)}</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_trophy'); G.Audio && G.Audio.achievement(); if (curTab() === 'quests') UI.render(); });
+    G.on('journey', (st, got) => { UI.toast(`<span><b>${esc(t('journeyDone'))}</b> · ${esc(st.text)}</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_trophy', { k: 'journey' }); G.Audio && G.Audio.achievement(); if (curTab() === 'quests') UI.render(); });
     G.on('bounty', got => { UI.toast(`<span><b>${esc(t('bounty'))}</b> ✓</span>&nbsp;${rewIcons(got)}`, 'ach', 'ic_skull'); if (curTab() === 'quests') UI.render(); });
     G.on('evolve', id => {
       const E = G.EVOS[id];
@@ -491,7 +559,7 @@
       if (e.k !== 'gear' || !res) return;
       // the big banner is for news: a first find, a divine, or an upgrade the Warden put on
       if (e.it.r >= 4 && (res.isNew || e.it.r >= 6 || (res.g && G.SLOTS.some(s => G.S.hero.eq[s] === res.g)))) UI.banner(e.it);
-      else if (res.isNew) UI.toast(`<span style="color:${G.RARITIES[e.it.r].color}">${esc(L(e.it.name))}</span>&nbsp;<b>${esc(t('newPet'))}</b>`, '', 'it_' + e.it.id);
+      else if (res.isNew && e.it.r >= 2) UI.toast(`<span style="color:${G.RARITIES[e.it.r].color}">${esc(L(e.it.name))}</span>&nbsp;<b>${esc(t('newPet'))}</b>`, '', 'it_' + e.it.id, { k: 'new', p: 0 });
       dirtyTab('coll');
     });
     G.on('riftEnd', r => {
@@ -512,19 +580,38 @@
       if (N.entries.length > 1 && !N.entries.some(e => !e.me && e.ok && e.fs && e.fs[k])) UI.toast(`<b>${esc(t('firstGot', f[1]))}</b>`, 'ach', 'ic_trophy');
       setTimeout(() => N.pushNow(), 2000);
     });
-    G.on('rival', ev => UI.toast(esc(ev.up ? t('rivalUp', ev.name, ev.cat, ev.rank) : t('rivalDown', ev.name, ev.cat)), ev.up ? 'ach' : '', 'ic_crown'));
-    G.on('gear', (g, equipped) => { if (equipped && (g.r >= 2 || g.q)) UI.toast(`<span>${esc(t('equipped'))}: <b style="color:${gearCol(g)}">${esc(gearName(g))}</b></span>`, '', G.gearSpr(g)); });
+    G.on('rival', ev => UI.toast(esc(ev.up ? t('rivalUp', ev.name, ev.cat, ev.rank) : t('rivalDown', ev.name, ev.cat)), ev.up ? 'ach' : '', 'ic_crown', { k: 'rival', p: 0 }));
+    // an upgrade put on: a ▲ on the wearer's chip; a toast only for the big ones (legendary up, a unique)
+    G.on('gear', (g, equipped) => {
+      if (!equipped) return;
+      const S = G.S, who = [-1].concat((S.party || []).map((_, i) => i)).find(w => { const eq = G.eqOf ? G.eqOf(w) : null; return eq && G.SLOTS.some(sl => eq[sl] === g); });
+      if (who != null) (UI._chipUp = UI._chipUp || {})[who] = performance.now();
+      if (g.r >= 4 || g.q) UI.toast(`<span>${esc(t('equipped'))}: <b style="color:${gearCol(g)}">${esc(gearName(g))}</b></span>`, '', G.gearSpr(g), { k: 'equip', p: 0 });
+    });
     // QoL: the bag filling up says so once (and again only after it's had room), since a full bag scraps the weakest
     G.on('gear', () => {
       const h = G.S.hero, full = h.bag.length >= G.TUNE.bagMax;
       if (full && !UI._bagFullSaid) { UI._bagFullSaid = true; setTimeout(() => UI.toast(`<span><b>${esc(t('bagFullT'))}</b> ${esc(t('bagFullToast'))}</span>`, '', 'ic_bag'), 600); }
       else if (h.bag.length < G.TUNE.bagMax - 3) UI._bagFullSaid = false;
     });
-    G.on('levelUp', () => { const xb = $('#xpBar'); xb.classList.remove('up'); void xb.offsetWidth; xb.classList.add('up'); });
-    G.on('buttonBreak', () => UI.toast(`<b>${esc(t('overload'))}</b> ${esc(t('overloadHint'))}`, '', 'ic_skull'));
+    G.on('levelUp', () => pulse($('#xpFill'), [{ background: '#ffffff' }, {}], 600));
+    // (3.6: level-up points past the bank are picked for the player without a word: the XP bar shows what waits)
+    // (THE BUTTON BROKE: the field's own title card says it, and the coach explains it the first time)
   }
   const dirty = {};
   function dirtyTab(id) { dirty[id] = true; }
+  // 3.6: the Button (and the Warden at it, or the boss over it) on the screen, client px, padded: what nothing
+  // that pops up may cover
+  function btnRect(pad) {
+    try {
+      const St = G.Stage, b = St.buttonPoint(), k = St.scale ? St.scale() : 2;
+      const c = UI._bsz || (UI._bsz = G.SPR.button('#e8413c', false, 0));
+      const base = b.y + 24 * k, w = c.width * k * (G.R.boss ? 1.6 : 1), h = c.height * k + (G.R.boss ? 30 * k : 8 * k);
+      pad = pad || 0;
+      return { left: b.x - w / 2 - pad, right: b.x + w / 2 + pad, top: base + 4 * k - h - pad, bottom: base + 6 * k + pad };
+    } catch (e) { return null; }
+  }
+  UI.btnRect = btnRect;
 
   // ---------- QoL: swipe between buildings on a phone ----------
   function bindSwipe() {
@@ -595,20 +682,20 @@
     UI.modal(t('worldMap'), `<p class="note">${esc(t('worldHint'))}</p><p class="note">${esc(t('starReqs', Math.round(G.STAR_KILLS(here)).toLocaleString('en-US'), G.STAR_SWIFT))}</p><p class="wmTotal">\u2605 ${n} / ${3 * G.REALMS.length} · +${+(n * G.STAR_BONUS * 100).toFixed(1)}%</p><div class="wmList">${rows}</div>`, [{ label: t('close') || 'Close', cls: '' }]);
   };
   function updateGoal() {
-    const S = G.S, box = $('#goal');
+    const S = G.S, box = $id('goal');
     const on = !!(S.hero && S.hero.cls);
-    box.hidden = !on;
+    setHid(box, !on);
     // the day's twist, and what it does
-    setText($('#omenLine'), on ? t('omenLine', G.omen().name) + ' · ' + G.omen().desc : '');
+    const om = on ? G.omen() : null, tip = om ? t('omenLine', om.name) + ' · ' + om.desc : '';
+    setText($id('omenLine'), tip);
     // (2.2: the omen lives in the land box's tooltip, off the field)
     updateTorment();
-    const rb = $('#realmBox'), tip = on ? t('omenLine', G.omen().name) + ' · ' + G.omen().desc : '';
-    if (rb && rb.title !== tip) rb.title = tip;
+    setTitle($id('realmBox'), tip);
     // where you stand among friends, right on the play screen
-    const N = G.Net, rl = $('#rivalLine');
+    const N = G.Net, rl = $id('rivalLine');
     const list = on && N && N.entries.length > 1 ? N.sorted('depth') : [];
     const i = list.findIndex(e => e.me);
-    rl.hidden = i < 0;
+    setHid(rl, i < 0);
     if (i >= 0) {
       const up = list[i - 1], gap = up ? (up.depth || 0) - (list[i].depth || 0) : 0;
       setText(rl, up ? t('rivalAhead', i + 1, list.length, N.displayName(up) || t('anon'), gap === 1 ? t('rivalDepth1') : gap > 1 ? t('rivalDepths', gap) : fmt((up.power || 0) - (list[i].power || 0)) + ' ' + t('gearScore').toLowerCase()) : t('rivalTop', list.length));
@@ -620,8 +707,9 @@
       goalKey = key;
       box.innerHTML = `<b>${esc(t('goal'))}</b> <span>${esc(p.st.text)}</span> <em data-gp></em><i><u data-gb></u></i>`;
     }
-    setText(box.querySelector('[data-gp]'), fmt(p.cur) + '/' + fmt(p.need));
-    box.querySelector('[data-gb]').style.width = Math.min(100, p.cur / p.need * 100) + '%';
+    if (!box._gp || !box._gp.isConnected) { box._gp = box.querySelector('[data-gp]'); box._gb = box.querySelector('[data-gb]'); }
+    setText(box._gp, fmt(p.cur) + '/' + fmt(p.need));
+    setW(box._gb, p.cur / p.need * 100);
   }
   const rewIcons = got => got.map(([icon, n]) => `${img(icon, 'inl', 2)}${n > 1 ? fmt(n) : ''}`).join(' ');
   let perkKey = '';
@@ -641,168 +729,240 @@
           const P = G.PERKS[id], lv = h.perks[id] || 0;
           return `<button class="card" data-perk="${id}" style="animation-delay:${i * 0.07}s">${img(P.icon, '', 4)}<b>${esc(P.name)}</b><span class="lv">${esc(lv ? t('perkLv', lv + ' → ' + (lv + 1)) : t('perkNew'))}</span><small>${esc(P.desc)}</small></button>`;
         }).join('')}</div><p class="auto" data-auto></p>`;
-        box.hidden = false; box.dataset.shownAt = performance.now();
+        box._auto = null; box.hidden = false; box.dataset.shownAt = performance.now();
       }
     }
-    if (offer) setText(box.querySelector('[data-auto]'), (h.autoPerk ? t('perkAuto', Math.max(0, Math.ceil(12 - (h.offerT || 0)))) + ' · ' : '') + t('perkHint'));
+    if (offer) setText(box._auto || (box._auto = box.querySelector('[data-auto]')), (h.autoPerk ? t('perkAuto', Math.max(0, Math.ceil((G.TUNE.perkAuto || 12) - (h.offerT || 0)))) + ' · ' : '') + t('perkHint'));
   }
-  let snapT = 0;
+  // 3.6: the HUD's elements are looked up once (a tab's body is rebuilt on render and never kept here), and a
+  // width, a height or a hidden flag is written only when it changes
+  const E = {};
+  const $id = id => { let e = E[id]; if (!e || !e.isConnected) e = E[id] = document.getElementById(id); return e; };
+  const setPct = (e, prop, v) => { if (!e) return; v = Math.round(Math.max(0, Math.min(100, v)) * 10) / 10; const k = '_' + prop; if (e[k] !== v) { e[k] = v; e.style[prop] = v + '%'; } };
+  const setW = (e, v) => setPct(e, 'width', v), setHgt = (e, v) => setPct(e, 'height', v);
+  const setHid = (e, h) => { if (e && e.hidden !== !!h) e.hidden = !!h; };
+  const setTitle = (e, s) => { if (e && e.title !== s) e.title = s; };
+  const pulse = (e, kf, ms) => { if (e && e.animate) e.animate(kf, { duration: ms || 200, easing: 'ease-out' }); };
+  UI._pulse = pulse;
+  // the bag holds something better than what someone wears: looked at when the gear moves, not every second
+  let upDirty = true, upT = 0;
+  ['gear', 'pickup', 'chestOpen', 'recruit', 'ascend', 'town', 'salvage', 'equipBest'].forEach(k => G.on(k, () => { upDirty = true; }));
+  function bagHasUp() {
+    const S = G.S, now = performance.now();
+    if (!upDirty && now - upT < 5000) return UI._up;
+    upDirty = false; upT = now;
+    UI._up = !!(S.hero && S.hero.cls) && [-1].concat((S.party || []).map((_, i) => i)).some(w => S.hero.bag.some(g => { const sl = G.slotOf(g.id); return canWear(g, w) && G.powerWith(sl, g, w) > G.powerWith(sl, G.eqOf(w)[sl], w); }));
+    return UI._up;
+  }
+  // the level-up cards sit just above the bottom HUD: its height is watched, not read every update
+  let hudObs = null;
+  function watchHud() {
+    const hb = document.querySelector('.hud.bottom'), w = $id('stageWrap');
+    if (!hb || !w || hudObs) return;
+    const put = () => { const hh = hb.offsetHeight + 8; if (hh !== UI._hudB) { UI._hudB = hh; w.style.setProperty('--hudB', hh + 'px'); } };
+    if (typeof ResizeObserver !== 'undefined') { hudObs = new ResizeObserver(put); hudObs.observe(hb); }
+    else hudObs = setInterval(put, 500);
+    put();
+  }
+  let snapT = 0, lastFull = 0;
   UI.update = function (force) {
     const S = G.S, D = G.D, R = G.R;
-    if (performance.now() - snapT > 250) { snapT = performance.now(); snapPixels(); }
+    const now = performance.now();
+    // under a window the HUD behind it only needs a slow refresh
+    const covered = !$id('modal').hidden || !$id('intro').hidden;
+    if (covered && !force && now - lastFull < 450) { if (G.Tut) G.Tut.update(); return; }
+    lastFull = now;
+    // (new icons are snapped by the MutationObserver; this catches the ones laid out late)
+    if (now - snapT > 1000) { snapT = now; snapPixels(); }
     sampleGold();
+    watchHud();
     // Settings → Reduce effects: the page's own pulses and glows rest (the field reads S.set.lowfx too)
     setClass(document.body, 'lowfx', !!S.set.lowfx);
-    // Settings → Spin at once: a ready Lucky Spin pulls itself after a beat instead of waiting
-    if (S.set.autoSpin && G.spinReady && G.spinReady() && !G.uiBusy() && G.casino && (G.casino().readyT || 0) > 0.6 && !(G.casinoHold && G.casinoHold('auto'))) G.spin('auto');
     // the Town button: into town between fights, back to the field from it
-    { const tb = $('#btnTown'); if (tb) { setText(tb.querySelector('b'), R.town ? t('townBack') : t('townBtn')); tb.classList.toggle('dim', !R.town && !G.townOk()); tb.classList.toggle('on', !!R.town);
-      // it glows when the bag holds something better than what someone wears (checked once a second)
-      if (performance.now() - (UI._upT || 0) > 1000) { UI._upT = performance.now(); UI._up = !!(S.hero && S.hero.cls) && [-1].concat((S.party || []).map((_, i) => i)).some(w => S.hero.bag.some(g => { const sl = G.slotOf(g.id); return canWear(g, w) && G.powerWith(sl, g, w) > G.powerWith(sl, G.eqOf(w)[sl], w); })); }
-      tb.classList.toggle('glow', !R.town && UI._up && G.townOk()); tb.title = R.town ? t('townBackTip') : G.townOk() ? t('townTip') : t('townNo'); } }
+    { const tb = $id('btnTown'); if (tb) { setText(tb._b || (tb._b = tb.querySelector('b')), R.town ? t('townBack') : t('townBtn')); const ok = G.townOk(); setClass(tb, 'dim', !R.town && !ok); setClass(tb, 'on', !!R.town);
+      // it glows when the bag holds something better than what someone wears
+      setClass(tb, 'glow', !R.town && ok && bagHasUp()); setTitle(tb, R.town ? t('townBackTip') : ok ? t('townTip') : t('townNo')); } }
     // (the Alchemist's prices follow the gold; the Forge redraws on what you do in it, never under your finger)
-    if (R.town && tw.id === 'alch' && !tw.down && performance.now() - (UI._twT || 0) > 1500) { UI._twT = performance.now(); renderTown(); }
+    if (R.town && tw.id === 'alch' && !tw.down && now - (UI._twT || 0) > 1500) { UI._twT = now; renderTown(); }
     // the gold number rolls toward the real value and bumps on a real gain
     const gShow = UI._gold == null ? S.gold : UI._gold + (S.gold - UI._gold) * 0.45;
-    const now = performance.now();
-    if (UI._goldLast != null && S.gold - UI._goldLast > Math.max(1, UI._goldLast * 0.05) && now - (UI._bumpT || 0) > 400) { UI._bumpT = now; const g = $('#goldNum'); g.classList.remove('bump'); void g.offsetWidth; g.classList.add('bump'); }
+    if (UI._goldLast != null && S.gold - UI._goldLast > Math.max(1, UI._goldLast * 0.05) && now - (UI._bumpT || 0) > 400) { UI._bumpT = now; pulse($id('goldNum'), [{ transform: 'scale(1.12)', color: '#fff3a0' }, { transform: 'none' }], 160); }
     UI._goldLast = S.gold;
     UI._gold = Math.abs(gShow - S.gold) < Math.max(1, S.gold * 0.001) ? S.gold : gShow;
-    setText($('#goldNum'), fmt(UI._gold));
+    setText($id('goldNum'), fmt(UI._gold));
     // gold per second from everything (the Horde, clicks, the garrison), averaged over the last 10 seconds
-    const nowS = performance.now() / 1000;
+    const nowS = now / 1000;
     if (!goldHist.length || nowS - goldHist[goldHist.length - 1][0] >= 1) { goldHist.push([nowS, S.goldTotal]); while (goldHist.length > 11) goldHist.shift(); }
     const g0 = goldHist[0], rate = goldHist.length > 2 && S.goldTotal >= g0[1] ? (S.goldTotal - g0[1]) / Math.max(1, nowS - g0[0]) : 0;
     UI._rate = Math.max(D.gps, rate);
-    setText($('#gpsNum'), fmt(UI._rate, true));
-    setText($('#clickNum'), fmt(D.click, true));
-    setText($('#essNum'), fmt(S.essence, true));
-    setText($('#eggNum'), fmt(S.eggs));
-    setText($('#fameNum'), fmt(S.fame));
-    $('#essChip').hidden = !tabOpen('stars');
-    $('#eggChip').hidden = !(S.eggs > 0 || Object.keys(S.pets).length);
-    $('#fameChip').hidden = !(S.fameTotal > 0);
+    setText($id('gpsNum'), fmt(UI._rate, true));
+    setText($id('clickNum'), fmt(D.click, true));
+    setText($id('essNum'), fmt(S.essence, true));
+    setText($id('eggNum'), fmt(S.eggs));
+    setText($id('fameNum'), fmt(S.fame));
+    setHid($id('essChip'), !tabOpen('stars'));
+    setHid($id('eggChip'), !(S.eggs > 0 || Object.keys(S.pets).length));
+    setHid($id('fameChip'), !(S.fameTotal > 0));
     // Pages opening up: a toast names the building that now holds them
     for (const d of TABS) {
       if (!d.unlock(S) || S.seen.tabs['_u_' + d.id]) continue;
       S.seen.tabs['_u_' + d.id] = 1;
       const bd = TAB_BLD[d.id];
-      if (bd && !CUSTOM[d.id] && d.id !== 'hero' && d.id !== 'ladder' && BLDS[bd].subs[0] === d.id) UI.toast(`<span>${esc(t('unlocked', t('town_' + bd)))}</span>`, '', d.icon);
+      if (bd && !CUSTOM[d.id] && d.id !== 'hero' && d.id !== 'ladder' && BLDS[bd].subs[0] === d.id) UI.toast(`<span>${esc(t('unlocked', t('town_' + bd)))}</span>`, '', d.icon, { k: 'unlock', it: t('town_' + bd) });
     }
     // the panel's three buttons, and a mark on TOWN when something there wants you
     let canUpg = false;
     for (const u of G.UPGRADES) { const L_ = S.upg[u.id] || 0; if ((!u.max || L_ < u.max) && !u.secret && S.gold >= G.upgCost(u)) { canUpg = true; break; } }
-    const pt = G.R.town && tab !== 'set' ? 'town' : tab;
-    for (const x of NAV) { const b = $(`.tab[data-tab="${x.id}"]`); if (b) setClass(b, 'on', x.id === pt); }
-    setClass($('.tab[data-tab="upg"]'), 'afford', canUpg);
+    const pt = R.town && tab !== 'set' ? 'town' : tab;
+    const nav = navBtns();
+    for (const x of NAV) setClass(nav[x.id], 'on', x.id === pt);
+    setClass(nav.upg, 'afford', canUpg);
     const ping = townPing();
-    const td = $('.tab[data-tab="town"] .dot'); if (td && td.hidden === !!ping) td.hidden = !ping;
-    setClass($('#btnTown'), 'ping', !!ping && !G.R.town);
-    // HUD
-    const realm = G.REALMS[G.realmIndex(S.depth)];
+    const td = nav.dot; if (td && td.hidden === !!ping) td.hidden = !ping;
+    setClass($id('btnTown'), 'ping', !!ping && !R.town);
+    const h = S.hero, on = !!(h && h.cls);
+    // the field's HUD: hidden in town (the town has its own), so it rests there
+    if (!R.town || force) updateField(S, D, R, h, on, force);
+    if (G.Tut) G.Tut.update();
+    setClass($id('btnSound'), 'off', !S.set.sound);
+    setClass($id('btnMusic'), 'off', !S.set.music);
+    // the panel's page (a phone's folded panel shows none of it)
+    const ct = curTab(), folded = $id('app').classList.contains('fold') && !wtab;
+    if (!folded || force) {
+      if (dirty[ct]) { dirty[ct] = false; if (ct === 'coll' || ct === 'quests' || ct === 'asc') { updaters[ct] && updaters[ct](true); } }
+      if (updaters[ct]) updaters[ct](force);
+    }
+    if (R.town && tw.id) twFootLive();
+  };
+  // the panel's nav buttons (rebuilt with the tabs)
+  let navC = null;
+  function navBtns() {
+    if (navC && navC.upg && navC.upg.isConnected) return navC;
+    navC = {};
+    for (const x of NAV) navC[x.id] = document.querySelector(`.tab[data-tab="${x.id}"]`);
+    navC.dot = navC.town ? navC.town.querySelector('.dot') : null;
+    return navC;
+  }
+  function updateField(S, D, R, h, on, force) {
     // in a Rift the HUD names the Rift's land, not the campaign's
-    const hd = R.rift ? R.rift.d : S.depth;
-    setText($('#realmName'), G.realmName(hd));
-    // where you are in this land: five zones, the last one the lord's
+    const hd = R.rift ? R.rift.d : S.depth, narrow = innerWidth < 600;
+    setText($id('realmName'), G.realmName(hd));
+    // where you are in this land: its zones, the last one the lord's
     const li = G.realmIndex(hd), z = G.zoneOf(hd);
     const zk = hd + '|' + (G.starsOf ? G.starsOf(li) : 0) + '|' + !!R.rift;
     if (zk !== zoneKey) {
       zoneKey = zk;
       let pips = '';
       for (let i = 0; i < G.REALM_SIZE; i++) pips += `<i class="${i < z ? 'done' : i === z ? 'cur' : ''} ${i === G.REALM_SIZE - 1 ? 'lord' : ''}"></i>`;
-      $('#zonePips').innerHTML = pips;
+      $id('zonePips').innerHTML = pips;
       const n = G.starsOf ? G.starsOf(li) : 0;
-      $('#landStars').innerHTML = [0, 1, 2].map(i => `<i class="${i < n ? 'on' : ''}">\u2605</i>`).join('');
+      $id('landStars').innerHTML = [0, 1, 2].map(i => `<i class="${i < n ? 'on' : ''}">★</i>`).join('');
     }
-    $('#zonePips').hidden = !!R.rift;
-    setText($('#zoneName'), R.rift ? t('riftName', R.rift.lvl) : G.ZONE_NAME(S.depth) + (innerWidth < 600 ? ' · ' + t('depthShort') + (S.depth + 1) : ''));
-    if (R.rift) setText($('#realmSub'), t('riftName', R.rift.lvl) + ' · ' + t('depth') + ' ' + (R.rift.d + 1));
-    else setText($('#realmSub'), t('depth') + ' ' + (S.depth + 1));
-    const cm = $('#chestMeter');
-    cm.style.width = Math.min(100, S.chestMeter / D.chestNeed * 100) + '%';
+    setHid($id('zonePips'), !!R.rift);
+    // (a phone has the depth on the zone's line and no room for the zone's name)
+    setText($id('zoneName'), R.rift ? t('riftName', R.rift.lvl) : narrow ? t('depthShort') + (S.depth + 1) : G.ZONE_NAME(S.depth));
+    setTitle($id('zoneName'), R.rift ? '' : G.ZONE_NAME(S.depth));
+    if (R.rift) setText($id('realmSub'), t('riftName', R.rift.lvl) + ' · ' + t('depth') + ' ' + (R.rift.d + 1));
+    else setText($id('realmSub'), t('depth') + ' ' + (S.depth + 1));
+    setW($id('chestMeter'), S.chestMeter / D.chestNeed * 100);
     const comboK = R.combo / (D.comboCap || 1);
-    $('#comboMeter').style.width = Math.min(100, comboK * 100) + '%';
-    setClass($('#comboWrap'), 'hot', comboK >= 1);
-    setText($('#comboText'), t('comboLine', Math.floor(R.combo), (1 + R.combo * D.comboPer).toFixed(2)));
-    setText($('#chestText'), t('chestLine', Math.floor(S.chestMeter / D.chestNeed * 100), S.chests.length, D.slots));
-    const bossShown = !!(S.hero && S.hero.cls);
-    setClass($('#stageWrap'), 'fighting', !!R.boss);
-    $('#bossRow').hidden = !bossShown;
-    $('#btnRift').hidden = !(bossShown && !R.boss && !R.rift && G.riftOpenable());
-    if (bossShown && R.inv && !R.boss) {
+    setW($id('comboMeter'), comboK * 100);
+    setClass($id('comboWrap'), 'hot', comboK >= 1);
+    const narrowBar = innerWidth <= 700;
+    setText($id('comboText'), t(narrowBar ? 'comboLineShort' : 'comboLine', Math.floor(R.combo), (1 + R.combo * D.comboPer).toFixed(2)));
+    setText($id('chestText'), t(narrowBar ? 'chestLineShort' : 'chestLine', Math.floor(S.chestMeter / D.chestNeed * 100), S.chests.length, D.slots));
+    setClass($id('stageWrap'), 'fighting', !!R.boss);
+    setClass($id('stageWrap'), 'evOn', !!R.ev);
+    const bw = $id('bossWrap'), bt = $id('bossText'), bm = $id('bossMeter'), bf = $id('btnFight'), br = $id('btnRetreat');
+    setHid($id('bossRow'), !on);
+    setHid($id('btnRift'), !(on && !R.boss && !R.rift && G.riftOpenable()));
+    if (on && R.inv && !R.boss) {
       // an invasion: hold it off until its herald comes, then slay the herald
       const V = G.INV_BY_ID[R.inv.k], hb = R.inv.boss ? R.mobs.find(m => m.id === R.inv.boss) : null;
-      $('#bossMeter').style.width = (hb ? Math.max(0, hb.hp / hb.max) : Math.min(1, R.inv.prog / R.inv.need)) * 100 + '%';
-      setClass($('#bossWrap'), 'hp', !!hb); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'enr', false); setClass($('#bossWrap'), 'waves', false);
-      setText($('#bossText'), hb ? t('invHerald', V.bossName, Math.ceil(R.inv.t)) : t('invName', V.name, Math.floor(Math.min(R.inv.prog, R.inv.need)), R.inv.need, Math.ceil(R.inv.t)));
-      $('#btnFight').hidden = true; $('#btnRetreat').hidden = true;
-    } else if (bossShown && R.rift) {
+      setW(bm, (hb ? Math.max(0, hb.hp / hb.max) : Math.min(1, R.inv.prog / R.inv.need)) * 100);
+      setClass(bw, 'hp', !!hb); setClass(bw, 'weak', false); setClass(bw, 'rift', true); setClass(bw, 'enr', false); setClass(bw, 'waves', false);
+      setText(bt, hb ? t('invHerald', V.bossName, Math.ceil(R.inv.t)) : t('invName', V.name, Math.floor(Math.min(R.inv.prog, R.inv.need)), R.inv.need, Math.ceil(R.inv.t)));
+      setHid(bf, true); setHid(br, true);
+    } else if (on && R.rift) {
       const r = R.rift, g = r.guard ? R.mobs.find(m => m.id === r.guard) : null;
-      $('#bossMeter').style.width = (g ? Math.max(0, g.hp / g.max) : Math.min(1, r.prog / r.need)) * 100 + '%';
-      setClass($('#bossWrap'), 'hp', !!g); setClass($('#bossWrap'), 'weak', false); setClass($('#bossWrap'), 'rift', true); setClass($('#bossWrap'), 'enr', false); setClass($('#bossWrap'), 'waves', false);
-      setClass($('#bossWrap'), 'enr', false);
-      setText($('#bossText'), t('riftName', r.lvl) + ' · ' + Math.ceil(r.t) + 's · ' + (g ? t('riftGuardian') : Math.floor(Math.min(1, r.prog / r.need) * 100) + '%'));
-      $('#btnFight').hidden = true; $('#btnRetreat').hidden = false;
-    } else if (bossShown) {
-      setClass($('#bossWrap'), 'rift', false);
+      setW(bm, (g ? Math.max(0, g.hp / g.max) : Math.min(1, r.prog / r.need)) * 100);
+      setClass(bw, 'hp', !!g); setClass(bw, 'weak', false); setClass(bw, 'rift', true); setClass(bw, 'enr', false); setClass(bw, 'waves', false);
+      setText(bt, t('riftName', r.lvl) + ' · ' + Math.ceil(r.t) + 's · ' + (g ? t('riftGuardian') : Math.floor(Math.min(1, r.prog / r.need) * 100) + '%'));
+      setHid(bf, true); setHid(br, false);
+    } else if (on) {
+      setClass(bw, 'rift', false);
       if (R.boss) {
         const k = Math.max(0, R.boss.hp / R.boss.max);
-        $('#bossMeter').style.width = k * 100 + '%';
-        setClass($('#bossWrap'), 'hp', true); setClass($('#bossWrap'), 'waves', false);
-        setText($('#bossText'), (R.boss.affix ? R.boss.affix.map(a => t('aff_' + a)).join(' ') + ' ' : '') + L(G.bossName(R.boss.d)) + ' · ' + (R.boss.enr > 0 ? t('enrageT', Math.ceil(R.boss.enr)) : Math.ceil(R.boss.t) + 's'));
-        setClass($('#bossWrap'), 'enr', R.boss.enr > 0);
-        $('#btnFight').hidden = true; $('#btnRetreat').hidden = false;
+        setW(bm, k * 100);
+        setClass(bw, 'hp', true); setClass(bw, 'waves', false);
+        const tt = R.boss.enr > 0 ? t('enrageT', Math.ceil(R.boss.enr)) : Math.ceil(R.boss.t) + 's';
+        // (the boss's own bar on the field names it; on a phone this row keeps only the clock)
+        setText(bt, narrowBar ? tt : (R.boss.affix ? R.boss.affix.map(a => t('aff_' + a)).join(' ') + ' ' : '') + L(G.bossName(R.boss.d)) + ' · ' + tt);
+        setClass(bw, 'enr', R.boss.enr > 0);
+        setHid(bf, true); setHid(br, false);
       } else {
-        setClass($('#bossWrap'), 'hp', false); setClass($('#bossWrap'), 'enr', false);
+        setClass(bw, 'hp', false); setClass(bw, 'enr', false);
         const need = D.bossNeed;
-        $('#bossMeter').style.width = Math.min(100, S.bossMeter / need * 100) + '%';
-        const hs = G.hordeScale(), weak = G.mightRatio() < 1.35;
+        setW(bm, S.bossMeter / need * 100);
+        const weak = G.mightRatio() < 1.35;
         // far too strong for new ground, with Torment to spare: say so
         const easy = G.mightRatio() > 6 && S.depth >= S.bestDepth && (S.torment || 0) < G.tormentMax();
         const wave = Math.min(3, 1 + Math.floor(3 * S.bossMeter / need));
         const odds = R.bossReady && G.bossOdds ? G.bossOdds() : 1;
-        const narrow = innerWidth < 600;
-        // the countdown to a boss that comes on its own
+        // (3.6: two states: the boss is coming (or ready), or the waves before it; the odds only when they're poor)
+        const oddsT = odds < 0.6 ? (narrow ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100)))) : '';
         const callIn = R.bossReady && S.set.autoBoss && R.bossIn != null ? Math.max(0, Math.ceil(R.bossIn + (odds >= 0.6 ? 0 : D.autoBoss ? 20 : 60))) : -1;
-        if (callIn >= 0) setText($('#bossText'), narrow ? t('bossInShort', L(G.bossName(S.depth)), callIn) : t('bossIn', L(G.bossName(S.depth)), callIn) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : ''));
-        else         setText($('#bossText'), R.bossReady && narrow ? t('bossReadyShort', L(G.bossName(S.depth))) + (odds < 1 ? ' · ' + Math.max(1, Math.round(odds * 100)) + '%' : '') : R.bossReady ? t('bossReadyTo', L(G.bossName(S.depth)), G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1)) + (odds < 1 ? ' · ' + t('bossOdds', Math.max(1, Math.round(odds * 100))) : '') : t('waveN', wave) + ' · ' + t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : easy ? t('tooEasy') : t('toBoss')));
-        setClass($('#bossWrap'), 'waves', true);
-        setClass($('#btnFight'), 'long', R.bossReady && odds < 0.6);
-        setClass($('#bossWrap'), 'weak', weak && !R.bossReady);
-        $('#btnFight').hidden = !R.bossReady; $('#btnRetreat').hidden = true;
+        const bn = L(G.bossName(S.depth));
+        let txt;
+        if (callIn >= 0) txt = (narrow ? t('bossInShort', bn, callIn) : t('bossIn', bn, callIn)) + oddsT;
+        else if (R.bossReady) txt = (narrow ? t('bossReadyShort', bn) : t('bossReadyTo', bn, G.isLord(S.depth) ? G.realmName(S.depth + 1) : G.ZONE_NAME(S.depth + 1))) + oddsT;
+        else txt = t('waveN', wave) + ' · ' + (narrowBar ? Math.floor(Math.min(S.bossMeter, Math.ceil(need))) + '/' + Math.ceil(need) : t('clearMeter', Math.floor(Math.min(S.bossMeter, Math.ceil(need))), Math.ceil(need)) + ' · ' + (weak ? t('hordeWeak') : easy ? t('tooEasy') : t('toBoss')));
+        setText(bt, txt);
+        setClass(bw, 'waves', true);
+        setClass(bf, 'long', R.bossReady && odds < 0.6);
+        setClass(bw, 'weak', weak && !R.bossReady);
+        setHid(bf, !R.bossReady); setHid(br, true);
       }
     }
-    // Button HP and ability
-    const h = S.hero;
+    if (br && br.hidden && br._arm) disarmRetreat(br);
+    toastsYield();
+    // the toasts step down out of the way of the boss bar, and of the tutorial's arrow, when they reach their corner
+    { const ts = $id('toasts'), bb = R.boss ? bossBarRect() : null, pt = $id('pointer'); let top = '';
+      if (ts && (bb || (pt && !pt.hidden))) {
+        const wr = G.Stage.wrapRect ? G.Stage.wrapRect() : $id('stageWrap').getBoundingClientRect(), x0 = wr.right - 12 - Math.min(wr.width * (narrowUI() ? 0.6 : 0.7), narrowUI() ? 250 : 320);
+        let y = 0;
+        if (bb && bb.right > x0) y = bb.bottom - wr.top + 6;
+        if (pt && !pt.hidden) { const a = pt.getBoundingClientRect(); if (a.right > x0 && a.left < wr.right && a.top - wr.top < (narrowUI() ? 50 : 54) + 80 && a.bottom > wr.top) y = Math.max(y, a.bottom - wr.top + 4); }
+        if (y) top = Math.round(y) + 'px';
+      }
+      if (ts && ts._top !== top) { ts._top = top; ts.style.top = top; } }
     // Journey goal and today's omen
     updateGoal();
-    // XP bar and level-up choices
-    $('#xpBar').hidden = !(h && h.cls);
-    if (h && h.cls) {
-      $('#xpFill').style.width = Math.min(100, h.xp / G.xpNeed(h.lvl) * 100) + '%';
-      const nr = G.nextRank && G.nextRank(h.lvl);
-      setText($('#xpText'), t('lvl') + ' ' + h.lvl + (nr ? ' · ' + t('rankNext', nr.lv, UI.rankText(nr)) : ''));
+    // XP bar (and the level-up points waiting their turn) and level-up choices
+    setHid($id('xpBar'), !on);
+    if (on) {
+      setW($id('xpFill'), h.xp / G.xpNeed(h.lvl) * 100);
+      const nr = G.nextRank && G.nextRank(h.lvl), bank = Math.max(0, (h.perkPts || 0) - (h.offer ? 1 : 0));
+      setText($id('xpText'), t('lvl') + ' ' + h.lvl + (bank > 0 ? ' · ' + t('perkBank', bank) : '') + (nr && !narrow ? ' · ' + t('rankNext', nr.lv, UI.rankText(nr)) : ''));
     }
     updatePerks();
     updatePartyHud();
     updateEventBar();
     updatePowers();
-    // the level-up cards sit just above whatever the bottom HUD holds right now
-    const hb = $('.hud.bottom'); if (hb) { const hh = hb.offsetHeight + 8; if (hh !== UI._hudB) { UI._hudB = hh; $('#stageWrap').style.setProperty('--hudB', hh + 'px'); } }
-    $('#hpRow').hidden = !(h && h.cls);
-    if (h && h.cls) {
+    setHid($id('hpRow'), !on);
+    if (on) {
       const k = Math.max(0, h.hp / (D.heroHp || 1));
-      $('#hpMeter').style.width = k * 100 + '%';
-      $('#hpTrail').style.width = k * 100 + '%';
-      setClass($('#hpWrap'), 'low', k < 0.35);
-      setText($('#hpText'), R.btnDown > 0 ? t('btnBrokenFor', Math.ceil(R.btnDown)) : R.stun > 0 ? t('regroup') : t('buttonHp', fmt(Math.max(0, h.hp)), fmt(D.heroHp)));
-      const ab = h.eq.ability, btn = $('#btnAbil');
-      btn.hidden = !ab;
+      setW($id('hpMeter'), k * 100);
+      setW($id('hpTrail'), k * 100);
+      setClass($id('hpWrap'), 'low', k < 0.35);
+      setText($id('hpText'), R.btnDown > 0 ? t('btnBrokenFor', Math.ceil(R.btnDown)) : R.stun > 0 ? t('regroup') : t(narrowBar ? 'buttonHpShort' : 'buttonHp', fmt(Math.max(0, h.hp)), fmt(D.heroHp)));
+      const ab = h.eq.ability, btn = $id('btnAbil');
+      setHid(btn, !ab);
       if (ab) {
         const type = G.ITEM_TYPE[ab.id];
         if (btn._id !== ab.id) { btn._id = ab.id; btn.querySelector('img').src = ic('it_' + ab.id, 3); btn.title = L(G.ABILITIES[type].name) + ' (Q)'; }
         const cd = Math.max(0, R.abilCd), tot = G.ABILITIES[type].cd;
-        $('#abilCd').style.height = (cd > 0 ? cd / tot * 100 : 0) + '%';
+        setHgt($id('abilCd'), cd > 0 ? cd / tot * 100 : 0);
         setClass(btn, 'ready', cd <= 0);
       }
     }
@@ -811,17 +971,29 @@
     const bh = (bb ? `<span class="buff bless${bb.twist ? ' twist' : ''}" title="${esc(bb.desc)}">${img(G.SPR.defs[bb.icon] ? bb.icon : 'ic_star', '', 2)}${esc(bb.name)}</span>` : '') + S.buffs.map(b => `<span class="buff ${b.id}">${esc(t(b.id))} ${Math.ceil(b.t)}s</span>`).join('')
       + Object.keys(R.hb || {}).filter(k => R.hb[k] > 0).map(k => `<span class="buff ${k === 'hh' ? 'hunt' : 'storm'}">${esc(k === 'hh' ? G.UNIQUES.headhunter.name : L(G.ABILITIES[k].name))} ${Math.ceil(R.hb[k])}s</span>`).join('')
       + (R.shr && R.shr.t > 0 ? `<span class="buff shrine" style="--c:${G.SHRINES[R.shr.k].col}">${esc(t('shrineBuff', G.SHRINES[R.shr.k].name, Math.ceil(R.shr.t)))}</span>` : '');
-    const bEl = $('#buffs');
+    const bEl = $id('buffs');
     if (bEl._h !== bh) { bEl.innerHTML = bh; bEl._h = bh; }
-    if (G.Tut) G.Tut.update();
-    $('#btnSound').classList.toggle('off', !S.set.sound);
-    $('#btnMusic').classList.toggle('off', !S.set.music);
-
-    const ct = curTab();
-    if (dirty[ct]) { dirty[ct] = false; if (ct === 'coll' || ct === 'quests' || ct === 'asc') { updaters[ct] && updaters[ct](true); } }
-    if (updaters[ct]) updaters[ct](force);
-    if (G.R.town && tw.id) twFootLive();
-  };
+  }
+  // 3.6: where the boss's bar sits on the field (client px), as js/stage.js lays it out: centred, under whatever
+  // HUD box is over its span, the name and the wounds lines under it
+  function bossBarRect() {
+    const St = G.Stage; if (!St || !St.size || !St.rect) return null;
+    const sz = St.size(), S = sz.S, r = St.rect(), w = Math.min(sz.W - 20, 170), x = (sz.W - w) / 2;
+    let y = Math.ceil(50 / S);
+    for (const hb of St.hudBoxes ? St.hudBoxes() : []) if (hb.sel !== '.hud.bottom' && hb.sel !== '#toasts' && x < hb.x1 + 2 && x + w > hb.x0 - 2) y = Math.max(y, Math.ceil(hb.y1 + 8 / S));
+    return { left: r.left + x * S, right: r.left + (x + w) * S, top: r.top + y * S, bottom: r.top + (y + 22) * S };
+  }
+  UI.bossBarRect = bossBarRect;
+  // where the field's title cards show (client px), as js/stage.js puts them: centred, under the HUD (lower on a
+  // narrow field); null when none is up (in a boss fight they go over the boss, under its bar)
+  function cardRect() {
+    const St = G.Stage; if (!St || !St.size || !St.rect || !(St.cardBusy && St.cardBusy()) || G.R.boss) return null;
+    const sz = St.size(), S = sz.S, r = St.rect(), y = sz.H * (sz.W * S < 600 ? 0.37 : 0.27);
+    return { left: r.left + (sz.W / 2 - 85) * S, right: r.left + (sz.W / 2 + 85) * S, top: r.top + (y - 10) * S, bottom: r.top + (y + 28) * S };
+  }
+  UI.cardRect = cardRect;
+  // 3.6: the boss fight's ✕ on a touch screen takes two taps (it sits a thumb away from the powers)
+  function disarmRetreat(b) { b._arm = 0; clearTimeout(b._armT); b.classList.remove('arm'); b.textContent = '✕'; }
 
   // what in town wants a visit: a building just opened, a finished quest or the daily gift, an empty
   // party seat, a star or a Garrison hire you can afford, a building you can build up
@@ -933,7 +1105,7 @@
         const u = G.UPGRADES.filter(x => refs.rows.some(r => r.u === x) && !(x.max && (G.S.upg[x.id] || 0) >= x.max) && G.S.gold >= G.upgCost(x)).sort((a, b) => G.upgCost(a) - G.upgCost(b))[0];
         if (!u || !G.buyUpgrade(u.id)) break; n++;
       }
-      if (n) { G.Audio.buy(); UI.toast(esc(t('buyAllDone', n)), '', 'ic_coin'); UI.update(true); } else G.Audio.error();
+      if (n) { G.Audio.buy(); UI.toast(esc(t('buyAllDone', n)), '', 'ic_coin', { p: 2 }); UI.update(true); } else G.Audio.error();
     });
     body.querySelector('[data-uamt]').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b) return; pf.upgAmt = b.dataset.a === 'max' ? 'max' : +b.dataset.a; if (srt === 'cost') { UI.render(); return; } $$('[data-uamt] button', body).forEach(x => x.classList.toggle('on', x === b)); UI.update(true); });
     body.querySelector('[data-usort]').addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (!b) return; pf.upgSort = b.dataset.s; UI.render(); });
@@ -946,9 +1118,13 @@
     });
     refs.count = list.length;
   };
-  updaters.upg = function () {
+  updaters.upg = function (force) {
     const S = G.S;
     if (!refs.rows) return;
+    // (3.6: four times a second is plenty for prices; a buy or a render forces it)
+    const now = performance.now();
+    if (!force && now - (refs.updT || 0) < 240) return;
+    refs.updT = now;
     if (visUpg(S).length !== refs.count) { UI.render(); return; }
     const amt = PF().upgAmt || 1;
     for (const r of refs.rows) {
@@ -1219,7 +1395,7 @@
     refs.active = body.querySelector('[data-active]');
     body.addEventListener('click', e => {
       const pb = e.target.closest('[data-pull]');
-      if (pb) { G.Audio.unlock(); if (!G.pull(+pb.dataset.pull)) { G.Audio.error(); UI.toast(esc(t('noEggs')), '', 'ic_egg'); } return; }
+      if (pb) { G.Audio.unlock(); if (!G.pull(+pb.dataset.pull)) { G.Audio.error(); UI.toast(esc(t('noEggs')), '', 'ic_egg', { p: 2 }); } return; }
       const pe = e.target.closest('.pet');
       if (pe && G.S.pets[pe.dataset.p]) { G.togglePet(pe.dataset.p); }
     });
@@ -1257,6 +1433,13 @@
     }).join('');
     const best = res.reduce((m, r) => Math.max(m, r.pet.tier + (r.golden ? 1 : 0)), 0);
     G.Audio.pull(best);
+    // (3.6: a pet hatched out on the field (a rare surprise's) is a banner, not a window that stops the fight)
+    if (!G.R.town && res.length === 1) {
+      const r = res[0], tier = G.PET_TIERS[r.pet.tier];
+      UI.bannerShow(`<div class="inner" style="color:${r.golden ? '#ffd84a' : tier.color}"><h2>${esc(t('pullTitle'))}</h2><img class="ico" src="${ic('p_' + r.pet.id, 8, r.golden ? { gold: true } : null)}" alt=""><p>${esc(L(r.pet.name))}</p><p class="sub">${esc(r.isNew ? t('newPet') : r.newGold ? t('golden') : t('lvl') + ' ' + r.lvl)}</p></div>`, 2800);
+      if (curTab() === 'pets') UI.update(true);
+      return;
+    }
     UI.modal(t('pullTitle'), `<div class="pullGrid" style="${res.length === 1 ? 'grid-template-columns:1fr;justify-items:center' : ''}">${cards}</div>`, [{ label: t('ok'), cls: 'gold' }]);
     if (curTab() === 'pets') UI.update(true);
   }
@@ -1285,7 +1468,7 @@
       <div class="sect">${esc(t('quests'))}</div>
       <div class="list" data-q></div>`;
     const b = body.querySelector('[data-daily]');
-    if (b) b.addEventListener('click', () => { const r = G.claimDaily(); if (r) UI.toast(`<b>${esc(t('daily'))}</b>&nbsp;+${r.kind === 'chest' ? esc(L(G.RARITIES[r.tier].name)) : fmt(r.v)}`, 'ach', dayIcon(G.S.daily.streak)); UI.render(); });
+    if (b) b.addEventListener('click', () => { const r = G.claimDaily(); if (r) UI.toast(`<b>${esc(t('daily'))}</b>&nbsp;+${r.kind === 'chest' ? esc(L(G.RARITIES[r.tier].name)) : fmt(r.v)}`, 'ach', dayIcon(G.S.daily.streak), { p: 2 }); UI.render(); });
     refs.q = body.querySelector('[data-q]');
     refs.qKey = '';
     refs.q.addEventListener('click', e => {
@@ -1341,14 +1524,15 @@
   // Achievements
   renderers.ach = function (body) {
     const S = G.S;
-    const got = Object.keys(S.ach).length;
+    // (3.6: retired achievements a save still holds keep their +1% gold but are not listed or counted here)
+    const got = G.ACH.filter(a => S.ach[a.id]).length;
     const stats = [
       ['st_goldTotal', fmt(S.goldTotal)], ['st_clicks', fmt(S.clicks)], ['st_chests', fmt(S.st.chests)], ['st_boss', fmt(S.st.bossKills)],
       ['st_lords', fmt(S.st.lordKills)], ['st_best', S.bestDepth + 1], ['st_crits', fmt(S.st.crits)], ['st_combo', Math.floor(S.st.maxCombo)],
       ['st_wisps', fmt(S.st.wisps)], ['st_merges', fmt(S.st.merges)], ['st_divine', fmt(S.st.divine)], ['st_asc', S.ascensions], ['st_time', G.fmtTime(S.st.playTime)],
     ];
     body.innerHTML = `
-      <p class="note">${esc(t('achSummary', got, G.ACH.length, got))}</p>
+      <p class="note">${esc(t('achSummary', got, G.ACH.length, (G.D && G.D.achCount) || got))}</p>
       ${G.rareFx ? `<button class="btn" data-rarecodex>${esc((G.STR && G.STR.rfCodex) || 'Rare surprises')}</button>` : ''}
       <div class="sect">${esc(t('skins'))}</div>
       <div class="skinRow">${G.SKINS.map(s => {
@@ -1531,9 +1715,9 @@
       if (e.target.closest('[data-salvall]')) {
         // (locked items, uniques and worn gear stay)
         const r = scrapBelow(Math.max(1, h.salv || 2));
-        UI.toast(esc(t('salvaged', r.n, fmt(r.v))), '', 'ic_shard'); refs.hero.key = ''; return;
+        UI.toast(esc(t('salvaged', r.n, fmt(r.v))), '', 'ic_shard', { p: 2 }); refs.hero.key = ''; return;
       }
-      if (e.target.closest('[data-bestall]')) { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); refs.hero.key = ''; refs.hero.dollKey = ''; updaters.hero(true); return; }
+      if (e.target.closest('[data-bestall]')) { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword', { p: 2 }); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword', { p: 2 }); refs.hero.key = ''; refs.hero.dollKey = ''; updaters.hero(true); return; }
       const gt = e.target.closest('[data-g]');
       // the item's details sit above the bag: bring them into view, or on a phone nothing seems to happen
       if (gt) { selGear = +gt.dataset.g; refs.hero.key = ''; updaters.hero(true); if (refs.hero.gd) refs.hero.gd.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
@@ -1544,9 +1728,9 @@
         const f = findGear(selGear), id = ob.dataset.orb;
         if (!(h.orbs[id] > 0)) { G.Audio.error(); return; }
         const why = G.orbBlock(id, f && f.g);
-        if (why) { G.Audio.error(); UI.toast(esc(t('orbNo_' + why, G.ENCHANT_MAX)), '', 'orb_' + id); return; }
+        if (why) { G.Audio.error(); UI.toast(esc(t('orbNo_' + why, G.ENCHANT_MAX)), '', 'orb_' + id, { p: 2 }); return; }
         const res = G.useOrb(id, f.g);
-        if (res) UI.toast(`<b style="color:${G.ORBS[id].col}">${esc(t('orbDone_' + res))}</b>`, res.startsWith('ruin') && res !== 'ruin_none' ? 'ach' : '', 'orb_' + id);
+        if (res) UI.toast(`<b style="color:${G.ORBS[id].col}">${esc(t('orbDone_' + res))}</b>`, res.startsWith('ruin') && res !== 'ruin_none' ? 'ach' : '', 'orb_' + id, { p: 2 });
         refs.hero.key = ''; updaters.hero(true); return;
       }
       const act = e.target.closest('[data-act]');
@@ -1556,7 +1740,7 @@
         if (a === 'equip') G.equip(f.g, false, selWho);
         else if (a === 'unequip') G.unequip(f.worn, f.who);
         else if (a === 'enchant') { if (!G.enchant(f.g)) G.Audio.error(); }
-        else if (a === 'salvage') { if (f.g.keep) { G.Audio.error(); UI.toast(esc(t('lockedNoScrap')), '', 'ic_key'); } else { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_shard'); selGear = null; } } }
+        else if (a === 'salvage') { if (f.g.keep) { G.Audio.error(); UI.toast(esc(t('lockedNoScrap')), '', 'ic_key', { p: 2 }); } else { const v = G.salvage(f.g); if (v) { UI.toast(esc(t('salvaged', 1, fmt(v))), '', 'ic_shard', { p: 2 }); selGear = null; } } }
         else if (a === 'lock') { if (f.g.keep) delete f.g.keep; else f.g.keep = 1; G.dirty(); }
         refs.hero.key = ''; updaters.hero(true);
       }
@@ -1682,7 +1866,7 @@
     // a page's id opens the building that holds it
     if (!BLDS[id] && TAB_BLD[id]) { sub = id; id = TAB_BLD[id]; }
     const B = BLDS[id]; if (!B) return;
-    if (!bldOpen(id)) { G.Audio.error(); UI.toast(esc(t('bldOpens', t('lock_' + id))), '', 'ic_scroll'); return; }
+    if (!bldOpen(id)) { G.Audio.error(); UI.toast(esc(t('bldOpens', t('lock_' + id))), '', 'ic_scroll', { p: 2 }); return; }
     // QoL: a building opens on the tab it was left on
     const pf = PF(); pf.sub = pf.sub && typeof pf.sub === 'object' ? pf.sub : {};
     if (!sub && pf.sub[id]) sub = pf.sub[id];
@@ -1794,10 +1978,10 @@
   UI.todoList = todoList;
   function todoGo(k) {
     G.Audio && G.Audio.unlock && G.Audio.unlock();
-    if (k === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); pingT = 0; if (G.R.town && tw.id) renderTown(); UI.render(); return; }
+    if (k === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword', { p: 2 }); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword', { p: 2 }); pingT = 0; if (G.R.town && tw.id) renderTown(); UI.render(); return; }
     if (k === 'upg') { if (G.R.town) G.leaveTown(); tab = 'upg'; UI.render(); return; }
     if (k === 'perk') { if (G.R.town) G.leaveTown(); return; }
-    if (!G.R.town && !G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb'); return; }
+    if (!G.R.town && !G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb', { p: 2 }); return; }
     if (k === 'build') { const id = BLD_ORDER.filter(bldCanBuild).sort((x, y) => G.bldCost(x) - G.bldCost(y))[0]; if (id) UI.townOpen(id); return; }
     UI.townOpen(k, k === 'tavern' ? 'tavern' : undefined);
   }
@@ -1828,7 +2012,7 @@
       if (e.target.closest('[data-dirall]')) {
         G.Audio.unlock(); let n = 0;
         for (let k = 0; k < 60; k++) { const id = BLD_ORDER.filter(bldCanBuild).sort((x, y) => G.bldCost(x) - G.bldCost(y))[0]; if (!id || !G.buildUp(id)) break; n++; }
-        if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('dirBuilt', n)), 'ach', 'ic_town'); pingT = 0; UI.render(); } else G.Audio.error();
+        if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('dirBuilt', n)), 'ach', 'ic_town', { p: 2 }); pingT = 0; UI.render(); } else G.Audio.error();
       }
     });
     refs.dir = { rows: $$('[data-dir]', body) };
@@ -1908,7 +2092,7 @@
       <p class="scrapSum" data-ssum></p>`;
     const m = UI.modal(t('scrapTitle'), html, [{ label: t('salvage'), cls: 'red', fn: () => {
       const res = scrapBelow(r);
-      if (res.n) { G.Audio.buy(); UI.toast(esc(t('salvaged', res.n, fmt(res.v))), '', 'ic_shard'); } else G.Audio.error();
+      if (res.n) { G.Audio.buy(); UI.toast(esc(t('salvaged', res.n, fmt(res.v))), '', 'ic_shard', { p: 2 }); } else G.Audio.error();
       if (G.R.town && tw.id) renderTown(); UI.update(true);
     } }, { label: t('cancel') }]);
     const upd = () => {
@@ -2110,7 +2294,7 @@
       if (b.dataset.twsub) { UI.townOpen(tw.id, b.dataset.twsub); return; }
       if (b.dataset.twgamb) {
         const r = G.gamble(b.dataset.twgamb);
-        if (!r) { G.Audio.error(); UI.toast(esc(t('gambleNo')), '', 'ic_shard'); return; }
+        if (!r) { G.Audio.error(); UI.toast(esc(t('gambleNo')), '', 'ic_shard', { p: 2 }); return; }
         const g = r.g || null, rar = G.RARITIES[r.it.r];
         tw.gamb = { g, q: r.q, fresh: true, col: r.q ? G.UNIQUE_COL : rar.color, name: g ? gearName(g) : L(r.it.name), sub: r.q ? t('unique') + ' · ' + G.UNIQUES[r.q].fx : L(rar.name) + ' · ' + t('slot_' + r.slot) + (g && G.S.hero.eq[r.slot] === g ? ' · ' + t('equipped') : '') };
         if (r.q || r.it.r >= 4) { G.Audio.levelUp && G.Audio.levelUp(); } else G.Audio.buy();
@@ -2123,7 +2307,7 @@
       }
       if (b.dataset.twbuild) {
         const id = b.dataset.twbuild;
-        if (G.buildUp(id)) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('bldDone', t('town_' + id), G.bldLvl(id))), 'ach', G.SPR.defs[BLD_SPR[id]] ? BLD_SPR[id] : 'ic_town'); pingT = 0; UI.render(); if (CUSTOM[tw.sub]) renderTown(); }
+        if (G.buildUp(id)) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('bldDone', t('town_' + id), G.bldLvl(id))), 'ach', G.SPR.defs[BLD_SPR[id]] ? BLD_SPR[id] : 'ic_town', { p: 2 }); pingT = 0; UI.render(); if (CUSTOM[tw.sub]) renderTown(); }
         else G.Audio.error();
         return;
       }
@@ -2132,7 +2316,7 @@
       else if (b.dataset.twf != null) { tw.filter = b.dataset.twf; tw.sel = null; }
       else if (b.dataset.twflt != null) { tw.filter = b.dataset.twflt; }
       else if (b.dataset.twgear != null) { tw.who = +b.dataset.twgear; UI.townOpen('forge'); return; }
-      else if (b.dataset.twrec) { if (G.recruit(b.dataset.twrec)) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twRecruited', L(G.CLASS_BY_ID[b.dataset.twrec].name))), 'ach', G.CLASS_BY_ID[b.dataset.twrec].spr); } else G.Audio.error(); }
+      else if (b.dataset.twrec) { if (G.recruit(b.dataset.twrec)) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twRecruited', L(G.CLASS_BY_ID[b.dataset.twrec].name))), 'ach', G.CLASS_BY_ID[b.dataset.twrec].spr, { p: 2 }); } else G.Audio.error(); }
       else if (b.dataset.twbrew) { const p = G.brewPotion(b.dataset.twbrew); if (p) G.Audio.buy(); else G.Audio.error(); }
       else if (b.dataset.orb) {
         const f = tw.sel != null ? twFind(tw.sel) : null;
@@ -2140,13 +2324,13 @@
         const res = G.useOrb(b.dataset.orb, f.g); if (!res) G.Audio.error();
       } else if (b.dataset.twa) {
         const a = b.dataset.twa, f = tw.sel != null ? twFind(tw.sel) : null;
-        if (a === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword'); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword'); }
+        if (a === 'best') { const n = G.equipBest(); if (n) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twBestDone', n)), 'ach', 'ic_sword', { p: 2 }); } else UI.toast(esc(t('twBestNone')), '', 'ic_sword', { p: 2 }); }
         else if (a === 'salvall') { const r = scrapBelow(PF().salv || 2); if (r.n) G.Audio.buy(); }
         else if (f && a === 'lock') { if (f.g.keep) delete f.g.keep; else f.g.keep = 1; G.Audio.click && G.Audio.click(0, false); }
         else if (f && a === 'equip') { if (canWear(f.g, tw.who)) { G.equip(f.g, false, tw.who); G.Audio.buy(); } }
         else if (f && a === 'unequip') { G.unequip(f.worn, f.who); }
         else if (f && a === 'enchant') { if (G.enchant(f.g)) G.Audio.buy(); else G.Audio.error(); }
-        else if (f && a === 'salvage') { if (f.g.keep) { G.Audio.error(); UI.toast(esc(t('lockedNoScrap')), '', 'ic_key'); return; } G.salvage(f.g); tw.sel = null; G.Audio.buy(); }
+        else if (f && a === 'salvage') { if (f.g.keep) { G.Audio.error(); UI.toast(esc(t('lockedNoScrap')), '', 'ic_key', { p: 2 }); return; } G.salvage(f.g); tw.sel = null; G.Audio.buy(); }
       }
       G.dirty(); G.recalc(); renderTown(); UI.update(true);
       // (on a phone the item card sits under the bag: bring it into view after a pick)
@@ -2208,7 +2392,7 @@
         if (G.R.town) G.leaveTown();
         // (a boss in the way steps aside for the Rift; it comes back after)
         if (G.R.boss && !G.R.rift) G.fleeBoss();
-        if (!G.riftStart(riftSel)) { G.Audio.error(); UI.toast(esc(t('riftBusy')), '', 'ic_rift'); return; }
+        if (!G.riftStart(riftSel)) { G.Audio.error(); UI.toast(esc(t('riftBusy')), '', 'ic_rift', { p: 2 }); return; }
         updaters.rift(true);
       }
     });
@@ -2287,10 +2471,10 @@
   // Everyone's recent big moments, newest first
   function feedHtml() {
     const N = G.Net, rows = [];
-    for (const e of N.entries) { if (!e.ok && !e.me) continue; for (const f of Array.isArray(e.ev) ? e.ev : []) if (Array.isArray(f) && typeof f[1] === 'string' && f[1] && typeof f[0] === 'number') rows.push({ e, ts: f[0], k: f[1], s: String(f[2] || '') }); }
+    for (const e of N.entries) { if (!e.ok && !e.me) continue; for (const f of Array.isArray(e.ev) ? e.ev : []) if (Array.isArray(f) && typeof f[1] === 'string' && f[1] && typeof f[0] === 'number' && G.STR['feed' + f[1][0].toUpperCase() + f[1].slice(1)]) rows.push({ e, ts: f[0], k: f[1], s: String(f[2] || '') }); }
     rows.sort((a, b) => b.ts - a.ts);
     if (!rows.length) return `<p class="note">${esc(t('feedEmpty'))}</p>`;
-    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown', jackpot: 'ic_jackpot', relic: G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', spin: 'ic_coin' };
+    const icon = { uq: 'orb_grace', rift: 'ic_rift', lord: 'ic_skull', divine: 'it_halo', mad: 'ic_crown', evo: 'ic_star', crown: 'ic_crown', jackpot: 'ic_jackpot', relic: G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot' };
     return rows.slice(0, 12).map(r => `<div class="feedRow">${img(icon[r.k] || 'ic_star', '', 2)}<span><b>${esc(N.displayName(r.e) || t('anon'))}</b> ${esc(t('feed' + r.k[0].toUpperCase() + r.k.slice(1), r.s))}</span><small>${esc(G.fmtTime(Math.max(1, (Date.now() - r.ts) / 1000)))}</small></div>`).join('');
   }
   renderers.ladder = function (body) {
@@ -2307,7 +2491,7 @@
     body.addEventListener('click', e => {
       const b = e.target.closest('[data-b]');
       if (b) { ladderBy = b.dataset.b; $$('[data-by] button', body).forEach(x => x.classList.toggle('on', x === b)); refs.lad.key = ''; updaters.ladder(true); return; }
-      if (e.target.closest('[data-push]')) { N.pushNow(); UI.toast(esc(t('synced')), '', 'ic_crown'); return; }
+      if (e.target.closest('[data-push]')) { N.pushNow(); UI.toast(esc(t('synced')), '', 'ic_crown', { p: 2 }); return; }
       if (e.target.closest('[data-brag]')) {
         const h = S.hero, snap = G.ladderSnapshot(), crowns = Object.keys(S.rec.crowns || {}).filter(d => { const mine = S.rec.crowns[d]; return !N.entries.some(e => !e.me && e.cr && e.cr[d] && e.cr[d] < mine); }).length;
         const grid = G.UNIQUE_IDS.map(q => S.uq[q] ? '\u{1F7E7}' : '\u2B1B').join('');
@@ -2318,7 +2502,7 @@
         if (crowns) parts.push('\u{1F451} ' + crowns);
         const txt = t('bragText', L((G.CLASS_BY_ID[h.cls] || G.CLASSES[0]).name), snap.lvl, fmt(snap.power), parts.join(' · '), Object.keys(S.uq).length, G.UNIQUE_IDS.length, grid) + '\n' + t('bragJoin', G.SHARE_URL);
         // a box to copy from, since the clipboard may be refused inside the page
-        const m = UI.modal(t('bragTitle'), `<textarea class="bragBox" readonly rows="6">${esc(txt)}</textarea>`, [{ label: t('bragCopy'), cls: 'gold', fn: () => { try { navigator.clipboard.writeText(txt).then(() => UI.toast(esc(t('bragged')), 'ach', 'ic_crown'), () => {}); } catch (err) { /* the text stays selectable */ } } }, { label: t('close') }]);
+        const m = UI.modal(t('bragTitle'), `<textarea class="bragBox" readonly rows="6">${esc(txt)}</textarea>`, [{ label: t('bragCopy'), cls: 'gold', fn: () => { try { navigator.clipboard.writeText(txt).then(() => UI.toast(esc(t('bragged')), 'ach', 'ic_crown', { p: 2 }), () => {}); } catch (err) { /* the text stays selectable */ } } }, { label: t('close') }]);
         const ta = m.querySelector('textarea'); if (ta) { ta.focus(); ta.select(); }
         return;
       }
@@ -2380,7 +2564,7 @@
       <div class="insGear">${rows}</div>`;
     const acts = [{ label: t('ok'), cls: 'gold' }];
     // the owner can take a row off the ladder (a cheat, or someone who left)
-    if (N.isOwner && !e.me) acts.push({ label: t('removeRow'), fn: () => N.removeRow(e.uid).then(() => UI.toast(esc(t('removed')), '', 'ic_skull'), err => UI.toast(esc(t('netError', err.code || err.message)), '', 'ic_skull')) });
+    if (N.isOwner && !e.me) acts.push({ label: t('removeRow'), fn: () => N.removeRow(e.uid).then(() => UI.toast(esc(t('removed')), '', 'ic_skull', { p: 2 }), err => UI.toast(esc(t('netError', err.code || err.message)), '', 'ic_skull', { p: 2 })) });
     UI.modal(N.displayName(e) || t('anon'), html, acts);
   }
   function askCloud(cloud) {
@@ -2392,7 +2576,7 @@
     const keep = () => { G.Net.keepLocal(cloud); if (G.Tut) G.Tut.maybeIntro(); };
     const weaker = there && (!here || !here.cls || here.gold < there.gold);
     UI.modal(t('cloudTitle'), `<p>${esc(t('cloudText', when))}</p><div class="sumList"><div><b>${esc(t('cloudThere'))}</b><span>${esc(sum(there))}</span></div><div><b>${esc(t('cloudThis'))}</b><span>${esc(sum(here))}</span></div></div>`, [
-      { label: t('cloudLoad'), cls: 'gold', fn: () => { G.Net.hold = false; if (G.Net.loadCloud()) { UI.toast(esc(t('imported')), 'ach', 'ic_scroll'); UI.render(); } else UI.toast(esc(t('badSave')), '', 'ic_skull'); } },
+      { label: t('cloudLoad'), cls: 'gold', fn: () => { G.Net.hold = false; if (G.Net.loadCloud()) { UI.toast(esc(t('imported')), 'ach', 'ic_scroll', { p: 2 }); UI.render(); } else UI.toast(esc(t('badSave')), '', 'ic_skull', { p: 2 }); } },
       { label: t('cloudKeep'), fn: () => {
         if (!weaker) { keep(); return; }
         setTimeout(() => UI.modal(t('cloudTitle'), `<p>${esc(t('cloudSure', sum(there)))}</p>`, [{ label: t('cloudLoad'), cls: 'gold', fn: () => askCloud(cloud) }, { label: t('cloudSureYes'), fn: keep }], true), 50);
@@ -2418,7 +2602,7 @@
       <div class="sect">${esc(t('setPlay'))}</div>
       <div class="setList">
         ${htg('auto', t('autoEquip'))}${htg('autoPerk', t('autoPerk'))}${htg('cast', t('autoCast'))}${htg('autoOd', t('autoOd'), t('autoOdHint'))}
-        ${tg('autoSpin', t('autoSpin'), t('autoSpinHint'))}${tg('lowfx', t('lowfx'), t('lowfxHint'))}
+        ${tg('lowfx', t('lowfx'), t('lowfxHint'))}
         <div class="setRow"><span>${esc(t('autoSalv'))}</span><span class="seg" data-hsalv>${[0, 1, 2, 3].map(r => `<button data-r="${r}" class="${(h.salv || 0) === r ? 'on' : ''}">${r === 0 ? esc(t('off')) : esc(L(G.RARITIES[r].name))}</button>`).join('')}</span></div>
         <div class="setRow"><span>${esc(t('numFmt'))}<small>${esc(fmt0Demo())}</small></span><span class="seg" data-nf>${[0, 1].map(v => `<button data-v="${v}" class="${(s.sci ? 1 : 0) === v ? 'on' : ''}">${esc(t('numFmt' + v))}</button>`).join('')}</span></div>
       </div>
@@ -2446,19 +2630,19 @@
       const nf = e.target.closest('[data-nf] [data-v]');
       if (nf) { s.sci = +nf.dataset.v; UI.render(); return; }
       if (e.target.closest('[data-exp]')) { $('#saveBox').value = G.exportSave(); return; }
-      if (e.target.closest('[data-restore]')) { G.Net.restoreBackup().then(ok => { UI.toast(esc(ok ? t('imported') : t('noBackup')), ok ? 'ach' : '', 'ic_scroll'); if (ok) UI.render(); }); return; }
+      if (e.target.closest('[data-restore]')) { G.Net.restoreBackup().then(ok => { UI.toast(esc(ok ? t('imported') : t('noBackup')), ok ? 'ach' : '', 'ic_scroll', { p: 2 }); if (ok) UI.render(); }); return; }
       if (e.target.closest('[data-copy]')) {
         const v = $('#saveBox').value || G.exportSave(); $('#saveBox').value = v;
-        const ok = () => UI.toast(esc(t('copied')), '', 'ic_scroll');
+        const ok = () => UI.toast(esc(t('copied')), '', 'ic_scroll', { p: 2 });
         try { navigator.clipboard.writeText(v).then(ok, () => { $('#saveBox').select(); }); } catch (err) { $('#saveBox').select(); }
         return;
       }
       if (e.target.closest('[data-imp]')) {
         const v = $('#saveBox').value.trim();
-        if (!v || !G.importSave(v)) { UI.toast(esc(t('badSave')), '', 'ic_skull'); return; }
-        UI.toast(esc(t('imported')), 'ach', 'ic_scroll'); buildTabs(); UI.render(); return;
+        if (!v || !G.importSave(v)) { UI.toast(esc(t('badSave')), '', 'ic_skull', { p: 2 }); return; }
+        UI.toast(esc(t('imported')), 'ach', 'ic_scroll', { p: 2 }); buildTabs(); UI.render(); return;
       }
-      if (e.target.closest('[data-save]')) { G.save(); UI.toast(esc(t('saved')), '', 'ic_scroll'); return; }
+      if (e.target.closest('[data-save]')) { G.save(); UI.toast(esc(t('saved')), '', 'ic_scroll', { p: 2 }); return; }
       const rb = e.target.closest('[data-reset]');
       if (rb) {
         if (!resetArm) { resetArm = 1; rb.textContent = t('resetConfirm'); return; }
@@ -2469,48 +2653,175 @@
   };
 
   // ---------- Toasts, banner, modal ----------
-  // Toasts queue up and show at most two at a time so they never bury the stage.
+  // 3.6: one corner, one message at a time. A burst of one kind of news becomes one toast ("3 new finds"); at most
+  // two show at once (one on a phone, or in a boss fight or a big moment), each a beat after the last. The small
+  // ones (p 0) wait out a boss fight or a big moment (G.director.quiet()) and are dropped once stale; under a
+  // window only the answers to what you just did (p 2) show.
+  const narrowUI = () => innerWidth <= 860;
+  const dirQuiet = () => { try { return !!(G.director && G.director.quiet && G.director.quiet()); } catch (e) { return false; } };
   const toastQ = [];
-  function pumpToasts() {
-    const box = $('#toasts');
-    while (toastQ.length && box.children.length < 2) {
-      const tt = toastQ.shift();
-      const el = document.createElement('div');
-      el.className = 'toast ' + (tt.cls || '');
-      el.innerHTML = (tt.iconId ? img(tt.iconId, '', 3) : '') + `<span>${tt.html}</span>`;
-      box.appendChild(el);
-      setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.remove(); pumpToasts(); }, 260); }, toastQ.length > 2 ? 1400 : 2400);
-    }
+  let toastLast = 0, toastTm = 0;
+  // what a burst of one kind says (q.n of them; q.items: what each one was about)
+  const TOAST_N = {
+    new: q => `<b>${esc(t('toastNewN', q.n))}</b>`,
+    ach: q => `<span>${esc(t('achievement'))}: <b>${esc(t('toastAchN', q.n))}</b></span>`,
+    quest: q => `<b>${esc(t('toastQuestN', q.n))}</b>`,
+    journey: q => `<span><b>${esc(t('journeyDone'))}</b> ×${q.n}</span>`,
+    unlock: q => `<span>${esc(t('unlocked', q.items.filter(Boolean).join(', ')))}</span>`,
+    equip: q => `<span>${esc(t('toastEquipN', q.n))}</span>`,
+    potion: q => `<span>${esc(t('toastPotionN', q.n))}</span>`,
+    star: q => `<b style="color:#ffd84a">★ ${esc(t('toastStarN', q.n))}</b>`,
+    rank: q => `<b>${esc(t('rankUp'))}</b> ×${q.n}`,
+    gold: q => `<b>${esc(t('tu_reward', fmt(q.items.reduce((a, b) => a + (+b || 0), 0)) + ' ' + t('gold').toLowerCase()))}</b>`,
+    perkAuto: q => `<span>${esc(t('perkAutoDone'))} ×${q.n}</span>`,
+  };
+  const liveToasts = box => Array.prototype.filter.call(box.children, e => !e.classList.contains('out'));
+  function toastHeld(q) {
+    if (q.p >= 2) return false;
+    if (G.uiBusy && G.uiBusy()) return true;
+    if (q.p <= 0 && dirQuiet()) return true;
+    // (a phone's field has room for one card at the top: a champion's waits nobody)
+    if (narrowUI()) { const c = document.getElementById('champCard'); if (c && !c.hidden && !c.classList.contains('out')) return true; }
+    return false;
   }
-  UI.toast = function (html, cls, iconId) {
-    if (toastQ.length > 8) toastQ.splice(0, toastQ.length - 8);
-    toastQ.push({ html, cls, iconId });
+  function pumpToasts() {
+    clearTimeout(toastTm); toastTm = 0;
+    const box = $('#toasts'); if (!box) return;
+    const now = performance.now();
+    for (let i = toastQ.length - 1; i >= 0; i--) { const q = toastQ[i]; if (q.p < 2 && now - q.t0 > (q.p <= 0 ? 25000 : 45000)) toastQ.splice(i, 1); }
+    if (!toastQ.length) return;
+    const live = liveToasts(box), cap = narrowUI() || G.R.boss || dirQuiet() ? 1 : 2;
+    let best = -1;
+    for (let i = 0; i < toastQ.length; i++) { const q = toastQ[i]; if (!toastHeld(q) && (best < 0 || q.p > toastQ[best].p)) best = i; }
+    if (best >= 0) {
+      const q = toastQ[best];
+      // (an answer to a tap never waits: it pushes the oldest out)
+      if (q.p >= 2 && live.length >= cap) toastOut(live[0]);
+      if (q.p >= 2 || (live.length < cap && now - toastLast >= (narrowUI() ? 1200 : 600))) { toastQ.splice(best, 1); showToast(q); toastLast = now; }
+    }
+    if (toastQ.length) toastTm = setTimeout(pumpToasts, 300);
+  }
+  const toastBody = q => (q.iconId ? img(q.iconId, '', 3) : '') + `<span>${q.html}</span>`;
+  function showToast(q) {
+    const box = $('#toasts');
+    const el = document.createElement('div');
+    el.className = 'toast ' + (q.cls || '');
+    el.innerHTML = toastBody(q);
+    el._q = q; q.at = performance.now();
+    box.appendChild(el);
+    toastLife(el, toastQ.length > 1 ? 1800 : 2600);
+  }
+  function toastLife(el, ms) { clearTimeout(el._tm); el._tm = setTimeout(() => toastOut(el), ms); }
+  function toastOut(el) {
+    if (!el || el.classList.contains('out')) return;
+    clearTimeout(el._tm); el.classList.add('out');
+    setTimeout(() => { el.remove(); pumpToasts(); }, 260);
+  }
+  // UI.toast(html, cls, icon, { k: kind (same-kind news merges), p: 0 small / 1 news (default) / 2 an answer, it })
+  UI.toast = function (html, cls, iconId, o) {
+    o = o || {};
+    const k = o.k || '', p = o.p != null ? o.p : 1, now = performance.now();
+    if (k && TOAST_N[k]) {
+      // the same news again: the one waiting counts it, or the one just shown does
+      const q = toastQ.find(x => x.k === k);
+      if (q) { q.n++; q.items.push(o.it); q.html = TOAST_N[k](q); if (iconId) q.iconId = iconId; q.t0 = now; return; }
+      const box = $('#toasts'), el = box && liveToasts(box).find(e => e._q && e._q.k === k && now - e._q.at < 2000);
+      if (el) {
+        const q2 = el._q; q2.n++; q2.items.push(o.it); q2.html = TOAST_N[k](q2); if (iconId) q2.iconId = iconId;
+        el.innerHTML = toastBody(q2); toastLife(el, 2400);
+        if (el.animate) el.animate([{ transform: 'scale(1.06)' }, { transform: 'none' }], { duration: 180 });
+        return;
+      }
+    }
+    // (a long line loses its oldest small news first)
+    if (toastQ.length >= 6) { let i = toastQ.findIndex(x => x.p <= 0); if (i < 0) i = toastQ.findIndex(x => x.p < 2); toastQ.splice(i < 0 ? 0 : i, 1); }
+    toastQ.push({ html, cls, iconId, k, p, t0: now, n: 1, items: [o.it] });
     pumpToasts();
   };
-  // 3.3: big center banners wait their turn instead of wiping each other out (a burst of loot shows one by one,
-  // a little quicker when more are waiting)
-  const bannerQ = [];
-  let bannerBusy = false;
-  function pumpBanner() {
-    if (bannerBusy || !bannerQ.length) return;
-    const { html, ms } = bannerQ.shift(), el = $('#banner');
-    bannerBusy = true;
-    el.innerHTML = html; el.hidden = false; el.classList.remove('out');
-    setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; bannerBusy = false; pumpBanner(); }, 400); }, bannerQ.length ? ms * 0.7 : ms);
+  UI.toastQueue = () => toastQ.length;
+  // (a phone has room for one card at the top: when a champion's comes up, a toast that just came steps back into
+  // the line, an older one goes)
+  function toastsYield() {
+    if (!narrowUI()) return;
+    const c = document.getElementById('champCard'), box = $('#toasts');
+    if (!c || c.hidden || c.classList.contains('out') || !box) return;
+    const now = performance.now();
+    for (const el of liveToasts(box)) {
+      if (el._q && now - el._q.at < 1200) { clearTimeout(el._tm); el.remove(); el._q.t0 = now; toastQ.unshift(el._q); }
+      else toastOut(el);
+    }
+    if (toastQ.length && !toastTm) toastTm = setTimeout(pumpToasts, 300);
   }
-  UI.bannerShow = function (html, ms) {
-    if (bannerQ.length > 4) bannerQ.splice(0, bannerQ.length - 4);
-    bannerQ.push({ html, ms: ms || 2000 });
+  // 3.3: big centre banners take turns (a burst of loot shows one by one, a little quicker when more wait).
+  // 3.6: they show in the free field between the top HUD and the Button, never on it; they wait for the field's own
+  // title card, a champion's card, a window or the town (and a loot banner for the end of a boss fight); each one
+  // counts as a big moment for the pacing director. A loot banner whose moment has passed becomes a toast.
+  const bannerQ = [];
+  let bannerBusy = false, bannerTm = 0, bannerUpAt = 0;
+  UI.bannerBusy = () => bannerBusy;
+  function bannerHard() { return !!((G.uiBusy && G.uiBusy()) || G.R.town || (G.relicShow && G.relicShow())); }
+  function bannerSoft(b) {
+    if (G.Stage && G.Stage.cardBusy && G.Stage.cardBusy()) return true;
+    const c = document.getElementById('champCard'); if (c && !c.hidden && !c.classList.contains('out')) return true;
+    return b.p <= 0 && !!G.R.boss;
+  }
+  // the band of field it may use: under the top HUD, over the Button (or the boss) and the Warden on it
+  function placeBanner(el) {
+    const w = $('#stageWrap'); if (!w) return;
+    const wr = w.getBoundingClientRect();
+    let top = 8;
+    for (const s of ['.hud.top .realm', '.hud.top .hudBtns', '#xpBar']) { const e = $(s); if (e && !e.hidden && e.offsetParent) top = Math.max(top, e.getBoundingClientRect().bottom - wr.top + 6); }
+    let bot = wr.height * 0.42;
+    try { const bp = G.Stage.buttonPoint(), sc = G.Stage.scale ? G.Stage.scale() : 2; bot = bp.y - wr.top - (G.R.boss ? 26 : 12) * sc; } catch (e) { /* the stage is optional */ }
+    if (bot - top < 90) top = Math.max(0, bot - 90);
+    el.style.top = Math.round(top) + 'px'; el.style.height = Math.round(Math.max(60, bot - top)) + 'px';
+    const inner = el.firstElementChild;
+    el.style.placeItems = '';
+    if (inner) {
+      inner.style.scale = ''; inner.style.transformOrigin = '';
+      const h = inner.offsetHeight, k = h > 0 ? Math.min(1, (bot - top) / h) : 1;
+      if (k < 1) inner.style.scale = String(Math.max(0.5, Math.round(k * 100) / 100));
+      // (too tall even scaled down: it keeps its foot over the Button and spills up over the top HUD instead)
+      if (k < 0.5) { el.style.placeItems = 'end center'; inner.style.transformOrigin = '50% 100%'; }
+    }
+  }
+  function pumpBanner() {
+    clearTimeout(bannerTm); bannerTm = 0;
+    if (bannerBusy || !bannerQ.length) return;
+    const now = performance.now();
+    for (let i = bannerQ.length - 1; i >= 0; i--) { const b = bannerQ[i]; if (now - b.t0 > (b.stale || 30000)) { bannerQ.splice(i, 1); if (b.late) b.late(); } }
+    const b = bannerQ[0];
+    if (!b) return;
+    // a window, the town, a relic, the field's own title card, a champion's card or (loot) a boss fight hold it;
+    // past its stale time it goes (a loot banner as a line in the corner)
+    if (bannerHard() || bannerSoft(b)) { bannerTm = setTimeout(pumpBanner, 250); return; }
+    bannerQ.shift();
+    const el = $('#banner');
+    bannerBusy = true; bannerUpAt = now;
+    el.innerHTML = b.html; el.hidden = false; el.classList.remove('out');
+    placeBanner(el);
+    const ms = bannerQ.length ? b.ms * 0.7 : b.ms;
+    if (G.director && G.director.mark) { try { G.director.mark('card', ms / 1000); } catch (e) { /* the director is optional */ } }
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; el.innerHTML = ''; bannerBusy = false; pumpBanner(); }, 400); }, ms);
+  }
+  // UI.bannerShow(html, ms, { p: 0 can wait out a boss fight, late: what to do when it went stale, stale: ms })
+  UI.bannerShow = function (html, ms, o) {
+    o = o || {};
+    if (bannerQ.length > 2) { const i = bannerQ.findIndex(x => x.p <= 0); const d = bannerQ.splice(i >= 0 ? i : 0, 1)[0]; if (d && d.late) d.late(); }
+    bannerQ.push({ html, ms: ms || 2000, p: o.p != null ? o.p : 1, late: o.late, stale: o.stale, t0: performance.now() });
     pumpBanner();
   };
   UI.banner = function (it) {
     const r = G.RARITIES[it.r];
     const title = it.r === 6 ? t('divineLoot') : it.r === 5 ? t('mythicLoot') : t('legendLoot');
-    UI.bannerShow(`<div class="inner" style="color:${r.color}"><h2>${esc(title)}</h2><img class="ico" src="${ic('it_' + it.id, 10)}" alt=""><p>${esc(L(it.name))}</p></div>`, it.r >= 6 ? 2600 : 1700);
+    // (in a burst or a boss fight it can come late: past its moment it's a line in the corner)
+    UI.bannerShow(`<div class="inner" style="color:${r.color}"><h2>${esc(title)}</h2><img class="ico" src="${ic('it_' + it.id, 10)}" alt=""><p>${esc(L(it.name))}</p></div>`, it.r >= 6 ? 2600 : 1700,
+      { p: 0, stale: 20000, late: () => UI.toast(`<span>${esc(title)}: <b style="color:${r.color}">${esc(L(it.name))}</b></span>`, 'ach', 'it_' + it.id) });
   };
   UI.bannerU = function (q, first) {
     const U = G.UNIQUES[q];
-    UI.bannerShow(`<div class="inner uqb" style="color:${G.UNIQUE_COL}"><h2>${esc(first ? t('uqNew') : t('uqBanner'))}</h2><img class="ico" src="${ic('u_' + q, 10)}" alt=""><p>${esc(U.name)}</p><p style="font-size:15px;color:#ffe0c0">${esc(U.fx)}</p></div>`, 3200);
+    UI.bannerShow(`<div class="inner uqb" style="color:${G.UNIQUE_COL}"><h2>${esc(first ? t('uqNew') : t('uqBanner'))}</h2><img class="ico" src="${ic('u_' + q, 10)}" alt=""><p>${esc(U.name)}</p><p class="sub">${esc(U.fx)}</p></div>`, 3200,
+      { p: 0, stale: 25000, late: () => UI.toast(`<span>${esc(first ? t('uqNew') : t('uqBanner'))}: <b style="color:${G.UNIQUE_COL}">${esc(U.name)}</b></span>`, 'ach', 'u_' + q) });
   };
   UI.modal = function (title, html, actions, locked) {
     const m = $('#modal');
