@@ -35,7 +35,7 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
 - **Minute to minute.**
   - Kills fill the clear bar, then a boss comes. Beating it moves you one depth deeper; every 5th depth is a lord.
   - Level-ups offer one of three perks, and every 5 levels gives a rank.
-  - Events, the Lucky Spin and the Overdrive break the rhythm.
+  - Events, rare surprises and the Overdrive break the rhythm; a pacing director (3.6) keeps the big moments apart.
 - **Session.**
   - Push through lands, going into town to gear up and build up between fights.
   - A wipe ends the run: **THE BUTTON FELL** awards fame, and the next run starts at a checkpoint with a choice of
@@ -109,21 +109,25 @@ Path of Exile, and runs work like a roguelite: when the Button falls, the run en
 ### 4.8 Runs and fame
 
 - **A fall:** fame worth 60% of an ascension, for the depth gained beyond the run's start.
+  3.6: the fall waits on the player. **Continue here** for Gems (the first ever is free, then 25, 50, 100 in a run, three
+  at most): back in the same zone with the boss bar as it was. Or **New run**: take the fame, start from the checkpoint.
+  Gems are kept for good and come from play (an achievement +2, a land star +1, a lord's first fall +5, a relic +5, the
+  daily gift +5, ×3 on a streak's 7th day); a store can add more where payments are on (see MONETIZATION.md).
 - **Ascension** (from depth 15): full fame.
 - **Hall of Fame:** 15 permanent upgrades.
 - **Kept:** gear, the town, pets, the collection, relics, stars and fame.
 - **Lost:** gold, Upgrades, the Garrison, the Constellation, potions, levels and perks.
 
-### 4.9 Casino and events
+### 4.9 Events
 
-- **Lucky Spin:** kills fill the meter. The machine pays gold, chests, Frenzy, XP or orbs, and 7-7-7 is the top prize.
+- (3.6: the Lucky Spin is gone; it came up too often.)
 - "?" bubbles give quick boosts, and crits in a row chain for extra damage.
 - **Events** come about every minute:
   - stampede, gold fever, chest rain, goblins, meteors, crimson moon, ambush, flood, adrenaline;
   - Portal Storm, Warlord, High Stakes;
   - jackpot frenzy.
 - Invasions arrive about every 7 minutes.
-- **Rare surprises** (3.5, js/rare.js): the Lucky Merchant, secret lands, mythic pets, Free-Spin Fever, the Golden Horde,
+- **Rare surprises** (3.5, js/rare.js): the Lucky Merchant, secret lands, mythic pets, the Golden Horde,
   the Wishing Well, the Ghostly Gambler, Shooting Stars, the Goblin King and the Button of Legends, with pity timers and a codex.
 
 ### 4.10 Social

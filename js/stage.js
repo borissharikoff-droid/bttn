@@ -1818,12 +1818,25 @@
     G.on('invasionBoss', (m, V) => { cardText(0, V.bossName.toUpperCase(), V.col, 7, { life: 2.4, vy: -2, big: true }); cardText(10, G.t('heraldSub'), '#ffffff', 3, { life: 2.4, vy: -2 }); St.shake(5); });
     G.on('invasionEnd', (won, r) => { const V = G.INV_BY_ID[r.k]; cardText(0, won ? G.t('invWon') : G.t('invLost'), won ? '#ffd84a' : '#c8b4ff', 7, { life: 2.6, vy: -2, big: true }); if (won) { St.flash(0.4, '#ffd84a'); St.shake(6); } });
     G.on('wipe', (from, to, rift) => {
-      St.flash(0.9, '#3a0000'); St.shake(9); slowmo = Math.max(slowmo, 1.2);
       const fell = G.R.fell;
-      cardText(0, G.t(fell ? 'fellCard' : 'wipeTitle'), '#ff4f4f', 8, { life: 3.4, vy: -2, big: true });
-      cardText(11, fell ? G.t('fellSub') : rift ? G.t('wipeRift') : to < from ? G.t('wipeBack', to + 1) : G.t('wipeBar'), '#ffffff', 3, { life: 3.4, vy: -2 });
-      if (fell) { slowmo = Math.max(slowmo, 2); St.flash(1, '#000000'); }
+      if (fell) { buttonBoom(); return; }
+      St.flash(0.9, '#3a0000'); St.shake(9); slowmo = Math.max(slowmo, 1.2);
+      cardText(0, G.t('wipeTitle'), '#ff4f4f', 8, { life: 3.4, vy: -2, big: true });
+      cardText(11, rift ? G.t('wipeRift') : to < from ? G.t('wipeBack', to + 1) : G.t('wipeBar'), '#ffffff', 3, { life: 3.4, vy: -2 });
       if (G.Audio && G.Audio.wipe) G.Audio.wipe();
+    });
+    // 3.6: the Button falls for good: it bursts. A white flash, a held frame, the Button in pieces flying out,
+    // three shockwaves, fire and sparks, BOOM! on the field, and a smoking crater where it stood until the choice
+    G.on('runContinue', () => {
+      const b = btnPos();
+      fallT = -1;
+      btnSpring.s = 0.25; btnSpring.v = 0.2;
+      St.flash(0.8, '#ffd0f0'); St.shake(6); hitstop = Math.max(hitstop, 0.08);
+      ring(b.x, b.y - 8, 26, 14, '#ffffff', 0.5); ring(b.x, b.y - 8, 70, 38, '#ff5ad2', 0.6); ring(b.x, b.y - 8, 120, 66, '#ffe0f6', 0.75);
+      burst(b.x, b.y - 10, ['#ff5ad2', '#ffe0f6', '#ffffff', '#ffd84a'], Math.round(70 * Q.particles), 170);
+      cardText(0, G.t('fellBack'), '#ff8ae0', 8, { life: 2.4, vy: -2, big: true, now: true });
+      cardText(11, G.t('fellBackSub'), '#ffffff', 3, { life: 2.4, vy: -2 });
+      if (G.Audio) { if (G.Audio.levelUp) G.Audio.levelUp(); if (G.Audio.gem) G.Audio.gem(); }
     });
     // a phase card still waiting when the fight ends is stale
     const dropPhase = () => { for (let i = cardQ.length - 1; i >= 0; i--) if (cardQ[i].tag === 'phase') cardQ.splice(i, 1); };
@@ -2180,6 +2193,40 @@
     o.max = o.life;
     if (gibs.length >= Q.maxG) { gibs[gOver = (gOver + 1) % gibs.length] = o; return; }
     gibs.push(o);
+  }
+  // 3.6: the Button's last moment (see the 'wipe' handler): fallT counts the seconds since, -1 when it stands
+  let fallT = -1;
+  function buttonBoom() {
+    const b = btnPos(), skin = G.SKINS.find(s => s.id === G.S.skin) || G.SKINS[0];
+    const spr = SPR.button(skin.base, false, time * 120 % 360);
+    fallT = 0;
+    hitstop = Math.max(hitstop, 0.16); slowmo = Math.max(slowmo, 1.6);
+    St.flash(1, '#ffffff'); St.shake(16); kick = 1;
+    explodeSprite(spr, b.x, b.y + 4, 1, Math.round(110 * Math.max(0.4, Q.particles)), 2.6, 'shatter');
+    explodeSprite(spr, b.x, b.y + 4, 2, Math.round(26 * Math.max(0.5, Q.particles)), 1.6);
+    ring(b.x, b.y - 8, 34, 18, '#ffffff', 0.35); ring(b.x, b.y - 8, 110, 60, '#ffd84a', 0.6);
+    ring(b.x, b.y - 8, 190, 104, '#ff7a2e', 0.85); ring(b.x, b.y - 4, 260, 140, '#ff4f4f', 1.1);
+    burst(b.x, b.y - 12, ['#ffffff', '#fff3a0', '#ffd84a', '#ff7a2e', '#ff4f4f'], Math.round(120 * Q.particles), 300);
+    burst(b.x, b.y - 6, ['#6e6e7c', '#3a3a44', '#2a2630'], Math.round(40 * Q.particles), 90, { grav: -20, life: 1.6 });
+    for (let i = 0; i < 6; i++) decal(b.x + rand(-26, 26), b.y + rand(-4, 6), '#120c10', rand(4, 9));
+    texts.length = 0; cardQ.length = 0;
+    text(b.x, b.y - 30, G.t('fellCard'), '#ffb347', 11, { life: 1.8, max: 1.8, vy: -10, big: true, pop: 0.3 });
+    if (G.Audio) { if (G.Audio.wipe) G.Audio.wipe(); if (G.Audio.boom) { G.Audio.boom(); setTimeout(() => G.Audio.boom(), 90); setTimeout(() => G.Audio.boom(), 220); } }
+  }
+  // where it stood: a scorched crater, smoke and embers (while the choice waits)
+  function drawCrater(b) {
+    if (fallT < 0) fallT = 1.5; // (a fall from before a reload)
+    fallT += fdt;
+    // the fireball, for its first half second
+    if (fallT < 0.6) { const k = 1 - fallT / 0.6; glow(b.x, b.y - 10, 30 + 50 * (1 - k * k), '#ffd84a', 0.7 * k); glow(b.x, b.y - 10, 16 + 30 * (1 - k), '#ffffff', 0.8 * k); }
+    shadow(b.x, b.y + 1, 40);
+    lctx.fillStyle = '#120c10'; lctx.fillRect(b.x - 16, b.y, 32, 3); lctx.fillRect(b.x - 11, b.y - 1, 22, 1); lctx.fillRect(b.x - 20, b.y + 1, 40, 1);
+    lctx.fillStyle = '#3a3348';
+    for (const [dx, dy, w] of [[-14, -1, 4], [-6, -2, 3], [5, -1, 5], [12, 0, 3], [-2, 1, 2]]) lctx.fillRect(b.x + dx, b.y + dy, w, 2);
+    const ember = 0.5 + 0.5 * Math.sin(time * 9);
+    lctx.globalAlpha = 0.5 + 0.4 * ember; lctx.fillStyle = '#ff7a2e'; lctx.fillRect(b.x - 3, b.y, 2, 1); lctx.fillRect(b.x + 6, b.y + 1, 1, 1); lctx.fillRect(b.x - 10, b.y + 1, 1, 1); lctx.globalAlpha = 1;
+    if (Math.random() < 0.35) part(b.x + rand(-12, 12), b.y - rand(0, 4), pick(['#6e6e7c', '#3a3a44', '#4a4450']), { vx: rand(-6, 6), vy: -rand(10, 26), grav: -8, life: 1.4 });
+    if (Math.random() < 0.08) part(b.x + rand(-8, 8), b.y - 1, '#ff7a2e', { vx: rand(-10, 10), vy: -rand(20, 40), grav: 30, life: 0.5 });
   }
   // Break a sprite drawn at (x, y) (bottom-centre anchor, scale sc) into flying chunks
   function explodeSprite(c, x, y, sc, n, force, style) {
@@ -3911,6 +3958,8 @@
   }
 
   function drawButton(b) {
+    if (G.S.fallen) { drawCrater(b); return; }
+    if (fallT >= 0) fallT = -1;
     if (G.odActive && G.odActive()) {
       // the field goes electric blue, and arcs crawl out of the Button every frame
       lctx.globalAlpha = 0.08 + 0.04 * Math.sin(time * 20); lctx.fillStyle = '#7fe9ff'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1;

@@ -122,7 +122,7 @@ const hashIp = ip => crypto.createHash('sha256').update(SALT + ip).digest('hex')
 const dayKey = ts => new Date(ts).toISOString().slice(0, 10);
 const visitors = new Map(); // vid -> visitor
 const sessions = new Map(); // sid -> session
-const MILESTONE = new Set(['intro_next', 'intro_skip', 'intro_done', 'class', 'first_click', 'tut', 'tut_end', 'hold', 'boss_win', 'boss_fail', 'land', 'depth', 'run_over', 'ascend', 'bless', 'champ', 'recruit', 'seat', 'town', 'build', 'relic', 'jackpot', 'od', 'rank', 'lvl', 'err', 'end', 'start']);
+const MILESTONE = new Set(['intro_next', 'intro_skip', 'intro_done', 'class', 'first_click', 'tut', 'tut_end', 'hold', 'boss_win', 'boss_fail', 'land', 'depth', 'run_over', 'run_cont', 'run_end', 'gems', 'ascend', 'bless', 'champ', 'recruit', 'seat', 'town', 'build', 'relic', 'jackpot', 'od', 'rank', 'lvl', 'err', 'end', 'start']);
 const clip = (v, n) => (typeof v === 'string' ? v.slice(0, n) : v);
 const touchOf = d => ({ src: clip(d.src, 60) || '', med: clip(d.med, 40) || '', cmp: clip(d.cmp, 80) || '', cnt: clip(d.cnt, 80) || '', ref: clip(d.ref, 80) || '' });
 const lands = new Map(); // sid -> one landing page view
@@ -298,7 +298,7 @@ function stats(qs) {
   for (const v of V) { bump(dev.type, v.dev.type); bump(dev.os, v.dev.os); bump(dev.br, v.dev.br); bump(geo.cc, v.cc); bump(geo.lang, (v.lang || '').slice(0, 2)); }
   for (const s of S) bump(dev.scr, s.scr);
   // the game itself
-  const game = { cls: {}, bless: {}, champ: {}, land: {}, build: {}, recruit: {}, runOver: [], bossWin: 0, bossFail: 0, od: 0, relic: 0, jackpot: 0, ascend: 0 };
+  const game = { cls: {}, bless: {}, champ: {}, land: {}, build: {}, recruit: {}, runOver: [], conts: { gems: 0, ad: 0 }, runEnd: 0, gems: 0, bossWin: 0, bossFail: 0, od: 0, relic: 0, jackpot: 0, ascend: 0 };
   const errors = {};
   const hours = new Array(24).fill(0);
   for (const s of S) {
@@ -311,6 +311,9 @@ function stats(qs) {
       else if (t === 'build') bump(game.build, d.id);
       else if (t === 'recruit') bump(game.recruit, d.c);
       else if (t === 'run_over') game.runOver.push(+d.d || 0);
+      else if (t === 'run_cont') game.conts[d.h === 'ad' ? 'ad' : 'gems']++;
+      else if (t === 'run_end') game.runEnd++;
+      else if (t === 'gems') game.gems += +d.n || 0;
       else if (t === 'boss_win') game.bossWin++;
       else if (t === 'boss_fail') game.bossFail++;
       else if (t === 'od') game.od++;
@@ -338,7 +341,7 @@ function stats(qs) {
     quit: { play: Object.entries(quitPlay), tut: top(quitTut, 12), depth: top(quitDepth, 12) },
     dev: { type: top(dev.type), os: top(dev.os), br: top(dev.br), scr: top(dev.scr, 8) },
     geo: { cc: top(geo.cc, 15), lang: top(geo.lang, 12) },
-    game: { cls: top(game.cls), bless: top(game.bless), champ: Object.entries(game.champ).map(([m, o]) => [m, o.ok, o.fail]), land: Object.entries(game.land).sort((a, b) => +a[0].slice(5) - +b[0].slice(5)), build: top(game.build), recruit: top(game.recruit), runOvers: game.runOver.length, runOverMedDepth: med(game.runOver) + 1, bossWin: game.bossWin, bossFail: game.bossFail, od: game.od, relic: game.relic, jackpot: game.jackpot, ascend: game.ascend },
+    game: { cls: top(game.cls), bless: top(game.bless), champ: Object.entries(game.champ).map(([m, o]) => [m, o.ok, o.fail]), land: Object.entries(game.land).sort((a, b) => +a[0].slice(5) - +b[0].slice(5)), build: top(game.build), recruit: top(game.recruit), runOvers: game.runOver.length, runOverMedDepth: med(game.runOver) + 1, bossWin: game.bossWin, bossFail: game.bossFail, od: game.od, relic: game.relic, jackpot: game.jackpot, ascend: game.ascend, conts: game.conts, runEnd: game.runEnd, gems: game.gems },
     errors: top(errors, 15), live,
     filters: { sources: [...new Set([...visitors.values()].filter(v => !v.bot).map(v => srcKey(v.touch)))].sort().slice(0, 100), cc: [...new Set([...visitors.values()].map(v => v.cc))].sort() },
     totals: { visitors: visitors.size, sessions: sessions.size, landingViews: lands.size },

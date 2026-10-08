@@ -42,6 +42,10 @@
     perkGap: 25, perkEarly: 180, perkBank: 3, perkAuto: 12,
     // 3.6: a wipe ends the run only once this run has reached this depth (the end of its first land)
     fallFrom: 3,
+    // 3.6: a fallen run continued where it fell: Gems for the first (contCost; free the very first time), doubling
+    // each time in a run, contMax a run. Gems from play: an achievement, a land star, a relic, a daily gift (three
+    // times on a streak's 7th day), a lord's first fall
+    contCost: 25, contMax: 3, gemAch: 2, gemStar: 1, gemRelic: 5, gemDaily: 5, gemLord: 5,
   });
 
   // ---------- Content ----------
@@ -361,7 +365,7 @@
   function wipe() {
     const S = G.S, h = S.hero;
     S.st.wipes = (S.st.wipes || 0) + 1;
-    const hadBoss = !!R.boss;
+    const hadBoss = !!R.boss, meter0 = hadBoss ? G.D.bossNeed : S.bossMeter || 0;
     for (const m of R.mobs) emit('mobFlee', m);
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     if (R.boss) G.fleeBoss();
@@ -385,7 +389,8 @@
     const fell = !inRift && G.runOver && !(S.tut >= 0) && (S.st.playTime || 0) > 150 && (S.maxDepth || 0) >= TUNE.fallFrom;
     R.fell = fell;
     emit('wipe', from, S.depth, inRift, hadBoss);
-    if (fell) G.runOver();
+    // (3.6: where it fell, for a continue: the zone and the boss bar as they were)
+    if (fell) G.runOver({ depth: from, meter: meter0 });
     R.fell = false;
   }
   G.wipe = wipe;
@@ -1649,7 +1654,7 @@
     if (!keepClass) h.cls = null;
     if (G.worldReset) G.worldReset();
     R.mobs.length = 0; if (R.shots) R.shots.length = 0; R.hb = {}; R.abilCd = 0; R.stun = 0; R.hordeAcc = 0; R.surge = 0; R.surgeT = 20; R.reap = 0; R.rift = null; R.zoneT = 0; R.runT = 0; WAVES.length = 0;
-    G.S.rec.runStart = Date.now();
+    G.S.rec.runStart = Date.now(); G.S.rec.runPlay = G.S.st.playTime;
     R.btnDown = 0; h.wdown = 0;
     for (const m of G.S.party) { m.down = 0; m.acc = 0; }
     G.dirty(); G.recalc();

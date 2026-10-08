@@ -1026,4 +1026,15 @@
     'xXVuvnuVzZ',
     'xxXXzzzzZZ',
   ]);
+  // 3.6: Gems, the premium currency (continue a fallen run, the store)
+  def('ic_gem', { p: '#ff5ad2', P: '#b8208c', w: '#ffe0f6', d: '#6a0f52' }, [
+    '..pppp..',
+    '.pwwpPp.',
+    'pwppPPPp',
+    'dPpPPPPd',
+    '.dPPPPd.',
+    '..dPPd..',
+    '...dd...',
+    '........',
+  ]);
 })(globalThis.G = globalThis.G || {});

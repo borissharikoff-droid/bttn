@@ -8,7 +8,24 @@
 - **A busy arena.** Sudden events about every minute, chests by the hundred with Looters, invasions, and the **JACKPOT** (about one kill in two million).
 - **Lands, zones and stars.** 15 lands of five zones each, each with its own rule and lord and three stars to earn; then corrupted cycles. **Rifts** are timed runs for the endgame, ranked on a ladder you share with friends.
 - **Built for holding the Button.** A held Button clicks once a second, Steady Hand takes it up to 10, and nothing counts past 10.
-- **Chase the rare.** Relics drop in a white bag from bosses only, the Lucky Spin pays out from kills, and the JACKPOT hits about one kill in two million.
+- **Chase the rare.** Relics drop in a white bag from bosses only, rare surprises turn up once in a blue moon, and the JACKPOT hits about one kill in two million.
+- **A fall is a choice.** When the Button breaks for good it bursts, and you choose: continue right where it fell for Gems, or start a new run and take the fame.
+
+## 3.6 — Smooth
+
+- **The Button bursts.** When the Horde breaks it for good, the Button explodes: a white flash, a held frame, the Button in pieces, three shockwaves, fire and smoke, and **BOOM!** on the field. A smoking crater stays where it stood until you choose.
+- **A short card, and a choice.**
+  - It shows the fame this run earned in big numbers, then one line: depth, level and the run's time. The run's time is now play time (it used to count the days since the run began).
+  - **Continue here:** back where it fell, with the Button whole, the zone and the boss bar as they were. It costs Gems: the very first one is free, then 25, 50 and 100 in a run, three at most.
+  - **New run:** take the fame and start again from the checkpoint. Gear, the town, pets and fame stay.
+  - A fall waits through a reload: the card comes back.
+- **Gems**, a new currency kept for good. They come from play: an achievement (+2), a land star (+1), a lord's first fall (+5), a relic (+5) and the daily gift (+5, three times as much on a streak's 7th day). They show next to fame in the panel.
+- **It runs smoothly.** The field draws on a low-resolution pixel layer scaled up, with text on its own layer and the vignette, hurt and flash as page layers. A quality governor drops effects step by step on slow devices and brings them back when it can. On a retina laptop every scene runs at 60 fps (it was 14–23); on a phone 44–60 fps (it was 13–24). The game logic does half the work per kill.
+- **One thing at a time.** A pacing director keeps the big moments apart: sudden events, Land Champions, invasions, rare visitors and land cards never land on top of each other, a boss fight or a march, and there is a breath after each. Two big overlays at once went from 47% of the time to 11%; three at once, from 12% to none.
+- **Fewer interruptions.** Toasts merge and queue (about 8–11 a minute, down from 17–18), nothing covers the Button any more, and the HOLD plate, tips and banners find a free spot. Level-up cards wait out a boss fight; points bank up to three and are picked for you past that if auto-pick is on.
+- **The Lucky Spin is gone.** It came up too often. Its achievement, its blessing (High Roller becomes another boon) and its rare fever go with it, and the gold it gave is folded back into the economy.
+- **The Horde builds up.** Early in a run the field fills over 40 seconds instead of at once, and the crowd cap is 850 (750 on a phone).
+- Time to depth 20 in the 60-minute playtests: about 18 minutes for a casual player, 14 for an active one.
 
 ## 3.5 — Alive
 

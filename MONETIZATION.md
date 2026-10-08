@@ -78,6 +78,20 @@ Show the pact in the shop, in Settings → Purchases and on the landing site:
 - Paddle bans virtual currency [24].
 - Platform currencies are not ours. Each item gets one price in Stars on Telegram and one price in Yan on Yandex.
 
+### 1.2a Amendment (3.6): Gems, for one thing only
+
+- The owner asked for a paid way to continue a fallen run, so 3.6 adds **Gems**. They are earned in play (achievements,
+  land stars, lords' first falls, relics, the daily gift) and buy one thing: **Continue here** after the Button falls
+  (first ever free, then 25 / 50 / 100 in a run, three at most). Nothing random is ever sold for Gems.
+- If Gems are sold, keep the 1.2 rules as close as they allow:
+  - fixed packs priced in real money (or in ⭐/Yan where the platform requires), sized so a pack covers a whole number of
+    continues (no leftover change to nudge another purchase);
+  - next to every Gem price in the game, its real-money worth;
+  - no Paddle for Gems (it bans virtual currency [24]); a platform store, Stripe or ЮKassa instead;
+  - watch the Digital Fairness Act [32]: if it bans in-game currencies for games minors play, switch the continue to a
+    direct real-money price (or a rewarded ad) and keep Gems earn-only.
+- Rewarded ads, where a platform provides them, can pay for one continue a run instead (`G.Ads.ready('continue')`).
+
 ### 1.3 Decision: no pay-to-win walls
 
 - **Offline cap.** The only permanent paid power is a longer offline cap: +2 h from the Starter Kit, +4 h from the

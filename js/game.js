@@ -82,6 +82,9 @@
       bless: null, blessOffer: null,
       // 3.0: the town's building levels (kept through ascension)
       bld: {},
+      // 3.6: Gems (kept for good: they continue a fallen run), the continues used this run, the lords that paid
+      // theirs, and a fall waiting on the player's choice (continue here, or a new run)
+      gems: 0, runConts: 0, gemLords: {}, fallen: null,
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
@@ -321,7 +324,7 @@
 
   function manualClick(x, y) {
     const S = G.S;
-    if (R.town) return null; // the field waits while the party is in town
+    if (R.town || S.fallen) return null; // the field waits while the party is in town (or the Button is in pieces)
     const now = performance.now();
     const mt = R.manualTimes;
     while (mt.length && now - mt[0] > 1000) mt.shift();
@@ -801,7 +804,7 @@
   function startBoss() {
     const S = G.S;
     // an invasion is fought out first
-    if (R.boss || R.rift || !R.bossReady || R.inv || R.town) return false;
+    if (R.boss || R.rift || !R.bossReady || R.inv || R.town || S.fallen) return false;
     const d = S.depth;
     const lord = isLord(d);
     const max = bossMax(d);
@@ -1232,7 +1235,7 @@
     S.lastRunEss = S.essRun;
     const fresh = newState();
     const runKeys = ['gold', 'goldRun', 'clicksRun', 'upg', 'heroes', 'nodes', 'essence', 'essRun', 'depth', 'maxDepth',
-      'pots', 'chests', 'chestMeter', 'bossMeter', 'buffs', 'quests', 'scar', 'tormentRun'];
+      'pots', 'chests', 'chestMeter', 'bossMeter', 'buffs', 'quests', 'scar', 'tormentRun', 'runConts'];
     runKeys.forEach(k => S[k] = fresh[k]);
     S.pots = Object.assign(potZero(), keep);
     const L = S.legacy;
@@ -1248,18 +1251,75 @@
     return g;
   }
   // 3.1: the Button fell: the run is over. Fame for how far it got, then a new run from the checkpoint.
-  G.runOver = function () {
-    const S = G.S, sum = { depth: S.maxDepth, from: S.runFrom || 0, best: S.bestDepth, secs: Math.max(0, (Date.now() - ((S.rec && S.rec.runStart) || Date.now())) / 1000), gold: S.goldRun, lvl: S.hero.lvl };
-    sum.fame = ascend(true) || 0;
-    sum.total = S.fame; sum.deaths = S.st.deaths; sum.next = S.depth;
+  // 3.6: not at once: the fall waits on the player. Continue right here (Gems, or an ad where there are ads),
+  // the Horde pushed back and the Button whole again; or take the fame and start a new run.
+  // (with no UI to ask, as in the Node playtests, the run ends as before)
+  const runSecs = S => Math.max(0, S.st.playTime - (S.rec && S.rec.runPlay != null ? S.rec.runPlay
+    : S.st.playTime - Math.min(S.st.playTime, (Date.now() - ((S.rec && S.rec.runStart) || Date.now())) / 1000)));
+  G.contCost = () => { const S = G.S; return S.seen && S.seen.cont ? TUNE.contCost * Math.pow(2, S.runConts || 0) : 0; };
+  G.canContinue = () => !!G.S.fallen && (G.S.runConts || 0) < TUNE.contMax;
+  G.runOver = function (at) {
+    const S = G.S;
+    const sum = { depth: S.maxDepth, from: S.runFrom || 0, best: S.bestDepth, secs: runSecs(S), gold: S.goldRun, lvl: S.hero.lvl,
+      fame: fameGain(true), total: S.fame, next: G.checkpoint(), at: at || { depth: S.depth, meter: 0 } };
+    S.fallen = sum;
     emit('runOver', sum);
+    if (!G.fallAsk) G.runGiveUp();
     return sum;
   };
+  // back on your feet where you fell: the zone, the boss bar, the boss if one was up
+  G.runContinue = function (how) {
+    const S = G.S, f = S.fallen;
+    if (!f || !G.canContinue()) return false;
+    if (how !== 'ad') {
+      const c = G.contCost();
+      if ((S.gems || 0) < c) return false;
+      S.gems -= c;
+      if (!S.seen.cont) S.seen.cont = 1;
+    }
+    S.fallen = null; S.runConts = (S.runConts || 0) + 1;
+    S.depth = Math.max(S.depth, f.at.depth || 0);
+    S.bossMeter = Math.max(S.bossMeter || 0, f.at.meter || 0);
+    R.bossReady = false; R.bossIn = null; R.bossHold = 6; R.stun = 1.5; R.btnDown = 0;
+    S.st.conts = (S.st.conts || 0) + 1;
+    R.dirty = true; recalc();
+    if (S.hero) S.hero.hp = D.heroHp;
+    emit('runContinue', how, f);
+    return true;
+  };
+  // the run ends: the fame it earned, a new run from the checkpoint
+  G.runGiveUp = function () {
+    const S = G.S, f = S.fallen;
+    if (!f) return 0;
+    S.fallen = null;
+    const g = ascend(true) || 0;
+    f.fame = g; f.total = S.fame; f.deaths = S.st.deaths; f.next = S.depth;
+    emit('runEnd', f);
+    return g;
+  };
+  // Gems come from play too (the store adds more where payments are on)
+  function addGems(n, why) {
+    const S = G.S;
+    if (!(n > 0)) return;
+    S.gems = (S.gems || 0) + n;
+    emit('gems', n, why);
+  }
+  G.addGems = addGems;
+  G.on('achievement', () => addGems(TUNE.gemAch, 'ach'));
+  G.on('landStar', () => addGems(TUNE.gemStar, 'star'));
+  G.on('relicDrop', () => addGems(TUNE.gemRelic, 'relic'));
+  G.on('daily', () => addGems(TUNE.gemDaily * ((G.S.daily.streak || 0) % 7 === 6 ? 3 : 1), 'daily'));
+  G.on('bossWin', (rew, b) => {
+    const S = G.S;
+    if (!b || !b.lord || R.rift || (S.gemLords || (S.gemLords = {}))[b.d]) return;
+    S.gemLords[b.d] = 1;
+    addGems(TUNE.gemLord, 'lord');
+  });
   G.ascend = ascend;
 
   // ---------- Offline ----------
   function applyOffline(sec) {
-    if (sec < 60) return null;
+    if (sec < 60 || G.S.fallen) return null;
     R.bossHold = 25; // back from a break: a moment to look round before a boss comes on its own
     if (G.worldAway) G.worldAway();
     recalc();
@@ -1287,6 +1347,8 @@
     const S = G.S;
     if (R.dirty) recalc();
     S.st.playTime += dt;
+    // (3.6: a fallen Button waits on the player's choice: nothing runs)
+    if (S.fallen) return;
     // in town the field holds still: only the Garrison's income and the clock run
     if (R.town) { addGold(D.gps * dt, 'gps'); return; }
     // (3.0: and while a window is open over it: nothing runs out behind a card you're reading)

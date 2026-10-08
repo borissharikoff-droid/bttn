@@ -47,7 +47,6 @@ Existing saves skip the intro and tutorial. On a new device, the "load cloud sav
 | Open a Rift | the ◈ button by the clear bar, or the Rift Gate in town | — |
 | Raise a fallen ally | tap them on the field or on the party bar | — |
 | Fold the panel (phones) | ▾ next to the gold | — |
-| Lucky Spin | tap the slot machine when it pops up | R |
 | How to play | ? at the top right | — |
 
 Holding the Button clicks once a second; **Steady Hand** takes it up to 10. Holding can be turned off in Settings.

@@ -133,6 +133,7 @@
     $('#essIco').src = ic('ic_ess', 3);
     $('#eggIco').src = ic('ic_egg', 3);
     $('#fameIco').src = ic('ic_fame', 3);
+    $('#gemIco').src = ic('ic_gem', 3);
     buildTabs();
     bindHud();
     bindPartyHud();
@@ -480,7 +481,7 @@
         // where it may sit, looked at three times a second
         let spot = el._spot;
         if (n++ % 3 === 0 || on) spot = el._spot = holdSpot(el);
-        const away = !spot || G.uiBusy() || G.R.town;
+        const away = !!(!spot || G.uiBusy() || G.R.town || G.S.fallen);
         if (away !== el.classList.contains('away')) { el.classList.toggle('away', away); if (!away && !el._popped) { el._popped = 1; el.classList.add('pop'); } }
         if (!away && el._top !== spot) { el._top = spot; el.style.top = spot + 'px'; }
         el.style.setProperty('--hk', Math.min(1, held / 1.5));
@@ -532,19 +533,55 @@
     G.on('blessOffer', () => setTimeout(UI.blessCards, 1900));
     setTimeout(() => { if (G.S.blessOffer) UI.blessCards(); }, 2500);
     // 3.1: the Button fell: the run's tally, the fame it earned, and where the next one starts
+    // 3.6: short, and a choice: continue right here (Gems, or an ad where ads are on), or a new run with the fame
+    G.fallAsk = true;
     G.on('runOver', () => { UI._runOverAt = performance.now(); });
-    G.on('runOver', sum => setTimeout(() => {
+    UI.fallCard = function () {
+      const f = G.S.fallen;
+      if (!f) return null;
+      const S = G.S, cost = G.contCost(), can = G.canContinue(), left = G.TUNE.contMax - (S.runConts || 0);
+      const afford = can && (S.gems || 0) >= cost;
+      const ad = can && G.Ads && G.Ads.ready && G.Ads.ready('continue');
+      const shop = G.Store && G.Store.ready && G.Store.ready();
+      const gem = img('ic_gem', '', 3);
       const wt = UI._wipeTip && performance.now() - UI._wipeTip.at < 8000 ? UI._wipeTip.k : null;
       const m = UI.modal(t('fellTitle'), `<div class="fell">
-        <p class="story">${esc(t('fellText'))}</p>
-        <div class="fellStats"><span>${esc(t('fellDepth'))}</span><b>${sum.depth + 1}</b><span>${esc(t('fellTime'))}</span><b>${esc(G.fmtTime(sum.secs))}</b><span>${esc(t('fellLvl'))}</span><b>${sum.lvl}</b><span>${esc(t('fellGold'))}</span><b>${fmt(sum.gold)}</b></div>
-        <p class="fellFame">${img('ic_fame', '', 3)} <b>+${fmt(sum.fame)}</b> ${esc(t('fame').toLowerCase())} <small>(${esc(t('fellTotal', fmt(sum.total)))})</small></p>
-        <p class="note">${esc(t('fellKeep'))}</p>
+        <p class="fellFame">${img('ic_fame', '', 5)}<b data-count="${f.fame}">+0</b><small>${esc(t('fellEarned'))}</small></p>
+        <p class="fellLine">${esc(t('fellLine', f.depth + 1, f.lvl, G.fmtTime(f.secs)))}</p>
         ${wt ? `<p class="note tip"><b>${esc(t('wipeWhy'))}</b> ${esc(t(wt))}</p>` : ''}
-        <p class="next">${esc(t('fellNext', G.realmName(sum.next), sum.next + 1))}</p></div>`,
-        [{ label: t('fellAgain'), cls: 'gold' }, { label: t('fellSpend'), fn: () => { if (G.enterTown()) UI.townOpen('temple'); } }], true);
+        <div class="fellActs">
+          ${can ? `<button class="btn gem fellCont" data-fall="gems" ${afford ? '' : 'disabled'}>${esc(t('fellCont'))} <span class="cost">${cost ? `${gem}${fmt(cost)}` : esc(t('fellFree'))}</span></button>` : ''}
+          ${ad ? `<button class="btn fellAd" data-fall="ad">${esc(t('fellAd'))}</button>` : ''}
+          <small class="note">${esc(can ? t('fellContNote', left) : t('fellNoCont'))}</small>
+          <button class="btn gold fellNew" data-fall="new">${esc(t('fellNew', fmt(f.fame)))}</button>
+          <small class="note">${esc(t('fellNewNote', f.next + 1))}</small>
+        </div>
+        <p class="fellGems">${esc(t('fellHave', ''))}${gem}<b>${fmt(S.gems || 0)}</b>${shop ? ` <button class="btn small" data-fall="shop">${esc(t('fellGet'))}</button>` : ''}</p>
+        ${can && !afford && !shop ? `<p class="note">${esc(t('fellHow'))}</p>` : ''}</div>`, [], true);
+      m.classList.add('fallM');
+      // the fame counts up
+      const n = m.querySelector('[data-count]'), to = f.fame, t0 = performance.now();
+      const up = now => { if (!n.isConnected) return; const k = Math.min(1, (now - t0) / 700); n.textContent = '+' + fmt(Math.round(to * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(up); };
+      requestAnimationFrame(up);
+      m.querySelectorAll('[data-fall]').forEach(b => b.addEventListener('click', () => {
+        const k = b.dataset.fall;
+        if (k === 'shop') { if (G.Store && G.Store.open) G.Store.open('gems', () => UI.fallCard()); return; }
+        if (k === 'ad') {
+          b.disabled = true;
+          Promise.resolve(G.Ads.show('continue')).then(ok => { if (ok && G.runContinue('ad')) { m.hidden = true; m.innerHTML = ''; } else b.disabled = false; });
+          return;
+        }
+        if (k === 'gems' ? G.runContinue('gems') : G.runGiveUp() >= 0) { m.hidden = true; m.innerHTML = ''; UI.update(true); }
+      }));
+      setTimeout(() => { const b = m.querySelector('.fellCont:not([disabled])') || m.querySelector('.fellNew'); if (b) b.focus(); }, 50);
       return m;
-    }, 1400));
+    };
+    // (after the Button's BOOM has played)
+    G.on('runOver', () => setTimeout(() => { if (G.S.fallen) UI.fallCard(); }, 1700));
+    // a fall still waiting from before a reload
+    if (G.S.fallen) setTimeout(() => { if (G.S.fallen && $('#modal').hidden) UI.fallCard(); }, 900);
+    G.on('runEnd', f => { UI.toast(`<b>${esc(t('fellTook', fmt(f.fame)))}</b>`, 'ach', 'ic_fame', { p: 2 }); });
+    G.on('gems', () => { const c = $id('gemChip'); if (c) { c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); } });
     G.on('quests', () => dirtyTab('quests'));
     G.on('questClaim', () => { if (curTab() === 'quests') UI.render(); });
     G.on('daily', () => { if (curTab() === 'quests') UI.render(); });
@@ -805,9 +842,11 @@
     setText($id('essNum'), fmt(S.essence, true));
     setText($id('eggNum'), fmt(S.eggs));
     setText($id('fameNum'), fmt(S.fame));
+    setText($id('gemNum'), fmt(S.gems || 0));
     setHid($id('essChip'), !tabOpen('stars'));
     setHid($id('eggChip'), !(S.eggs > 0 || Object.keys(S.pets).length));
     setHid($id('fameChip'), !(S.fameTotal > 0));
+    setHid($id('gemChip'), !(S.gems > 0 || S.seen.cont));
     // Pages opening up: a toast names the building that now holds them
     for (const d of TABS) {
       if (!d.unlock(S) || S.seen.tabs['_u_' + d.id]) continue;
@@ -2855,6 +2894,7 @@
   };
   UI.modal = function (title, html, actions, locked) {
     const m = $('#modal');
+    m.classList.remove('fallM');
     m.innerHTML = `<div class="box" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h2>${esc(title)}</h2>${html}<div class="acts">${(actions || []).map((a, i) => `<button class="btn ${a.cls || ''}" data-a="${i}">${esc(a.label)}</button>`).join('')}</div></div>`;
     m.hidden = false; m.dataset.locked = locked ? '1' : '';
     const close = () => { m.hidden = true; m.innerHTML = ''; };

@@ -78,7 +78,11 @@
   on('bossWin', (rew, b) => ev('boss_win', { d: b && b.d, l: b && b.lord ? 1 : 0 }));
   on('bossFail', b => ev('boss_fail', { d: b && b.d, l: b && b.lord ? 1 : 0 }));
   on('realm', r => ev('land', { li: r, d: S().depth }));
-  on('runOver', sum => ev('run_over', { d: sum && sum.depth, s: sum && Math.round(sum.secs), f: sum && sum.fame }));
+  on('runOver', sum => ev('run_over', { d: sum && sum.depth, s: sum && Math.round(sum.secs), f: sum && sum.fame, g: S().gems || 0, c: S().runConts || 0 }));
+  // 3.6: what they chose when it fell: continue here (how, the n-th this run) or a new run
+  on('runContinue', how => ev('run_cont', { h: how, n: S().runConts, g: S().gems || 0, d: S().depth }));
+  on('runEnd', f => ev('run_end', { d: f && f.depth, f: f && f.fame }));
+  on('gems', (n, why) => ev('gems', { n, w: why }));
   on('ascend', (g, death) => { if (!death) ev('ascend', { d: S().maxDepth }); });
   on('bless', b => ev('bless', { id: b && b.id }));
   on('champKill', c => ev('champ', { m: c.mech, ok: 1 }));
