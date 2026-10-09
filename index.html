@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>BTTN</title>
-<meta name="description" content="A pixel-art incremental: click the Button, your Warden cuts through a horde of hundreds, loot drops like Path of Exile, and you race your friends on the ladder.">
+<meta name="description" content="A pixel-art roguelite siege: hold the Button, your Warden and the companions you rescue cut through a Horde of hundreds, loot bursts out after every boss, and every fall builds the town for the next run.">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -15,7 +15,7 @@
     <div id="xpBar" hidden><i id="xpFill"></i><span id="xpText"></span></div>
     <div id="perks" hidden></div>
     <div class="hud top">
-      <div class="realm"><div id="realmBox" role="button" tabindex="0" aria-label="World map"><b id="realmName"></b> <span class="lstars" id="landStars"></span><div class="zoneRow"><span class="pips" id="zonePips"></span><span id="zoneName"></span></div></div><small id="realmSub"><span data-depth-label>Depth</span> <span id="depthNum">1</span></small><div class="torment" id="torment" hidden><button type="button" data-tm="-1" aria-label="Less torment">−</button><span id="tormentN"></span><button type="button" data-tm="1" aria-label="More torment">+</button></div><small id="omenLine"></small><small id="rivalLine" hidden></small><div class="goalBox" id="goal" hidden></div></div>
+      <div class="realm"><div id="realmBox" role="button" tabindex="0" aria-label="World map"><b id="realmName"></b> <span class="lstars" id="landStars"></span><div class="zoneRow"><span class="pips" id="zonePips"></span><span id="zoneName"></span></div></div><small id="realmSub"><span data-depth-label>Depth</span> <span id="depthNum">1</span></small><small id="omenLine"></small><small id="rivalLine" hidden></small><div class="goalBox" id="goal" hidden></div></div>
       <div class="hudBtns">
         <button class="iconBtn townBtn" id="btnTown" aria-label="Town"><img alt=""><b>TOWN</b></button>
         <button class="iconBtn help" id="btnHelp" aria-label="Help">?</button>
@@ -33,7 +33,6 @@
       <div class="bossRow" id="bossRow" hidden>
         <div class="meter boss" id="bossWrap"><img class="mIco" data-mico="ic_skull" alt=""><i id="bossMeter"></i><span id="bossText"></span></div>
         <button class="btn fight" id="btnFight" hidden>⚔</button>
-        <button class="btn fight riftBtn" id="btnRift" hidden aria-label="Rift">◈</button>
         <button class="btn fight" id="btnRetreat" hidden style="animation:none">✕</button>
       </div>
       <div class="hpRow" id="hpRow" hidden>
@@ -53,12 +52,13 @@
       <div class="rates"><span><b id="gpsNum">0</b> <span data-i18n="perSec"></span></span><span><b id="clickNum">1</b> <span data-i18n="perClick"></span></span></div>
       <button class="iconBtn foldBtn" id="btnFold" aria-label="Fold the panel">▾</button>
       <div class="subRes">
-        <span class="chip ess" id="essChip" hidden><img id="essIco" alt=""><b id="essNum">0</b></span>
+        <span class="chip ember" id="emberChip" hidden role="button" tabindex="0" title="Embers"><img id="emberIco" alt=""><b id="emberNum">0</b></span>
         <span class="chip egg" id="eggChip" hidden><img id="eggIco" alt=""><b id="eggNum">0</b></span>
-        <span class="chip fame" id="fameChip" hidden><img id="fameIco" alt=""><b id="fameNum">0</b></span>
+        <span class="chip fame" id="fameChip" hidden role="button" tabindex="0" title="Fame"><img id="fameIco" alt=""><b id="fameNum">0</b></span>
         <span class="chip gem" id="gemChip" hidden title="Gems"><img id="gemIco" alt=""><b id="gemNum">0</b></span>
       </div>
     </header>
+    <button class="btn gold newSiege panelSiege" id="siegeBtn" hidden>NEW SIEGE</button>
     <nav class="tabs" id="tabs"></nav>
     <div class="tabTitle" id="tabTitle"></div>
     <div class="tabBody" id="tabBody"></div>

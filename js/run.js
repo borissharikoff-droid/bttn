@@ -256,6 +256,15 @@
     if (B.tick) { try { B.tick(dt, bt.ctx); } catch (e) { if (typeof console !== 'undefined') console.error('beat tick ' + bt.id, e); } }
     if (!G.runUI && !B.selfAuto && r.beat && r.beat.id && r.beat.t >= TUNE.beatAutoNoUI) G.beatAuto();
   };
+  // 4.0 (cardsloot: the idle gate's hooks, DESIGN §6.1 / §14): the run's own auto clocks. The Buttons stream sets them on
+  // S.run at 'runSetup' (Clockwork, Auto-Run); unset, nothing changes. r.autoCards + r.autoAfter (s): cards auto-pick
+  // after that (G.cardAfter); r.beatAfter (s): with a run UI the camp, the doors, a relic choice and a shrine's choice
+  // resolve themselves after that many s untouched (Clockwork 4) instead of TUNE.campAuto / shrineAuto; r.autoExtract (a
+  // camp number): a camp left to the game there or later extracts ('autoExtract'(n); Auto-Run 2); r.autoAgain: the next
+  // Siege starts by itself after the summary (S.run.autoAgain = autoAgainT s for the summary screen's countdown; with no
+  // run UI at once). With no run UI every hold is answered after beatAutoNoUI s anyway.
+  TUNE.autoAgainT = 5;
+  G.beatAfter = dflt => { const r = runOf(); return r && r.on && r.beatAfter > 0 ? +r.beatAfter : dflt != null ? dflt : TUNE.campAuto; };
   // the field's clocks (game.js tick, field only)
   G.runTick = function (dt) {
     const r = runOf();
@@ -435,6 +444,8 @@
   if (G.tAdd) G.tAdd({
     card_none: 'Your build is complete: nothing left to learn', card_boons: 'Your build is complete: choose a boon', card_school: 'School: {0}', card_new: 'NEW', card_rankTo: 'Rank {0} → {1}', card_gear: '+{0} from gear',
     card_evoWith: 'Evolves with {0}', card_evoHave: 'You wear it: evolution ready at max', card_slotsFull: 'Slots full: only your perks now',
+    // (c5: the idle hooks' words: the camp's / summary's countdown under Auto-Run, the 'autoExtract' toast)
+    auto_in: 'Auto in {0}s', auto_extract: 'Auto-Run: extracted at Camp {0}', auto_again: 'Next Siege in {0}s', auto_stop: 'Stop',
     school_storm: 'Storm', school_blades: 'Blades', school_fire: 'Fire', school_frost: 'Frost', school_bastion: 'Bastion', school_greed: 'Greed', school_party: 'Party',
     loot_ultra: 'ULTRA RARE', loot_best: 'Best for {0}', loot_take: 'Take', loot_stash: 'Stash', loot_left: '{0} left to take', loot_none: 'Nothing better here',
     loot_tag_N: 'Treasure Nose', loot_mark: 'Mark', loot_ranks: '+{0} {1}', loot_rule: 'Rule: {0}', loot_keep: 'More power, but its rule/Mark would go',
@@ -700,7 +711,7 @@
     const r = runOf(), o = r.boonOffer || r.pactOffer;
     if (!o) return;
     if (!o.touch) o.t += dt;
-    if (o.t >= (G.runUI ? TUNE.shrineAuto : TUNE.beatAutoNoUI)) {
+    if (o.t >= (G.runUI ? G.beatAfter(TUNE.shrineAuto) : TUNE.beatAutoNoUI)) {
       if (r.boonOffer) { const ids = r.boonOffer.ids, k = BOON_PREF.find(x => ids.includes(x)) || ids[0]; G.boonPick(k); }
       else G.pactAnswer(false);
     }
@@ -761,6 +772,9 @@
   // ultra-rares: mythic, divine, unique, relic (the rainbow flip, the pillar, the tier's sting)
   const ultra = g => !!(g && (g.r >= 5 || g.q));
   G.lootTier = g => (ultra(g) ? 'ultra' : 'normal');
+  // which ultra-rare (the tier's sting and pillar colour): 'relic' | 'unique' | 'divine' | 'mythic' | null
+  const ultraKind = g => (!g ? null : g.q ? (G.UNIQUES[g.q] && G.UNIQUES[g.q].relic ? 'relic' : 'unique') : g.r >= 6 ? 'divine' : g.r >= 5 ? 'mythic' : null);
+  G.lootUltraKind = ultraKind;
   // a card's item, for the hero it would be shown to (cls: its perk ranks' schools), from the offers' stream
   const mk = (it, il, cls) => G.makeGear(it.id, il, { cls, rng: G.runRng });
   const card = (g, tag) => ({ g, tag: tag || '', taken: 0, burned: 0, who: -1, up: false, pct: 0, delta: 0 });
@@ -770,7 +784,8 @@
     let bi = -1, bp = 1e-6;
     L.cards.forEach((c, i) => { if (!c.taken && !c.burned && c.up && c.pct > bp) { bp = c.pct; bi = i; } });
     L.best = bi;
-    if (L.ultra == null) L.ultra = L.cards.some(c => ultra(c.g)) ? 1 : 0;
+    // (L.ultra: how many ultra-rares it holds; each gets its pillar before the clock runs: L.wait)
+    if (L.ultra == null) L.ultra = L.cards.filter(c => ultra(c.g)).length;
     return L;
   }
   G.lootMoment = function (b) {
@@ -844,7 +859,8 @@
   G.on('lootBank', L => { if (L && L.best === undefined && Array.isArray(L.cards)) { for (const c of L.cards) Object.assign(c, Object.assign(card(c.g, c.tag), c)); prep(L); } });
   // ---- what the moment shows (DOM-free; 'lootMoment' carries it) ----
   // G.lootCard(i) -> the card as the screen shows it: { i, g, tag, taken, burned, who (taken: who has it, -1 the Warden,
-  //   'bag'), id, q, name, r, rarity (name), tier ('ultra' | 'normal'), unique, relic, slot, type, il, e, main (main stat),
+  //   'bag'), id, q, name, r, rarity (name), tier ('ultra' | 'normal'), ultraKind ('relic' | 'unique' | 'divine' | 'mythic' |
+  //   null: the sting), unique, relic, slot, type, il, e, main (main stat),
   //   affixes [{k, v, name}], ranks [{id, n, name}], marks [G.markInfo], rule ({q, name, fx} | null), v (Embers if burned),
   //   delta (power), pct (fraction), up, keep, arrow ('▲' | '▼' | '='), best (this is L.best), rows (G.compareRows for the
   //   hero shown: worn | this) }
@@ -855,14 +871,15 @@
     const bw = open ? G.bestWearer(g) : { who: c.who, delta: c.delta, pct: c.pct, up: c.up, keep: false };
     const who = open ? bw.who : c.who, hw = typeof who === 'number' ? who : -1;
     return { i, g, tag: c.tag, taken: c.taken, burned: c.burned, who, id: g.id, q: g.q || null, name: U ? U.name : it.name, r: g.r, rarity: G.RARITIES[g.r] ? G.RARITIES[g.r].name : '',
-      tier: G.lootTier(g), unique: !!g.q, relic: !!(U && U.relic), slot: G.slotOf(g.id), type: G.ITEM_TYPE[g.id], il: g.il | 0, e: g.e | 0, main: G.mainStat(g),
+      tier: G.lootTier(g), ultraKind: ultraKind(g), unique: !!g.q, relic: !!(U && U.relic), slot: G.slotOf(g.id), type: G.ITEM_TYPE[g.id], il: g.il | 0, e: g.e | 0, main: G.mainStat(g),
       affixes: (g.a || []).map(([k, v]) => ({ k, v, name: G.AFFIXES[k] ? G.AFFIXES[k].name : k })), ranks: Object.keys(g.pk || {}).map(k => ({ id: k, n: g.pk[k] | 0, name: G.PERKS[k] ? G.PERKS[k].name : k })),
       marks: G.itemMarks ? G.itemMarks(g) : [], rule: U ? { q: g.q, name: U.name, fx: U.fx } : null, v: Math.round(G.itemEmbers(g) * G.EMBERS.card * (G.D.burnEmb || 1) * 10) / 10,
       delta: bw.delta, pct: bw.pct, up: !!bw.up, keep: !!bw.keep, arrow: bw.up ? '▲' : bw.pct < -1e-6 ? '▼' : '=', best: i === L.best, rows: G.canWear(hw, g) ? G.compareRows(hw, g) : [] };
   };
   // all of them, and the moment around them: G.lootView() -> [card] (the core's view: each card with its best wearer,
   // the upgrade and its burn value); G.lootState() -> { kind, lord, d, il, pick, taken, left (picks), t, T, wait (s before
-  // the clock runs: an ultra-rare's pillar), timeLeft, touch, collapse, best, ultra, orbs, key, cards: G.lootView() }
+  // the clock runs: the ultra-rares' pillars), timeLeft, touch, collapse, best, ultra (how many ultra-rares), orbs, key,
+  // cards: G.lootView() }
   G.lootView = function () { const L = loot(); return L ? L.cards.map((c, i) => G.lootCard(i)) : null; };
   G.lootState = function () {
     const L = loot();
@@ -871,6 +888,12 @@
       touch: L.touch, collapse: L.collapse, best: L.best, ultra: L.ultra, orbs: L.orbs, key: L.key, cards: G.lootView() };
   };
   G.lootTouch = () => { const L = loot(); if (L) L.touch = 1; };
+  // the clock waits for the ultra-rares' reveal: lootUltraT s for each (at most 3: a Mad Button's two uniques and a divine)
+  // before it runs (L.wait; the screen times each pillar as L.wait / L.ultra). A screen whose own reveal takes longer asks
+  // for more: G.lootHold(s) (at most lootHoldMax s from now; a touch stops the clock anyway)
+  TUNE.lootHoldMax = 8;
+  const pillarT = L => (L.ultra ? TUNE.lootUltraT * Math.min(3, L.ultra | 0 || 1) : 0);
+  G.lootHold = function (s) { const L = loot(); if (!L || !(s > 0)) return false; L.wait = Math.max(L.wait || 0, Math.min(TUNE.lootHoldMax, +s)); return true; };
   // take card i: worn by who (a hero index, -1 the Warden: the hero the card shows is what a tap passes), stashed (who
   // 'bag', or stash true: a hold); with no who, the hero it suits best if it is an upgrade for anyone, else the bag. A hero
   // who can't wear it (a companion and another class's weapon): the bag. Wearing it offers what that hero took off to
@@ -954,7 +977,7 @@
       if (!L) return false;
       if (!L.cards.length) { runOf().loot = null; return false; }
       prep(L);
-      L.t = 0; L.wait = L.ultra ? TUNE.lootUltraT : 0; L.collapse = lootDull(L) ? 1 : 0;
+      L.t = 0; L.wait = pillarT(L); L.collapse = lootDull(L) ? 1 : 0;
       emit('lootMoment', L, ctx, G.lootView());
       return true;
     },
@@ -974,7 +997,7 @@
     resume(ctx) {
       const L = loot();
       if (!L) { G.beatDone('loot'); return; }
-      prep(L); L.t = 0; L.touch = 0; L.wait = L.ultra ? TUNE.lootUltraT : 0;
+      prep(L); L.t = 0; L.touch = 0; L.wait = pillarT(L);
       emit('lootMoment', L, ctx, G.lootView());
     },
   });
@@ -1119,6 +1142,8 @@
   G.campAuto = function () {
     const S = S_(), r = runOf(), c = camp();
     if (!c) return false;
+    // (4.0, cardsloot: Auto-Run - a camp left to the game at Camp r.autoExtract or later banks the pouch and ends the run)
+    if (r.autoExtract > 0 && (c.n | 0) >= r.autoExtract && G.runExtract) { emit('autoExtract', c.n | 0); G.runExtract(); return true; }
     if (!c.act) G.campAct(S.hero.hp < (G.D.heroHp || 1) * 0.5 ? 'rest' : 'temper');
     if (c.recruits && !c.hired) {
       const roles = [S.hero.cls].concat(S.party.map(m => m.cls)).map(k => G.ROLES[k]);
@@ -1136,7 +1161,7 @@
   G.campTouch = () => { const c = camp(); if (c) c.touch = 1; };
   G.runBeat({ id: 'camp', order: 40, fallback: 1,
     open(ctx) { if (!ctx.lord || ctx.final || !ctx.fresh) return false; G.campOpen(ctx); return true; },
-    tick(dt) { const c = camp(); if (!c) { G.beatDone('camp'); return; } if (!c.touch && !runOf().offer) c.t += dt; if (G.runUI && c.t >= TUNE.campAuto) G.campAuto(); },
+    tick(dt) { const c = camp(); if (!c) { G.beatDone('camp'); return; } if (!c.touch && !runOf().offer) c.t += dt; if (G.runUI && c.t >= G.beatAfter()) G.campAuto(); },
     auto() { G.campAuto(); },
     resume() { if (!camp()) G.beatDone('camp'); },
   });
@@ -1200,7 +1225,7 @@
   });
   G.runBeat({ id: 'doors', order: 50, fallback: 1,
     open(ctx) { if (!ctx.lord || ctx.final || !ctx.fresh || (ctx.slot + 1 >= SG().lands && !runOf().push)) return false; return !!G.runDoorsOpen(ctx.slot + 1); },
-    tick(dt) { const D_ = runOf().doors; if (!D_) { G.beatDone('doors'); return; } if (!D_.touch) D_.t += dt; if (G.runUI && D_.t >= TUNE.campAuto) G.runDoor(0); },
+    tick(dt) { const D_ = runOf().doors; if (!D_) { G.beatDone('doors'); return; } if (!D_.touch) D_.t += dt; if (G.runUI && D_.t >= G.beatAfter()) G.runDoor(0); },
     auto() { if (runOf().doors) G.runDoor(0); },
     resume() { if (!runOf().doors) G.beatDone('doors'); },
   });
@@ -1317,7 +1342,7 @@
       emit('relicOffer', r.relicOffer, ctx);
       return true;
     },
-    tick(dt) { const o = runOf().relicOffer; if (!o) { G.beatDone('relic'); return; } if (!o.touch) o.t += dt; if (G.runUI && o.t >= TUNE.campAuto) G.relicPick(0, 0); },
+    tick(dt) { const o = runOf().relicOffer; if (!o) { G.beatDone('relic'); return; } if (!o.touch) o.t += dt; if (G.runUI && o.t >= G.beatAfter()) G.relicPick(0, 0); },
     auto() { const r = runOf(); if (r.relicOffer && !G.relicPick(0, r.belt.length >= r.beltMax ? 0 : undefined)) G.relicSkip(); },
     resume() { if (!runOf().relicOffer) G.beatDone('relic'); },
   });
@@ -1682,12 +1707,16 @@
     r.on = 0; r.phase = 'ended';
     resetRun(S);
     S.run = { on: 0, phase: 'summary', n: r.n };
+    // (4.0, cardsloot: Auto-Run - the summary screen counts autoAgainT s down, then G.runAgain(); with no run UI at once)
+    const again = r.autoAgain ? TUNE.autoAgainT : 0;
+    if (again) S.run.autoAgain = again;
+    sum.autoAgain = again;
     G.fillQuests();
     // the 3.x clean-ups (blessings, champions, perks2, spells, rare visitors, mobs2, stage) listen to 'ascend'
     emit('ascend', sum.fame.total, kind === 'fall' || kind === 'abandon');
     emit('runSummary', sum);
     if (sum.daily && sum.daily.ranked && !sum.daily.assisted) emit('dailyResult', sum.daily);
-    if (TUNE.runAgainAuto && !G.runUI && S.hero && S.hero.cls) G.runAgain();
+    if ((TUNE.runAgainAuto || again) && !G.runUI && S.hero && S.hero.cls) G.runAgain();
     return sum;
   };
 
@@ -1782,7 +1811,7 @@
     let r = S.run;
     if (!r || typeof r !== 'object') r = S.run = { on: 0, phase: 'setup' };
     if (!r.on) {
-      if (r.phase === 'summary' && TUNE.runAgainAuto && !G.runUI && S.hero && S.hero.cls && !S.fallen) G.runAgain();
+      if (r.phase === 'summary' && (TUNE.runAgainAuto || r.autoAgain) && !G.runUI && S.hero && S.hero.cls && !S.fallen) G.runAgain();
       return;
     }
     S.bossMeter = 0; R.zoneT = 0; R.march = null; R.boss = null; R.bossReady = false; R.bossIn = null;

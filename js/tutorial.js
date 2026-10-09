@@ -1,6 +1,9 @@
-// BTTN — onboarding: a short intro, a guided first session with a pointer
+// BTTN — onboarding: a short intro, a guided first Siege with a pointer
 // and a guide (Buttonling), one-time tips when a new mechanic shows up, and
 // a "How to play" sheet behind the ? button.
+// 4.0: the first Siege is coached as the loop it is: hold the Button, the Horde, the first boss, the loot moment, the
+// first card, the Integrity pips at camp 1, the doors. The retired systems' steps (Iron Finger, the Garrison hire, the
+// Constellation's essence, ascending, Torment, Rifts) went.
 (function (G) {
   'use strict';
   const Tut = G.Tut = {};
@@ -81,6 +84,48 @@
     help_21: 'Shortcuts', help_21t: 'In a building, the bar on top jumps to any other one (or swipe; keys 1–0, ← →); FIELD goes back. Lock gear so it is never scrapped. Hold an upgrade to keep buying. Tap the gold rate to see where gold comes from. Settings → Play: auto-perks, Overdrive, fewer effects.',
   });
 
+  // 4.0: the first Siege's words (these replace the 3.x steps' and tips' where they share a key)
+  Object.assign(G.STR, {
+    in_play: 'To the Siege',
+    tu_hold: "I'm Buttonling. You're the Hand: hold the Button! (Space, or keep a finger on it.) Every press spills gold and zaps the Horde.",
+    tu_mobs: 'The Horde comes for the Button. Your Warden fights it; tap a mob to make it the target. Kills fill the clear bar.',
+    tu_boss: 'Fill the clear bar and the boss comes. Keep holding.',
+    tu_bossReady: 'Boss ready! It comes on its own, or press ⚔.',
+    tu_bossFight: 'Hit the boss! Tap its glowing weak point when it winds up. Z Smite · X Ward · C Mend.',
+    tu_lootWait: 'Beat the boss: its loot bursts out.',
+    tu_loot: 'LOOT! Tap a card to put it on: ▲ means better for that hero. What you leave burns into Embers.',
+    tu_card: 'A card! Each adds a perk rank. A school you own comes up more often; six perks at most.',
+    tu_campWait: 'Three zones make a land. After its lord: the camp.',
+    tu_camp: 'CAMP. Your three Integrity pips light up: land 1 was the muster. From now on a wipe cracks one; each lord gives one back. Rest, Temper or Train; then the market.',
+    tu_doors: 'Choose the next land. Each door shows its rule, its lord, a risk and a reward.',
+    tu_final: 'That\u2019s the Siege. When the Button falls, all you carried burns into Embers for the town, and Fame buys the Hall of Fame. Press ? any time.',
+    tip_shrine: 'A shrine! Hold the Hand on it for 2 s (not on the Button) to claim it.',
+    tip_shards: 'Shards piled up: ENCHANT ALL at the Forge (TOWN) raises the whole party.',
+    tip_break: 'The Button broke: clicks do nothing for 12 seconds. If the party falls meanwhile, Integrity cracks.',
+    help_15: 'Your powers', help_15t: 'Z Smite (18 s): break wind-ups, hit hard. X Ward (26 s): no damage for 3.5 s. C Mend: 2 charges a land, each heals 35%.',
+    tip_relic: 'A relic: its rule goes on your belt for the rest of the Siege. Choose one that fits your cards.',
+    tip_pipLost: 'INTEGRITY CRACKED: the Horde broke through. A lord gives a pip back; at none left, the next hit is the fall.',
+    tip_embers: 'Embers and Fame! Build the town with Embers; buy the Hall of Fame at the Temple with Fame. Then NEW SIEGE.',
+    tip_codex: 'A unique joined the Codex: from the Museum I it can come along as a keepsake.',
+    help_1: 'You are the Hand', help_1t: 'Hold the Button: every press spills gold, fills the chest bar and zaps the Horde near it. Fast presses build a combo.',
+    help_2: 'The Siege', help_2t: 'A run from nothing: six lands of three zones, chosen at the doors; the last is the Void, then the Mad Button. When the Button falls, the run is over.',
+    help_3: 'Cards', help_3t: 'Levels 2 to 4 and every boss give a card: pick 1 of 3. Six perks at most; a perk at max with two picked ranks and the right item evolves.',
+    help_4: 'Horde and bosses', help_4t: 'Tap a mob to target it. Fill the clear bar for the boss; tap its glowing weak point to break its moves. Ward its DOOM.',
+    help_5: 'Gold', help_5t: 'Gold is the Siege\u2019s: Upgrades and the Garrison (Auto-invest spends it for you), the camp market.',
+    help_6: 'Loot', help_6t: 'After every boss its loot bursts out: tap a card to wear it (▲ better for that hero), hold to stash it. The rest burns into Embers. Rainbow names are ultra-rare.',
+    help_7: 'Integrity', help_7t: 'Three pips. A wipe or a lost lord fight cracks one (not in land 1); each lord gives one back. At none, the next hit is the fall.',
+    help_8: 'Camp and doors', help_8t: 'After each lord: Rest, Temper or Train, a market, recruits (Camps 1 to 3), Enchant All, Extract. Then choose the next land at the doors.',
+    help_9: 'Relics', help_9t: 'After each act boss, choose a relic: its rule goes on your belt for the Siege.',
+    help_11: 'Your party', help_11t: 'Camps 1 to 3 bring recruits, each with a trait. Companions wear uniques too, and the rule works for the whole party. Tap a fallen ally to raise them.',
+    help_12: 'Embers and Fame', help_12t: 'At the end, everything carried burns into Embers (a fall ×0.5, an extract ×1, a win ×1.5): they build the town and the Star Chart. Fame buys the Hall of Fame.',
+    help_13: 'The town', help_13t: 'Each building\u2019s five levels open something new. Tap TOWN (T) any time; NEW SIEGE starts the next run.',
+    help_16: 'Heat', help_16t: 'A win opens the next Heat (up to ten), chosen at the setup: a tougher Horde, more Fame and Embers, a named rule each.',
+    help_17: 'Forge', help_17t: 'EQUIP BEST dresses the whole party by one rule; tap an item to compare it side by side with what any hero wears; ENCHANT ALL (Forge I) spends your shards.',
+    help_19: 'Deeds and Buttons', help_19t: 'Deeds unlock Buttons, classes, cards, lands, uniques and relics. Each Button is its own Siege; some evolve by secret recipes.',
+    help_20: 'Holding the Button', help_20t: 'Hold Space or the Button to click 1 time a second; each Steady Hand level (Upgrades) adds one, up to 10.',
+    help_21: 'Shortcuts', help_21t: 'In a building, the bar on top jumps to any other one (or swipe; keys 1–0, ← →); FIELD goes back. Lock gear so it is never scrapped. Settings → Play: card auto-pick, Auto-invest, fewer effects.',
+  });
+
   // ---------- Pointer targets ----------
   const P = {
     button: () => G.Stage.buttonPoint(),
@@ -114,21 +159,33 @@
   };
   const val = (f, S) => (typeof f === 'function' ? f(S) : f);
 
-  // ---------- Guided steps ----------
+  // ---------- Guided steps (4.0: the first Siege) ----------
+  // A step with `wait` is a moment of the run (the loot moment, a card, the camp, the doors): it speaks while that screen
+  // is up (`wait(S)` true, the coach on top of it) and is done once the player has been through it (its seen flag, set
+  // from the run's events below); until it comes, `idle` says what leads there. A moment that came early (the warm-up
+  // cards come before the first boss) is already done when its step's turn comes.
+  const runPh = () => (G.S.run && G.S.run.on ? G.S.run.phase : '');
+  const moment = k => !!seen()['tut_' + k];
   const STEPS = [
-    { id: 'click', text: 'tu_click', point: P.button, done: S => S.clicks >= 12 },
-    { id: 'chest', text: S => (S.chests.length ? 'tu_chest' : 'tu_chestWait'), point: S => (S.chests.length ? P.chest() : P.button()), done: S => S.st.chests >= 1 },
-    { id: 'gear', town: 1, text: 'tu_gear', point: () => P.tab('forge'), done: () => G.UI.townId() === 'forge' },
-    { id: 'doll', town: 1, text: 'tu_doll', point: () => (G.UI.townId() === 'forge' ? P.el('.twDoll') : P.tab('forge')), manual: true, done: () => G.UI.townId() !== 'forge', minT: 2500 },
-    { id: 'upg', town: 1, text: S => (S.gold >= 15 || S.upg.finger ? 'tu_upg' : 'tu_upgWait'), point: S => (S.gold >= 15 ? P.inTab('upg', '.row[data-u="finger"]') : P.button()), done: S => (S.upg.finger || 0) >= 1 },
-    { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), minT: 7000, done: S => S.hero.kills - (seen().tutK || 0) >= 40 },
-    { id: 'garrison', town: 1, text: S => (S.gold >= 50 ? 'tu_garrison' : 'tu_garrisonWait'), point: S => (S.gold >= 50 ? P.inTab('heroes', '.row[data-h="rogue"]') : P.button()), done: S => (S.heroes.rogue || 0) >= 1 },
+    { id: 'hold', text: 'tu_hold', point: P.button, done: S => S.clicks >= 25 || !!(S.seen && S.seen.hold) },
+    { id: 'mobs', text: 'tu_mobs', point: () => P.mob() || P.button(), minT: 6000, done: S => S.hero.kills - (seen().tutK || 0) >= 40 },
     { id: 'boss', text: () => (G.R.boss ? 'tu_bossFight' : G.R.bossReady ? 'tu_bossReady' : 'tu_boss'),
-      point: () => (G.R.boss ? P.button() : G.R.bossReady ? (P.el('#btnFight') || P.button()) : P.el('#bossRow')), done: S => S.st.bossKills >= 1 },
-    { id: 'pets', town: 1, text: 'tu_pets', point: () => P.inTab('pets', '[data-pull="1"]'), done: S => Object.keys(S.pets).length >= 1,
-      skip: S => S.eggs < 1 && !Object.keys(S.pets).length },
-    { id: 'final', town: 1, text: 'tu_final', point: () => P.tab('ladder'), manual: true },
+      point: () => (G.R.boss ? P.button() : G.R.bossReady ? (P.el('#btnFight') || P.button()) : P.el('#bossRow')), done: S => S.st.bossKills >= 1 || moment('loot') },
+    { id: 'loot', wait: () => runPh() === 'loot', text: S => (runPh() === 'loot' ? 'tu_loot' : 'tu_lootWait'), point: () => (runPh() === 'loot' ? null : P.el('#bossRow')), done: () => moment('loot') },
+    { id: 'card', wait: S => !!(S.run && S.run.offer), text: 'tu_card', point: null, done: () => moment('card') },
+    { id: 'camp', wait: () => runPh() === 'camp', text: () => (runPh() === 'camp' ? 'tu_camp' : 'tu_campWait'), point: () => (runPh() === 'camp' ? null : P.el('#bossRow')), done: () => moment('camp') },
+    { id: 'doors', wait: () => runPh() === 'doors', text: 'tu_doors', point: null, done: () => moment('doors') },
+    { id: 'final', town: 1, text: 'tu_final', point: () => P.el('#btnHelp'), manual: true },
   ];
+  // the run's moments, seen: what moves the waiting steps on (and only during the tutorial)
+  const seeMoment = k => () => { if (active()) seen()['tut_' + k] = 1; };
+  G.on('lootDone', seeMoment('loot')); G.on('lootTake', seeMoment('loot'));
+  G.on('cardPick', seeMoment('card'));
+  G.on('campDone', seeMoment('camp'));
+  G.on('door', seeMoment('doors'));
+  // (a phase that ended after its words showed counts too: a camp the auto-continue closed)
+  G.on('runPhase', (ph, ctx, prev) => { if (!active()) return; const st = STEPS[G.S.tut]; if (st && st.wait && stepShown === st.id && ph !== st.id) seen()['tut_' + st.id] = 1; });
+  let stepShown = '';
 
   // ---------- One-time tips (after the tutorial) ----------
   const TIPS = [
@@ -136,41 +193,37 @@
     { id: 'mod', when: S => S.chests.some(c => c.mod), point: () => { const c = G.S.chests.find(x => x.mod); return c && G.Stage.chestPoint(c); },
       text: () => { const c = G.S.chests.find(x => x.mod); const m = c && G.MOD_BY_ID[c.mod]; return m ? t('tip_mod', G.L(m.name), G.L(m.desc)) : ''; }, raw: true, until: S => !S.chests.some(c => c.mod) },
     { id: 'bossReady', when: () => G.R.bossReady && !G.R.boss, point: () => P.el('#btnFight'), text: 'tip_bossReady', until: () => !G.R.bossReady },
-    { id: 'ess', when: S => S.essence >= 1 && !Object.keys(S.nodes).length, point: () => P.inTab('stars', '[data-detail] [data-buy]'), text: 'tip_ess', until: S => Object.keys(S.nodes).length > 0 },
     { id: 'ability', when: S => S.hero.eq.ability, point: () => P.el('#btnAbil'), text: 'tip_ability' },
-    { id: 'shards', when: S => S.hero.shards >= 40, point: () => P.tab('forge'), text: 'tip_shards', until: () => G.UI.tab() === 'hero' },
-    { id: 'asc', when: () => G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_asc', until: () => G.UI.tab() === 'asc' },
+    { id: 'shards', when: S => S.hero.shards >= 150 && G.D.enchantAll, point: () => P.tab('forge'), text: 'tip_shards', until: () => G.UI.tab() === 'hero' },
     { id: 'loot', when: () => (G.R.ground || []).some(e => e.t > 0.6 && (e.k !== 'gear' || e.r >= 1)), point: () => { const e = (G.R.ground || []).find(x => x.t > 0.6 && (x.k !== 'gear' || x.r >= 1)); return e && G.Stage.lootPoint(e); }, text: 'tip_loot', until: () => !(G.R.ground || []).length },
     { id: 'hoard', when: () => (G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob), point: () => { const m = G.R.mobs.find(x => x.kind === 'hoard' && !x.gob); return m && G.Stage.mobPoint(m); }, text: 'tip_hoard', until: () => !(G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob) },
     { id: 'shrine', when: () => G.R.shrine, point: () => G.Stage.shrinePoint(), text: 'tip_shrine', until: () => !G.R.shrine },
     { id: 'powers', when: () => G.R.boss && G.R.boss.t < G.R.boss.T - 2, point: () => P.el('#powers'), text: 'tip_powers', until: () => !G.R.boss },
     { id: 'move', when: () => G.R.boss && G.R.boss.move, point: () => G.Stage.weakPoint && G.Stage.weakPoint() && (() => { const w = G.Stage.weakPoint(), r = document.querySelector('#stage').getBoundingClientRect(); return { x: r.left + w.x, y: r.top + w.y - 10 }; })(), text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
-    { id: 'town', when: () => G.UI._up && G.townOk() && !G.R.town, point: () => P.el('#btnTown'), text: 'tip_town', until: () => !!G.R.town },
-    { id: 'seat', when: S => S.hero && S.hero.cls && G.partySlots && G.partySlots() > S.party.length, point: () => P.tab('tavern'), text: 'tip_seat', until: S => G.partySlots() <= S.party.length || G.UI.townId() === 'tavern' },
-    { id: 'torment', when: () => G.tormentMax() >= 1 && !G.R.boss, point: () => P.el('#torment'), text: 'tip_torment' },
+    { id: 'town', when: () => G.UI._up && G.townOk() && !G.R.town && !(G.runHeld && G.runHeld()), point: () => P.el('#btnTown'), text: 'tip_town', until: () => !!G.R.town },
     { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('enchant'), text: 'tip_orb', until: () => G.UI.townId() === 'enchant' },
-    { id: 'rift', when: () => G.riftOpenable() && !G.R.boss, point: () => P.el('#btnRift') || P.tab('rift'), text: 'tip_rift', until: () => G.UI.tab() === 'rift' || !!G.R.rift },
+    { id: 'relic', when: S => !!(S.run && S.run.on && S.run.phase === 'relic'), point: null, text: 'tip_relic', top: 1, until: S => !(S.run && S.run.phase === 'relic') },
+    { id: 'embers', when: S => !(S.run && S.run.on) && !!S.lastRun && (S.embers > 0 || S.fame > 0) && !!G.R.town, point: () => P.tab('temple'), text: 'tip_embers', until: () => G.UI.townId() === 'temple' },
     { id: 'spitter', when: () => (G.R.mobs || []).some(m => m.kind === 'spitter' && m.spit), point: () => { const m = G.R.mobs.find(x => x.kind === 'spitter' && x.p >= G.TUNE.spitStop); return m && G.Stage.mobPoint(m); }, text: 'tip_spitter', until: () => !(G.R.mobs || []).some(m => m.kind === 'spitter') },
     { id: 'bomber', when: () => (G.R.mobs || []).some(m => m.kind === 'bomber' && m.p > 0.3), point: () => { const m = G.R.mobs.find(x => x.kind === 'bomber' && x.p > 0.3); return m && G.Stage.mobPoint(m); }, text: 'tip_bomber', until: () => !(G.R.mobs || []).some(m => m.kind === 'bomber') },
-    { id: 'map', when: S => S.depth >= 1 && !G.R.boss, point: () => { const r = document.querySelector('#realmBox').getBoundingClientRect(); return { x: r.right + 14, y: Math.max(50, r.bottom) }; }, text: 'tip_map', until: () => !!G.UI.mapSeen },
+    { id: 'map', when: S => S.depth >= 1 && !G.R.boss && !(G.runHeld && G.runHeld()), point: () => { const r = document.querySelector('#realmBox').getBoundingClientRect(); return { x: r.right + 14, y: Math.max(50, r.bottom) }; }, text: 'tip_map', until: () => !!G.UI.mapSeen },
     { id: 'carnage', when: () => G.carnage && G.carnage().tier >= 1, point: null, text: 'tip_carnage' },
-    { id: 'wall', when: S => S.scar && S.scar.n >= 3 && G.fameGain() >= 1, point: () => P.tab('asc'), text: 'tip_wall', until: () => G.UI.tab() === 'asc' },
   ];
 
   let tip = null, tipT = 0, lastHl = null, shownT = 0, nextTipAt = 0;
   const TIP_GAP = 40000; // after the tutorial, one tip at a time with a breather between them
   const stepAt = { i: -1, t: 0 };
   // bosses don't come on their own before the tutorial's boss step (for the first few minutes); the field waits for the first press
-  G.tutHold = () => active() && G.S.tut < 7 && G.S.st.playTime < 150;
-  G.tutFreeze = () => G.S.tut === 0 && !(G.S.clicks > 0) && !!(G.S.hero && G.S.hero.cls);
-  const TOWN_TIPS = { seat: 1, shards: 1, orb: 1, asc: 1, ess: 1, rift: 1, wall: 1 };
-  const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1, spitter: 1, bomber: 1, powers: 1 };
+  G.tutHold = () => active() && G.S.tut < 2 && G.S.st.playTime < 150;
+  G.tutFreeze = () => G.S.tut === 0 && !(G.S.clicks > 0) && !!(G.S.hero && G.S.hero.cls) && !!(G.S.run && G.S.run.on) && G.S.run.phase === 'field';
+  const TOWN_TIPS = { shards: 1, orb: 1, embers: 1 };
+  const EVENT_TIPS = { hoard: 1, loot: 1, shrine: 1, move: 1, spitter: 1, bomber: 1, powers: 1, relic: 1 };
   // 3.6: in a boss fight only the fight's own tips speak; the rest wait (unseen) for after it
   const BOSS_TIPS = { powers: 1, move: 1, break: 1 };
   const quiet = () => { try { return !!(G.director && G.director.quiet && G.director.quiet()); } catch (e) { return false; } };
 
   function seen() { const S = G.S; S.seen = S.seen || {}; S.seen.tips = S.seen.tips || {}; return S.seen; }
-  const veteran = S => S.clicks > 60 || S.ascensions > 0 || S.st.bossKills > 0 || S.maxDepth > 0 || S.goldTotal > 5000;
+  const veteran = S => S.clicks > 60 || S.ascensions > 0 || S.st.bossKills > 0 || S.maxDepth > 0 || S.goldTotal > 5000 || !!S.lastRun || !!S.founders || (S.st.sieges | 0) > 1;
   function active() { return typeof G.S.tut === 'number' && G.S.tut >= 0 && G.S.tut < STEPS.length; }
 
   Tut.init = function () {
@@ -188,6 +241,8 @@
       }
     });
     G.on('buttonBreak', () => { if (!active() && !seen().tips.break && !G.R.rift) showTip({ id: 'break', text: 'tip_break' }); });
+    // 4.0: the first cracked pip says what Integrity is
+    G.on('pip', (d, pips, why, kind) => { if (kind === 'lost' && !active() && !seen().tips.pipLost) showTip({ id: 'pipLost', text: 'tip_pipLost' }); });
     G.on('potion', () => { if (!active() && !seen().tips.potion && !G.R.boss) showTip({ id: 'potion', text: 'tip_potion' }); });
     window.addEventListener('resize', () => place(true));
     Tut.maybeIntro();
@@ -213,7 +268,7 @@
     while (active() && STEPS[S.tut].skip && STEPS[S.tut].skip(S)) S.tut++;
     // the welcome pack kills plenty before this step comes up, so count from here
     if (active() && STEPS[S.tut].id === 'mobs') seen().tutK = S.hero.kills;
-    if (!active()) { S.tut = -1; if (!S.bless && G.blessOffer) G.blessOffer(); }
+    if (!active()) S.tut = -1;
     if (G.Audio) G.Audio.achievement();
   }
 
@@ -231,6 +286,11 @@
       if (!st && tip && !TOWN_TIPS[tip.id]) { tip = null; hide(); return; }
     }
     const busy = !$('#intro').hidden || !$('#modal').hidden || !$('#perks').hidden; // a level-up choice is on screen
+    // 4.0: a run screen (js/run_ui.js) covering the field: only a step about that very moment speaks, on top of it
+    // (a step already done, the next one's moment up: that moment is what speaks)
+    const st0 = active() && STEPS[S.tut], nx0 = active() && STEPS[S.tut + 1];
+    const momentUp = !!((st0 && st0.wait && st0.wait(S)) || (st0 && st0.done && st0.done(S) && nx0 && nx0.wait && nx0.wait(S)));
+    if (!busy && !momentUp && G.RunUI && G.RunUI.busy && G.RunUI.busy()) { hide(); return; }
     if (!S || !$('#coach') || busy) {
       hidePointer(); if (busy) $('#coach').hidden = true;
       // a step already done still finishes behind a level-up card; only a real window holds the clock back
@@ -241,6 +301,8 @@
     if (!S.hero || !S.hero.cls) { hide(); return; }
     // tips for things that come and go (a Hoarder, loot, a shrine, a boss move) may cut into the tutorial
     if (tip && G.R.boss && !BOSS_TIPS[tip.id]) { tip = null; hide(); }
+    // (4.0: but never into a moment of the run the tutorial is about: the tip waits, unseen)
+    if (tip && momentUp && !tip.top) { tip = null; hide(); }
     if (tip) {
       tipT -= 0.12;
       if (tipT <= 0 || (tip.until && tip.until(S))) { finishTip(); return; }
@@ -250,15 +312,24 @@
     if (active()) {
       const st = STEPS[S.tut];
       if (stepAt.i !== S.tut) { stepAt.i = S.tut; stepAt.t = performance.now(); }
-      const target = val(st.point, S);
+      const target = st.point ? val(st.point, S) : null;
       const inPanel = !!(target && target.el && target.el.closest('#panel'));
-      const ev = !inPanel && S.tut >= 3 && TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && (!G.R.boss || BOSS_TIPS[tp.id]) && tp.when(S));
+      // (a field tip may cut in, but not while a run screen holds the field: those moments are the tutorial's)
+      const held = !!(G.runHeld && G.runHeld());
+      const ev = !inPanel && !held && !momentUp && S.tut >= 3 && TIPS.find(tp => EVENT_TIPS[tp.id] && !seen().tips[tp.id] && (!G.R.boss || BOSS_TIPS[tp.id]) && tp.when(S));
       if (ev) { showTip(ev); return; }
+      // (a step done while the next one's moment is already up gives way at once: the boss falls, the loot is out)
+      const nx = STEPS[S.tut + 1];
+      if (st.done && st.done(S) && nx && nx.wait && nx.wait(S)) { complete(); return; }
       if (st.skip && st.skip(S)) { S.tut++; if (!active()) S.tut = -1; return; }
-      // a step that finishes on its own still stays up long enough to be read
-      if (st.done && st.done(S) && performance.now() - stepAt.t > (st.minT || 3500)) { complete(); return; }
-      render(st.id, t(val(st.text, S)), t('tu_step', S.tut + 1, STEPS.length), st.manual);
-      if (pointDue()) point(val(st.point, S));
+      // a step that finishes on its own still stays up long enough to be read (a moment already lived: at once)
+      if (st.done && st.done(S) && (st.wait ? !st.wait(S) : performance.now() - stepAt.t > (st.minT || 3500))) { complete(); return; }
+      // (a moment of the run: its words over its screen; before it comes, what leads there, or nothing)
+      const up = !!(st.wait && st.wait(S));
+      if (st.wait && !up && typeof st.text !== 'function') { hide(); return; }
+      if (up) stepShown = st.id;
+      render(st.id + (up ? ':up' : ''), t(val(st.text, S)), t('tu_step', S.tut + 1, STEPS.length), st.manual, up);
+      if (pointDue()) point(st.point ? val(st.point, S) : null);
       return;
     }
     if (G.Stage.busyCelebrating && G.Stage.busyCelebrating()) return; // don't talk over a big drop
@@ -280,7 +351,7 @@
     tip = tp; tipT = 9;
     const text = tp.raw ? tp.text() : t(val(tp.text, G.S));
     if (!text) { finishTip(); return; }
-    render('tip:' + tp.id, text, '', true);
+    render('tip:' + tp.id, text, '', true, !!tp.top);
     point(tp.point ? tp.point() : null);
   }
   function finishTip() { if (tip) { seen().tips[tip.id] = 1; nextTipAt = performance.now() + TIP_GAP; } tip = null; hide(); }
@@ -290,9 +361,11 @@
   // on a touch screen the keyboard letters mean nothing: drop them from what the coach says
   const touch = typeof matchMedia !== 'undefined' && matchMedia('(hover: none)').matches;
   const untype = s => s.replace(/ ?\((?:or press )?[A-Z]\)/g, '').replace(/\b([ZXC]) (Smite|Ward|Mend)\b/g, '$2').replace(/ (?:or )?(?:with|press) [ZXCQRTEB]\b/g, '').replace(/ ?\((?:[ZXC] )?\d+ ?s\)/g, m => m.replace(/[ZXC] /, ''));
-  function render(key, text, step, manual) {
+  function render(key, text, step, manual, top) {
     if (touch && typeof text === 'string') text = untype(text);
     const c = $('#coach');
+    // (over a run screen it docks at the very top, clear of the cards)
+    if (c.classList.contains('top') !== !!top) { c.classList.toggle('top', !!top); placedY = null; }
     const k = key + text + step + manual;
     if (k !== lastKey) {
       lastKey = k; shownT = performance.now();
@@ -330,6 +403,8 @@
     const r = w.getBoundingClientRect(), wide = r.width >= 700;
     const width = Math.round(wide ? Math.min(r.width - 20, 400) : Math.min(r.width - 12, 360));
     if (c._w !== width) { c._w = width; c.style.width = width + 'px'; }
+    // (over a run screen: a slim strip along the top edge, as wide as the page allows, so it covers the screen's title only)
+    if (c.classList.contains('top')) { const wt = Math.round(Math.min(window.innerWidth - 12, 620)), x = Math.round((window.innerWidth - wt) / 2); if (c._w !== wt) { c._w = wt; c.style.width = wt + 'px'; } c.style.left = x + 'px'; c.style.top = '4px'; placedX = x; placedY = 4; return; }
     const meters = document.querySelector('.hud.bottom');
     const bottom = meters ? meters.getBoundingClientRect().top : r.bottom;
     const h = c.offsetHeight;
@@ -439,7 +514,8 @@
       if (quiet) return;
       seen().intro = 1;
       G.save && G.save();
-      setTimeout(() => G.UI.pickClass(), 500);
+      // (4.0: the Run Setup; the boot already asked for it and waits for the intro to close)
+      if (G.UI.newSiege && !(G.S.run && G.S.run.on)) setTimeout(() => G.UI.newSiege({ boot: 1 }), 500);
     };
     closeIntro = end;
     const next = () => { G.Audio && G.Audio.unlock(); if (i < slides.length - 1) { i++; show(); } else end(false); };
@@ -467,7 +543,8 @@
 
   // ---------- Help ----------
   Tut.help = function () {
-    const rows = [['ic_coin', 1], ['ic_chest', 2], ['ic_sword', 3], ['h_priest', 11], ['ic_skull', 4], ['ic_town', 17], ['ic_bolt', 15], ['ic_skull', 16], ['ev_meteors', 12], ['ic_vault', 13], ['h_rogue', 5], ['ic_star', 6], ['ic_tomb', 7], ['ic_crown', 8], ['f_crab', 9], ['ic_skull', 10], ['ic_jackpot', 14], [G.SPR.defs.cs_bubble ? 'cs_bubble' : 'ic_coin', 18], [G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', 19], ['ic_clock', 20], ['ic_gear', 21]];
+    // (4.0: the Siege's sheet: the loop first, then the meta, then the details)
+    const rows = [['ic_coin', 1], ['ic_skull', 2], ['ic_star', 3], ['ic_bag', 6], ['ic_skull', 4], ['ic_heart', 7], ['ic_town', 8], [G.SPR.defs.rx_bag ? 'rx_bag' : 'ic_jackpot', 9], ['h_priest', 11], [G.SPR.defs.ic_ember ? 'ic_ember' : 'ic_fame', 12], ['ic_town', 13], ['ic_sword', 17], ['ic_skull', 16], ['ic_trophy', 19], ['ic_bolt', 15], ['h_rogue', 5], [G.SPR.defs.cs_bubble ? 'cs_bubble' : 'ic_coin', 18], ['ic_skull', 10], ['ic_jackpot', 14], ['ic_clock', 20], ['ic_gear', 21]];
     const html = `<div class="helpList">${rows.map(([ic, n]) => `<div class="helpRow">${img(ic, 3)}<div><b>${esc(t('help_' + n))}</b><p>${esc(t('help_' + n + 't'))}</p></div></div>`).join('')}</div>
       <div class="helpRow"><span></span><div><b>${esc(t('help_bars'))}</b><div class="helpBars">${[['ic_skull', 'tipClear'], ['ic_heart', 'tipHp'], ['ic_chest', 'tipChest'], ['ic_coin', 'tipCombo']].map(([ic, k]) => `<p>${img(ic, 2)} ${esc(t(k))}</p>`).join('')}</div></div></div>
       <p style="font-size:15px">${esc(t('keysHint'))}</p>`;
