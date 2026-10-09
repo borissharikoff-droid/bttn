@@ -828,7 +828,7 @@
   // G.campReforge(uid)), Extract (G.runExtract). G.campDone() moves on to the doors; with a run UI it does so on its own
   // after campAuto s. Left to the game (no UI, a bot): Rest under 50% health else Temper, the best recruit, what the gold
   // buys, Enchant All.
-  Object.assign(TUNE, { campAuto: 30, campOffers: 4, marketRoll: 25, marketRollK: 1.5, temper: 2, reforgeSecs: 60 });
+  Object.assign(TUNE, { campAuto: 30, campOffers: 4, marketRoll: 25, marketRollK: 1.5, temper: 2, reforgeSecs: 60, campMend: 1 });
   G.WARES = {
     item: { w: 20, secs: 90 }, orbs: { w: 14, secs: 60, n: 3 }, potion: { w: 14, secs: 40 }, mend: { w: 14, secs: 75 },
     reroll: { w: 10, secs: 50 }, pip: { w: 8, secs: 300, once: 1 }, key: { w: 8, secs: 150 }, gamble: { w: 12, shards: 1 },
@@ -873,7 +873,7 @@
     r.campN = c.n;
     // (a Button broken in the lord's fight mends at the camp, as it would have in the field: 50%, then Rest adds to it;
     // otherwise Rest heals nothing and the camp shows a Button at 0)
-    if (R.btnDown > 0 && S_().hero) { R.btnDown = 0; S_().hero.hp = Math.max(S_().hero.hp, (G.D.heroHp || 0) * 0.5); emit('buttonFixed'); }
+    if (TUNE.campMend && R.btnDown > 0 && S_().hero) { R.btnDown = 0; S_().hero.hp = Math.max(S_().hero.hp, (G.D.heroHp || 0) * 0.5); emit('buttonFixed'); }
     wareRoll(c);
     recruitsRoll(c);
     G.mendRefill();
@@ -1049,11 +1049,38 @@
     if (!r || !r.on) return;
     const slot = G.runSlot(), tag = r.tags[slot];
     r.landT = { slot, mid: 0 };
+    champDecide(slot);
     if (tag === 'treasure' && G.spawnChest) G.spawnChest(Math.max(2, G.rarityCap() - 1), 'golden', false, false, true);
     if (tag === 'shrine' && G.spawnShrine && !R.shrine) G.spawnShrine('power');
     if (tag === 'elite') r.eliteAt = (r.field || 0) + 8;
   }
   G.on('realm', () => { if (on()) landEnter(); });
+
+  // ---------- Land Champions by Heat (DESIGN §5.8; §6.3 rules 1 and 9) ----------
+  // champions.js brings a Land Champion into every land it can. In a Siege at Heat 0 a land has one champLand of the time
+  // (an Elite door's always: G.forceChamp at r.eliteAt); from Heat 1 every land (G.heat().champ). A land drawn without one
+  // is entered in champions.js's own book of the lands whose champion came (S.champRun[slot]; S.run.noChamp[slot] for the
+  // UI and the tests), by the offers' stream (a Daily's lands are the same for everyone).
+  // Heat 9 (G.heat().escort): an act boss brings its Land Champion: when the act boss's bar fills, the champion comes first
+  // (champions.js holds a ready boss while a champion stands) - 'champEscort'(champ)
+  Object.assign(TUNE, { champLand: 0.4 });
+  function champDecide(slot) {
+    const S = S_(), r = runOf();
+    if (!r || !r.on || G.heat().champ || r.tags[slot] === 'elite') return;
+    if (G.runRng() < TUNE.champLand) return;
+    if (!S.champRun || typeof S.champRun !== 'object') S.champRun = {};
+    S.champRun[slot] = 1; (r.noChamp = r.noChamp || {})[slot] = 1;
+  }
+  G.runChampLand = slot => { const r = runOf(); return !!(r && r.on && !(r.noChamp && r.noChamp[slot == null ? G.runSlot() : slot])); };
+  G.on('bossReady', () => {
+    const S = S_(), r = runOf();
+    if (!r || !r.on || !G.heat().escort || G.bossKind(S.depth) !== 'act' || R.champ || !G.forceChamp) return;
+    const slot = G.runSlot();
+    if ((r.escort = r.escort || {})[slot]) return;
+    r.escort[slot] = 1;
+    const c = G.forceChamp();
+    if (c) emit('champEscort', c);
+  });
   G.on('marchEnd', () => {
     const r = runOf();
     if (!r || !r.on) return;
@@ -1343,6 +1370,8 @@
     for (let i = 0; i < (G.D.startPots | 0); i++) if (G.givePotion) G.givePotion();
     if (G.D.startAlly) { const cl = G.CLASSES.map(c => c.id), tr = G.TRAIT_IDS || []; G.recruit(cl[Math.floor(G.runRng() * cl.length)], tr[Math.floor(G.runRng() * tr.length)]); }
     keepsakes(r);
+    // (land 1's Land Champion: drawn now, as every later land's is at its march)
+    champDecide(0);
     // the meta adds its part here (the Hall's Second Wind, rerolls and banishes, keepsakes, the Alchemist's potions, the
     // Tavern V companion, the Button's rule and starting card): change r (pipMax, rerolls, banish, beltMax, mendBonus, belt)
     emit('runSetup', r, setup);

@@ -68,6 +68,9 @@
     // times on a streak's 7th day), a lord's first fall
     // 4.0: one Continue a run, 30 Gems (the very first one ever free)
     contCost: 30, contMax: 1, gemAch: 2, gemStar: 1, gemRelic: 5, gemDaily: 5, gemLord: 5,
+    // 4.0 (DESIGN §4.7): a unique's Codex rank: +codexAffix to its fixed affix values for each rank past the first
+    // (rank 2 +12%, rank 4 +36%; the ranks 2 and 4 also add a rank of its theme perk, g.pk)
+    codexAffix: 0.12,
   });
 
   // ---------- Content ----------
@@ -538,11 +541,20 @@
   // (4.0: a unique carries 2 ranks of its theme perk (G.UQ_THEME), +1 at Codex rank 2 and +1 at rank 4)
   function makeUnique(q, il) {
     const U = G.UNIQUES[q], it = G.ITEM_BY_ID[U.base], h = G.S.hero;
-    const g = { u: ++h.gu, id: U.base, r: it.r, il: Math.max(0, il | 0), e: 0, a: U.a.map(x => x.slice()), q };
+    const c = G.S.codex && G.S.codex[q], rk = c ? c.rank | 0 : 0;
+    // (the Codex rank: its fixed affixes +codexAffix a rank past the first; G.codexAffixK)
+    const ck = codexK(rk);
+    const g = { u: ++h.gu, id: U.base, r: it.r, il: Math.max(0, il | 0), e: 0, a: U.a.map(([k, v]) => [k, ck === 1 ? v : codexVal(v, ck)]), q };
+    if (ck !== 1) g.cx = rk;
     const th = G.UQ_THEME && G.UQ_THEME[q];
-    if (th) { const c = G.S.codex && G.S.codex[q], rk = c ? c.rank | 0 : 0; g.pk = { [th]: 2 + (rk >= 2 ? 1 : 0) + (rk >= 4 ? 1 : 0) }; }
+    if (th) g.pk = { [th]: 2 + (rk >= 2 ? 1 : 0) + (rk >= 4 ? 1 : 0) };
     return g;
   }
+  // a Codex rank's factor on a unique's fixed affixes (rank 0-1: x1; ranks past 4 count as 4), and a value under it
+  // (rounded to 4 places, so the ladder's check can redo it exactly)
+  const codexK = rk => 1 + (TUNE.codexAffix || 0) * Math.max(0, Math.min(3, (rk | 0) - 1));
+  const codexVal = (v, k) => Math.round(v * k * 1e4) / 1e4;
+  G.codexAffixK = codexK;
   G.makeUnique = makeUnique;
   const enchantMul = g => 1 + 0.12 * g.e;
   // Uniques hit like a mythic of their kind
@@ -2010,7 +2022,9 @@
       if (!int(g.e, 0, G.ENCHANT_MAX)) bad.push(s + ':enchant');
       if (g.q != null) {
         const U = G.UNIQUES[g.q];
-        const same = U && U.base === g.id && !g.c && Array.isArray(g.a) && g.a.length === U.a.length && U.a.every(([k, v]) => g.a.some(a => Array.isArray(a) && a[0] === k && a[1] === v));
+        // (4.0: a Codex rank raises its fixed affixes: every value the base x the same rank's factor, ranks 1-4)
+        const fits = k => U.a.every(([n, v]) => g.a.some(a => Array.isArray(a) && a[0] === n && a[1] === (k === 1 ? v : codexVal(v, k))));
+        const same = U && U.base === g.id && !g.c && Array.isArray(g.a) && g.a.length === U.a.length && [1, 2, 3, 4].some(rk => fits(codexK(rk)));
         if (!same) bad.push(s + ':unique');
         continue;
       }

@@ -85,13 +85,15 @@ const SIEGE_POLICY = {
 };
 SIEGE_POLICY.hardcore = SIEGE_POLICY.active;
 SIEGE_POLICY.returner = SIEGE_POLICY.casual;
+// a casual shopper's first pick at the market
+const MARKET_PREF = ['pip', 'mend', 'item', 'potion'];
 // how much a map mod hurts a casual party (the door policy's tie-break: the mildest)
 const MOD_RISK = { calm: 0, treasure: 1, thick: 2, elite: 3, swift: 4, nomend: 5, armored: 6, hexed: 7 };
 function doorPick(G, pol, opts) {
   let i = -1;
   if (pol.tags) for (const t of pol.tags) { i = opts.findIndex(o => o.tag === t && !o.cursed); if (i >= 0) return i; }
   if (pol.mods) { i = opts.findIndex(o => pol.mods.includes(o.mod || 'calm') && !o.cursed); if (i >= 0) return i; }
-  const risk = o => (MOD_RISK[o.mod || 'calm'] || 0) * (o.cursed ? 2 : 1);
+  const risk = o => (MOD_RISK[o.mod || 'calm'] || 0) * (o.cursed ? 2 : 1) + (o.cursed ? 10 : 0);
   i = 0; opts.forEach((o, k) => { if (risk(o) < risk(opts[i])) i = k; });
   return i;
 }
@@ -103,7 +105,22 @@ function siegeBeat(G) {
     const c = r.camp;
     if (pol.extract && c.n === pol.extract.camp && (r.pips | 0) < pol.extract.pips && G.runExtract) { G.runExtract(); return true; }
     if (!c.act && pol.rest != null) G.campAct(S.hero.hp < (G.D.heroHp || 1) * pol.rest ? 'rest' : 'temper');
-    return false; // (the rest of the camp: the game's campAuto)
+    // the market: 'all' (what helps: the game's campAuto), 'one' (the first that helps, by MARKET_PREF), 'none'
+    if (!pol.market || pol.market === 'all') return false;
+    if (c.recruits && !c.hired) {
+      const roles = [S.hero.cls].concat(S.party.map(m => m.cls)).map(k => G.ROLES[k]);
+      const want = !roles.includes('heal') ? 'heal' : !roles.includes('tank') ? 'tank' : 'dps';
+      const i = c.recruits.findIndex(x => G.ROLES[x.cls] === want);
+      G.campRecruit(i < 0 ? 0 : i);
+    }
+    if (pol.market === 'one') {
+      let done = false;
+      for (const k of MARKET_PREF) { if (done) break; c.wares.forEach((w, i) => { if (!done && w.k === k && !w.sold && (k !== 'item' || G.bestWearer(w.g).up) && G.campBuy(i)) done = true; }); }
+    }
+    if (G.D.enchantAll && G.enchantAll) G.enchantAll();
+    if (r.offer) { let g = 0; while (r.offer && g++ < 5) G.cardAuto(); }
+    G.campDone();
+    return true;
   }
   if (r.beat.id === 'doors' && r.doors && r.doors.opts.length) {
     const D_ = r.doors;
