@@ -226,4 +226,6 @@
   };
   // Content names are plain strings; kept as a helper so missing names render empty.
   G.L = function (s) { return s || ''; };
+  // 4.0: a module adds its own English strings here (keys it owns; an existing key is kept unless force)
+  G.tAdd = function (obj, force) { for (const k in obj) if (force || !(k in STR)) STR[k] = obj[k]; };
 })(globalThis.G = globalThis.G || {});
