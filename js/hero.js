@@ -811,14 +811,15 @@
     return g;
   }
   G.gainGear = gainGear;
-  // put g on who; what they wore goes to the bag and, if it is an upgrade for someone else in the party, onto them (its
-  // own replaced piece stays in the bag). -> { who, pct, delta, old, moved: {g, who} | null } or null if refused
+  // put g on who; what they wore goes to the bag and, with auto-equip on, if it is an upgrade for someone else in the party,
+  // onto them (its own replaced piece stays in the bag). -> { who, pct, delta, old, moved: {g, who} | null } or null if refused
   function wearOn(g, who) {
     const slot = G.slotOf(g.id), cur = eqOf(who)[slot] || null;
     const pct = G.wants(who, g), p0 = powerWith(slot, cur, who), p1 = powerWith(slot, g, who);
     if (!equip(g, true, who)) return null;
     let moved = null;
-    if (cur && cur !== g && G.S.hero.bag.includes(cur)) {
+    // (only with auto-equip on: a player who turned it off moves gear by hand; the piece waits in the bag)
+    if (G.S.hero.auto && cur && cur !== g && G.S.hero.bag.includes(cur)) {
       const b2 = G.bestWearer(cur);
       if (b2.up && b2.who !== who && equip(cur, true, b2.who)) moved = { g: cur, who: b2.who, pct: b2.pct };
     }

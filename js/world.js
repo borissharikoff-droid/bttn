@@ -114,6 +114,12 @@
     e.a = m ? G.clamp(m.a + rand(-spread, spread), 0, 1) : rand(0, 1);
     e.p = m ? G.clamp(m.p + rand(-spread, spread) * 2, 0.05, 1.05) : rand(0.6, 0.9);
   }
+  // a ground gear entry's item (4.0, the loot map's part D: a JACKPOT item's Marks come a tier higher, III at most)
+  function gearOf(e) {
+    const g = G.makeGear(e.it.id, e.il);
+    if (e.jp && Array.isArray(g.px)) for (const x of g.px) x[1] = Math.min(3, (x[1] | 0) + 1);
+    return g;
+  }
   // Put one drop on the ground. kind: 'gear' | 'orb' | 'uq'
   function drop(kind, what, m, o) {
     const S = S_(), d = o && o.d != null ? o.d : G.depthNow();
@@ -130,9 +136,11 @@
     if (kind === 'gear') { e.it = what; e.r = what.r; e.il = d + (chance(0.35) ? 1 : 0); }
     else if (kind === 'orb') { e.orb = what; e.r = what === 'grace' ? 6 : what === 'ascent' ? 4 : what === 'ruin' ? 3 : 1; }
     else { e.q = what; e.r = 7; e.il = d + 1; S.st.dryQ = 0; }
+    // (the JACKPOT's haul - o.free, past the cap - carries its Marks a tier higher: gearOf)
+    if (kind === 'gear' && o && o.free) e.jp = 1;
     // 4.0 (ADDENDUM 2: ▲/▼ on rare+ ground labels): inside a Siege a rare or better piece (and a unique) is rolled where it
     // falls, so its label can say whether it is an upgrade (G.groundCmp); the pickup takes that very item
-    if (G.inSiege && G.inSiege() && !R.rift && ((kind === 'gear' && e.r >= 2) || kind === 'uq')) e.g = kind === 'uq' ? G.makeUnique(e.q, e.il) : G.makeGear(e.it.id, e.il);
+    if (G.inSiege && G.inSiege() && !R.rift && ((kind === 'gear' && e.r >= 2) || kind === 'uq')) e.g = kind === 'uq' ? G.makeUnique(e.q, e.il) : gearOf(e);
     place(e, m, (o && o.spread) || 0.025);
     if (o && o.at) { e.a = G.clamp(o.at.a + rand(-0.16, 0.16), 0, 1); e.p = G.clamp(o.at.p + rand(-0.22, 0.18), 0.2, 0.95); }
     e.life = kind === 'orb' ? TUNE.lingerOrb : kind === 'uq' ? TUNE.lingerUnique : what.r >= 3 ? TUNE.lingerGood : TUNE.lingerGear;
@@ -260,7 +268,7 @@
     if (i < 0) return null;
     R.ground.splice(i, 1);
     let res = null;
-    if (e.k === 'gear') res = G.lootItem(e.it, 'ground', e.g || G.makeGear(e.it.id, e.il));
+    if (e.k === 'gear') res = G.lootItem(e.it, 'ground', e.g || gearOf(e));
     else if (e.k === 'orb') { h.orbs[e.orb] = (h.orbs[e.orb] || 0) + 1; S.st.orbs = (S.st.orbs || 0) + 1; }
     else if (e.k === 'uq') {
       const U = G.UNIQUES[e.q], it = G.ITEM_BY_ID[U.base];
