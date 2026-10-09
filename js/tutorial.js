@@ -303,6 +303,10 @@
     if (tip && G.R.boss && !BOSS_TIPS[tip.id]) { tip = null; hide(); }
     // (4.0: but never into a moment of the run the tutorial is about: the tip waits, unseen)
     if (tip && momentUp && !tip.top) { tip = null; hide(); }
+    // (4.0: nor over a choice of the run - a card, the loot moment, camp, doors: on a phone the bubble would sit on the
+    // card sheet. A field tip gives way, unseen, and comes back on the field; a run tip (top) is about that screen)
+    const runUp = !!(S.run && S.run.on && G.runHeld && G.runHeld());
+    if (tip && runUp && !tip.top && TIPS.includes(tip)) { tip = null; hide(); }
     if (tip) {
       tipT -= 0.12;
       if (tipT <= 0 || (tip.until && tip.until(S))) { finishTip(); return; }
@@ -342,6 +346,7 @@
       if (G.R.boss && !BOSS_TIPS[tp.id]) continue;
       // tips about something on screen right now can't wait; the rest keep their distance
       if (rest && !EVENT_TIPS[tp.id]) continue;
+      if (runUp && !tp.top) continue;
       if (tp.when(S)) { showTip(tp); return; }
     }
     hide();

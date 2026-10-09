@@ -2000,7 +2000,10 @@
     if (R.lsMobMax == null) R.lsMobMax = TUNE.mobMax;
     // (the page lowered its own cap meanwhile (a narrow window): that is the one to put back)
     else if (TUNE.mobMax !== R.lsMobSet) R.lsMobMax = TUNE.mobMax;
-    TUNE.mobMax = R.lsMobSet = Math.min(R.lsMobMax, R.lastStand ? R.lastStand.cap : G.lastStandCap());
+    // (the quality governor may step while it runs: the Stand's cap follows it)
+    const cap = G.lastStandCap();
+    if (R.lastStand) R.lastStand.cap = cap;
+    TUNE.mobMax = R.lsMobSet = Math.min(R.lsMobMax, cap);
   }
   function finaleCrowdOff() {
     if (R.lsMobMax == null) return;
@@ -2022,12 +2025,11 @@
   };
   if (G.hook) G.hook('tick', dt => {
     const L = R.lastStand, r = runOf();
-    if (L) L.cap = G.lastStandCap();
+    // (the crowd cap of the finale, L.cap with it)
     if (L || R.lsMobMax != null || (R.boss && R.boss.final)) finaleCrowd();
     if (!L) return;
     if (!r || !r.on) { R.lastStand = null; return; }
     L.t -= dt;
-    // (the quality governor may step while it runs: the cap follows it, above)
     if (G.hordeLoop) L.packs += G.hordeLoop(L, dt, L.cap, L.every);
     else { L.acc += dt; while (L.acc >= L.every && R.mobs.length < L.cap) { L.acc -= L.every; if (G.spawnPack) G.spawnPack(false, G.rng()); L.packs++; } if (L.acc >= L.every) L.acc = 0; }
     if (L.t <= 0) {
