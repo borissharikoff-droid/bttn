@@ -5,7 +5,7 @@
   const { clamp, chance, weighted, pick, rand, emit } = G;
 
   const TUNE = G.TUNE = {
-    chestNeed: 10,          // clicks per chest before upgrades
+    chestNeed: 300,         // clicks per chest (4.0: 10 -> 300, about one chest every 30 s of holding: chests are few, each an event)
     autoChestFactor: 0.1,   // auto clicks give less chest progress than real ones
     depthGold: 1.08,        // gold multiplier per depth
     bossBase: 400,          // boss hp at depth 0
@@ -18,16 +18,20 @@
     // 2.5: the game is balanced for the Button held down (10 clicks a second); faster clicking, or an
     // autoclicker, counts no more than that
     maxManualCps: 10,
-    wispMin: 50, wispMax: 120, wispLife: 13,
+    wispMin: 50, wispMax: 120, wispLife: 13, wispRain: 2,
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
-    bossMin: 9, bossMinLord: 16, bossMinOld: 0.25, bossClickK: 0.9,
+    // 4.0: a lord is the run's check (16 -> 20 s); an act boss 24 s and the Mad Button 30 s, each with half again the
+    // health (and an act boss one more phase, the Mad Button one more affix)
+    bossMin: 9, bossMinLord: 20, bossMinAct: 24, bossMinFinal: 30, bossMinOld: 0.25, bossClickK: 0.9, actHp: 1.5, finalHp: 1.5,
     // 2.3: a boss out of time enrages for this long (s); DOOM from this depth on; Rally per failed try and its cap
     enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.15, rallyMax: 4,
     // boss affixes from this depth; a Shield cracked stays down this long; Regenerating heals this share a second
     affixFrom: 8, shieldDown: 10, bossRegen: 0.008,
-    rarityAt: [0, 0, 2, 5, 12, 24, 40], ascFrom: 15,
+    // 4.0: rarity opens with this run's depth (not the lifetime best): rare from depth 2, epic 4, legendary 7, mythic 10,
+    // divine 13 (+ Heat/3). (ascFrom is gone with the voluntary ascension; kept for old readers)
+    rarityAt: [0, 0, 2, 4, 7, 10, 13], ascFrom: 15,
     smallChestK: 0.1,       // the little chests the Horde drops are worth a tenth of a real one
     smallItem: 0.05,        // and hold an item one time in twenty
     overflowK: 0.5,         // a full field: the lowest chest bursts and half of it is lost
@@ -38,6 +42,9 @@
     // 3.6: a zone is fought for at least this long (s of field time) before its boss comes: the clear bar can't
     // fill faster (it filled in a second or two after each march for a strong party); half that on ground already won
     zoneMin: 24, zoneMinOld: 12,
+    // 4.0 attrition: a boss kill heals the Button and the party this share, a lord this share; Mend is charges (per land,
+    // each heals mendHeal, mendLock s apart); DOOM takes this share of what it would (by Heat: 0-2, 3-5, 6+)
+    healBoss: 0.1, healLord: 0.25, mendCharges: 2, mendHeal: 0.35, mendLock: 8, doomK: [0.64, 0.8, 1],
   };
 
   // ---------- State ----------
@@ -47,7 +54,9 @@
   // The season: a save from an earlier one starts the game over (only its settings and name carry on).
   // 2.3 wiped everything once, since all progress so far was made while the game was far too easy.
   // the season: saves from an earlier one start over (3.1: season 2, a clean start for everyone)
-  const WIPE = G.WIPE = 2;
+  // 4.0: season 3, the Siege. An older save is converted, not thrown away: G.foundersGift (js/run.js) keeps the Gems,
+  // pets, achievements and collection and turns gear, town and fame into Embers and Fame (see deserialize)
+  const WIPE = G.WIPE = 3;
   G.oldSeason = data => !!data && typeof data === 'object' && (data.wipe || 0) < WIPE;
   function newState() {
     return {
@@ -85,10 +94,22 @@
       // 3.6: Gems (kept for good: they continue a fallen run), the continues used this run, the lords that paid
       // theirs, and a fall waiting on the player's choice (continue here, or a new run)
       gems: 0, runConts: 0, gemLords: {}, fallen: null,
+      // 4.0: the Siege. run: the one being played (js/run.js; between runs {on: 0, phase: 'summary' | 'setup'});
+      // Embers (the Furnace's currency: town, Star Chart); Heat won (the highest Heat with a win, -1 for none) and each
+      // Button's best (stickers); the last setup (AGAIN) and the last run's summary; the Hall of the Fallen (last 12)
+      run: { on: 0, phase: 'setup' }, embers: 0, emberTotal: 0, heatWon: -1, heatStk: {}, lastSetup: null, lastRun: null, fallen12: [],
+      // the Codex: every unique and relic ever collected ({q: {n: copies, rank, relic}}; ranked up by duplicates, 2 at
+      // most until the Museum raises it); the founders' gift (an earlier season's save, converted: js/run.js)
+      codex: {}, founders: null,
+      // the Daily Siege: today's key and the attempts so far (the first is ranked)
+      dailySiege: { day: '', tries: 0 },
     };
   }
   G.newState = () => { const s = newState(); if (G.ensureHero) G.ensureHero(s); return s; };
   G.S = newState();
+  // 4.0: is a Siege being played (not the summary or setup between runs)?
+  const inSiege = () => !!(G.S && G.S.run && G.S.run.on);
+  G.inSiege = inSiege;
 
   // Runtime-only state (not saved)
   const R = G.R = {
@@ -173,15 +194,19 @@
   function recalc() {
     const S = G.S;
     const d = baseD();
-    for (const u of G.UPGRADES) { const L = S.upg[u.id] || 0; if (L) u.fx(L, d); }
+    // (4.0: an upgrade that left the run shop does nothing, whatever an old save holds)
+    for (const u of G.UPGRADES) { const L = S.upg[u.id] || 0; if (L && !u.off) u.fx(L, d); }
     for (const n of G.NODES) { const L = S.nodes[n.id] || 0; if (L) n.fx(L, d); }
     for (const l of G.LEGACY) { const L = S.legacy[l.id] || 0; if (L) l.fx(L, d); }
     if (G.heroEcon) G.heroEcon(d);
-    // 3.3: this run's blessing
-    if (G.blessFx) G.blessFx(d);
-    // Torment pays: gold, XP, luck and fame
-    // (fame is paid for the highest Torment a boss was beaten at on this run's deepest ground, not for the dial's setting)
-    { const T = torment(); d.goldMult *= T.gold; d.xpMult = (d.xpMult || 1) * T.xp; d.luck += T.luck; d.fameMult = (d.fameMult || 1) * (1 + 0.12 * Math.min(S.tormentRun || 0, TORMENT_MAX)); }
+    // 4.0: the meta's capped bonuses (Hall of Fame, Town, Star Chart: their own modules) go in here, before the totals
+    if (G.HOOKS && G.HOOKS.meta) for (const f of G.HOOKS.meta) f(d);
+    // 4.0: the Button's rule (G.btnFx, js/blessings.js -> Buttons) where the run's blessing was; a blessing does nothing
+    // inside a Siege (the blessing cards are retired: their effects become Button rules and Power-shrine boons)
+    if (G.btnFx) G.btnFx(d);
+    else if (G.blessFx && !(S.run && S.run.on)) G.blessFx(d);
+    // Heat: gold (its Lean Purse rule), and what the 3.x Torment paid in XP and luck (nothing now); Fame is paid in js/run.js
+    { const T = torment(); d.goldMult *= T.gold; d.xpMult = (d.xpMult || 1) * T.xp; d.luck += T.luck; }
 
     // Collection bonuses
     const sums = {};
@@ -208,7 +233,7 @@
     // Achievements & fame
     d.achCount = Object.keys(S.ach).length;
     d.goldMult *= 1 + 0.01 * d.achCount;
-    d.goldMult *= 1 + 0.01 * S.fameTotal;
+    // (4.0: no hidden power: fame no longer multiplies gold; it buys the capped Hall of Fame)
 
     // Heroes
     let total = 0, classes = 0;
@@ -259,31 +284,40 @@
   }
   G.recalc = recalc;
 
-  // ---------- Torment (2.3): pick your own difficulty, and be paid for it ----------
-  // One level opens with each land conquered, up to ten. Each level makes the Horde and the bosses
-  // tougher and harder-hitting, and pays more of everything; from level 3 the rarer gear comes sooner.
+  // ---------- Heat (4.0; the 2.3 Torment re-made): the Siege's difficulty ladder ----------
+  // Chosen at setup only, 0..heatWon+1 (Heat N opens with a win at N-1). Each level: Horde and boss health x1.15, bites
+  // x1.10, Fame x(1+0.2n), Embers x(1+0.15n), rarity +n/3, drops +15%, and the named rules (data.js G.HEAT_RULES).
+  // The table keeps the Torment's field names (mobHp, bite, bossHp, n, drop, rarity...): champions, events, rare
+  // visitors and relics read them as G.torment().
   const TORMENT_MAX = G.TORMENT_MAX = 10;
-  // (a Rift is fought at its own level: Torment neither hardens it nor pays in it. any: the chosen level anyway, for the dial)
-  // (3.6: one frozen table per level, made once: this runs for every mob born and every kill)
   const T_BY_N = [];
-  function torment(any) {
-    const n = G.S && (any || !R.rift) ? Math.min(G.S.torment || 0, tormentMax()) : 0;
-    return T_BY_N[n] || (T_BY_N[n] = Object.freeze({ n, mobHp: Math.pow(1.35, n), bite: Math.pow(1.2, n), bossHp: Math.pow(1.35, n), bossTime: 1 + 0.1 * n, horde: 1 + 0.08 * n,
-      affix: (n >= 4 ? 1 : 0) + (n >= 8 ? 1 : 0), gold: 1 + 0.35 * n, xp: 1 + 0.3 * n, luck: 0.12 * n, drop: 1 + 0.15 * n, fame: 1 + 0.12 * n, rarity: Math.floor(n / 3) }));
+  const heatNow = () => { const r = G.S && G.S.run; return r && r.on ? Math.max(0, Math.min(TORMENT_MAX, r.heat | 0)) : 0; };
+  G.heatNow = heatNow;
+  function torment() {
+    const n = R.rift ? 0 : heatNow();
+    return T_BY_N[n] || (T_BY_N[n] = Object.freeze({ n, mobHp: Math.pow(1.15, n), bite: Math.pow(1.1, n), bossHp: Math.pow(1.15, n),
+      bossTime: 1 + 0.05 * n, horde: 1, affix: 0, lordAffix: n >= 3 ? 1 : 0, gold: n >= 2 ? 0.75 : 1, xp: 1, luck: 0,
+      drop: 1 + 0.15 * n, fame: 1 + 0.2 * n, embers: 1 + 0.15 * n, rarity: Math.floor(n / 3),
+      doom: TUNE.doomK[n <= 2 ? 0 : n <= 5 ? 1 : 2], startHp: n >= 4 ? 0.8 : 1, rest: n >= 4 ? 0.25 : 0.4, cards: n >= 5 ? 2 : 3, noCont: n >= 5, reaper: n >= 7,
+      champ: n >= 1, cursed: n >= 8, escort: n >= 9, madX: n >= 10 ? 2 : 1, pips: n >= 10 ? 2 : 0 }));
   }
-  function tormentMax() { return Math.min(TORMENT_MAX, Math.floor((G.S.bestDepth || 0) / G.REALM_SIZE)); }
+  // the highest Heat this player may choose: one above their best win (0 before the first)
+  function tormentMax() { return Math.max(0, Math.min(TORMENT_MAX, (G.S.heatWon == null ? -1 : G.S.heatWon) + 1)); }
   G.torment = torment; G.tormentMax = tormentMax;
+  G.heat = torment; G.heatMax = tormentMax;
+  // (the 3.x dial: Heat is chosen at setup only, so during a run this does nothing; between runs it sets the next one's)
   G.setTorment = function (n) {
     const S = G.S;
     n = Math.max(0, Math.min(tormentMax(), n | 0));
-    if (n === (S.torment || 0) || R.boss || R.rift) return false;
-    S.torment = n; R.dirty = true; recalc();
+    if ((S.run && S.run.on) || R.boss || R.rift) return false;
+    S.torment = n; S.lastSetup = Object.assign({}, S.lastSetup || {}, { heat: n });
+    R.dirty = true; recalc();
     emit('torment', n);
     return true;
   };
-  // Gear rarity opens with depth: rare from depth 2, epic 5, legendary 12, mythic 24, divine 40 (or a Rift that deep)
+  // Gear rarity opens with this run's depth: rare from depth 2, epic 4, legendary 7, mythic 10, divine 13, + Heat/3
   function rarityCap() {
-    const S = G.S, reach = Math.max(S.bestDepth || 0, G.riftDepth && S.rift ? G.riftDepth(S.rift.best || 0) : 0);
+    const S = G.S, reach = Math.max(S.maxDepth || 0, S.depth || 0);
     let c = 0;
     TUNE.rarityAt.forEach((at, r) => { if (reach >= at) c = r; });
     return Math.min(6, c + torment().rarity);
@@ -324,7 +358,7 @@
 
   function manualClick(x, y) {
     const S = G.S;
-    if (R.town || S.fallen) return null; // the field waits while the party is in town (or the Button is in pieces)
+    if (R.town || S.fallen || (G.runHeld && G.runHeld())) return null; // the field waits while the party is in town (or the Button is in pieces, or the Siege holds)
     const now = performance.now();
     const mt = R.manualTimes;
     while (mt.length && now - mt[0] > 1000) mt.shift();
@@ -541,7 +575,7 @@
   // Player tapped a chest on the field.
   function clickChest(c) {
     const S = G.S;
-    if (R.town || !S.chests.includes(c)) return;
+    if (R.town || !S.chests.includes(c) || (G.runHeld && G.runHeld())) return;
     if (c.mod === 'frozen') {
       c.hp -= critRoll() ? 3 : 1;
       emit('chestHit', c);
@@ -629,20 +663,24 @@
     { id: 'quests', v: 0.1, fx: (L, d) => { d.questMult *= 1 + 0.1 * L; } },
     { id: 'stars', v: 0.06, fx: (L, d) => { d.essMult *= 1 + 0.06 * L; } },
     { id: 'pets', v: 0.06, fx: (L, d) => { d.petMult *= 1 + 0.06 * L; } },
-    { id: 'temple', v: 0.06, fx: (L, d) => { d.fameMult *= 1 + 0.06 * L; } },
+    // (4.0: the Temple opens the Heat dial and the Hall of Fame; levels II-V: Fame +5% each)
+    { id: 'temple', v: 0.05, fx: (L, d) => { d.fameMult *= 1 + 0.05 * Math.max(0, L - 1); } },
     { id: 'rift', v: 0.06, fx: (L, d) => { d.chestProg += 0.06 * L; } },
   ];
   G.BLD_BY_ID = {}; G.BLD.forEach(b => { G.BLD_BY_ID[b.id] = b; });
   G.BLD_MAX = 5;
   G.bldLvl = id => ((G.S.bld || {})[id] || 0);
   G.townLvl = () => G.BLD.reduce((a, b) => a + G.bldLvl(b.id), 0);
-  G.bldCost = id => Math.round(800 * Math.pow(20, G.bldLvl(id)));
+  // 4.0: the town is built with Embers (the Furnace's), not the run's gold: 50 / 150 / 400 / 1,000 / 2,500 a level
+  // (so a run's gold can't turn into lasting power). What each level gives becomes mostly unlocks (the meta's, §4.5)
+  G.BLD_COST = [50, 150, 400, 1000, 2500];
+  G.bldCost = id => G.BLD_COST[Math.min(G.BLD_COST.length - 1, G.bldLvl(id))];
   G.buildUp = function (id) {
     const S = G.S, b = G.BLD_BY_ID[id];
     if (!b || G.bldLvl(id) >= G.BLD_MAX || (G.bldOpen && !G.bldOpen(id))) return false;
     const c = G.bldCost(id);
-    if (S.gold < c) return false;
-    S.gold -= c; S.bld = S.bld || {}; S.bld[id] = G.bldLvl(id) + 1;
+    if ((S.embers || 0) < c) return false;
+    S.embers -= c; S.bld = S.bld || {}; S.bld[id] = G.bldLvl(id) + 1;
     R.dirty = true; recalc();
     emit('build', id, S.bld[id]);
     return true;
@@ -670,7 +708,13 @@
   // ---------- Bosses ----------
   // Past the Mad Button the lands come round again, corrupted: cycle 1 at depth 40, 2 at 80…
   const SPAN = () => G.REALMS.length * G.REALM_SIZE;
-  function realmIndex(d) { return Math.floor(Math.max(0, d) / G.REALM_SIZE) % G.REALMS.length; }
+  // 4.0: inside a Siege the land is the route's (S.run.route[land slot], chosen at doors); past it (Push On) and
+  // outside a run, the 3.x order
+  function realmIndex(d) {
+    const k = Math.floor(Math.max(0, d) / G.REALM_SIZE), run = G.S && G.S.run;
+    if (run && run.on && run.route && k < run.route.length && run.route[k] != null) return run.route[k];
+    return k % G.REALMS.length;
+  }
   G.realmIndex = realmIndex;
   G.cycle = d => Math.floor(Math.max(0, d) / SPAN());
   const ROMAN = ['', '', ' II', ' III', ' IV', ' V', ' VI', ' VII', ' VIII', ' IX', ' X'];
@@ -678,6 +722,18 @@
   G.realmName = d => G.corrupt(G.REALMS[realmIndex(d)].name, d);
   function isLord(d) { return d % G.REALM_SIZE === G.REALM_SIZE - 1; }
   G.isLord = isLord;
+  // 4.0 (Wave 0): the Mad Button and the First Hand by their land, not by a depth (3.6 checked 39 and 64, which with three
+  // zones a land are no lords at all, so their sure drops and the Mad Button's record never came)
+  const realmIdOf = d => (G.REALMS[realmIndex(d)] || {}).id;
+  G.isMadLord = b => !!(b && b.lord && realmIdOf(b.d) === 'void');
+  G.isHandLord = b => !!(b && b.lord && realmIdOf(b.d) === 'sky');
+  // what a boss is in a Siege: 'final' (the Mad Button, the 6th land's lord), 'act' (lands 2 and 4), 'lord' or 'boss'
+  function bossKind(d) {
+    if (!isLord(d)) return 'boss';
+    if (inSiege() && G.SIEGE) { if (d === G.SIEGE.final) return 'final'; if (G.SIEGE.actBoss.includes(d)) return 'act'; }
+    return 'lord';
+  }
+  G.bossKind = bossKind;
   function bossHp(d) {
     return TUNE.bossBase * Math.pow(TUNE.bossGrowth, d) * (isLord(d) ? TUNE.lordHp : 1);
   }
@@ -711,6 +767,7 @@
     if (!b.move) {
       if ((b.moveT -= dt) > 0) return;
       const set = MOVE_ORDER[b.lord ? 'lord' : 'boss'], order = set[Math.min(set.length, b.phase || 1) - 1];
+      // (an act boss's 4th phase fights like a lord's 3rd)
       let k = order[(b.moveN = (b.moveN || 0) + 1) % order.length];
       if (!moveOk(b, k)) k = 'slam';
       const M = G.BOSS_MOVES[k], need = M.need + (b.lord ? 1 : 0);
@@ -719,6 +776,10 @@
       b.move = { k, t: wind, T: wind, n: 0, need, wp: 0.1 + G.rng() * 0.8 };
       emit('bossMove', b);
       return;
+    }
+    // 4.0: the Ward assist: at Heat 0-2, with auto-cast on (the hero toggle), Ward goes up on a telegraphed DOOM if it's ready
+    if (b.move.k === 'doom' && b.move.t <= 0.6 && !(R.ward > 0) && inSiege() && heatNow() <= 2 && G.S.hero && G.S.hero.cast && G.powerReady('ward')) {
+      G.usePower('ward'); emit('wardAssist', b);
     }
     if ((b.move.t -= dt) > 0) return;
     // the move lands
@@ -742,9 +803,13 @@
     // Doom: most of everyone's health at once. A Button that isn't full breaks, and the party goes down with it
     if (k === 'doom' && G.blowParty) {
       const up = G.partyUnits ? G.partyUnits().filter(u => !(u.down > 0)) : [];
+      // 4.0: DOOM by Heat: x0.64 at Heat 0-2 (the Button 61%/54% for a lord/boss), x0.8 at 3-5, in full from 6
+      const n = heatNow(), dk = inSiege() ? TUNE.doomK[n <= 2 ? 0 : n <= 5 ? 1 : 2] : 1;
+      // (an unanswered DOOM is remembered: the run summary names it if the party falls soon after)
+      if (!(R.ward > 0)) R.doomAt = ptime();
       // (never the rage on top: a Button at full health always survives it)
-      G.blowParty('button', 0, b.lord ? 0.95 : 0.85, 'doom');
-      for (const u of up) if (R.boss === b) G.blowParty(u.who, 0, b.lord ? 0.9 : 0.8, 'doom');
+      G.blowParty('button', 0, (b.lord ? 0.95 : 0.85) * dk, 'doom');
+      for (const u of up) if (R.boss === b) G.blowParty(u.who, 0, (b.lord ? 0.9 : 0.8) * dk, 'doom');
     }
     emit('bossMoveLand', b, k);
   }
@@ -760,12 +825,16 @@
   R.pw = { smite: 0, ward: 0, mend: 0 };
   // Smite needs something to hit: not a boss shrugging off a phase change, not an empty field
   const smiteTarget = () => R.boss ? !R.boss.dead && !(R.boss.inv > 0) : R.mobs.some(m => !m.dead && m.p > 0.45 && m.kind !== 'guardian');
-  G.powerReady = id => !R.town && !(R.pw[id] > 0) && !!(G.S.hero && G.S.hero.cls) && !(R.stun > 0) && (id !== 'smite' || smiteTarget());
+  // 4.0: Mend is charges in a Siege (TUNE.mendCharges a land, +1 with a healer standing; refilled at each new land and at
+  // camp), mendLock s apart; a land with No Mending (a map mod) has none
+  G.mendOk = () => !inSiege() || ((G.S.run.mend | 0) > 0 && !(G.landNow && G.landNow().noMend));
+  // (4.0: not while the Siege holds the field: a card or the loot moment is a pause, not a free heal)
+  G.powerReady = id => !R.town && !(G.runHeld && G.runHeld()) && !(R.pw[id] > 0) && !!(G.S.hero && G.S.hero.cls) && !(R.stun > 0) && (id !== 'smite' || smiteTarget()) && (id !== 'mend' || G.mendOk());
   G.usePower = function (id) {
     const P = G.POWERS[id];
     if (!P || !G.powerReady(id)) return false;
-    R.pw[id] = P.cd;
-    const S = G.S;
+    const S = G.S, charge = id === 'mend' && inSiege();
+    R.pw[id] = charge ? TUNE.mendLock : P.cd;
     if (id === 'smite') {
       const b = R.boss;
       if (b && !b.dead) {
@@ -776,9 +845,10 @@
     } else if (id === 'ward') {
       R.ward = P.dur;
     } else if (id === 'mend') {
-      const h = S.hero;
-      if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.35);
-      if (G.mendParty) G.mendParty(0.4);
+      const h = S.hero, k = charge ? TUNE.mendHeal : 0.35;
+      if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * k);
+      if (G.mendParty) G.mendParty(charge ? TUNE.mendHeal : 0.4);
+      if (charge) { S.run.mend = Math.max(0, (S.run.mend | 0) - 1); emit('mendCharge', S.run.mend, S.run.mendMax); }
     }
     S.st.powers = (S.st.powers || 0) + 1;
     emit('power', id);
@@ -806,7 +876,7 @@
     // an invasion is fought out first
     if (R.boss || R.rift || !R.bossReady || R.inv || R.town || S.fallen) return false;
     const d = S.depth;
-    const lord = isLord(d);
+    const lord = isLord(d), kind = bossKind(d);
     const max = bossMax(d);
     // a boss that got away comes back with the wounds it took
     const scar = S.scar && S.scar.d === d ? S.scar.k : 1;
@@ -816,14 +886,16 @@
     const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
     const time = (D.bossTime + (lord ? 15 : 0)) * torment().bossTime;
-    R.boss = { d, lord, hp, max, scar, rally, phase: 1, inv: 0, t: time, T: time, moveT: lord ? 4 : 6, stagger: 0,
+    // (4.0: kind 'boss' | 'lord' | 'act' | 'final'; phases: a boss 2, a lord and the Mad Button 3, an act boss 4)
+    R.boss = { d, lord, kind, act: kind === 'act', final: kind === 'final', phases: kind === 'act' ? 4 : lord ? 3 : 2,
+      hp, max, scar, rally, phase: 1, inv: 0, t: time, T: time, moveT: lord ? 4 : 6, stagger: 0,
       realm: realmIndex(d), sprite: lord ? G.REALMS[realmIndex(d)].lord : G.REALMS[realmIndex(d)].minion };
     // 2.3: from the second land on, bosses carry affixes, the same ones at the same depth every try
     R.boss.affix = bossAffixes(d);
     if (R.boss.affix.includes('shielded')) R.boss.sh = 0;
     // a boss that comes back wounded starts in the phase its health calls for
     R.boss.phase = phaseAt(R.boss);
-    if (lord && R.boss.phase === 3) R.boss.rage = 1;
+    if (lord && R.boss.phase === R.boss.phases) R.boss.rage = 1;
     R.bossReady = false; R.bossIn = null;
     emit('bossStart', R.boss);
     return true;
@@ -831,7 +903,9 @@
   G.startBoss = startBoss;
   const AFFIXES = ['shielded', 'vampiric', 'hasted', 'regen', 'frenzied'];
   function bossAffixes(d) {
-    const n = (d >= TUNE.affixFrom ? 1 : 0) + (d >= 30 ? 1 : 0) + (isLord(d) && d >= 14 ? 1 : 0) + (G.torment ? G.torment().affix : 0);
+    // (4.0: Heat 3+ gives lords one more; the Mad Button one more; G.bossAffixAdd(d): more from a map mod, e.g. an Elite lord)
+    const n = (d >= TUNE.affixFrom ? 1 : 0) + (d >= 30 ? 1 : 0) + (isLord(d) && d >= 14 ? 1 : 0) + (isLord(d) ? torment().lordAffix : 0)
+      + (bossKind(d) === 'final' ? 1 : 0) + (G.bossAffixAdd ? G.bossAffixAdd(d) | 0 : 0);
     const rnd = G.seeded(d * 7919 + 13), pool = AFFIXES.slice(), out = [];
     for (let i = 0; i < Math.min(n, pool.length); i++) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
     return out;
@@ -841,16 +915,20 @@
   // How much of this depth's boss the Warden would take down in the time limit, without clicking (1 = all of it)
   // a boss's health: its depth's, but never less than a real fight's worth of the party's damage
   function bossMax(d) {
-    const curve = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1);
+    // 4.0: an act boss and the Mad Button have half again the health of a lord (the Mad Button twice that at Heat 10)
+    const kind = bossKind(d), T = torment(), kx = kind === 'act' ? TUNE.actHp : kind === 'final' ? TUNE.finalHp : 1;
+    const curve = G.bossHp(d) * (G.omen ? G.omen().bossHp : 1) * kx;
     // (the party's damage and the Hand's own: clicks at the pace you've been clicking)
     // (at the steady strength: a tome, a shrine or an event running when the boss is called doesn't make it tougher;
     // and the clicks count at half, since nobody keeps up the same pace all fight)
     const clickDps = (R.cps || 0) * TUNE.bossClickK * (D.heroHitBase || D.heroHit || 0) * TUNE.clickVolley * (1 + D.crit * (D.critMult - 1));
-    // a full fight only on new ground: a depth already beaten (climbing back after an ascension) goes quicker
-    const fresh = d >= (G.S.bestDepth || 0) ? 1 : TUNE.bossMinOld;
-    const T = torment();
-    const floor = ((D.heroDpsBase || D.heroDps || 0) + clickDps) * (D.bossMult || 1) * (isLord(d) ? TUNE.bossMinLord : TUNE.bossMin) * fresh * T.bossTime;
-    return Math.max(curve * T.bossHp, floor);
+    // a full fight only on new ground: a depth already beaten goes quicker. 4.0: new to THIS run (S.maxDepth is the run's),
+    // so every zone of a Siege is a full fight, and only one fought again after a wipe's push-back is quick
+    const fresh = d >= (G.S.maxDepth || 0) ? 1 : TUNE.bossMinOld;
+    // the least a fight lasts: a boss 9 s, a lord 20, an act boss 24, the Mad Button 30 (s of the party's damage)
+    const secs = kind === 'final' ? TUNE.bossMinFinal : kind === 'act' ? TUNE.bossMinAct : kind === 'lord' ? TUNE.bossMinLord : TUNE.bossMin;
+    const floor = ((D.heroDpsBase || D.heroDps || 0) + clickDps) * (D.bossMult || 1) * secs * fresh * T.bossTime;
+    return Math.max(curve * T.bossHp, floor) * (kind === 'final' ? T.madX : 1);
   }
   G.bossMax = bossMax;
   function bossOdds() {
@@ -862,9 +940,11 @@
   }
   G.bossOdds = bossOdds;
 
-  // Phases: a lord changes at 66% and 33% of its health, a boss at 50%. It shrugs off
-  // everything for a moment, throws the Horde back, hits the whole party and fights harder.
-  function phaseAt(b) { return b.lord ? (b.hp < b.max * 0.33 ? 3 : b.hp < b.max * 0.66 ? 2 : 1) : (b.hp < b.max * 0.5 ? 2 : 1); }
+  // Phases: a lord changes at 66% and 33% of its health, a boss at 50% (4.0: an act boss, four phases, at 75/50/25%). It
+  // shrugs off everything for a moment, throws the Horde back, hits the whole party and fights harder.
+  const PH = { 2: [0.5], 3: [0.66, 0.33], 4: [0.75, 0.5, 0.25] };
+  const phasesOf = b => b.phases || (b.lord ? 3 : 2);
+  function phaseAt(b) { const th = PH[phasesOf(b)] || PH[2]; let p = 1; for (const x of th) if (b.hp < b.max * x) p++; return p; }
   function hitBoss(dmg) {
     const b = R.boss;
     if (!b || b.dead) return;
@@ -879,11 +959,11 @@
     if (b.hp <= 0) bossWin();
     else if (phaseAt(b) > b.phase) {
       // one phase at a time: a huge hit stops at the next phase's floor
-      const fl = (b.lord ? [0.66, 0.33, 0] : [0.5, 0])[b.phase] || 0;
+      const fl = (PH[phasesOf(b)] || PH[2])[b.phase] || 0;
       if (fl > 0) b.hp = Math.max(b.hp, fl * b.max + 1);
       b.phase++; b.inv = 1.6; b.move = null; b.moveT = 1.5;
       // the last phase of a lord is its rage: twice the adds, harder bites
-      if (b.lord && b.phase === 3) { b.rage = 1; emit('bossRage', b); }
+      if (b.lord && b.phase === phasesOf(b)) { b.rage = 1; emit('bossRage', b); }
       for (const m of R.mobs) m.p = Math.max(-0.1, m.p - 0.3);
       const a = G.mobAtk(b.d);
       emit('bossPhase', b);
@@ -897,7 +977,7 @@
     b.dead = true;
     const d = b.d;
     const first = S.st.bossKills === 0;
-    if (d === 39 && S.rec && !S.rec.madTime) S.rec.madTime = S.st.playTime;
+    if (G.isMadLord(b) && S.rec && !S.rec.madTime) S.rec.madTime = S.st.playTime;
     S.st.bossKills++;
     if (b.lord) S.st.lordKills++;
     const om = G.omen ? G.omen().bossRew : 1;
@@ -917,25 +997,41 @@
     S.rested = 0;
     S.depth++;
     if (S.depth >= S.maxDepth) S.tormentRun = Math.max(S.tormentRun || 0, torment().n);
-    if (S.depth > S.maxDepth) S.maxDepth = S.depth;
-    if (S.depth > S.bestDepth) {
-      S.bestDepth = S.depth;
-      const slot = G.PARTY_AT ? G.PARTY_AT.indexOf(S.bestDepth) : -1;
+    // 4.0: a seat opens at this run's depths 3, 6 and 9 (G.PARTY_AT against the run, not the lifetime best)
+    if (S.depth > S.maxDepth) {
+      S.maxDepth = S.depth;
+      const slot = G.PARTY_AT ? G.PARTY_AT.indexOf(S.maxDepth) : -1;
       if (slot >= 0) emit('slotOpen', slot);
     }
+    if (S.depth > S.bestDepth) S.bestDepth = S.depth;
     S.bossMeter = 0;
     R.boss = null;
     R.dirty = true;
     recalc();
+    // 4.0 attrition: a boss kill heals the Button and the party standing +10%, a lord's +25% (no more full heals)
+    if (inSiege() && G.healParty) G.healParty(b.lord ? TUNE.healLord : TUNE.healBoss);
     // the loot bursts out of it onto the ground; without js/world.js, chests open as before
     if (G.bossLoot) G.bossLoot(b, tier, count);
     else for (let i = 0; i < count; i++) rew.chests.push(openChest(makeChest(tier, null), 'boss'));
     questProgress('boss', 1);
+    // 4.0: the run's books (js/run.js): Fame, the pouch, Integrity, a land's Mend charges
+    if (G.runBossWin) G.runBossWin(b, rew);
     emit('bossWin', rew, b);
-    // 3.4: on to the next zone: a short march, the ground rolling by
-    if (!R.rift) { R.march = { t: TUNE.marchTime, T: TUNE.marchTime }; emit('marchStart', TUNE.marchTime, realmIndex(S.depth) !== realmIndex(d)); }
-    if (realmIndex(S.depth) !== realmIndex(d)) emit('realm', realmIndex(S.depth));
+    // 3.4: on to the next zone: a short march, the ground rolling by. 4.0: what comes after a boss first (the loot moment,
+    // the card, a relic, camp and doors: js/run.js beats) holds the field, and the march starts when they're done
+    if (!R.rift && !(G.runAfterBoss && G.runAfterBoss(b))) startMarch(d);
   }
+  // 4.0: the one place a march starts (bossWin, the end of the post-boss beats, a secret land's return)
+  function startMarch(fromD) {
+    const S = G.S;
+    if (fromD == null) fromD = S.depth - 1;
+    R.march = { t: TUNE.marchTime, T: TUNE.marchTime };
+    const newLand = realmIndex(S.depth) !== realmIndex(fromD);
+    emit('marchStart', TUNE.marchTime, newLand);
+    if (newLand) emit('realm', realmIndex(S.depth));
+    return R.march;
+  }
+  G.startMarch = startMarch;
 
   function bossFail() {
     const S = G.S, b = R.boss;
@@ -952,6 +1048,9 @@
     S.bossMeter = Math.floor(D.bossNeed * 0.5);
     if (G.zoneSync) G.zoneSync();
     emit('bossFail', b);
+    // 4.0: a lost fight against a lord, an act boss or the Mad Button cracks a pip (none in land 1, the muster; a wipe
+    // that ends the fight takes its own pip, not two). A minion boss lost: a scar and a retry, as before
+    if (b.lord && inSiege() && G.pipHit && !R.wiping) G.pipHit('lord', b);
   }
   G.fleeBoss = () => { if (R.boss) bossFail(); };
 
@@ -972,7 +1071,8 @@
       S.buffs.push({ id: e.id, t: e.dur * D.buffDur, T: e.dur * D.buffDur });
       R.dirty = true;
     } else if (e.id === 'rain') {
-      for (let i = 0; i < 8; i++) spawnChest();
+      // (4.0: 2 chests, not 8: chests are few and each one an event)
+      for (let i = 0; i < TUNE.wispRain; i++) spawnChest();
     } else if (e.id === 'lucky') {
       amount = Math.min(S.gold * 0.15 + D.incomeRef * 30, D.incomeRef * 600);
       addGold(amount, 'wisp');
@@ -989,6 +1089,8 @@
   G.upgCost = u => upgCost(u, G.S.upg[u.id] || 0);
   function buyUpgrade(id) {
     const S = G.S, u = G.UPGRADES.find(x => x.id === id);
+    // (4.0: Treasure Sense, Treasure Hall, Looter and Loot Crew are no longer sold)
+    if (!u || u.off) return false;
     const L = S.upg[id] || 0;
     if (u.max && L >= u.max) return false;
     if (u.req && !(S.upg[u.req] > 0)) return false;
@@ -1018,7 +1120,9 @@
   }
   G.buyHero = buyHero;
 
-  function nodeCost(nd, L) { return Math.ceil(nd.cost * Math.pow(nd.growth, L)); }
+  // 4.0: the Star Chart (the Constellation) is permanent and priced in Embers: 2.5 a point of its 3.x essence cost
+  G.NODE_EMBERS = 2.5;
+  function nodeCost(nd, L) { return Math.ceil(G.NODE_EMBERS * Math.ceil(nd.cost * Math.pow(nd.growth, L))); }
   G.nodeCost = nd => nodeCost(nd, G.S.nodes[nd.id] || 0);
   function nodeAvailable(nd) {
     if (!nd.req.length) return true;
@@ -1030,18 +1134,20 @@
     const L = S.nodes[id] || 0;
     if (L >= nd.max || !nodeAvailable(nd)) return false;
     const c = nodeCost(nd, L);
-    if (S.essence < c) return false;
-    S.essence -= c; S.nodes[id] = L + 1;
+    if ((S.embers || 0) < c) return false;
+    S.embers -= c; S.nodes[id] = L + 1;
     R.dirty = true; recalc();
     emit('buy', 'node', id);
     return true;
   }
   G.buyNode = buyNode;
 
-  function legacyCost(l, L) { return Math.ceil(l.base * Math.pow(l.growth, L)); }
+  // (4.0, the Hall of Fame: rank k costs base x k^2)
+  function legacyCost(l, L) { return l.sq ? Math.ceil(l.base * (L + 1) * (L + 1)) : Math.ceil(l.base * Math.pow(l.growth, L)); }
   G.legacyCost = l => legacyCost(l, G.S.legacy[l.id] || 0);
   function buyLegacy(id) {
     const S = G.S, l = G.LEGACY_BY_ID[id];
+    if (!l) return false;
     const L = S.legacy[id] || 0;
     if (L >= l.max) return false;
     const c = legacyCost(l, L);
@@ -1205,63 +1311,37 @@
   }
   G.claimDaily = claimDaily;
 
-  // ---------- Ascension ----------
-  // Fame depends mostly on how deep this run went (bosses gate depth), with a
-  // small bonus for gold, so each ascension is worth a similar, growing amount.
-  // Fame depends on how deep this run went beyond where it started (bosses gate depth), with a small bonus
-  // for gold. 3.1: a run also ends when the Button falls; that pays 60% of it, from any depth.
-  const fameAt = d => 0.3 * d * Math.pow(1.07, d);
-  function fameGain(death) {
-    const S = G.S, d = S.maxDepth, d0 = Math.min(d, S.runFrom || 0);
-    // (2.3: nothing to ascend for before depth 15, so the first run is played out, not skipped)
-    if (!death && d < TUNE.ascFrom) return 0;
-    const goldBonus = 1 + 0.1 * Math.max(0, Math.log10(Math.max(1, S.goldRun / 1e9)));
-    const g = Math.floor((fameAt(d) - fameAt(d0)) * goldBonus * D.fameMult * (death ? 0.6 : 1));
-    return death ? Math.max(d > d0 ? 1 : 0, g) : g;
-  }
-  G.fameGain = fameGain;
-  // where the next run starts: the first zone of the land at half your best depth (or Deep Dive's, if deeper)
-  G.checkpoint = () => { const S = G.S, L = S.legacy || {}; return Math.max(2 * (L.lg_deep || 0), Math.floor(Math.floor((S.bestDepth || 0) / 2) / G.REALM_SIZE) * G.REALM_SIZE); };
+  // ---------- The end of a run (4.0: the Siege, js/run.js) ----------
+  // The 3.x ascension (voluntary, for fame from depth 15) and its checkpoint are gone: a run ends when the Button falls,
+  // when the party extracts at a camp, when the Mad Button dies, or when it's abandoned. G.runEnd (js/run.js) pays the
+  // Fame, burns everything carried into Embers and starts over from nothing. What stays here: the shims the 3.x UI calls.
+  // the Fame this run has earned so far: what an end now would pay (a fall never costs Fame)
+  G.fameGain = () => (G.runFame ? G.runFame() : 0);
+  // (no checkpoint any more: every run starts at depth 0)
+  G.checkpoint = () => 0;
+  // the 3.x Ascend button: inside a Siege, that is ABANDON (paid as a fall). Returns the Fame paid, false if no run
   function ascend(death) {
-    const S = G.S;
-    const g = fameGain(!!death);
-    if (!death && g < 1) return false;
-    if (R.town) { R.town = false; emit('town', false); }
-    const keepPct = 0.25 * (S.legacy.lg_keeppot || 0);
-    const keep = {};
-    G.POTIONS.forEach(p => keep[p.id] = Math.floor(S.pots[p.id] * keepPct));
-    S.fame += g; S.fameTotal += g;
-    if (death) S.st.deaths = (S.st.deaths || 0) + 1; else S.ascensions++;
-    S.lastRunEss = S.essRun;
-    const fresh = newState();
-    const runKeys = ['gold', 'goldRun', 'clicksRun', 'upg', 'heroes', 'nodes', 'essence', 'essRun', 'depth', 'maxDepth',
-      'pots', 'chests', 'chestMeter', 'bossMeter', 'buffs', 'quests', 'scar', 'tormentRun', 'runConts'];
-    runKeys.forEach(k => S[k] = fresh[k]);
-    S.pots = Object.assign(potZero(), keep);
-    const L = S.legacy;
-    if (L.lg_start) S.gold = 100 * Math.pow(10, L.lg_start);
-    S.depth = S.maxDepth = S.runFrom = G.checkpoint();
-    if (L.lg_stars) S.essence = S.lastRunEss * 0.12 * L.lg_stars;
-    R.boss = null; R.bossReady = false; R.combo = 0;
-    // (a fallen Button keeps its Warden's class: straight back in)
-    if (G.heroReset) G.heroReset(!!death);
-    R.dirty = true; recalc();
-    fillQuests();
-    emit('ascend', g, !!death);
-    return g;
+    if (!G.runEnd || !inSiege()) return false;
+    const sum = G.runEnd(death ? 'fall' : 'abandon');
+    return sum ? sum.fame.total : false;
   }
-  // 3.1: the Button fell: the run is over. Fame for how far it got, then a new run from the checkpoint.
-  // 3.6: not at once: the fall waits on the player. Continue right here (Gems, or an ad where there are ads),
-  // the Horde pushed back and the Button whole again; or take the fame and start a new run.
-  // (with no UI to ask, as in the Node playtests, the run ends as before)
+  // 3.6: the fall waits on the player: continue right here, or end the run. 4.0: one Continue a run (TUNE.contCost Gems,
+  // the very first one free; none in the Daily Siege or from Heat 5), and it marks the run assisted (no Daily rank, no
+  // Heat unlock, no sticker). It mends the Button, lifts everyone and leaves 1 pip. Giving up ends the run as a FALL.
+  // (with no UI to ask, as in the Node playtests, the run ends at once: bots never continue)
   const runSecs = S => Math.max(0, S.st.playTime - (S.rec && S.rec.runPlay != null ? S.rec.runPlay
     : S.st.playTime - Math.min(S.st.playTime, (Date.now() - ((S.rec && S.rec.runStart) || Date.now())) / 1000)));
-  G.contCost = () => { const S = G.S; return S.seen && S.seen.cont ? TUNE.contCost * Math.pow(2, S.runConts || 0) : 0; };
-  G.canContinue = () => !!G.S.fallen && (G.S.runConts || 0) < TUNE.contMax;
+  G.contCost = () => { const S = G.S; return S.seen && S.seen.cont ? TUNE.contCost : 0; };
+  G.canContinue = () => {
+    const S = G.S, r = S.run;
+    if (!S.fallen) return false;
+    if (!r || !r.on) return (S.runConts || 0) < TUNE.contMax;
+    return (r.conts | 0) < TUNE.contMax && !r.day && !torment().noCont;
+  };
   G.runOver = function (at) {
-    const S = G.S;
-    const sum = { depth: S.maxDepth, from: S.runFrom || 0, best: S.bestDepth, secs: runSecs(S), gold: S.goldRun, lvl: S.hero.lvl,
-      fame: fameGain(true), total: S.fame, next: G.checkpoint(), at: at || { depth: S.depth, meter: 0 } };
+    const S = G.S, r = S.run || {};
+    const sum = { depth: S.maxDepth, from: 0, best: S.bestDepth, secs: runSecs(S), gold: S.goldRun, lvl: S.hero.lvl,
+      fame: G.runFame ? G.runFame() : 0, total: S.fame, next: 0, at: at || { depth: S.depth, meter: 0 }, cause: r.cause || null, heat: r.heat | 0 };
     S.fallen = sum;
     emit('runOver', sum);
     if (!G.fallAsk) G.runGiveUp();
@@ -1278,22 +1358,25 @@
       if (!S.seen.cont) S.seen.cont = 1;
     }
     S.fallen = null; S.runConts = (S.runConts || 0) + 1;
+    if (S.run && S.run.on) { S.run.conts = (S.run.conts | 0) + 1; S.run.assisted = 1; S.run.pips = Math.max(S.run.pips | 0, 1); }
     S.depth = Math.max(S.depth, f.at.depth || 0);
     S.bossMeter = Math.max(S.bossMeter || 0, f.at.meter || 0);
     R.bossReady = false; R.bossIn = null; R.bossHold = 6; R.stun = 1.5; R.btnDown = 0;
     S.st.conts = (S.st.conts || 0) + 1;
     R.dirty = true; recalc();
     if (S.hero) S.hero.hp = D.heroHp;
+    if (G.mendParty) G.mendParty(1);
     emit('runContinue', how, f);
     return true;
   };
-  // the run ends: the fame it earned, a new run from the checkpoint
+  // the run ends: a FALL (G.runEnd pays the Fame and the Embers, then a new run from nothing)
   G.runGiveUp = function () {
     const S = G.S, f = S.fallen;
     if (!f) return 0;
     S.fallen = null;
-    const g = ascend(true) || 0;
-    f.fame = g; f.total = S.fame; f.deaths = S.st.deaths; f.next = S.depth;
+    const sum = G.runEnd ? G.runEnd('fall') : null;
+    const g = sum ? sum.fame.total : 0;
+    f.fame = g; f.total = S.fame; f.deaths = S.st.deaths; f.next = 0; f.embers = sum ? sum.embers.total : 0; f.sum = sum;
     emit('runEnd', f);
     return g;
   };
@@ -1311,8 +1394,11 @@
   G.on('daily', () => addGems(TUNE.gemDaily * ((G.S.daily.streak || 0) % 7 === 6 ? 3 : 1), 'daily'));
   G.on('bossWin', (rew, b) => {
     const S = G.S;
-    if (!b || !b.lord || R.rift || (S.gemLords || (S.gemLords = {}))[b.d]) return;
-    S.gemLords[b.d] = 1;
+    if (!b || !b.lord || R.rift) return;
+    // (4.0: once for each land's lord, whichever slot of a Siege it stood in)
+    const k = (G.REALMS[realmIndex(b.d)] || {}).id || b.d;
+    if ((S.gemLords || (S.gemLords = {}))[k]) return;
+    S.gemLords[k] = 1;
     addGems(TUNE.gemLord, 'lord');
   });
   G.ascend = ascend;
@@ -1324,21 +1410,14 @@
     if (G.worldAway) G.worldAway();
     recalc();
     const t = Math.min(sec, D.offCap);
-    // (3.0: a held Button keeps clicking while you're away, at a quarter of its rate)
-    const gold = (D.gpsBase + (G.S.upg.hold ? D.holdRate : 0) * (D.clickBase || 0) * 0.25) * t * D.offEff;
-    // back after a long rest: the next boss fight hits harder
-    if (sec >= 4 * 3600) G.S.rested = 1;
-    addGold(gold);
-    // Scouts and the golem keep finding chests while away (opened virtually).
-    const rate = D.scout + (D.autoOpen ? Math.min((D.looters || 1) / D.autoOpen, 3) * 0.25 : 0);
-    const n = Math.min(400, Math.floor(t * rate * D.offEff));
-    let items = 0, ess = 0, extraGold = 0;
-    for (let i = 0; i < n; i++) {
-      const l = openChest(makeChest(rollTier(), null), 'offline');
-      items += l.items.length; ess += l.ess; extraGold += l.gold;
-    }
-    const warden = G.heroOffline ? G.heroOffline(t) : null;
-    return { sec, t, gold: gold + extraGold, chests: n, items, ess, warden, rested: !!G.S.rested };
+    // 4.0: time away never advances a Siege: no gold, chests, XP or levels (the run waits where it was) and nothing in the
+    // run's currencies. The Barracks pays Embers for it (the meta's 'offline' hooks: f(sec, out) adds out.embers)
+    const out = { sec, t, gold: 0, chests: 0, items: 0, ess: 0, warden: null, rested: false, siege: inSiege(), embers: 0 };
+    if (G.HOOKS && G.HOOKS.offline) for (const f of G.HOOKS.offline) f(sec, out);
+    if (out.embers > 0 && G.addEmbers) G.addEmbers(out.embers, 'offline');
+    emit('away', out);
+    // (the 3.x welcome-back card only when there is something to show)
+    return out.embers > 0 ? out : null;
   }
   G.applyOffline = applyOffline;
 
@@ -1349,10 +1428,15 @@
     S.st.playTime += dt;
     // (3.6: a fallen Button waits on the player's choice: nothing runs)
     if (S.fallen) return;
-    // in town the field holds still: only the Garrison's income and the clock run
-    if (R.town) { addGold(D.gps * dt, 'gps'); return; }
+    // 4.0: the Siege's hold. Outside a run (setup, the summary) and while a post-boss beat is on (the loot moment, a card,
+    // a relic, camp, doors: S.run.phase) the field holds still and only the clock runs. Not uiBusy (which drops the field
+    // to 8 frames a second) and not R.cine (which relic_fx re-arms every frame): the stage keeps drawing in full
+    if (G.runHeld && G.runHeld()) { if (G.runHoldTick) G.runHoldTick(dt); return; }
+    // in town the field holds still: only the Garrison's income and the clock run (4.0: inside a Siege, not even the
+    // Garrison: a pause can't farm gold)
+    if (R.town) { if (!inSiege()) addGold(D.gps * dt, 'gps'); return; }
     // (3.0: and while a window is open over it: nothing runs out behind a card you're reading)
-    if (G.uiBusy && G.uiBusy()) { addGold(D.gps * dt, 'gps'); return; }
+    if (G.uiBusy && G.uiBusy()) { if (!inSiege()) addGold(D.gps * dt, 'gps'); return; }
     // the very first moment waits for the player's first press
     if (G.tutFreeze && G.tutFreeze()) return;
     // 3.0: a cinematic (a relic dropping) holds the whole game still while it plays
@@ -1383,6 +1467,8 @@
     // Scouts
     if (D.scout) S.chestMeter += D.scout * D.chestNeed * dt;
     spawnFromMeter();
+    // 4.0: the run's own clocks (par, the Reaper, Mend's land refill...): js/run.js
+    if (G.runTick) G.runTick(dt);
     if (G.heroTick) G.heroTick(dt);
     if (G.worldTick) G.worldTick(dt);
     if (G.eventsTick) G.eventsTick(dt);
@@ -1478,6 +1564,10 @@
       const s = newState();
       if (data.set) s.set = Object.assign(s.set, data.set);
       if (data.profile && data.profile.id) s.profile = { id: data.profile.id, name: data.profile.name || '' };
+      // 4.0 (season 3): what an earlier season earned carries on, converted (js/run.js G.foundersGift: pure, written into
+      // the new state before it replaces the old data): Gems, pets, achievements and the collection kept; worn gear, the
+      // bag and the town burned into Embers; fame into new Fame; uniques and relics into the Codex
+      if (G.foundersGift) { try { G.foundersGift(data, s); } catch (e) { if (typeof console !== 'undefined') console.error('foundersGift', e); } }
       return deserialize(s);
     }
     const fresh = newState();
@@ -1493,6 +1583,13 @@
     S.bounty = Object.assign({ day: '', n: 0, done: false }, data.bounty || {});
     S.rift = Object.assign(newRift(), data.rift || {});
     S.rift.day = Object.assign({ k: '', l: 0 }, S.rift.day || {});
+    // 4.0: the Siege's records
+    if (!S.run || typeof S.run !== 'object') S.run = newState().run;
+    if (!S.heatStk || typeof S.heatStk !== 'object') S.heatStk = {};
+    if (!Array.isArray(S.fallen12)) S.fallen12 = [];
+    if (!(typeof S.heatWon === 'number')) S.heatWon = -1;
+    if (!(S.embers >= 0)) S.embers = 0;
+    if (!S.codex || typeof S.codex !== 'object') S.codex = {};
     if (!S.uq || typeof S.uq !== 'object') S.uq = {};
     if (!S.lands || typeof S.lands !== 'object') S.lands = {};
     // saves from before 1.1: past depth 40 the lands changed, so crown times there belong to other lords now
@@ -1524,6 +1621,8 @@
       if (!(data.hero && 'whp' in data.hero)) S.hero.whp = D.wardenHp;
       if (S.hero.hp <= 0 && G.TUNE.btnDown) R.btnDown = G.TUNE.btnDown;
     }
+    // 4.0: a Siege carries on from the start of the zone it was in (js/run.js), a beat (a card, the loot moment...) re-opens
+    if (G.runResume) G.runResume();
     return S;
   }
   G.deserialize = deserialize;

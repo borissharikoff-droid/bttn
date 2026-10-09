@@ -1,0 +1,23 @@
+{
+  "name": "bttn-steam",
+  "productName": "BTTN",
+  "private": true,
+  "version": "4.0.0",
+  "description": "BTTN for Steam: the single-file web build (dist/steam.html) in an Electron window, with Steamworks when the Steam client is there",
+  "main": "main.js",
+  "license": "UNLICENSED",
+  "scripts": {
+    "prep": "node build.js",
+    "achievements": "node achievements.js",
+    "start": "npm run prep && electron .",
+    "pack": "npm run prep && electron-packager . BTTN --platform=win32,linux --arch=x64 --out=out --overwrite --asar --prune=true --ignore=\"^/(out|steam-output|README\\.md|app_build\\.vdf|achievements\\.js)$\"",
+    "pack:mac": "npm run prep && electron-packager . BTTN --platform=darwin --arch=x64,arm64 --out=out --overwrite --asar --prune=true"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "@electron/packager": "20.3.0"
+  },
+  "optionalDependencies": {
+    "steamworks.js": "0.4.0"
+  }
+}

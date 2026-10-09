@@ -158,19 +158,22 @@
       name: 'Deadly Blow',
       desc: 'Crit power +0.5',
       fx: (L, D) => { D.critMult += 0.5 * L; } },
-    { id: 'sense', icon: 'ic_nose', base: 100, growth: 2.4, max: 20,
+    // 4.0: Treasure Sense, Treasure Hall, Looter and Loot Crew left the run shop (chests are few and each one is an event;
+    // Treasure Sense moved to the Hall of Fame). The entries stay so old saves still read, but off (never sold, no effect)
+    // and secret (the 3.x shop list hides them)
+    { id: 'sense', icon: 'ic_nose', base: 100, growth: 2.4, max: 20, off: 1, secret: Infinity,
       name: 'Treasure Sense',
       desc: 'Chest rate +5%',
       fx: (L, D) => { D.chestProg += 0.05 * L; } },
-    { id: 'hall', icon: 'ic_vault', base: 400, growth: 12, max: 6,
+    { id: 'hall', icon: 'ic_vault', base: 400, growth: 12, max: 6, off: 1, secret: Infinity,
       name: 'Treasure Hall',
       desc: 'Chest slots: 10, 20, 30, 50, 100, 200',
       fx: (L, D) => { D.slots += G.HALL_SLOTS[L] - G.HALL_SLOTS[0]; } },
-    { id: 'golem', icon: 'ic_key', base: 600, growth: 3.2, max: 20,
+    { id: 'golem', icon: 'ic_key', base: 600, growth: 3.2, max: 20, off: 1, secret: Infinity,
       name: 'Looter',
       desc: 'Opens a chest every 3 s; −10% per level',
       fx: (L, D) => { if (L > 0) D.autoOpen = 3 * Math.pow(0.9, L - 1); } },
-    { id: 'crew', icon: 'ic_crew', base: 40000, growth: 30, max: 4, req: 'golem',
+    { id: 'crew', icon: 'ic_crew', base: 40000, growth: 30, max: 4, req: 'golem', off: 1, secret: Infinity,
       name: 'Loot Crew',
       desc: '+1 Looter (needs Looter)',
       fx: (L, D) => { D.looters += L; } },
@@ -218,10 +221,11 @@
     // Click arm (up)
     C('c_surge', 0, -1, 'click', ['spark'], 5, 2, 1.7, 'Power Surge', 'Click gold +20%',
       (L, D) => { D.clickMult *= 1 + 0.2 * L; }),
-    C('c_prec', -1, -2, 'click', ['c_surge'], 5, 4, 1.8, 'Precision', 'Crit chance +1%',
-      (L, D) => { D.crit += 0.01 * L; }),
-    C('c_brut', 1, -2, 'click', ['c_surge'], 5, 4, 1.8, 'Brutality', 'Crit power +1',
-      (L, D) => { D.critMult += 1 * L; }),
+    // (4.0: the Star Chart is permanent now, so its power is compressed: crit +0.6% and crit power +0.1 a level)
+    C('c_prec', -1, -2, 'click', ['c_surge'], 5, 4, 1.8, 'Precision', 'Crit chance +0.6%',
+      (L, D) => { D.crit += 0.006 * L; }),
+    C('c_brut', 1, -2, 'click', ['c_surge'], 5, 4, 1.8, 'Brutality', 'Crit power +0.1',
+      (L, D) => { D.critMult += 0.1 * L; }),
     C('c_flow', 0, -3, 'click', ['c_prec', 'c_brut'], 3, 12, 2.2, 'Flow', 'Max combo +40',
       (L, D) => { D.comboCap += 40 * L; }),
     C('c_echo', -1, -4, 'click', ['c_flow'], 5, 30, 2, 'Resonance', 'Clicks +1% of garrison income',
@@ -235,8 +239,8 @@
       (L, D) => { D.gpsMult *= 1 + 0.15 * L; }),
     C('i_vet', 2, -1, 'idle', ['i_guild'], 3, 10, 2.5, 'Veterans', 'Income +0.5% per 10 heroes',
       (L, D) => { D.vet += 0.005 * L; }),
-    C('i_scout', 2, 1, 'idle', ['i_guild'], 5, 8, 2, 'Scouts', '+0.1 chests/s',
-      (L, D) => { D.scout += 0.1 * L; }),
+    C('i_scout', 2, 1, 'idle', ['i_guild'], 5, 8, 2, 'Scouts', 'Chest find +4%',
+      (L, D) => { D.chestProg *= 1 + 0.04 * L; }),
     C('i_watch', 3, 0, 'idle', ['i_vet', 'i_scout'], 5, 12, 2, 'Night Watch', 'Offline +10%, +1h cap',
       (L, D) => { D.offEff += 0.1 * L; D.offCap += 3600 * L; }),
     C('i_banner', 4, -1, 'idle', ['i_watch'], 5, 40, 2.2, 'War Banner', 'Garrison income +25%',
@@ -273,12 +277,12 @@
     C('h_hoard', 0, 6, 'chest', ['h_blaze', 'h_mimic', 'h_void'], 1, 250, 1, 'Hoard', 'Modifier chance +8%, +2 slots',
       (L, D) => { if (L) { D.modChance += 0.08; D.slots += 2; } }),
     // Arcane arm (left)
-    C('a_flow', -1, 0, 'arcane', ['spark'], 5, 2, 1.7, 'Essence Flow', 'Essence +20%',
-      (L, D) => { D.essMult *= 1 + 0.2 * L; }),
+    C('a_flow', -1, 0, 'arcane', ['spark'], 5, 2, 1.7, 'Ember Flow', 'Boss Embers +10%',
+      (L, D) => { D.bossEmbers = (D.bossEmbers || 1) * (1 + 0.1 * L); }),
     C('a_hatch', -2, -1, 'arcane', ['a_flow'], 5, 10, 2, 'Nesting', 'Egg chance +15%',
       (L, D) => { D.eggMult *= 1 + 0.15 * L; }),
-    C('a_slayer', -2, 1, 'arcane', ['a_flow'], 5, 8, 1.9, 'Bossbane', 'Boss damage +30%',
-      (L, D) => { D.bossMult *= 1 + 0.3 * L; }),
+    C('a_slayer', -2, 1, 'arcane', ['a_flow'], 5, 8, 1.9, 'Bossbane', 'Boss damage +3%',
+      (L, D) => { D.bossMult *= 1 + 0.03 * L; }),
     C('a_bond', -3, -1, 'arcane', ['a_hatch'], 5, 20, 2, 'Bond', 'Pet power +15%',
       (L, D) => { D.petMult *= 1 + 0.15 * L; }),
     C('a_time', -3, 1, 'arcane', ['a_slayer'], 3, 15, 2.2, 'Time Dilation', 'Boss timer +4s',
@@ -453,43 +457,71 @@
   ];
   G.ZONE_NAME = d => { const r = G.REALMS[G.realmIndex(d)]; return r.zones[G.ZONE_LOOK(((d % G.REALM_SIZE) + G.REALM_SIZE) % G.REALM_SIZE)]; };
 
-  // Land mastery: three stars per land, kept forever. Each one: +2.5% damage and gold
-  G.STAR_BONUS = 0.025;
+  // ---------- 4.0: the Siege (js/run.js) ----------
+  // Each land sits in one act's pool (1-3; the Void is the finale, act 0). start: open from the first run; the rest open
+  // with Deeds. Mob health follows depth, not land, so any land of an act fits either of its slots.
+  const ACT_OF = { shore: [1, 1], meadow: [1, 1], forest: [1, 1], highlands: [1, 0], tundra: [1, 0], godlands: [2, 1], abyss: [2, 1],
+    library: [2, 0], foundry: [2, 0], ember: [3, 1], mirror: [3, 0], sky: [3, 1], moon: [3, 0], cosmos: [3, 0], void: [0, 1] };
+  G.REALMS.forEach(r => { const a = ACT_OF[r.id] || [0, 0]; r.act = a[0]; r.start = a[1]; });
+  G.REALM_BY_ID = {}; G.REALMS.forEach((r, i) => { G.REALM_BY_ID[r.id] = i; });
+  // A Siege: 6 lands of 3 zones in 3 acts. Land slot k (0-5) holds depths 3k..3k+2; its lord is at 3k+2.
+  // The lords of lands 2 and 4 are the act bosses; the 6th land is always the Void, whose lord is the Mad Button.
+  // ROUTE: until doors exist, each act's lands in this order (the first ever run is Shoreline, then Meadows...)
+  G.SIEGE = { lands: 6, zones: 18, final: 17, actOf: [1, 1, 2, 2, 3, 0], actBoss: [5, 11],
+    ROUTE: { 1: ['shore', 'meadow', 'forest', 'highlands', 'tundra'], 2: ['godlands', 'abyss', 'library', 'foundry'],
+      3: ['ember', 'sky', 'mirror', 'moon', 'cosmos'], 0: ['void'] } };
+  // Fame (the score; buys the Hall of Fame), paid on every end: zone i cleared 4+i (225 over a Siege), a lord +10, an act
+  // boss +20 on top, a win +100 (+25 under par), a Push land +30, the Daily's first attempt +50, a Button's first Heat sticker +25
+  G.FAME = { zone: i => 4 + i, lord: 10, act: 20, win: 100, par: 25, push: 30, daily: 50, sticker: 25 };
+  // Embers (from the Furnace): each worn or bagged item burns for EMBER_R[rarity] (a unique 20, an old relic item 60)
+  // x (1 + il/20) x (1 + 0.1 enchant); shards 1 per 25; orbs by kind; Keys 10 each. The run's pouch takes boss kills and
+  // the loot moment's unpicked cards. Then x the end (fall/abandon 0.5, extract 1, win 1.5) x (1 + 0.15 Heat)
+  G.EMBER_R = [1, 2, 3, 5, 8, 15, 30];
+  G.EMBERS = { uq: 20, relic: 60, shard: 25, orb: { whet: 1, flux: 1, ruin: 3, ascent: 3, grace: 10 }, key: 10,
+    kill: { boss: 2, lord: 10, act: 25, final: 100 }, end: { fall: 0.5, abandon: 0.5, extract: 1, win: 1.5 }, heat: 0.15, card: 0.5 };
+  // Heat 0-10 (chosen at setup; Heat N opens with a win at N-1). Each level: Horde and boss health x1.15, bites x1.10,
+  // Fame x(1+0.2n), Embers x(1+0.15n), rarity +n/3, drops +15%. And the named rules, cumulative:
+  G.HEAT_MAX = 10;
+  G.HEAT_RULES = [
+    { n: 1, id: 'champ', name: 'Champions', desc: 'A Land Champion in every land' },
+    { n: 2, id: 'gold', name: 'Lean Purse', desc: 'Gold -25%' },
+    { n: 3, id: 'lords', name: 'Hardened Lords', desc: 'Lords +1 affix; DOOM x0.8' },
+    { n: 4, id: 'worn', name: 'Worn Down', desc: 'Start at 80% health; Rest heals 25%' },
+    { n: 5, id: 'scarce', name: 'Scarcity', desc: '2-card offers; no Continue' },
+    { n: 6, id: 'doom', name: 'Full DOOM', desc: 'DOOM at full strength' },
+    { n: 7, id: 'reaper', name: 'The Reaper', desc: '2 min behind par: bites +10% for every further minute' },
+    { n: 8, id: 'cursed', name: 'Cursed Doors', desc: 'One cursed door at each fork (mod x2, reward x2)' },
+    { n: 9, id: 'escort', name: 'Escorts', desc: 'Act bosses bring their Land Champion' },
+    { n: 10, id: 'mad', name: 'Madness', desc: 'The Mad Button at double strength; Integrity 2' },
+  ];
+
+  // Land mastery: three stars per land, kept forever. 4.0: cosmetic completion marks (+1 Gem each): no hidden power
+  G.STAR_BONUS = 0;
   G.STAR_KILLS = i => 18000 * (1 + 0.1 * i); // 2.1: the Horde comes 1.4-2x thicker
   G.STAR_SWIFT = 20;
 
-  // ---------- Legacy: permanent upgrades bought with Fame ----------
+  // ---------- The Hall of Fame (4.0; the 3.x Legacy re-made): capped ranks bought with Fame ----------
+  // Rank k costs base x k^2 (sq). At max: damage x1.2, speed x1.15, crit +5%, bosses x1.25, health x1.3; the rest are run
+  // knobs read at a run's start (hf_wind, hf_reroll, hf_banish, hf_belt) or by the camp, doors and setup streams (hf_door,
+  // hf_keep, hf_qm). Same G.LEGACY / S.legacy / G.buyLegacy as before, so the 3.x Temple panel shows it as it is.
+  // (3.x lg_* ranks are gone with season 3: their Fame became new Fame, G.foundersGift)
   G.LEGACY = [
-    { id: 'lg_click', base: 1, growth: 1.6, max: 25, name: 'Ancestral Might', desc: 'Click gold +40%, Warden damage +20%',
-      fx: (L, D) => { D.clickMult *= 1 + 0.4 * L; D.heroMult *= 1 + 0.2 * L; } },
-    { id: 'lg_guild', base: 1, growth: 1.6, max: 25, name: 'Ancestral Guild', desc: 'Garrison income +40%',
-      fx: (L, D) => { D.gpsMult *= 1 + 0.4 * L; } },
-    { id: 'lg_start', base: 2, growth: 2, max: 8, name: 'Head Start', desc: 'Start runs with 1K gold, ×10 per level',
-      fx: () => {} },
-    { id: 'lg_luck', base: 3, growth: 1.8, max: 10, name: 'Lucky Star', desc: 'Luck +3%',
-      fx: (L, D) => { D.luck += 0.03 * L; } },
-    { id: 'lg_boss', base: 3, growth: 1.7, max: 15, name: 'Boss Slayer', desc: 'Boss damage +20%',
-      fx: (L, D) => { D.bossMult *= 1 + 0.2 * L; } },
-    { id: 'lg_pot', base: 4, growth: 2, max: 10, name: 'Potion Cellar', desc: 'Potion caps +3',
-      fx: (L, D) => { D.potCap += 3 * L; } },
-    { id: 'lg_keeppot', base: 12, growth: 2.5, max: 4, name: 'Family Vault', desc: 'Keep 25% of potions on ascension',
-      fx: () => {} },
-    { id: 'lg_stars', base: 6, growth: 2, max: 5, name: 'Star Memory', desc: 'Start with 12% of last run\'s essence',
-      fx: () => {} },
-    { id: 'lg_fusion', base: 15, growth: 1, max: 1, name: 'Eternal Fusion', desc: 'Start with Fusion and Gilding',
-      fx: (L, D) => { if (L) { D.merge = true; D.mods.golden = 1; } } },
-    { id: 'lg_deep', base: 8, growth: 2.2, max: 10, name: 'Deep Dive', desc: 'Start 2 depths deeper',
-      fx: () => {} },
-    { id: 'lg_pet', base: 10, growth: 3, max: 2, name: 'Pet Carrier', desc: '+1 pet slot',
-      fx: (L, D) => { D.petSlots += L; } },
-    { id: 'lg_time', base: 5, growth: 2, max: 5, name: 'Time Warp', desc: 'Offline: +2h cap, +10% efficiency',
-      fx: (L, D) => { D.offCap += 7200 * L; D.offEff += 0.1 * L; } },
-    { id: 'lg_fame', base: 10, growth: 2, max: 10, name: 'Renown', desc: 'Fame gain +15%',
-      fx: (L, D) => { D.fameMult *= 1 + 0.15 * L; } },
-    { id: 'lg_quest', base: 5, growth: 2, max: 4, name: 'Quest Master', desc: 'Quest rewards +35%',
-      fx: (L, D) => { D.questMult *= 1 + 0.35 * L; } },
-    { id: 'lg_gold', base: 12, growth: 2.5, max: 4, name: 'Golden Touch', desc: 'Golden pet chance +2%',
-      fx: (L, D) => { D.goldenChance += 0.02 * L; } },
+    { id: 'hf_might', base: 60, sq: 1, max: 5, name: 'Ancestral Might', desc: 'Party damage +4% a rank', fx: (L, D) => { D.heroMult *= 1 + 0.04 * L; } },
+    { id: 'hf_iron', base: 60, sq: 1, max: 5, name: 'Iron Will', desc: 'Button and party health +6% a rank', fx: (L, D) => { D.hpMult *= 1 + 0.06 * L; } },
+    { id: 'hf_swift', base: 80, sq: 1, max: 5, name: 'Swift Hands', desc: 'Attack speed +3% a rank', fx: (L, D) => { D.spdMult *= 1 + 0.03 * L; } },
+    { id: 'hf_keen', base: 80, sq: 1, max: 5, name: 'Keen Eye', desc: 'Crit chance +1% a rank', fx: (L, D) => { D.crit += 0.01 * L; } },
+    { id: 'hf_boss', base: 80, sq: 1, max: 5, name: 'Boss Slayer', desc: 'Boss damage +5% a rank', fx: (L, D) => { D.bossMult *= 1 + 0.05 * L; } },
+    { id: 'hf_xp', base: 40, sq: 1, max: 5, name: 'Scholar', desc: 'XP +5% a rank', fx: (L, D) => { D.xpMult = (D.xpMult || 1) * (1 + 0.05 * L); } },
+    { id: 'hf_gold', base: 40, sq: 1, max: 5, name: 'Greed', desc: 'Gold +8% a rank', fx: (L, D) => { D.goldMult *= 1 + 0.08 * L; } },
+    { id: 'hf_chest', base: 40, sq: 1, max: 5, name: 'Treasure Sense', desc: 'Chest find +10% a rank', fx: (L, D) => { D.chestProg *= 1 + 0.1 * L; } },
+    { id: 'hf_fame', base: 100, sq: 1, max: 5, name: 'Renown', desc: 'Fame +5% a rank', fx: (L, D) => { D.fameMult *= 1 + 0.05 * L; } },
+    { id: 'hf_wind', base: 400, sq: 1, max: 1, name: 'Second Wind', desc: '+1 Integrity pip', fx: () => {} },
+    { id: 'hf_reroll', base: 120, sq: 1, max: 3, name: 'Reroll', desc: '+1 card reroll a run', fx: () => {} },
+    { id: 'hf_banish', base: 120, sq: 1, max: 3, name: 'Banish', desc: '+1 banish a run', fx: () => {} },
+    { id: 'hf_door', base: 300, sq: 1, max: 1, name: 'Third Door', desc: '3 land doors at each fork', fx: () => {} },
+    { id: 'hf_belt', base: 500, sq: 1, max: 2, name: 'Relic Belt', desc: '+1 belt slot', fx: () => {} },
+    { id: 'hf_keep', base: 1500, sq: 1, max: 1, name: 'Heirloom Shelf', desc: '+1 keepsake slot', fx: () => {} },
+    { id: 'hf_qm', base: 200, sq: 1, max: 2, name: 'Quartermaster', desc: '+1 camp market offer', fx: () => {} },
   ];
   G.LEGACY_BY_ID = {}; G.LEGACY.forEach(l => G.LEGACY_BY_ID[l.id] = l);
 

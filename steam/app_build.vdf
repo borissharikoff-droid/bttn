@@ -1,0 +1,19 @@
+"AppBuild"
+{
+	"AppID" "STEAM_APPID_HERE"
+	"Desc" "BTTN 4.0 desktop build"
+	"ContentRoot" "./out/"
+	"BuildOutput" "./steam-output/"
+	"SetLive" ""
+	"Depots"
+	{
+		"STEAM_DEPOT_WIN_HERE"
+		{
+			"FileMapping" { "LocalPath" "BTTN-win32-x64/*" "DepotPath" "." "recursive" "1" }
+		}
+		"STEAM_DEPOT_LINUX_HERE"
+		{
+			"FileMapping" { "LocalPath" "BTTN-linux-x64/*" "DepotPath" "." "recursive" "1" }
+		}
+	}
+}

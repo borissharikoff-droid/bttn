@@ -83,6 +83,10 @@
   on('runContinue', how => ev('run_cont', { h: how, n: S().runConts, g: S().gems || 0, d: S().depth }));
   on('runEnd', f => ev('run_end', { d: f && f.depth, f: f && f.fame }));
   on('gems', (n, why) => ev('gems', { n, w: why }));
+  // 4.0: the store funnel (js/store.js emits 'store' with the step): the store opened, a purchase started / paid /
+  // failed, a rewarded ad shown / paid out. Only these names pass, with their small payload (sku, provider, why, placement)
+  const FUNNEL = { store_open: 1, buy_start: 1, buy_ok: 1, buy_fail: 1, ad_show: 1, ad_ok: 1 };
+  on('store', (k, d) => { if (FUNNEL[k]) ev(k, d && typeof d === 'object' ? d : undefined); });
   on('ascend', (g, death) => { if (!death) ev('ascend', { d: S().maxDepth }); });
   on('bless', b => ev('bless', { id: b && b.id }));
   on('champKill', c => ev('champ', { m: c.mech, ok: 1 }));

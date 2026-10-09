@@ -13,13 +13,15 @@
     groundMax: 60,
     // seconds on the ground before the Warden gathers it
     lingerOrb: 1.2, lingerGear: 2.6, lingerGood: 4.5, lingerUnique: 7,
-    dropBrute: 0.12, dropMagic: 0.55, dropFodder: 0.0011, orbShare: 0.033, // (3.6: orbs a tenth more, for the Lucky Spin's gems)
+    // (3.6: orbs a tenth more, for the Lucky Spin's gems) 4.0: far fewer drops (0.12/0.55/0.0011 before): at most a few
+    // rare+ labels a minute; the boss's loot moment is where items come from
+    dropBrute: 0.02, dropMagic: 0.2, dropFodder: 0.0002, orbShare: 0.033,
     hoardEvery: 150, hoardFirst: 40, hoardLife: 16,
     shrineEvery: 170, shrineFirst: 100, shrineLife: 12, shrineDur: 15,
     breachEvery: 300, breachFirst: 240, breachDur: 12, breachRate: 2.5,
     // (3.6: the invasion clock now runs on through new runs, and a due invasion comes in the next free window of the
     // pacing director, ahead of a sudden event: about one every 6-8 minutes of play)
-    invEvery: 300, invFirst: 200, invTime: 90, invNeed: 90, invBoss: 30, invFocus: 20, invBossTime: 40,
+    invEvery: 300, invFirst: 200, invTime: 90, invNeed: 90, invBoss: 30, invFocus: 20, invBossTime: 40, invSiegeFrom: 6, invSiegeP: 0.6,
     // the JACKPOT: odds per kill and per real chest, climbing by one each hour since the last; its gold in seconds of income
     jpKill: 5e-7, jpChest: 1.2e-5, jpGold: 3000,
     riftTime: 90, riftNeed: 40, riftGuard: 60,
@@ -35,8 +37,21 @@
 
   // The land the Horde is fighting in: the campaign's, or the Rift's
   // (3.6: kept until the depth changes: it is asked on every kill)
-  let landD = -1, landV = null;
-  G.landNow = () => { const d = G.depthNow ? G.depthNow() : G.S.depth; if (d !== landD || !landV) { landD = d; landV = G.REALMS[G.realmIndex(d)]; } return landV; };
+  // 4.0: in a Siege, the route's land (G.realmIndex) with this land slot's map mod merged in (S.run.mods[slot]: an id of
+  // G.MAP_MODS, whose .land fields are the same count knobs a land's rule uses: thick, loot, slow, champ, noMend...)
+  // (asked on every kill: the cache is checked field by field, no strings built)
+  let landD = -1, landV = null, landI = -1, landM = null;
+  G.landNow = () => {
+    const S = G.S, d = G.depthNow ? G.depthNow() : S.depth, run = S.run;
+    const mod = run && run.on && !R.rift && run.mods ? run.mods[Math.floor(Math.max(0, d) / G.REALM_SIZE)] || null : null;
+    const ri = G.realmIndex(d);
+    if (d !== landD || !landV || ri !== landI || mod !== landM) {
+      landD = d; landI = ri; landM = mod;
+      const base = G.REALMS[ri], M = mod && G.MAP_MODS ? G.MAP_MODS[mod] : null;
+      landV = M && M.land ? Object.assign({}, base, M.land, { mod }) : base;
+    }
+    return landV;
+  };
 
   // Everything that raises how much the Horde drops
   function lootMult() {
@@ -51,8 +66,11 @@
     const ids = G.ORB_IDS, w = ids.map(k => G.ORBS[k].w);
     return ids[G.weighted(w)];
   }
+  // 4.0: a Siege is 18 zones deep, so a unique's depth gate is its 3.x depth / 4.5 (the Other Cloak from depth 13), and
+  // only the pool the Deeds have opened (G.uqOpen, the meta's; all of them without it)
+  G.uqOpen = G.uqOpen || ((q, depth) => { const U = G.UNIQUES[q]; return !!U && U.minD / 4.5 <= depth; });
   function uniqueFor(depth, boss) {
-    const ok = G.UNIQUE_IDS.filter(q => { const U = G.UNIQUES[q]; return U.minD <= depth && (!U.boss || boss); });
+    const ok = G.UNIQUE_IDS.filter(q => { const U = G.UNIQUES[q]; return G.uqOpen(q, depth) && (!U.boss || boss); });
     // half the time it's one you don't have yet, if there is one
     const fresh = ok.filter(q => !S_().uq[q]);
     const from = fresh.length && chance(0.5) ? fresh : ok;
@@ -200,10 +218,11 @@
     // the first lord always gives a unique: the Crab King's Pincer
     let q = null;
     if (b.lord && !S.st.firstLordUq) { S.st.firstLordUq = 1; q = S.uq.pincer ? uniqueFor(b.d, false) || 'goldgrin' : 'pincer'; }
-    // boss-only uniques come from their own lord (the Mad Button, the First Hand) in every cycle
-    else if (uqChance_(b.lord ? 0.07 : 0.01, 'boss')) q = uniqueFor(b.d, b.lord && G.UNIQUE_IDS.some(k => G.UNIQUES[k].boss && G.UNIQUES[k].minD === b.d % (G.REALMS.length * G.REALM_SIZE)));
-    if (b.d === 39 && b.lord && !S.uq.lastbutton) q = 'lastbutton';
-    if (b.d === 64 && b.lord && !S.uq.firsthand) q = 'firsthand';
+    // boss-only uniques come from their own lord (the Mad Button, the First Hand), whatever slot of the route it stands in
+    else if (uqChance_(b.lord ? 0.07 : 0.01, 'boss')) q = uniqueFor(b.d, G.isMadLord(b) || G.isHandLord(b));
+    // (4.0, Wave 0: their first kill drops it for sure, by the land: 3.6 checked depths 39 and 64, which were no lords)
+    if (G.isMadLord(b) && !S.uq.lastbutton) q = 'lastbutton';
+    if (G.isHandLord(b) && !S.uq.firsthand) q = 'firsthand';
     if (q) drop('uq', q, null, { at, src: 'boss', wait: 1.2 });
   };
 
@@ -244,7 +263,8 @@
   // A welcome pack: the first click after picking a class already hits a crowd
   G.on('classChosen', () => {
     const S = S_();
-    if (S.hero.kills || S.depth || R.mobs.length) return;
+    // (4.0: every run opens with one, not only the first ever)
+    if (S.depth || R.mobs.length || (S.hero.kills && !(S.run && S.run.on))) return;
     // (3.6: in the bodies the opening field holds: fewer, a little heavier)
     if (G.crowdUpdate) G.crowdUpdate();
     const cn = n => (G.crowdN ? G.crowdN(n) : n), n1 = cn(36), n2 = cn(24);
@@ -325,7 +345,7 @@
     const S = S_();
     if (!b.lord || b.d < (S.rec.fedLord || 0)) return;
     S.rec.fedLord = b.d + 1;
-    if (b.d === 39) G.feed('mad', 'The Mad Button');
+    if (G.isMadLord(b)) G.feed('mad', 'The Mad Button');
     else if (b.d >= 9) G.feed('lord', G.REALMS[G.realmIndex(b.d)].lordName);
   });
   G.on('evolve', (id, first) => { if (first) G.feed('evo', G.EVOS[id].name); });
@@ -338,6 +358,7 @@
     R.inv = { k: v.id, t: TUNE.invTime, T: TUNE.invTime, prog: 0, need: TUNE.invNeed, boss: null };
     R.surge = Math.max(R.surge || 0, 4);
     S_().st.invasions = (S_().st.invasions || 0) + 1;
+    if (S_().run && S_().run.on) S_().run.inv = (S_().run.inv | 0) + 1;
     if (G.director) G.director.mark('invasion', TUNE.invTime);
     emit('invasion', R.inv, v);
   }
@@ -431,7 +452,8 @@
   }
 
   // ---------- Rifts ----------
-  G.riftOpenable = () => { const S = S_(); return !!(S.hero && S.hero.cls && S.bestDepth >= 5); };
+  // (4.0: Rifts are off in the campaign: the machinery stays for the Vault and Push On)
+  G.riftOpenable = () => { const S = S_(); return !!(S.hero && S.hero.cls && S.bestDepth >= 5) && !(S.run && S.run.on); };
   // The highest Rift you may open: what you've earned there, or close to your campaign depth
   G.riftMax = () => { const S = S_(); return Math.max(S.rift.open, S.bestDepth - 1); };
   G.riftStart = function (lvl) {
@@ -520,7 +542,8 @@
     if (R.inv) {
       if (R.boss) endInvasion(false);
       else if ((R.inv.t -= dt) <= 0) endInvasion(false);
-    } else if (S.bestDepth >= 3) {
+    } else if (S.run && S.run.on ? S.depth >= TUNE.invSiegeFrom && (S.run.inv | 0) < 1 && S.run.invRoll < TUNE.invSiegeP : S.bestDepth >= 3) {
+      // (4.0: inside a Siege at most one a run, in Acts II-III, with a 60% chance a run: S.run.invRoll is rolled at its start)
       // the clock runs through boss fights too; the invasion waits for the fight to end
       if (R.invT == null) R.invT = S.st.invasions ? rand(0.8, 1.2) * TUNE.invEvery : TUNE.invFirst;
       if (R.invT > 0) R.invT -= dt;

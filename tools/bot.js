@@ -18,6 +18,9 @@ function makeWorld(seed) {
   G.S = G.newState();
   G.recalc();
   G.fillQuests();
+  // 4.0: bots play Sieges to their end (a fall or a win) and never abandon one: the 3.x Ascend shim (fameGain > 0 means
+  // 'abandon now for this much Fame') reads 0 for them. A class pick with no Siege on starts one (hero.js chooseClass).
+  G.fameGain = () => 0;
   return { G, clock };
 }
 
@@ -46,9 +49,10 @@ function tryBuy(G, cps) {
   };
   for (const u of G.UPGRADES) {
     const L = S.upg[u.id] || 0;
-    if (u.max && L >= u.max) continue;
+    // (4.0: Treasure Sense, Treasure Hall, Looter and Loot Crew are off the run shop)
+    if (u.off || (u.max && L >= u.max)) continue;
     const cost = G.upgCost(u);
-    if (['hall', 'golem', 'clover', 'rhythm'].includes(u.id)) {
+    if (['clover', 'rhythm'].includes(u.id)) {
       if (cost < S.gold * 0.3 && cost < base * 60) { G.buyUpgrade(u.id); return true; }
       continue;
     }
@@ -62,7 +66,18 @@ function tryBuy(G, cps) {
   if (best.kind === 'upg') G.buyUpgrade(best.id); else G.buyHero(best.id, 1);
   return true;
 }
+// 4.0: the Siege, minimal policy (the bots stream improves it): no run on -> AGAIN (the last setup); a fall -> no Continue,
+// the run ends; a post-boss beat on screen (the loot moment, a card, camp, doors...) -> its own auto() (the best loot, the
+// best card, the default door), so the field never waits on a bot that checks in once a minute
+function siegeAct(G) {
+  const S = G.S;
+  if (S.fallen) { G.runGiveUp(); return 'fall'; }
+  if (!S.run || !S.run.on) { if (G.runAgain && S.hero && S.hero.cls && G.runAgain()) return 'again'; return null; }
+  if (S.run.phase !== 'field' && G.beatAuto && G.beatAuto()) return 'beat';
+  return null;
+}
 function shop(G, cps) {
+  siegeAct(G);
   // take on companions as slots open: a healer, a tank and damage, skipping what the Warden already is
   if (G.recruit && G.S.party && G.S.party.length < G.partySlots()) {
     const have = [G.S.hero.cls].concat(G.S.party.map(m => m.cls));
@@ -76,28 +91,21 @@ function shop(G, cps) {
     const worn = G.SLOTS.map(s => G.S.hero.eq[s]).filter(g => g && g.e < G.ENCHANT_MAX).sort((a, b) => G.enchantCost(a).shards - G.enchantCost(b).shards);
     if (!worn.length || !G.enchant(worn[0])) break;
   }
-  // constellation, cheapest available first
-  for (let guard = 0; guard < 60; guard++) {
-    const n = G.NODES.filter(x => (G.S.nodes[x.id] || 0) < x.max && G.nodeAvailable(x)).sort((a, b) => G.nodeCost(a) - G.nodeCost(b))[0];
-    if (!n || !G.buyNode(n.id)) break;
-  }
-  // 3.3: a new run's blessing: the first card
-  if (G.S.blessOffer && G.chooseBlessing) G.chooseBlessing(G.S.blessOffer[0]);
-  // 3.0: build up the town when a level costs under a fifth of the gold on hand
-  if (G.BLD) for (let i = 0; i < 11; i++) {
-    const b = G.BLD.filter(x => G.bldLvl(x.id) < G.BLD_MAX).sort((x, y) => G.bldCost(x.id) - G.bldCost(y.id))[0];
-    if (!b || G.bldCost(b.id) > G.S.gold * 0.2 || !G.buildUp(b.id)) break;
-  }
+  // (4.0: no Constellation, town or Hall of Fame buys: those are the meta, the 'no meta' baseline of DESIGN §9.1; and no
+  // run blessing: the cards are retired, their effects become Button rules and Power-shrine boons)
   if (G.S.eggs >= 1) G.pull(G.S.eggs >= 9 ? 10 : 1);
   G.S.quests.forEach((q, i) => { if (q.done) G.claimQuest(i); });
   if (G.dailyAvailable()) G.claimDaily();
 }
+// the Hall of Fame (G.LEGACY, 4.0: capped ranks for Fame), cheapest first: only when a test asks (the personas play
+// with no meta; the bots stream adds the meta tiers)
 function buyLegacy(G) {
   for (let guard = 0; guard < 200; guard++) {
     const l = G.LEGACY.filter(x => (G.S.legacy[x.id] || 0) < x.max).sort((a, b) => G.legacyCost(a) - G.legacyCost(b))[0];
     if (!l || !G.buyLegacy(l.id)) break;
   }
 }
-const PERK_PRIORITY = ['might', 'frenzy', 'momentum', 'nova', 'blades', 'corpse', 'multi', 'overkill', 'aura', 'glass', 'chain', 'burn', 'execute', 'laststand', 'cleave', 'crush', 'thunder', 'mark', 'ricochet', 'bulwark', 'aegis', 'thorns', 'secondwind', 'warband', 'frost', 'souls', 'greed', 'avarice', 'reach', 'fortress', 'leech', 'loot'];
+// (4.0: Plunder is in: rares, champions and Hoarders drop a chest)
+const PERK_PRIORITY = ['might', 'frenzy', 'momentum', 'nova', 'blades', 'corpse', 'multi', 'overkill', 'aura', 'glass', 'chain', 'burn', 'execute', 'laststand', 'cleave', 'crush', 'thunder', 'mark', 'ricochet', 'bulwark', 'aegis', 'thorns', 'secondwind', 'warband', 'frost', 'souls', 'greed', 'avarice', 'reach', 'fortress', 'leech', 'loot', 'plunder'];
 
-module.exports = { makeWorld, metric, tryBuy, shop, buyLegacy, PERK_PRIORITY };
+module.exports = { makeWorld, metric, tryBuy, shop, siegeAct, buyLegacy, PERK_PRIORITY };

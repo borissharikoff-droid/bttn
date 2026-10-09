@@ -22,13 +22,21 @@
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
     reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.8,
-    // chests spill out of the Horde: a chance on every kill, more from the big ones; Plunder opens one now and then
-    killChest: 0.03, plunder: 0.002, biteFloor: 0.042,
+    // chests spill out of the Horde: a chance on every kill, more from the big ones. 4.0: none (killChest 0: the Horde's
+    // little chests are off; chests come from holding the Button, Hoarders, Golden Clicks...). Plunder: a rare, champion
+    // or Hoarder kill drops a chest, plunder a rank
+    killChest: 0, plunder: 0.2, biteFloor: 0.042,
     // 3.0: the bigger mobs (not the small fry) take this many times longer to bring down
     bigHp: 2.4,
     // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
     // regen out of and in a boss fight (share of health a second)
-    hsMin: 1, earlyHp: 3, earlyTo: 40, regen: 0.006, regenBoss: 0.002,
+    // 4.0: light attrition: regen 0.006 -> 0.002 out of boss fights, none in them
+    hsMin: 1, earlyHp: 3, earlyTo: 40, regen: 0.002, regenBoss: 0,
+    // 4.0: inside a Siege the Horde follows the run's schedule, not your might: hordeScale = min(hsSiegeMax, 1 +
+    // hsSiegeK * depth / 17) (the Last Stand hsLast), no outgrown-depth toughening, no clear-bar boost for strength
+    hsSiegeMax: 3, hsSiegeK: 2, hsLast: 4.5,
+    // 4.0: the bite shelter: half bites for the first shelterSecs of each run, for the first shelterRuns runs
+    shelterSecs: 60, shelterRuns: 3, levelHeal: 0.05,
     // 2.5: the new kinds: a pack's chance to be led by one (base + per depth, capped); Warded takes this share
     // of the Hand's damage; menders heal this share of health round them every few seconds; callers call
     // callN small fry every callEvery s; chargers run chargeSpd times faster for the last stretch
@@ -41,11 +49,13 @@
     // on); a set left alone is picked for you after perkAuto s
     perkGap: 25, perkEarly: 180, perkBank: 3, perkAuto: 12,
     // 3.6: a wipe ends the run only once this run has reached this depth (the end of its first land)
+    // (4.0: Integrity decides: land 1 is the muster, then a hit at 0 pips is the fall; see js/run.js G.pipHit)
     fallFrom: 3,
     // 3.6: a fallen run continued where it fell: Gems for the first (contCost; free the very first time), doubling
     // each time in a run, contMax a run. Gems from play: an achievement, a land star, a relic, a daily gift (three
     // times on a streak's 7th day), a lord's first fall
-    contCost: 25, contMax: 3, gemAch: 2, gemStar: 1, gemRelic: 5, gemDaily: 5, gemLord: 5,
+    // 4.0: one Continue a run, 30 Gems (the very first one ever free)
+    contCost: 30, contMax: 1, gemAch: 2, gemStar: 1, gemRelic: 5, gemDaily: 5, gemLord: 5,
   });
 
   // ---------- Content ----------
@@ -176,8 +186,15 @@
   //   click()                                         a manual click that landed
   G.HOOKS = G.HOOKS || { hit: [], kill: [], bite: [], tick: [], stats: [], click: [] };
   G.hook = (name, fn) => { (G.HOOKS[name] = G.HOOKS[name] || []).push(fn); };
-  // the tutorial's Horde (and the first three minutes') bites at half strength, so the first boss is reached while learning
-  G.hook('bite', (m, who, bd) => (G.UI && G.S && (G.S.tut >= 0 || G.S.st.playTime < 180) ? bd * 0.5 : null));
+  // the tutorial's Horde bites at half strength, so the first boss is reached while learning. 4.0: and the first minute
+  // of each of a player's first three runs (the 180 s of lifetime play it was), in the playtests too
+  G.hook('bite', (m, who, bd) => {
+    const S = G.S;
+    if (!S) return null;
+    if (G.UI && S.tut >= 0) return bd * 0.5;
+    const r = S.run;
+    return r && r.on && (r.n | 0) <= TUNE.shelterRuns && (r.field || 0) < TUNE.shelterSecs ? bd * 0.5 : null;
+  });
   G.PERKS = {
     might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses too' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
@@ -235,7 +252,8 @@
   // ---------- State ----------
   function newHero() {
     return { cls: null, lvl: 1, xp: 0, eq: { weapon: null, ability: null, armor: null, ring: null }, bag: [], gu: 0,
-      shards: 0, hp: TUNE.baseHp, auto: 1, salv: 1, cast: 1, kills: 0, elites: 0, fresh: 0,
+      // (4.0: salv 2: commons and uncommons turn into shards when they're picked up)
+      shards: 0, hp: TUNE.baseHp, auto: 1, salv: 2, cast: 1, kills: 0, elites: 0, fresh: 0,
       perks: {}, perkPts: 0, offer: null, offerT: 0, autoPerk: 1, orbs: {}, whp: TUNE.baseHp, wdown: 0 };
   }
   G.newHero = newHero;
@@ -254,9 +272,10 @@
   G.ensureHero = ensureHero;
 
   // ---------- The party ----------
-  // The Warden leads; companions join as you go deeper (after the Crab King, at depth 12 and at depth 20).
-  G.PARTY_AT = [3, 9, 15]; // 3.4: the team fills up sooner
-  G.partySlots = () => G.PARTY_AT.filter(d => (G.S.bestDepth || 0) >= d).length;
+  // The Warden leads; companions join as you go deeper. 4.0: every run starts alone: a seat opens at this run's
+  // depths 3, 6 and 9 (camps 1-3), read against the run (S.maxDepth), not the lifetime best
+  G.PARTY_AT = [3, 6, 9];
+  G.partySlots = () => G.PARTY_AT.filter(d => (G.S.maxDepth || 0) >= d).length;
   G.recruit = function (cls) {
     const S = G.S, C = G.CLASS_BY_ID[cls];
     if (!C || S.party.length >= G.partySlots()) return false;
@@ -334,6 +353,13 @@
     const max = v === 'button' ? G.D.heroHp : unitMax(v);
     hitParty(v, Math.max(dmg, (max || 0) * pct), src);
   };
+  // 4.0: heal the Button and everyone standing by a share of their health (a boss kill +10%, a lord +25%); the fallen stay down
+  G.healParty = function (frac) {
+    const h = G.S.hero, D = G.D;
+    if (!h || !h.cls) return;
+    if (!(R.btnDown > 0)) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * frac);
+    for (const u of G.partyUnits()) if (!(u.down > 0)) unitHp(u.who, Math.min(unitMax(u.who), unitHp(u.who) + unitMax(u.who) * frac));
+  };
   // Mend: heal everyone standing and lift the fallen
   G.mendParty = function (frac) {
     for (const u of G.partyUnits()) {
@@ -366,31 +392,49 @@
     const S = G.S, h = S.hero;
     S.st.wipes = (S.st.wipes || 0) + 1;
     const hadBoss = !!R.boss, meter0 = hadBoss ? G.D.bossNeed : S.bossMeter || 0;
-    for (const m of R.mobs) emit('mobFlee', m);
+    // 4.0: inside a Siege a wipe is a hit on the Integrity (js/run.js G.pipHit): land 1 is the muster (no pip lost),
+    // then a pip; a hit at 0 pips is the FALL (decided up front, so the stage knows whether to play the BOOM)
+    const siege = !R.rift && !!(G.inSiege && G.inSiege()), from = S.depth;
+    const fallNow = siege && !!(G.pipFalls && G.pipFalls(from));
+    // (marked dead too: the tick's loop over a copy of the Horde skips them)
+    for (const m of R.mobs) { m.dead = true; emit('mobFlee', m); }
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
+    // (a lord fight lost to a wipe costs the wipe's pip only)
+    R.wiping = true;
     if (R.boss) G.fleeBoss();
+    R.wiping = false;
     if (R.inv && G.endInvasion) G.endInvasion(false);
     if (R.ev && R.ev.k !== 'jackpot' && G.endEvent) G.endEvent(false);
     const inRift = !!R.rift;
     if (R.rift && G.riftEnd) G.riftEnd(false, 'broke');
-    const from = S.depth;
     // pushed back: the clear bar is lost and, past the first depth, a depth with it
     // (3.6: the zone's clock runs on: a party that falls now and then still gets its boss once the bar is back)
-    if (!inRift) { S.bossMeter = 0; if (hadBoss && S.depth > 0) S.depth--; R.bossReady = false; }
+    // (4.0, a Siege: back to the zone before, never out of this land (its lord is never fought twice), the zone's clock
+    // from zero; a fall stays where it fell, for a Continue)
+    if (siege) {
+      S.bossMeter = 0; R.bossReady = false; R.zoneT = 0;
+      if (!fallNow) S.depth = Math.max(from - (from % G.REALM_SIZE), from - 1);
+    } else if (!inRift) { S.bossMeter = 0; if (hadBoss && S.depth > 0) S.depth--; R.bossReady = false; }
     if (R.ground) R.ground.length = 0;
-    R.btnDown = 0; h.hp = G.D.heroHp;
-    for (const u of G.partyUnits()) reviveUnit(u.who, 1);
+    R.btnDown = 0;
+    // (4.0: with pips left the Button comes back at half and everyone gets up at half: no free full heal)
+    const back = siege ? 0.5 : 1;
+    h.hp = G.D.heroHp * back;
+    for (const u of G.partyUnits()) reviveUnit(u.who, back);
     R.stun = 4; // the party regroups
     R.bossHold = 25; // and no boss comes on its own for a while
     G.dirty(); G.recalc();
+    if (siege) h.hp = Math.min(h.hp, G.D.heroHp * back);
     // 3.1: past the first minutes the Button's fall ends the run (fame, then a new run from the checkpoint)
     // (3.6: not in a run's first land: a party still learning to hold depth 1 is pushed back, not sent to a new run
     // every minute or two, each time with a blessing to pick)
-    const fell = !inRift && G.runOver && !(S.tut >= 0) && (S.st.playTime || 0) > 150 && (S.maxDepth || 0) >= TUNE.fallFrom;
+    // (4.0: outside a Siege only; the 150 s of lifetime play gate is gone)
+    const fell = siege ? fallNow : !inRift && G.runOver && !(S.tut >= 0) && (S.maxDepth || 0) >= TUNE.fallFrom;
     R.fell = fell;
     emit('wipe', from, S.depth, inRift, hadBoss);
     // (3.6: where it fell, for a continue: the zone and the boss bar as they were)
-    if (fell) G.runOver({ depth: from, meter: meter0 });
+    if (siege && G.pipHit) G.pipHit('wipe', { depth: from, meter: meter0, boss: hadBoss });
+    else if (fell) G.runOver({ depth: from, meter: meter0 });
     R.fell = false;
   }
   G.wipe = wipe;
@@ -510,9 +554,10 @@
     for (const who of whos) {
       const m = who >= 0 ? S.party[who] : null, eq = eqOf(who);
       for (const slot of G.SLOTS) {
-        // (a unique's rule works only on the Warden: it stays on unless another unique beats it, and companions never take one)
-        const keepUq = !m && eq[slot] && eq[slot].q;
-        const pool = h.bag.filter(g => G.slotOf(g.id) === slot && (slot !== 'weapon' || !m || G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id])) && !(m && g.q) && !(keepUq && !g.q));
+        // (a worn unique stays on unless another unique beats it. 4.0, the ring bug: companions take uniques too; the rule
+        // works on anyone in the party)
+        const keepUq = eq[slot] && eq[slot].q;
+        const pool = h.bag.filter(g => G.slotOf(g.id) === slot && (slot !== 'weapon' || !m || G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id])) && !(keepUq && !g.q));
         let best = eq[slot], bp = best ? powerWith(slot, best, who) : -1;
         for (const g of pool) { const p = powerWith(slot, g, who); if (p > bp) { best = g; bp = p; } }
         if (best && best !== eq[slot]) { equip(best, true, who); n++; }
@@ -673,16 +718,17 @@
   };
   // 3.1: the Gambler: shards for a mystery item of the slot you choose; mostly magic to the depth's best
   // rarity, now and then a unique
-  G.gambleCost = () => Math.round(30 * Math.pow(1.07, G.S.bestDepth || 0));
+  // (4.0: priced and rolled by this run's depth, not the lifetime best)
+  G.gambleCost = () => Math.round(30 * Math.pow(1.07, G.S.maxDepth || 0));
   G.GAMBLE_UQ = 0.04;
   G.gamble = function (slot) {
     const S = G.S, h = S.hero, c = G.gambleCost();
     if (!h || !h.cls || h.shards < c || !G.SLOTS.includes(slot)) return null;
     h.shards -= c;
     S.st.gambles = (S.st.gambles || 0) + 1;
-    const d = S.bestDepth || 0, cap = G.rarityCap();
+    const d = S.maxDepth || 0, cap = G.rarityCap();
     // a unique of this slot the depth allows
-    const uqs = (G.UNIQUE_IDS || []).filter(q => { const U = G.UNIQUES[q]; return U.minD <= d && !U.boss && G.slotOf(U.base) === slot; });
+    const uqs = (G.UNIQUE_IDS || []).filter(q => { const U = G.UNIQUES[q]; return (G.uqOpen ? G.uqOpen(q, d) : U.minD <= d) && !U.boss && G.slotOf(U.base) === slot; });
     if (uqs.length && chance(G.GAMBLE_UQ)) {
       const q = uqs[Math.floor(G.rng() * uqs.length)], U = G.UNIQUES[q], it = G.ITEM_BY_ID[U.base];
       const first = !S.uq[q]; S.uq[q] = (S.uq[q] || 0) + 1;
@@ -703,6 +749,9 @@
   function chooseClass(id) {
     const S = G.S, h = S.hero, cls = G.CLASS_BY_ID[id];
     if (!cls) return false;
+    // 4.0: a class picked with no Siege on starts one (the 3.x class pick, and the playtest bots); the run setup's own way
+    // in is G.runStart({ btn, cls, heat, ... }), which comes back here with the run already on
+    if (G.runStart && !(S.run && S.run.on)) return !!G.runStart({ cls: id });
     h.cls = id;
     const hasWeapon = [h.eq.weapon].concat(h.bag).some(g => g && G.slotOf(g.id) === 'weapon' && cls.weapons.includes(G.ITEM_TYPE[g.id]));
     if (!hasWeapon) { const g = makeGear(cls.starter, 0); h.bag.push(g); }
@@ -726,16 +775,23 @@
     for (const slot of G.SLOTS) { const g = h.eq[slot]; if (g) for (const [k, v] of g.a) aff[k] = (aff[k] || 0) + v; }
     d.goldMult *= (1 + (aff.gold || 0)) * (1 + G.STAR_BONUS * (G.starCount ? G.starCount() : 0));
     d.luck += (aff.luck || 0) + om().luck;
-    d.xpMult = (1 + (aff.xp || 0)) * om().xp;
+    // (4.0: on top of what came before: the Hall's Scholar)
+    d.xpMult = (d.xpMult || 1) * (1 + (aff.xp || 0)) * om().xp;
     d.shardMult = 1 + (aff.shard || 0);
   };
   G.heroFinish = function (d) {
     const S = G.S, h = S.hero;
     if (!h) return;
-    d.heroMult = (d.heroMult || 1) * (1 + 0.005 * S.fameTotal) * (1 + 0.02 * (d.heroClasses || 0)) * (G.Journey ? G.Journey.bonus() : 1) * (1 + G.STAR_BONUS * (G.starCount ? G.starCount() : 0));
+    // (4.0: no hidden power: fame no longer adds damage; land stars give none (STAR_BONUS 0); the Journey's is the meta's.
+    // The Garrison's +2% a class stays: the Garrison is the run's own power)
+    d.heroMult = (d.heroMult || 1) * (1 + 0.02 * (d.heroClasses || 0)) * (G.Journey ? G.Journey.bonus() : 1) * (1 + G.STAR_BONUS * (G.starCount ? G.starCount() : 0));
     const c = combat(h.eq, d);
+    // the uniques' rules: 4.0 (the ring bug): a unique works on whoever in the party wears it; and the run's relic belt
+    // (S.run.belt: rule ids) works like a worn unique, so every uq() rule needs nothing new
     d.uq = {};
     for (const s of G.SLOTS) if (h.eq[s] && h.eq[s].q) d.uq[h.eq[s].q] = 1;
+    for (const m of S.party || []) for (const s of G.SLOTS) if (m.eq[s] && m.eq[s].q) d.uq[m.eq[s].q] = 1;
+    if (S.run && S.run.on && Array.isArray(S.run.belt)) for (const q of S.run.belt) if (q) d.uq[q] = 1;
     const hunt = R.hb.hh > 0 && d.uq.headhunter ? 1.6 : 1;
     const buffDmg = (R.hb.tome > 0 ? 1.5 : 1) * (R.hb.orb > 0 ? 1.3 : 1) * hunt;
     d.hero = c;
@@ -841,7 +897,11 @@
   // The Horde answers strength: a Warden who kills faster faces a bigger, heavier
   // flow, so a stronger Warden clears lands (and earns gold and XP) faster
   // (2.3: and never less than a full Horde: a Warden too weak for the depth is overrun, not spared)
-  const hordeScale = () => G.clamp(mightRatio() / TUNE.hordeRef, TUNE.hsMin, TUNE.hordeMax);
+  // 4.0: inside a Siege the Horde follows the run's schedule, not the Warden's might (measured: a might-scaled Horde made
+  // extra power shorten runs): min(3, 1 + 2 depth/17), the Last Stand 4.5 (R.lastStand)
+  const siegeOn = () => !R.rift && !!(G.S.run && G.S.run.on);
+  const hordeScale = () => siegeOn() ? (R.lastStand ? TUNE.hsLast : Math.min(TUNE.hsSiegeMax, 1 + TUNE.hsSiegeK * Math.max(0, dnow()) / ((G.SIEGE && G.SIEGE.final) || 17)))
+    : G.clamp(mightRatio() / TUNE.hordeRef, TUNE.hsMin, TUNE.hordeMax);
   G.hordeScale = hordeScale;
   // 3.6: how many small bodies the field holds now, and how much each weighs against the mobRef it was balanced for
   function crowdUpdate() {
@@ -856,7 +916,8 @@
   const crowdN = n => Math.max(1, Math.round(n / (R.crowdK || 1)));
   G.crowdN = crowdN; G.crowdCap = crowdCap; G.crowdUpdate = crowdUpdate;
   // 3.6: how much of the clear bar the zone's clock allows by now (R.zoneT: field time in this zone; see game.js TUNE.zoneMin)
-  const zoneMinNow = () => (G.S.depth >= (G.S.bestDepth || 0) ? TUNE.zoneMin : TUNE.zoneMinOld) || 0;
+  // (4.0: new ground means new to this run: S.maxDepth is the run's)
+  const zoneMinNow = () => (G.S.depth >= (G.S.maxDepth || 0) ? TUNE.zoneMin : TUNE.zoneMinOld) || 0;
   function zoneShare() { const z = zoneMinNow(); return z > 0 ? Math.min(1, (R.zoneT || 0) / z) : 1; }
   G.zoneShare = zoneShare;
   // set the zone's clock to match a clear bar (after a load or a lost fight)
@@ -1091,7 +1152,8 @@
     if (!m.add && !R.rift) {
       // (and in the lord's zone, short of full while its Land Champion is still to come: js/champions.js)
       const cap = (G.D.bossNeed || 8) * (R.chPend ? Math.min(0.9, zoneShare()) : zoneShare());
-      if (S.bossMeter < cap) S.bossMeter = Math.min(cap, S.bossMeter + m.w * G.clamp(mightRatio() / (TUNE.hordeRef * 2), 1, S.depth >= (S.bestDepth || 0) ? 3 : 6));
+      // (4.0: inside a Siege no boost for strength: the zone's clock and the Horde's schedule set the pace)
+      if (S.bossMeter < cap) S.bossMeter = Math.min(cap, S.bossMeter + m.w * (siegeOn() ? 1 : G.clamp(mightRatio() / (TUNE.hordeRef * 2), 1, S.depth >= (S.bestDepth || 0) ? 3 : 6)));
     }
     let chest = null;
     if (G.lootKill) chest = G.lootKill(m, src);
@@ -1109,10 +1171,11 @@
     }
     // about one in two million: the JACKPOT
     if (!m.add && G.jackpotRoll) G.jackpotRoll(m, 'kill');
-    // Plunder: a kill now and then pops a chest open on its own
-    if (perk('plunder') && S.chests.length && chance(TUNE.plunder * perk('plunder') * (G.SMALL[m.kind] ? m.w / G.MOB_KINDS[m.kind].w * FODK(m) : 1))) {
-      const c = S.chests.find(x => x.mod !== 'mimic' && x.mod !== 'frozen');
-      if (c) { emit('plunder', m, c); G.openChest(c, 'plunder'); }
+    // Plunder (4.0): a rare, a Land Champion or a Hoarder drops a chest where it falls, 20% a rank (not the blue champions
+    // that come in pairs: measured, they made Plunder III ~20 chests a minute against the 2-4 a minute the Siege wants)
+    if (perk('plunder') && !m.add && (m.kind === 'rare' || m.kind === 'hoard' || m.champ) && G.spawnChest && chance(TUNE.plunder * perk('plunder'))) {
+      R.dropAt = m; const c = G.spawnChest(); R.dropAt = null;
+      if (c) emit('plunder', m, c);
     }
     if (perk('leech')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.003 * perk('leech') * (G.SMALL[m.kind] ? 0.3 : 4) * (evo('bloodpact') ? 4 : 1));
     if (uq('sporeheart')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.004 * (G.SMALL[m.kind] ? 0.3 : 4));
@@ -1163,7 +1226,8 @@
       h.perkPts = (h.perkPts || 0) + (h.lvl - before);
       if (!h.offer && offerOk()) offerPerks();
       G.dirty(); G.recalc();
-      h.hp = G.D.heroHp;
+      // (4.0: a level-up heals the Button +5% (TUNE.levelHeal), not fully: light attrition)
+      h.hp = Math.min(G.D.heroHp, h.hp + G.D.heroHp * TUNE.levelHeal);
       emit('levelUp', h.lvl);
       for (const x of G.RANKS) if (x.lv > before && x.lv <= h.lvl) emit('rankUp', x);
     }
@@ -1379,7 +1443,7 @@
   function castAbility() {
     const S = G.S, D = G.D, h = S.hero;
     const g = h.eq.ability;
-    if (!g || R.abilCd > 0 || !h.cls || R.town) return false;
+    if (!g || R.abilCd > 0 || !h.cls || R.town || (G.runHeld && G.runHeld())) return false;
     const type = G.ITEM_TYPE[g.id], ab = G.ABILITIES[type];
     R.abilCd = ab.cd * (1 - Math.min(0.5, 0.03 * g.e)) * (uq('watcher') ? 0.5 : 1);
     const hit = D.heroHit;
@@ -1437,7 +1501,8 @@
         const surging = R.surge > 0;
         R.hs = hordeScale();
         // 3.5: past the Horde's biggest size, an outgrown depth's mobs get tougher with the party, so they still reach the Button
-        R.opHp = Math.pow(Math.max(1, mightRatio() / (TUNE.hordeRef * TUNE.opFrom)), TUNE.opHpPow);
+        // (4.0: not inside a Siege: 1)
+        R.opHp = siegeOn() ? 1 : Math.pow(Math.max(1, mightRatio() / (TUNE.hordeRef * TUNE.opFrom)), TUNE.opHpPow);
         const thick = om().horde * (R.rift ? 1.5 : G.torment().horde) * (R.inv ? 1.8 : 1) * (shrine('slaughter') ? 2.5 : 1) * (land().thick || 1) * (surging ? TUNE.surgeMul * (land().surge || 1) : 1);
         R.hordeAcc = Math.min(4 * R.hs, R.hordeAcc + dt * TUNE.hordeRate * R.hs * thick);
         const cap = hordeCap(dnow()) * Math.max(1, R.hs / 1.5) * (surging ? 1.5 : 1) * (R.rift || shrine('slaughter') ? 1.5 : 1);
@@ -1619,7 +1684,8 @@
   // levels (the perk picks wait for the player's return) and some shards.
   G.heroOffline = function (t) {
     const S = G.S, h = S.hero, D = G.D;
-    if (!h || !h.cls) return null;
+    // (4.0: time away never advances a Siege)
+    if (!h || !h.cls || siegeOn()) return null;
     const w = t * TUNE.hordeRate * hordeScale() * (D.offEff || 0.5);
     const lvl0 = h.lvl;
     // a quarter of the active XP rate, and no more than 5 levels per return

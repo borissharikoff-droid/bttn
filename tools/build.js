@@ -2,7 +2,10 @@
 //   dist/bttn.html     — standalone page (open locally, host anywhere, itch.io)
 //   dist/artifact.html — the same page body without <html>/<head>/<body> wrappers
 //   docs/index.html    — the standalone page again, for the public site on GitHub Pages
-// Usage: node tools/build.js
+//   dist/steam.html    — only with --target steam: the page for the Steam wrapper (steam/), with
+//                        window.BTTN_PLATFORM = 'steam' and steam/bridge.js (save file, carry-over, achievements)
+// Usage: node tools/build.js            (the web build: dist/bttn.html, dist/artifact.html, docs/, server/src/game.js)
+//        node tools/build.js --target steam   (writes dist/steam.html and nothing else)
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -54,6 +57,30 @@ ${body}
 ${safeJs}
 </script>
 `;
+
+// 4.0: build targets. The default (web) writes what it always wrote; 'steam' writes dist/steam.html only.
+const argv = process.argv.slice(2);
+const target = (argv.find(a => a.startsWith('--target=')) || '').slice(9) || (argv.includes('--target') ? argv[argv.indexOf('--target') + 1] : '') || 'web';
+if (target === 'steam') {
+  // the bridge runs before the game's scripts; the achievement map comes from steam/achievements.json
+  let achMap = {};
+  try { (JSON.parse(read('steam/achievements.json')).achievements || []).forEach(a => { if (a && a.id && /^[A-Z0-9_]{1,64}$/.test(a.api)) achMap[a.id] = a.api; }); } catch (e) { achMap = {}; }
+  const bridge = read('steam/bridge.js').replace(/<\/script/gi, '<\\/script');
+  // no network but Twitch chat (streamer mode) and https links; everything else is inline or a data: URL
+  const csp = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https: wss://irc-ws.chat.twitch.tv; base-uri 'none'; form-action 'none'";
+  const head = `<meta http-equiv="Content-Security-Policy" content="${csp}">
+<script>window.BTTN_PLATFORM = 'steam'; window.BTTN_STEAM_ACH = ${JSON.stringify(achMap).replace(/</g, '\\u003c')};</script>
+<script>
+${bridge}
+</script>`;
+  if (!standalone.includes('</head>')) throw new Error('no </head> in the page');
+  const steam = standalone.replace('</head>', () => head + '\n</head>');
+  fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'dist', 'steam.html'), steam);
+  console.log('dist/steam.html', (Buffer.byteLength(steam) / 1024).toFixed(1) + ' KB', Object.keys(achMap).length + ' Steam achievements');
+  process.exit(0);
+}
+if (target !== 'web') { console.error('unknown --target ' + target + ' (web, steam)'); process.exit(1); }
 
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist', 'bttn.html'), standalone);
