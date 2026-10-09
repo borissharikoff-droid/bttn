@@ -509,6 +509,9 @@
     const pool = Object.keys(G.PERKS).filter(k => sch.includes(G.PERK_SCHOOL[k]) && (!G.perkOpen || G.perkOpen(k)));
     const pk = {};
     for (let i = 0; i < n && pool.length; i++) pk[pool.splice(Math.floor(G.rng() * pool.length), 1)[0]] = 1;
+    // (a Button's rule, e.g. Prism: D.pkPlus more ranks on the first perk a mythic or divine rolls; set in G.btnFx)
+    const k0 = Object.keys(pk)[0];
+    if (k0 && (G.D.pkPlus | 0) > 0) pk[k0] += G.D.pkPlus | 0;
     return pk;
   }
   G.rollPk = rollPk;

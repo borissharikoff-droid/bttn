@@ -28,6 +28,9 @@
     bossMin: 9, bossMinLord: 20, bossMinAct: 24, bossMinFinal: 30, bossMinOld: 0.25, bossClickK: 0.9, actHp: 1.5, finalHp: 1.5,
     // 2.3: a boss out of time enrages for this long (s); DOOM from this depth on; Rally per failed try and its cap
     enrage: 10, enrageLord: 14, doomFrom: 5, rally: 0.15, rallyMax: 4,
+    // a boss the party lost to heals back this share of the damage it took (less after each try: / (1 + tries)); scarHealLord for a
+    // lord, an act boss or the Mad Button inside a Siege (a lost lord fight costs a pip: the lord is the run's check)
+    scarHeal: 0.3, scarHealLord: 0.3,
     // boss affixes from this depth; a Shield cracked stays down this long; Regenerating heals this share a second
     affixFrom: 8, shieldDown: 10, bossRegen: 0.008,
     // 4.0: rarity opens with this run's depth (not the lifetime best): rare from depth 2, epic 4, legendary 7, mythic 10,
@@ -1062,7 +1065,8 @@
     // only a try that actually hurt the boss counts toward Rally
     // and it heals back less after each try, so a wall always gives way to someone who keeps at it
     const n0 = S.scar && S.scar.d === b.d ? S.scar.n || 0 : 0;
-    S.scar = { d: b.d, k: Math.max(0.15, left + (1 - left) * 0.3 / (1 + n0)), n: n0 + (left < 0.95 ? 1 : 0) };
+    const heal = b.lord && inSiege() ? TUNE.scarHealLord : TUNE.scarHeal;
+    S.scar = { d: b.d, k: Math.max(0.15, Math.min(1, left + (1 - left) * heal / (1 + n0))), n: n0 + (left < 0.95 ? 1 : 0) };
     S.rested = 0;
     b.wound = 1 - S.scar.k;
     if (G.heroBossEnd) G.heroBossEnd(false);
