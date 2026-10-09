@@ -9,7 +9,11 @@
   Object.assign(TUNE, {
     // (4.0: mobGrowth 1.6 -> 1.65: the Siege's balance, DESIGN §14 lever 1, measured with camps, relics, boons and the
     // loot moment in: notes/core.md continuation 2)
-    mobBase: 10, mobGrowth: 1.65, mobAtkBase: 5, mobAtkGrowth: 1.22,
+    // (cardsloot: 1.65 -> 1.70. The gear rules (companions wear uniques, auto-equip to the most improved hero and onward,
+    // the bag kept by the party), gear ranks counting in perks2 and the Marks made the party stronger: the active bot
+    // (no meta, Heat 0) won 93% at 1.65 (gate 50-80%; 69% before them), 74% at 1.68, 65% at 1.70 - bots, 8-10 seeds x
+    // 90 min, notes/cardsloot.md)
+    mobBase: 10, mobGrowth: 1.70, mobAtkBase: 5, mobAtkGrowth: 1.22,
     mobWalk: 5, opFrom: 2.5, opHpPow: 0.8, kbPush: 0.045, kbEvery: 0.6, hordeRate: 0.6, hordeRef: 2.2, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,

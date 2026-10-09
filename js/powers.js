@@ -30,24 +30,32 @@
   // (names: the loot map's, except two that met an older name: Midas Touch is an evolution and Thunder Palm a Star Chart
   // node, so they are Gilded Death and Thunderclap here)
   G.MARKS = {
-    stormlash:   { slots: ['weapon'], v: [3, 5, 7], name: 'Stormlash', desc: 'Every 4th attack arcs to {0} more mobs at 60%' },
-    reaper:      { slots: ['weapon'], v: [8, 12, 16], name: 'Reaper’s Mark', desc: 'Hits execute mobs under {0}% health (not bosses)' },
-    overcharge:  { slots: ['weapon', 'ring'], v: [40, 70, 100], name: 'Overcharge', desc: 'Crits +{0}% and splash a quarter of it' },
-    giantslayer: { slots: ['any'], v: [20, 35, 50], name: 'Giantslayer', desc: '+{0}% damage to bosses, champions, rares and tanks' },
+    stormlash:   { slots: ['weapon'], v: [3, 5, 7], name: 'Stormlash', desc: 'Every 4th attack arcs to {0} more mobs at {1}%' },
+    reaper:      { slots: ['weapon'], v: [5, 7, 10], name: 'Reaper’s Mark', desc: 'Hits execute mobs under {0}% health (not bosses)' },
+    overcharge:  { slots: ['weapon', 'ring'], v: [25, 40, 60], name: 'Overcharge', desc: 'Crits +{0}% and splash a quarter of it' },
+    giantslayer: { slots: ['any'], v: [12, 20, 30], name: 'Giantslayer', desc: '+{0}% damage to bosses, champions, rares and tanks' },
     gilded:      { slots: ['ring'], v: [1, 1.5, 2], name: 'Gilded Death', desc: 'Kills: {0}% to burst into 5× gold' },
     phoenix:     { slots: ['armor'], v: [50, 75, 100], name: 'Phoenix Heart', desc: 'Once a zone the first hero to fall rises at {0}%' },
     thunderclap: { slots: ['ability', 'ring'], v: [20, 16, 12], name: 'Thunderclap', desc: 'Every {0}th click: a 6× bolt on 5 mobs' },
     glacial:     { slots: ['armor'], v: [15, 25, 35], name: 'Glacial Aura', desc: 'Mobs near the Button walk {0}% slower' },
     spiked:      { slots: ['armor'], v: [150, 250, 400], name: 'Spiked Bulwark', desc: 'Biters take {0}% of your hit' },
     bloodsong:   { slots: ['any'], v: [0.05, 0.08, 0.12], name: 'Bloodsong', desc: 'Kills mend the Button {0}% (small fry less)' },
-    engine:      { slots: ['weapon'], v: [15, 25, 40], name: 'Frenzy Engine', desc: 'Kills: +0.5% attack speed for 5s, up to +{0}%' },
-    lastlight:   { slots: ['any'], v: [40, 60, 90], name: 'Last Light', desc: 'Under 35% Button health: +{0}% damage' },
-    meteor:      { slots: ['ability'], v: [10, 8, 6], name: 'Meteor Herald', desc: 'Every {0}s a 12× meteor on the thickest pack' },
-    echo:        { slots: ['ability'], v: [20, 30, 40], name: 'Echo Cast', desc: 'Abilities recharge {0}% faster; may cast twice' },
-    breaker:     { slots: ['weapon'], v: [5, 8, 12], name: 'Boss Breaker', desc: 'Each boss phase tears off {0}% of its health' },
+    engine:      { slots: ['weapon'], v: [8, 14, 20], name: 'Frenzy Engine', desc: 'Kills: +0.5% attack speed for 5s, up to +{0}%' },
+    lastlight:   { slots: ['any'], v: [25, 40, 60], name: 'Last Light', desc: 'Under 35% Button health: +{0}% damage' },
+    meteor:      { slots: ['ability'], v: [10, 8, 6], name: 'Meteor Herald', desc: 'Every {0}s a {1}× meteor on the thickest pack' },
+    echo:        { slots: ['ability'], v: [12, 18, 25], name: 'Echo Cast', desc: 'Abilities recharge {0}% faster; may cast twice' },
+    breaker:     { slots: ['weapon'], v: [3, 5, 7], name: 'Boss Breaker', desc: 'Each boss phase tears off {0}% of its health' },
     nose:        { slots: ['ring'], v: [1, 2, 3], name: 'Treasure Nose', desc: 'Rares, champions, Hoarders: +2 Embers; II: +1 lord loot card; III: a rarer one' },
     ember:       { slots: ['any'], v: [25, 50, 100], name: 'Ember Heart', desc: 'Burning pays +{0}% Embers' },
   };
+  // 4.0 (cardsloot, measured: tests/cardsloot/bal m1/m2 + the orphaned clC, bots, 8-20 seeds x 90 min): the loot map's
+  // values made Marks worth +38 points of wins at full meta, Heat 8 (74% vs 36% with none: Heat's rarity bonus deals
+  // mythic/divine from zone ~4-7, so a late party wears 6-9 tier-III Marks) and +7 at Heat 0. mark_power.js's table (one
+  // tier-III Mark, kills x): Overcharge 1.60, Frenzy Engine 1.59, Reaper 1.21, Boss Breaker 1.15, Echo / Stormlash 1.14.
+  // Trimmed: Overcharge 40/70/100 -> 25/40/60, Frenzy Engine 15/25/40 -> 8/14/20, Reaper 8/12/16 -> 5/7/10, Boss Breaker
+  // 5/8/12 -> 3/5/7, Echo 20/30/40 -> 12/18/25, Giantslayer 20/35/50 -> 12/20/30, Last Light 40/60/90 -> 25/40/60, Stormlash's
+  // arc 60% -> 40% (pwArcK), Meteor 12x -> 8x (pwMeteorK): Heat 8 60% with the trim alone, 41% with mobGrowth 1.68 too
+  // (hero.js: the stream's other power - the gear rules, gear ranks in perks2 - is paid by mobGrowth)
   G.MARK_IDS = Object.keys(G.MARKS);
   // (the screens' words for Marks; the Marks' names and texts are on G.MARKS, where i18n_ru.js patches content names)
   if (G.tAdd) G.tAdd({ mark: 'Mark', marks: 'Marks', mark_tier: 'Tier {0}', mark_party: 'Works for the whole party', mark_none: 'No Mark' });
@@ -59,16 +67,18 @@
     // (marks 0: no item rolls a Mark; marksOff: [ids] never rolled - balance levers and A/B switches for the sweeps)
     marks: 1, marksOff: null, pwMythic: [0.7, 0.3], pwDivine: [0.6, 0.4],
     // Stormlash every pwArcEvery attacks at pwArcK of the hit; Overcharge's splash share and radius; Meteor's hit and radius
-    pwArcEvery: 4, pwArcK: 0.6, pwArcR: 0.45, pwSurgeK: 0.25, pwSurgeR: 0.08, pwMeteorK: 12, pwMeteorR: 0.15,
+    pwArcEvery: 4, pwArcK: 0.4, pwArcR: 0.45, pwSurgeK: 0.25, pwSurgeR: 0.08, pwMeteorK: 8, pwMeteorR: 0.15,
     pwBoltK: 6, pwBoltN: 5, pwGoldK: 5, pwLight: 0.35, pwEngStep: 0.005, pwEngLapse: 5, pwNose: 2,
   });
 
   G.markName = id => (G.MARKS[id] ? G.MARKS[id].name : id);
+  // ('{1}' in a text: a number the TUNE holds, so the words follow a retune: Stormlash's arc share, Meteor's hit)
+  const EXTRA = { stormlash: () => Math.round(G.TUNE.pwArcK * 100), meteor: () => G.TUNE.pwMeteorK };
   G.markText = function (id, tier) {
     const P = G.MARKS[id];
     if (!P) return '';
     const v = P.v[Math.max(0, Math.min(2, (tier | 0) - 1))];
-    return String(P.desc).replace('{0}', String(v));
+    return String(P.desc).replace('{0}', String(v)).replace('{1}', EXTRA[id] ? String(EXTRA[id]()) : '');
   };
   G.markInfo = (id, tier) => ({ id, tier: tier | 0, roman: ROMAN[tier | 0] || '', name: G.markName(id), text: G.markText(id, tier), slots: (G.MARKS[id] || {}).slots || [] });
   // (the loot map called them powers: the same functions under that name, for anyone looking for them)
