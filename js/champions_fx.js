@@ -60,7 +60,7 @@
         if (!AC) return null;
         try { this.ac = new AC(); } catch (e) { return null; }
       }
-      if (this.ac.state === 'suspended') { try { this.ac.resume(); } catch (e) { /* not yet allowed */ } }
+      if (this.ac.state === 'suspended') { /* 4.0: resume() is a promise (WebKit may reject it) */ try { const pr = this.ac.resume(); if (pr && pr.catch) pr.catch(() => {}); } catch (e) { /* not yet allowed */ } }
       return this.ac;
     },
     vol() { return Math.min(1, G.S.set.vol == null ? 0.6 : G.S.set.vol) * 0.32; },

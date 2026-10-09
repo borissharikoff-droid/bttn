@@ -233,7 +233,7 @@
     ac: null, rev: null,
     on() { const s = G.S && G.S.set; return !!(s && s.sound && s.vol > 0); },
     init(use) {
-      if (this.ac && !use) { if (this.ac.state === 'suspended') this.ac.resume(); return true; }
+      if (this.ac && !use) { if (this.ac.state === 'suspended') { const pr = this.ac.resume(); if (pr && pr.catch) pr.catch(() => {}); } return true; }
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC && !use) return false;
       try { this.ac = use || new AC(); } catch (e) { return false; }
@@ -429,10 +429,11 @@
     root = document.createElement('div'); root.id = 'relicFx';
     cv = document.createElement('canvas'); root.appendChild(cv);
     document.body.appendChild(root);
-    root.addEventListener('pointerdown', e => { if (show && show.t >= T.skip && show.t < T.card && !show.card) { e.preventDefault(); e.stopPropagation(); skip(); } });
+    root.addEventListener('pointerdown', e => { if (show && show.belt) { e.preventDefault(); e.stopPropagation(); if (show.t >= TB.skip) beltOut(); return; } if (show && show.t >= T.skip && show.t < T.card && !show.card) { e.preventDefault(); e.stopPropagation(); skip(); } });
     window.addEventListener('resize', () => { if (show) { layout(); if (show.card) placeCard(); } });
     window.addEventListener('keydown', e => {
       if (!show) return;
+      if (show.belt) { if (show.t >= TB.skip && !e.repeat && (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); beltOut(); } e.stopPropagation(); return; }
       if (show.card) { if (e.key === 'Escape') { e.preventDefault(); close(false); } else if (e.key === 'Enter') { e.preventDefault(); close(true); } }
       else if (show.t >= T.skip && (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); skip(); }
       e.stopPropagation();
@@ -447,6 +448,7 @@
     const it = queue.shift();
     if (!it) return;
     ensureRoot();
+    if (it.belt) { startBelt(it); return; }
     const id = it.info.q;
     show = { g: it.g, info: it.info, id, U: G.UNIQUES[id], t: 0, prev: -1, k: 1, kv: 1, parts: [], rings: [], cracks: [], pieces: [], shake: 0, flash: 0, flashCol: '#ffffff', card: null, out: 0, done: {} };
     layout();
@@ -466,7 +468,7 @@
     const dt = Math.min(0.05, Math.max(0, (now - show.last) / 1000));
     show.last = now;
     show.prev = show.t; show.t += dt;
-    try { step(dt); if (show) draw(); } catch (e) { console.error(e); finish(); return; }
+    try { if (show.belt) { stepBelt(dt); if (show) drawBelt(); } else { step(dt); if (show) draw(); } } catch (e) { console.error(e); finish(); return; }
     if (show) requestAnimationFrame(loop);
   }
   const passed = k => show.prev < k && show.t >= k;
@@ -498,19 +500,7 @@
     // embers rising in the pillar, motes round the relic
     if (t > T.hit && t < T.burst && Math.random() < 0.7) s.parts.push({ x: s.sx + rnd(-6, 6), y: s.sy - rnd(0, 20), vx: rnd(-4, 4), vy: rnd(-60, -25), life: rnd(0.6, 1.2), max: 1.2, col: pickc(PRISM), sz: 1, g: 0, drag: 0 });
     if (t > T.burst && Math.random() < 0.85) { const p = itemPos(); s.parts.push({ x: p.x + rnd(-30, 30), y: p.y + rnd(-26, 30), vx: rnd(-5, 5), vy: rnd(-26, -8), life: rnd(0.6, 1.4), max: 1.4, col: pickc(PRISM), sz: Math.random() < 0.2 ? 2 : 1, g: 0, drag: 0, tw: 1 }); }
-    // physics
-    for (let i = s.parts.length - 1; i >= 0; i--) {
-      const p = s.parts[i];
-      if ((p.life -= dt) <= 0) { s.parts.splice(i, 1); continue; }
-      p.vy += p.g * dt; if (p.drag) { p.vx *= 1 - p.drag * dt; p.vy *= 1 - p.drag * dt; }
-      p.x += p.vx * dt; p.y += p.vy * dt;
-      if (p.floor != null && p.y > p.floor) { p.y = p.floor; p.vy *= -0.3; p.vx *= 0.6; }
-    }
-    if (s.parts.length > 900) s.parts.splice(0, s.parts.length - 900);
-    for (let i = s.rings.length - 1; i >= 0; i--) { const r = s.rings[i]; if ((r.life -= dt) <= 0) s.rings.splice(i, 1); else r.r += r.v * dt * (r.life / r.max + 0.15); }
-    for (const pc of s.pieces) { pc.vy += 260 * dt; pc.x += pc.vx * dt; pc.y += pc.vy * dt; pc.a += pc.va * dt; pc.life -= dt; }
-    s.shake = Math.max(0, s.shake - dt * (s.shake > 6 ? 18 : 9));
-    s.flash = Math.max(0, s.flash - dt * 2.4);
+    physics(dt);
     // the shake reaches the world under the show too
     // and the camera pushes in on the spot while the world stops (and eases back out at the end)
     const wrap = document.getElementById('stageWrap');
@@ -661,17 +651,7 @@
     const rayOn = t > T.land ? clamp((t - T.land) / 0.8, 0, 1) * (t > T.burst ? 1 : 0.45) : 0;
     if (rayOn > 0) {
       const p = t > T.burst ? itemPos() : { x: s.sx, y: s.sy - 8 * s.bs };
-      ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      const n = 16, R = Math.max(W, H) * 1.2, rot = t * 0.32;
-      for (let i = 0; i < n; i++) {
-        const a0 = rot + (i / n) * Math.PI * 2, wdt = (i % 2 ? 0.07 : 0.12) * (1 + 0.25 * Math.sin(t * 1.7 + i));
-        ctx.fillStyle = (i % 4 === 1 ? 'rgba(255,208,244,' : i % 4 === 3 ? 'rgba(191,232,255,' : 'rgba(255,255,255,') + (0.085 * rayOn * (i % 2 ? 0.7 : 1)).toFixed(3) + ')';
-        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + Math.cos(a0 - wdt) * R, p.y + Math.sin(a0 - wdt) * R); ctx.lineTo(p.x + Math.cos(a0 + wdt) * R, p.y + Math.sin(a0 + wdt) * R); ctx.closePath(); ctx.fill();
-      }
-      // the core glow, in bands
-      const pulse = 1 + 0.08 * Math.sin(t * 6);
-      for (const [r, a, c] of [[56, 0.05, '150,200,255'], [42, 0.07, '255,170,240'], [30, 0.1, '200,230,255'], [20, 0.14, '255,255,255'], [12, 0.2, '255,255,255']]) { ctx.fillStyle = `rgba(${c},${a * rayOn})`; fillEllipse(p.x, p.y, r * pulse * 1.1, r * pulse * 1.1); }
-      ctx.restore();
+      drawRays(p, rayOn, t);
     }
 
     // 3. the star that becomes a spear, and the pillar it leaves
@@ -730,45 +710,10 @@
     }
 
     // 5. the relic: huge, spinning, shimmering
-    if (t >= T.burst) {
-      const img = SPR.get('rx_' + s.id, { oc: '#2a2440' }), p = itemPos();
-      const age = t - T.burst;
-      const pop = age < 0.45 ? 0.3 + 0.95 * ease(age / 0.3) - 0.25 * Math.max(0, (age - 0.3) / 0.15) : 1;
-      const spin = Math.PI * 2 * 4 * ease(age / 2.4) + (age > 2.4 ? Math.sin((age - 2.4) * 1.3) * 0.45 : 0);
-      const cx = Math.cos(spin), sc = s.is * pop * p.sc;
-      // orbiting sparkles behind and in front
-      const orb = (front) => { for (let i = 0; i < 10; i++) { const a = t * 1.6 + (i / 10) * Math.PI * 2, z = Math.sin(a); if ((z > 0) !== front) continue; const ox = p.x + Math.cos(a) * 11 * sc, oy = p.y + z * 3 * sc + Math.sin(a * 2 + t) * 2; const tw = 1 + ((t * 8 + i) % 3 < 1 ? 1 : 0); ctx.fillStyle = PRISM[i % PRISM.length]; ctx.fillRect(Math.round(ox) - tw, Math.round(oy), tw * 2 + 1, 1); ctx.fillRect(Math.round(ox), Math.round(oy) - tw, 1, tw * 2 + 1); } };
-      orb(false);
-      const kx = Math.max(0.06, Math.abs(cx)) * (cx >= 0 ? 1 : -1);
-      // chromatic shimmer: magenta and cyan ghosts, wide just after the burst, then breathing
-      const ab = age < 0.8 ? Math.round(3 * (1 - age / 0.8)) + 1 : (Math.sin(t * 3.1) > 0.92 ? 2 : 1);
-      ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      blit(tinted('m' + s.id, img, '#ff3ad0'), p.x - ab, p.y, sc, kx, 1, 0, 0.55);
-      blit(tinted('c' + s.id, img, '#30e8ff'), p.x + ab, p.y, sc, kx, 1, 0, 0.55);
-      ctx.restore();
-      blit(img, p.x, p.y, sc, kx, 1, 0);
-      // its back is in shadow
-      if (cx < 0) blit(tinted('back' + s.id, img, '#3a3458'), p.x, p.y, sc, kx, 1, 0, 0.45 * Math.min(1, -cx * 2));
-      // a white glint sweeping over it
-      const sweep = (age * 0.8) % 1.6;
-      if (sweep < 0.6) {
-        const g = sheen(img, sweep / 0.6);
-        blit(g, p.x, p.y, sc, kx, 1, 0, 0.85);
-      }
-      if (age < 0.25) blit(tinted('w' + s.id, img, '#ffffff'), p.x, p.y, sc, kx, 1, 0, 1 - age / 0.25);
-      orb(true);
-    }
+    if (t >= T.burst) drawRelic(itemPos(), t - T.burst, t);
 
     // 6. particles and shockwaves
-    for (const p of s.parts) {
-      let a = clamp(p.life / p.max * 1.8, 0, 1);
-      if (p.tw) a *= 0.5 + 0.5 * Math.sin(p.life * 20);
-      ctx.globalAlpha = a; ctx.fillStyle = p.col;
-      ctx.fillRect(Math.round(p.x), Math.round(p.y), p.sz, p.sz);
-    }
-    ctx.globalAlpha = 1;
-    for (const r of s.rings) { ctx.globalAlpha = clamp(r.life / r.max * 1.4, 0, 1); ctx.fillStyle = r.col; strokeEllipse(r.x, r.y, r.r, r.r * 0.42, r.th); }
-    ctx.globalAlpha = 1;
+    drawParts();
 
     // 7. the letterbox
     const bar = s.bar * (s.card || t > T.card ? 1 - ease((t - T.card) / 0.5) : ease((t - 0.1) / 0.6));
@@ -776,22 +721,7 @@
 
     // 8. R E L I C, then the name
     const cardK = s.card || t > T.card ? clamp(1 - (t - T.card) / 0.35, 0, 1) : 1;
-    if (t >= T.title && cardK > 0) {
-      const size = s.ts, word = 'RELIC', step = size * 2, x0 = s.hx - (word.length - 1) * step / 2;
-      for (let i = 0; i < word.length; i++) {
-        const lt = t - (T.title + i * T.letter);
-        if (lt < 0) break;
-        const pop = lt < 0.12 ? 1 + (1 - lt / 0.12) * 1.4 : 1;
-        const hue = ((t * 0.6 + i * 0.17) % 1);
-        const col = hue < 0.25 ? '#ffffff' : hue < 0.5 ? '#bfe8ff' : hue < 0.75 ? '#ffd0f4' : '#fff3a0';
-        const lx = Math.round(x0 + i * step), ly = s.ty;
-        if (pop > 1) { ctx.save(); ctx.translate(lx, ly + size / 2); ctx.scale(pop, pop); text(word[i], 0, -size / 2, size, '#ffffff', 'center', cardK); ctx.restore(); }
-        else text(word[i], lx, ly, size, col, 'center', cardK);
-      }
-      // a lens streak through the title when the last letter lands
-      const st = t - (T.title + 4 * T.letter);
-      if (st > 0 && st < 0.7) { const k = 1 - st / 0.7; ctx.fillStyle = `rgba(255,255,255,${k})`; const w = W * ease(st / 0.25); ctx.fillRect(Math.round(s.hx - w / 2), s.ty + size / 2, Math.round(w), 1); ctx.fillStyle = `rgba(191,232,255,${k * 0.5})`; ctx.fillRect(Math.round(s.hx - w / 3), s.ty + size / 2 - 1, Math.round(w / 1.5), 3); }
-    }
+    if (t >= T.title && cardK > 0) drawTitle(T.title, T.letter, cardK, t);
     if (t >= T.name && cardK > 0) {
       const maxC = Math.max(10, Math.floor((W - 16) / 8)), lines = wrap(s.U.name, maxC);
       let left = Math.floor((t - T.name) / T.char), y = s.ty + s.ts + 12;
@@ -808,6 +738,93 @@
     if (s.flash > 0) { ctx.globalAlpha = Math.min(1, s.flash); ctx.fillStyle = s.flashCol; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
     // the tap hint
     if (t > T.skip + 0.4 && t < T.card - 0.2 && !s.skipped) text(G.t('relicSkip') === 'relicSkip' ? 'TAP TO SKIP' : G.t('relicSkip'), W - 6, H - s.bar + Math.max(2, (s.bar - 8) / 2), 8, 'rgba(169,162,185,.8)', 'right', 0.5 + 0.3 * Math.sin(t * 4));
+  }
+  function physics(dt) {
+    const s = show;
+    for (let i = s.parts.length - 1; i >= 0; i--) {
+      const p = s.parts[i];
+      if ((p.life -= dt) <= 0) { s.parts.splice(i, 1); continue; }
+      p.vy += p.g * dt; if (p.drag) { p.vx *= 1 - p.drag * dt; p.vy *= 1 - p.drag * dt; }
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.floor != null && p.y > p.floor) { p.y = p.floor; p.vy *= -0.3; p.vx *= 0.6; }
+    }
+    if (s.parts.length > 900) s.parts.splice(0, s.parts.length - 900);
+    for (let i = s.rings.length - 1; i >= 0; i--) { const r = s.rings[i]; if ((r.life -= dt) <= 0) s.rings.splice(i, 1); else r.r += r.v * dt * (r.life / r.max + 0.15); }
+    for (const pc of s.pieces) { pc.vy += 260 * dt; pc.x += pc.vx * dt; pc.y += pc.vy * dt; pc.a += pc.va * dt; pc.life -= dt; }
+    s.shake = Math.max(0, s.shake - dt * (s.shake > 6 ? 18 : 9));
+    s.flash = Math.max(0, s.flash - dt * 2.4);
+  }
+  // god-rays turning round p, and the core glow in bands (rayOn: 0..1)
+  function drawRays(p, rayOn, t) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const n = 16, R = Math.max(W, H) * 1.2, rot = t * 0.32;
+    for (let i = 0; i < n; i++) {
+      const a0 = rot + (i / n) * Math.PI * 2, wdt = (i % 2 ? 0.07 : 0.12) * (1 + 0.25 * Math.sin(t * 1.7 + i));
+      ctx.fillStyle = (i % 4 === 1 ? 'rgba(255,208,244,' : i % 4 === 3 ? 'rgba(191,232,255,' : 'rgba(255,255,255,') + (0.085 * rayOn * (i % 2 ? 0.7 : 1)).toFixed(3) + ')';
+      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + Math.cos(a0 - wdt) * R, p.y + Math.sin(a0 - wdt) * R); ctx.lineTo(p.x + Math.cos(a0 + wdt) * R, p.y + Math.sin(a0 + wdt) * R); ctx.closePath(); ctx.fill();
+    }
+    // the core glow, in bands
+    const pulse = 1 + 0.08 * Math.sin(t * 6);
+    for (const [r, a, c] of [[56, 0.05, '150,200,255'], [42, 0.07, '255,170,240'], [30, 0.1, '200,230,255'], [20, 0.14, '255,255,255'], [12, 0.2, '255,255,255']]) { ctx.fillStyle = `rgba(${c},${a * rayOn})`; fillEllipse(p.x, p.y, r * pulse * 1.1, r * pulse * 1.1); }
+    ctx.restore();
+  }
+  // the relic at p: huge, spinning, shimmering (age: seconds since it burst out)
+  function drawRelic(p, age, t) {
+    const s = show, img = SPR.get('rx_' + s.id, { oc: '#2a2440' });
+    const pop = age < 0.45 ? 0.3 + 0.95 * ease(age / 0.3) - 0.25 * Math.max(0, (age - 0.3) / 0.15) : 1;
+    const spin = Math.PI * 2 * 4 * ease(age / 2.4) + (age > 2.4 ? Math.sin((age - 2.4) * 1.3) * 0.45 : 0);
+    const cx = Math.cos(spin), sc = s.is * pop * p.sc;
+    // orbiting sparkles behind and in front
+    const orb = (front) => { for (let i = 0; i < 10; i++) { const a = t * 1.6 + (i / 10) * Math.PI * 2, z = Math.sin(a); if ((z > 0) !== front) continue; const ox = p.x + Math.cos(a) * 11 * sc, oy = p.y + z * 3 * sc + Math.sin(a * 2 + t) * 2; const tw = 1 + ((t * 8 + i) % 3 < 1 ? 1 : 0); ctx.fillStyle = PRISM[i % PRISM.length]; ctx.fillRect(Math.round(ox) - tw, Math.round(oy), tw * 2 + 1, 1); ctx.fillRect(Math.round(ox), Math.round(oy) - tw, 1, tw * 2 + 1); } };
+    orb(false);
+    const kx = Math.max(0.06, Math.abs(cx)) * (cx >= 0 ? 1 : -1);
+    // chromatic shimmer: magenta and cyan ghosts, wide just after the burst, then breathing
+    const ab = age < 0.8 ? Math.round(3 * (1 - age / 0.8)) + 1 : (Math.sin(t * 3.1) > 0.92 ? 2 : 1);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    blit(tinted('m' + s.id, img, '#ff3ad0'), p.x - ab, p.y, sc, kx, 1, 0, 0.55);
+    blit(tinted('c' + s.id, img, '#30e8ff'), p.x + ab, p.y, sc, kx, 1, 0, 0.55);
+    ctx.restore();
+    blit(img, p.x, p.y, sc, kx, 1, 0);
+    // its back is in shadow
+    if (cx < 0) blit(tinted('back' + s.id, img, '#3a3458'), p.x, p.y, sc, kx, 1, 0, 0.45 * Math.min(1, -cx * 2));
+    // a white glint sweeping over it
+    const sweep = (age * 0.8) % 1.6;
+    if (sweep < 0.6) {
+      const g = sheen(img, sweep / 0.6);
+      blit(g, p.x, p.y, sc, kx, 1, 0, 0.85);
+    }
+    if (age < 0.25) blit(tinted('w' + s.id, img, '#ffffff'), p.x, p.y, sc, kx, 1, 0, 1 - age / 0.25);
+    orb(true);
+  }
+  function drawParts() {
+    const s = show;
+    for (const p of s.parts) {
+      let a = clamp(p.life / p.max * 1.8, 0, 1);
+      if (p.tw) a *= 0.5 + 0.5 * Math.sin(p.life * 20);
+      ctx.globalAlpha = a; ctx.fillStyle = p.col;
+      ctx.fillRect(Math.round(p.x), Math.round(p.y), p.sz, p.sz);
+    }
+    ctx.globalAlpha = 1;
+    for (const r of s.rings) { ctx.globalAlpha = clamp(r.life / r.max * 1.4, 0, 1); ctx.fillStyle = r.col; strokeEllipse(r.x, r.y, r.r, r.r * 0.42, r.th); }
+    ctx.globalAlpha = 1;
+  }
+  // R E L I C slammed in letter by letter from T0 (letter: seconds a letter), a lens streak when the last one lands
+  function drawTitle(T0, letter, al, t) {
+    const s = show, c = s.tx != null ? s.tx : s.hx;
+    const size = s.ts, word = 'RELIC', step = size * 2, x0 = c - (word.length - 1) * step / 2;
+    for (let i = 0; i < word.length; i++) {
+      const lt = t - (T0 + i * letter);
+      if (lt < 0) break;
+      const pop = lt < 0.12 ? 1 + (1 - lt / 0.12) * 1.4 : 1;
+      const hue = ((t * 0.6 + i * 0.17) % 1);
+      const col = hue < 0.25 ? '#ffffff' : hue < 0.5 ? '#bfe8ff' : hue < 0.75 ? '#ffd0f4' : '#fff3a0';
+      const lx = Math.round(x0 + i * step), ly = s.ty;
+      if (pop > 1) { ctx.save(); ctx.translate(lx, ly + size / 2); ctx.scale(pop, pop); text(word[i], 0, -size / 2, size, '#ffffff', 'center', al); ctx.restore(); }
+      else text(word[i], lx, ly, size, col, 'center', al);
+    }
+    // a lens streak through the title when the last letter lands
+    const st = t - (T0 + 4 * letter);
+    if (st > 0 && st < 0.7) { const k = 1 - st / 0.7; ctx.fillStyle = `rgba(255,255,255,${k})`; const w = W * ease(st / 0.25); ctx.fillRect(Math.round(c - w / 2), s.ty + size / 2, Math.round(w), 1); ctx.fillStyle = `rgba(191,232,255,${k * 0.5})`; ctx.fillRect(Math.round(c - w / 3), s.ty + size / 2 - 1, Math.round(w / 1.5), 3); }
   }
   // the sprite with a diagonal white band across it at k (0..1)
   let sheenC = null;
@@ -893,6 +910,7 @@
   function finish() {
     const s = show;
     show = null;
+    if (s && s.belt) beltDone(s);
     if (s && s.card && s.card.parentNode) s.card.parentNode.removeChild(s.card);
     if (root) { root.style.display = 'none'; root.classList.remove('tap', 'held'); }
     const app = document.getElementById('app');
@@ -902,6 +920,161 @@
     if (G.R.cine > 0 && !queue.length) G.R.cine = 0;
     if (queue.length) setTimeout(next, 250);
   }
+  // ================= 4.0: a true relic onto the belt (DESIGN §5.7) =================
+  // A belt rule has no item: no White Bag, no Equip/Later card. The short show (2.55 s, then a 0.45-s fade): the dark
+  // closes on the Button, the spear strikes it, the relic bursts out of the light spinning, R E L I C slams in, its name
+  // types in, its rule and the belt count show, then the field comes back - the done callback runs as the fade starts
+  // (stage.js raises its relic pillar there). The field slows (visual only: the logic's clock is the run's), and the
+  // Horde's clock is not held. Sound: audio.js's relic sting (its limiter's bus; throttled, so run_ui's call at the
+  // same pick is not doubled) + A.relicStrike on the show's beats. A tap / Space / Enter / Esc after 0.5 s ends it
+  // (a held key's repeats do not). Reduce effects / the low quality tiers: fewer particles, no star field.
+  const TB = { spear: 0.16, hit: 0.4, burst: 0.48, title: 0.8, letter: 0.08, name: 1.25, char: 0.022, rule: 1.6, out: 2.55, skip: 0.5, fade: 0.45 };
+  const lowQ = () => !!((G.Quality && G.Quality.tier >= 2) || (G.S && G.S.set && G.S.set.lowfx));
+  G.relicBelt = function (id, done) {
+    if (!G.RELICS[id] || !SPR.defs['rx_' + id]) return false;
+    queue.push({ belt: id, done });
+    if (!show) next();
+    return true;
+  };
+  function startBelt(it) {
+    const id = it.belt, U = G.UNIQUES[id] || G.RELICS[id], r = G.S && G.S.run;
+    const Lc = x => (G.L ? G.L(x) : x || '');
+    show = { belt: true, id, U, name: Lc(U.name), rule: Lc(U.fx), done: it.done, low: lowQ(),
+      beltN: r && r.belt ? r.belt.length : 0, beltMax: r && r.beltMax ? r.beltMax : 0,
+      t: 0, prev: -1, k: 1, kv: 1, parts: [], rings: [], cracks: [], pieces: [], shake: 0, flash: 0, flashCol: '#ffffff', card: null, out: 0, done1: false };
+    layout();
+    // (the relic rises higher than the 3.x show's: the rule needs two or three lines under the name)
+    if (H < 260) show.is = 3;
+    // the words' column: up to 30 characters wide, centred on the relic where it fits (the Button can sit far left)
+    show.lw = Math.min(W - 16, 8 * 30); show.tx = Math.round(clamp(show.hx, show.lw / 2 + 8, W - show.lw / 2 - 8));
+    show.hy = Math.round(clamp(Math.min(show.hy, H * 0.3), show.bar + 8 * show.is + 6, H * 0.5));
+    show.ty = show.hy + 8 * show.is + 10;
+    root.style.display = 'block'; root.classList.add('tap'); root.classList.remove('held');
+    cv.style.opacity = '1';
+    try { const A = G.Audio; if (A) { if (A.unlock) A.unlock(); if (A.lootUltra) A.lootUltra('relic'); if (A.relicStrike) A.relicStrike(); } } catch (e) { /* sound is a bonus */ }
+    show.last = performance.now();
+    requestAnimationFrame(loop);
+  }
+  // where the relic is: out of the strike, up to its place, bobbing
+  function beltPos() {
+    const s = show, k = ease((s.t - TB.burst) / 0.55);
+    return { x: lerp(s.sx, s.hx, k), y: lerp(s.sy - 10, s.hy, k) + Math.sin(s.t * 2.2) * 2, sc: 1 };
+  }
+  function beltOut() {
+    const s = show;
+    if (!s || !s.belt || s.out) return;
+    s.out = 0.0001;
+    root.classList.remove('tap');
+    beltDone(s);
+  }
+  function beltDone(s) {
+    if (s.done1) return;
+    s.done1 = true;
+    if (typeof s.done === 'function') { try { s.done(); } catch (e) { console.error(e); } }
+  }
+  function stepBelt(dt) {
+    const s = show, t = s.t, n = s.low ? 0.45 : 1;
+    if (s.out > 0) { s.out += dt; s.kv = lerp(0.3, 1, clamp(s.out / TB.fade, 0, 1)); }
+    else s.kv = lerp(1, 0.3, ease(t / 0.4));
+    s.k = 1;
+    if (passed(TB.hit)) {
+      s.flash = 0.9; s.flashCol = '#ffffff'; s.shake = 10;
+      ring(s.sx, s.sy, 3, 0.8, '#ffffff', 2, 480); ring(s.sx, s.sy, 2, 1.0, '#bfe8ff', 1, 300);
+      burst(s.sx, s.sy - 2, Math.round(70 * n), 220, ['#ffffff', '#ffffff', '#bfe8ff', '#e4eaf6'], { floor: s.sy + 6 });
+      burst(s.sx, s.sy - 2, Math.round(20 * n), 150, ['#3a3448', '#5a5470', '#2a2440'], { g: 340, drag: 1, floor: s.sy + 8 });
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2 + rnd(-0.25, 0.25), pts = [[s.sx, s.sy]];
+        let x = s.sx, y = s.sy; const len = rnd(16, 40);
+        for (let j = 0; j < 5; j++) { const aa = a + rnd(-0.5, 0.5); x += Math.cos(aa) * len / 5; y += Math.sin(aa) * len / 5 * 0.45; pts.push([x, y]); }
+        s.cracks.push(pts);
+      }
+    }
+    if (passed(TB.burst)) {
+      s.flash = Math.max(s.flash, 0.7); s.shake = Math.max(s.shake, 7);
+      burst(s.sx, s.sy - 10, Math.round(160 * n), 280, PRISM, { g: 30, drag: 1.6 });
+      ring(s.sx, s.sy - 10, 4, 0.9, '#ffffff', 2, 420); ring(s.sx, s.sy - 10, 3, 1.1, '#ffd0f4', 1, 300); ring(s.sx, s.sy - 10, 2, 1.3, '#bfe8ff', 1, 200);
+    }
+    for (let i = 0; i < 5; i++) if (passed(TB.title + i * TB.letter)) {
+      const step = s.ts * 2, lx = s.tx - (4 * step) / 2 + i * step;
+      s.shake = Math.max(s.shake, i === 4 ? 4 : 2);
+      burst(lx, s.ty + s.ts / 2, Math.round((i === 4 ? 30 : 10) * n), i === 4 ? 150 : 70, PRISM, { g: 40, drag: 2.5 });
+      if (i === 4) s.flash = Math.max(s.flash, 0.25);
+    }
+    // light pours down the spear's trail, motes round the relic
+    if (t > TB.hit && t < TB.burst + 0.6 && Math.random() < 0.7 * n) s.parts.push({ x: s.sx + rnd(-6, 6), y: s.sy - rnd(0, 20), vx: rnd(-4, 4), vy: rnd(-60, -25), life: rnd(0.5, 1.0), max: 1.0, col: pickc(PRISM), sz: 1, g: 0, drag: 0 });
+    if (t > TB.burst && !s.out && Math.random() < 0.85 * n) { const p = beltPos(); s.parts.push({ x: p.x + rnd(-30, 30), y: p.y + rnd(-26, 30), vx: rnd(-5, 5), vy: rnd(-26, -8), life: rnd(0.6, 1.3), max: 1.3, col: pickc(PRISM), sz: Math.random() < 0.2 ? 2 : 1, g: 0, drag: 0, tw: 1 }); }
+    physics(dt);
+    if (!s.out && t >= TB.out) beltOut();
+    if (s.out > TB.fade) finish();
+  }
+  function drawBelt() {
+    const s = show, t = s.t;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, W, H);
+    cv.style.opacity = String(s.out > 0 ? clamp(1 - s.out / TB.fade, 0, 1) : 1);
+    const sh = G.S.set.shake ? s.shake : s.shake * 0.25;
+    ctx.translate(Math.round(rnd(-1, 1) * sh), Math.round(rnd(-1, 1) * sh));
+    // the dark, closing on the Button (a hole of light there until the burst)
+    ctx.fillStyle = `rgba(4,3,9,${(ease(t / 0.3) * 0.93).toFixed(3)})`;
+    ctx.fillRect(-20, -20, W + 40, H + 40);
+    if (t < TB.burst + 0.3) {
+      const k = ease(t / TB.hit), r = lerp(Math.max(W, H) * 0.7, 16, k) * (t > TB.hit ? 1 + 0.6 * Math.max(0, 1 - (t - TB.hit) * 3) : 1);
+      const fh = t > TB.burst ? 1 - (t - TB.burst) / 0.3 : 1;
+      ctx.globalCompositeOperation = 'destination-out';
+      for (const [kr, a] of [[1, 0.25], [0.72, 0.45], [0.48, 0.65]]) { ctx.fillStyle = `rgba(0,0,0,${a * fh})`; fillEllipse(s.sx, s.sy - 6, r * kr, r * kr * 0.62); }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    // stars once it is out
+    if (t > TB.burst && !s.low) {
+      if (!s.stars) { s.stars = []; for (let i = 0; i < 70; i++) s.stars.push({ x: Math.random() * W, y: Math.random() * H, ph: Math.random() * 6.3, c: pickc(PRISM) }); }
+      const a = clamp((t - TB.burst) / 0.8, 0, 1);
+      for (const st of s.stars) { ctx.globalAlpha = a * (0.5 + 0.5 * Math.sin(t * 2.5 + st.ph)) * 0.7; ctx.fillStyle = st.c; ctx.fillRect(Math.round(st.x), Math.round(st.y - t * 2), 1, 1); }
+      ctx.globalAlpha = 1;
+    }
+    if (t > TB.burst) drawRays(beltPos(), clamp((t - TB.burst) / 0.5, 0, 1), t);
+    // the spear: it falls on the Button, then thins out into a pillar and fades
+    if (t >= TB.spear && t < TB.hit + 1.2) {
+      const k = clamp((t - TB.spear) / (TB.hit - TB.spear), 0, 1), tip = lerp(-10, s.sy, easeIn(k));
+      const after = Math.max(0, t - TB.hit), wide = t < TB.hit ? 4 : Math.max(1, 22 * Math.exp(-after * 4) + 2);
+      const al = t < TB.hit ? 1 : clamp(1 - after / 1.2, 0, 1);
+      ctx.fillStyle = `rgba(191,232,255,${0.55 * al})`; ctx.fillRect(Math.round(s.sx - wide - 2), -20, Math.round(wide * 2 + 5), tip + 20);
+      ctx.fillStyle = `rgba(255,255,255,${al})`; ctx.fillRect(Math.round(s.sx - wide / 2), -20, Math.max(1, Math.round(wide)), tip + 20);
+      if (t < TB.hit) { ctx.fillStyle = '#ffffff'; fillEllipse(s.sx, tip, 4, 6); }
+    }
+    // the ground glow and the cracks
+    if (t > TB.hit && t < TB.burst + 1.2) {
+      const al = t < TB.burst ? 1 : clamp(1 - (t - TB.burst) / 1.2, 0, 1);
+      ctx.fillStyle = `rgba(191,232,255,${0.18 * al})`; fillEllipse(s.sx, s.sy + 1, 30, 9);
+      ctx.fillStyle = `rgba(255,255,255,${0.35 * al})`; fillEllipse(s.sx, s.sy + 1, 16, 5);
+      for (const c of s.cracks) for (let i = 1; i < c.length; i++) {
+        const [x0, y0] = c[i - 1], [x1, y1] = c[i], m = Math.ceil(Math.hypot(x1 - x0, y1 - y0));
+        for (let j = 0; j < m; j++) { const px = Math.round(lerp(x0, x1, j / m)), py = Math.round(lerp(y0, y1, j / m)); ctx.fillStyle = `rgba(150,220,255,${0.5 * al})`; ctx.fillRect(px - 1, py, 3, 1); ctx.fillStyle = `rgba(255,255,255,${al})`; ctx.fillRect(px, py, 1, 1); }
+      }
+    }
+    if (t >= TB.burst) drawRelic(beltPos(), t - TB.burst, t);
+    drawParts();
+    // the letterbox
+    const bar = s.bar * ease(t / 0.35);
+    if (bar > 0.5) { ctx.fillStyle = '#000000'; ctx.fillRect(-20, -20, W + 40, Math.round(bar) + 20); ctx.fillRect(-20, H - Math.round(bar), W + 40, Math.round(bar) + 20); }
+    if (t >= TB.title) drawTitle(TB.title, TB.letter, 1, t);
+    // the name types in; the rule and the belt under it
+    let y = s.ty + s.ts + 12;
+    if (t >= TB.name) {
+      const maxC = Math.max(10, Math.floor(s.lw / 8)), lines = wrap(s.name, maxC);
+      let left = Math.floor((t - TB.name) / TB.char);
+      for (const ln of lines) { if (left > 0) text(ln.slice(0, left), s.tx, y, 8, '#ffffff', 'center'); left -= ln.length + 1; y += 11; }
+    }
+    if (t >= TB.rule) {
+      const a = clamp((t - TB.rule) / 0.3, 0, 1), maxC = Math.max(12, Math.floor(s.lw / 8));
+      y += 3;
+      for (const ln of wrap(s.rule, maxC).slice(0, 5)) { text(ln, s.tx, y, 8, '#bfe8ff', 'center', a); y += 11; }
+      if (s.beltMax) text(G.t('ff_beltN', s.beltN, s.beltMax), s.tx, y + 3, 8, '#8f9ab8', 'center', a);
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (s.flash > 0) { ctx.globalAlpha = Math.min(1, s.flash); ctx.fillStyle = s.flashCol; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  }
+
   // for testing: the running show; the score rendered into an OfflineAudioContext
   G.relicShow = () => show;
   G.relicScoreTest = ac => { const was = Snd.ac; Snd.init(ac); const B = Snd.bus(); B.t0 = 0; score(B); Snd.ac = was; return ac.startRendering(); };

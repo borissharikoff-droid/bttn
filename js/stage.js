@@ -928,18 +928,39 @@
     cv.addEventListener('pointerdown', e => {
       e.preventDefault();
       const p = toLogical(e, true);
+      pointer.cx = e.clientX; pointer.cy = e.clientY;
       trailAt(p.x, p.y, 5);
       const what = doPress(p);
+      // 4.0: a shrine being charged keeps the pointer (a toast or a chip popping up under it must not end the hold)
+      if (what === 'shrine' && FF.charge) { try { cv.setPointerCapture(e.pointerId); } catch (er) { /* fine */ } }
       // (holding repeats only once Steady Hand is bought, at its rate)
       if (what === 'button' && G.S.set.hold && G.D.holdRate > 0) { holding = true; holdTimer = Math.max(0.1, 1 / G.D.holdRate); }
     });
-    const end = () => { holding = false; if (FF.charge) { FF.charge = null; if (G.R.shrine && G.shrineLeave) G.shrineLeave(); } };
+    // (a charge held from the keyboard is the H key's: a pointer let go elsewhere does not end it)
+    const end = () => { holding = false; if (FF.charge && !FF.charge.key) { FF.charge = null; if (G.R.shrine && G.shrineLeave) G.shrineLeave(); } };
+    // 4.0: the keyboard's way to a shrine - hold H (the Hand's key) while one stands on the field: it charges as if the
+    // Hand were on it (2 s in a Siege; outside a Siege the 3.x claim at once). Let go (or the window loses focus) drains it.
+    // Only on the field: a run screen over it, a modal, a text field or the town keep H for themselves.
+    const keyEnd = () => { if (FF.charge && FF.charge.key) { FF.charge = null; if (G.R.shrine && G.shrineLeave) G.shrineLeave(); } };
+    window.addEventListener('keydown', e => {
+      if (e.code !== 'KeyH' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+      const tg = e.target;
+      if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;
+      if (!G.R.shrine || G.R.town || (G.uiBusy && G.uiBusy())) return;
+      if (inSiege() && G.shrineHold) {
+        if (runP() !== 'field' || (G.runHeld && G.runHeld())) return;
+        e.preventDefault();
+        if (!FF.charge || !FF.charge.key) FF.charge = { on: false, k: 0, key: true };
+      } else if (!e.repeat) { e.preventDefault(); G.Audio && G.Audio.unlock(); G.useShrine('hand'); }
+    });
+    window.addEventListener('keyup', e => { if (e.code === 'KeyH') keyEnd(); });
+    window.addEventListener('blur', keyEnd);
     cv.addEventListener('pointerup', end);
     cv.addEventListener('pointercancel', end);
     cv.addEventListener('pointerleave', () => { end(); pointer.over = false; hoverChest = null; hoverLoot = null; });
     cv.addEventListener('pointermove', e => {
       const p = toLogical(e);
-      pointer.x = p.x; pointer.y = p.y; pointer.over = true;
+      pointer.x = p.x; pointer.y = p.y; pointer.over = true; pointer.cx = e.clientX; pointer.cy = e.clientY;
       if (time - FF.trailT > 0.03) { FF.trailT = time; trailAt(p.x, p.y, 1); }
       hoverChest = hitChest(p);
       hoverLoot = hitLoot(p);
@@ -2633,7 +2654,7 @@
       if (ultraE(e)) {
         // 4.0 (ADDENDUM 1): an ultra-rare stands in a rainbow beam, wider, with its colours climbing and sparks in it
         const uw = 11, x0 = Math.round(v.x - uw / 2), hh = Math.round(v.y - 2 - top), sh = Math.floor(time * 10 + e.id);
-        for (let dx = 0; dx < uw; dx++) { lctx.globalAlpha = (0.22 + 0.3 * (1 - Math.abs(dx - uw / 2) / (uw / 2))) * fade; lctx.fillStyle = rbw(Math.floor(dx / 2) + sh); lctx.fillRect(x0 + dx, top, 1, hh); }
+        for (let dx = 0; dx < uw; dx++) { lctx.globalAlpha = (0.35 + 0.35 * (1 - Math.abs(dx - uw / 2) / (uw / 2))) * fade; lctx.fillStyle = rbw(Math.floor(dx / 2) + sh); lctx.fillRect(x0 + dx, top, 1, hh); }
         lctx.globalAlpha = 0.8 * fade; lctx.fillStyle = cb && cb.core ? cb.core : '#ffffff'; lctx.fillRect(Math.round(v.x - 1), top, 2, hh);
         lctx.globalAlpha = 0.3 * fade; lctx.fillStyle = '#ffffff';
         for (let j = 0; j < 3; j++) { const by = Math.round(v.y - 2 - ((time * 60 + j * 31 + e.id * 7) % Math.max(1, hh))); lctx.fillRect(x0, by, uw, 1); }
@@ -2704,14 +2725,16 @@
       if (pop > 1) mark(x + w / 2 - w * pop / 2 - 2, y + h / 2 - h * pop / 2 - 2, x + w / 2 + w * pop / 2 + 2, y + h / 2 + h * pop / 2 + 2);
       ctx.save();
       if (pop > 1) { ctx.translate(x + w / 2, y + h / 2); ctx.scale(pop, pop); ctx.translate(-(x + w / 2), -(y + h / 2)); }
-      if (st.bg) { ctx.fillStyle = st.bg; ctx.fillRect(x, y, w, h); }
-      if (st.bd) { ctx.strokeStyle = st.bd; ctx.lineWidth = hoverLoot === e ? 1 : 0.6; ctx.strokeRect(x + 0.3, y + 0.3, w - 0.6, h - 0.6); }
+      const ult = ultraE(e), rc = ult ? rbw(Math.floor(time * 8) + e.id) : null;
+      if (ult) { ctx.fillStyle = '#1a1426'; ctx.fillRect(x, y, w, h); }
+      else if (st.bg) { ctx.fillStyle = st.bg; ctx.fillRect(x, y, w, h); }
+      if (ult) { ctx.strokeStyle = rc; ctx.lineWidth = hoverLoot === e ? 1 : 0.6; ctx.strokeRect(x + 0.3, y + 0.3, w - 0.6, h - 0.6); }
+      else if (st.bd) { ctx.strokeStyle = st.bd; ctx.lineWidth = hoverLoot === e ? 1 : 0.6; ctx.strokeRect(x + 0.3, y + 0.3, w - 0.6, h - 0.6); }
       const tx = x + aw + (w - aw) / 2;
-      if (!st.bg) { ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12'; ctx.strokeText(txt, tx, y + h / 2 + 0.3); }
+      if (!st.bg && !ult) { ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12'; ctx.strokeText(txt, tx, y + h / 2 + 0.3); }
       // (an ultra-rare's name runs through the rainbow: 8 steps, so each stays a stamped text)
-      ctx.fillStyle = ultraE(e) ? (st.bg ? '#ffffff' : rbw(Math.floor(time * 8) + e.id)) : st.fg;
+      ctx.fillStyle = ult ? rc : st.fg;
       ctx.fillText(txt, tx, y + h / 2 + 0.3);
-      if (ultraE(e) && st.bg) { ctx.fillStyle = rbw(Math.floor(time * 8) + e.id); ctx.fillRect(x + aw, y + h - 0.6, w - aw, 0.6); ctx.fillRect(x + aw, y, w - aw, 0.6); }
       if (arr) {
         // the arrow: a little triangle in its own box at the plate's left (green up, red down)
         const ah = Math.max(2, sz * 0.75), cx = x + aw / 2 + 0.5, cy = y + h / 2, rows = 4;
@@ -2982,7 +3005,8 @@
       ctx.strokeText(S_.name, q.x, q.y - 22); ctx.fillStyle = S_.col; ctx.fillText(S_.name, q.x, q.y - 22);
       // 4.0: HOLD (the Hand charges it), and how far
       if (inSiege() && G.shrineHold) {
-        const k = clamp((s.ch || 0) / (G.TUNE.shrineCharge || 2), 0, 1), str = k > 0 ? Math.round(k * 100) + '%' : G.t('ff_hold');
+        // (with a mouse and a keyboard the key is named: hold H)
+        const k = clamp((s.ch || 0) / (G.TUNE.shrineCharge || 2), 0, 1), str = k > 0 ? Math.round(k * 100) + '%' : G.t(finePtr() ? 'ff_holdKey' : 'ff_hold');
         ctx.strokeText(str, q.x, q.y + 9); ctx.fillStyle = k > 0 ? '#ffffff' : Math.floor(time * 2) % 2 ? S_.col : '#ffffff'; ctx.fillText(str, q.x, q.y + 9);
       }
     }
@@ -4119,6 +4143,9 @@
   // Everything here is drawn on the stage's own pixel layer with the 3.6 budgets (particles through newPart, rings capped).
   const inSiege = () => !!(G.inSiege && G.inSiege());
   const runP = () => { const r = G.S.run; return r && r.on ? r.phase : null; };
+  // a mouse (not a finger): the shrine names its key (asked once; a device does not change its main pointer mid-game)
+  let fineP = null;
+  const finePtr = () => { if (fineP == null) { try { fineP = !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches); } catch (e) { fineP = false; } } return fineP; };
   const RBW = ['#ff4f4f', '#ffa033', '#ffd84a', '#56d45a', '#4fd0ff', '#5a7bff', '#b36bff', '#ff6ad8'];
   const rbw = i => RBW[((i % 8) + 8) % 8];
   // an ultra-rare (mythic, divine, unique, relic: ADDENDUM 1) on the ground or in a loot card
@@ -4135,8 +4162,7 @@
     ff_muster: 'The muster: no pip lost', ff_hold: 'HOLD', ff_landN: 'LAND {0} · {1}', ff_act: 'ACT {0}', ff_actFinal: 'THE FINALE',
     ff_twist: 'Twist: {0}', ff_prize: 'Prize: {0}', ff_cursed: 'CURSED ×2', ff_vault: 'THE VAULT', ff_ls: 'LAST STAND',
     ff_lsSub: 'Hold {0} s: the whole Horde, from every side', ff_lsHeld: 'THE HORDE HELD', ff_pact: 'PACT SEALED', ff_pactDone: 'PACT FULFILLED',
-    ff_golden: 'GOLDEN CLICK', ff_camp: 'CAMP', ff_reap: 'REAP', ff_phoenix: 'PHOENIX', ff_echo: 'ECHO', ff_break: 'ARMOUR BROKEN', ff_engine: 'ENGINE +{0}%',
-    ff_loot: 'LOOT!', ff_lootBig: 'HOLY LOOT!',
+    ff_relic: 'R E L I C', ff_holdKey: 'HOLD · H', ff_beltN: 'BELT {0}/{1}', ff_golden: 'GOLDEN CLICK', ff_camp: 'CAMP', ff_reap: 'REAP', ff_phoenix: 'PHOENIX', ff_echo: 'ECHO', ff_break: 'ARMOUR BROKEN', ff_engine: 'ENGINE +{0}%',
   });
   const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
 
@@ -4156,8 +4182,8 @@
     ring(o.x, o.y + 6, 24, 12, '#ffffff', 0.3);
     // great loot is felt: a gold flash, a kick, a held frame, the word on the field
     if (best >= 4) {
+      // (the rays say something big is in there; which one is the flip's to tell)
       St.flash(0.22 + 0.05 * Math.min(4, best - 4), best >= 7 ? '#ffe0a0' : '#ffd84a'); St.shake(3 + Math.min(5, best - 4)); hitstop = Math.max(hitstop, 0.07);
-      text(o.x, o.y - 26, G.t(best >= 5 ? 'ff_lootBig' : 'ff_loot'), best >= 5 ? '#ff6ad8' : '#ffd84a', best >= 5 ? 9 : 7, { life: 1.4, max: 1.4, vy: -10, big: true, pop: 0.25 });
     }
   });
   function drawLootMoment(dt) {
@@ -4255,6 +4281,19 @@
     }
   }
 
+  // a relic onto the belt (DESIGN §5.7): relic_fx's short show (G.relicBelt: the strike, the relic, R E L I C, its name and
+  // rule; ~2.5 s), then the relic's pillar on the field as it fades, its name across it; without relic_fx (or a relic
+  // with no show art) the pillar and the title straight away
+  G.on('relicPick', id => {
+    const Rl = G.RELICS && G.RELICS[id], U = !Rl && G.UNIQUES && G.UNIQUES[id];
+    const nm = x => (G.L ? G.L(x) : x);
+    if (Rl) {
+      const after = () => { lootPillar('relic'); cardText(11, nm(Rl.name), rbw(2), 3, { life: 2.4, vy: -3 }); };
+      if (!(G.relicBelt && G.relicBelt(id, after))) { after(); cardText(0, G.t('ff_relic'), '#ffffff', 8, { life: 2.4, vy: -3, big: true }); }
+    }
+    else if (U) { const b = btnPos(); ring(b.x, b.y - 4, 70, 38, '#e8903a', 0.7); burst(b.x, b.y - 12, ['#e8903a', '#ffd28a', '#ffffff'], 40, 110); cardText(0, nm(U.name), '#ffd28a', 5, { life: 2, vy: -3, big: true }); }
+  });
+
   // ---------- Integrity: a pip cracks the Button (and the crack stays), a pip back mends it with a sparkle ----------
   const CRACKS = [
     [[-7, -16], [-4, -11], [-6, -7], [-3, -3], [-4, 1]],
@@ -4325,8 +4364,12 @@
   function shrineChargeStep(dt) {
     const c = FF.charge;
     if (!c) return;
-    if (!G.R.shrine || runP() !== 'field') { FF.charge = null; return; }
-    if (hitShrine(pointer)) { c.k = G.shrineHold(dt); c.on = true; }
+    if (!G.R.shrine) { FF.charge = null; return; }
+    // (a card or a choice over the field holds the charge where it is)
+    if (runP() !== 'field') return;
+    // (from the screen point: the stage may have been laid out again under a Hand that did not move)
+    if (pointer.cx != null) { const r = stageRect(); pointer.x = (pointer.cx - r.left) / S; pointer.y = (pointer.cy - r.top) / S; }
+    if (c.key || hitShrine(pointer)) { c.k = G.shrineHold(dt); c.on = true; }
     else if (c.on) { c.on = false; c.k = 0; if (G.shrineLeave) G.shrineLeave(); }
   }
   function drawShrineCharge(s, q, col) {
@@ -4444,11 +4487,11 @@
     const name = (o && o.name) || G.realmName(d), col = landCol(R_.id);
     cardText(0, G.t('ff_landN', slot + 1, String(name).toUpperCase()), '#ffffff', 7, { life: 3.2, max: 3.2, vy: -3, big: true, tag: 'land' });
     cardText(10, act ? G.t('ff_act', ROMAN[act] || act) : act === 0 ? G.t('ff_actFinal') : '', act === 0 ? '#ff4f7e' : col, 3, { life: 3.2, max: 3.2, vy: -3 });
-    cardText(16, R_.rule + ': ' + R_.ruleDesc, '#ffe27a', 3, { life: 3.2, max: 3.2, vy: -3 });
+    cardText(17, R_.rule + ': ' + R_.ruleDesc, '#ffe27a', 3, { life: 3.2, max: 3.2, vy: -3 });
     const bits = [];
     if (o && o.mod && G.MAP_MODS && G.MAP_MODS[o.mod] && o.mod !== 'calm') bits.push(G.t('ff_twist', G.MAP_MODS[o.mod].name) + (o.cursed ? ' ' + G.t('ff_cursed') : ''));
     if (o && o.tag && G.REWARD_TAGS && G.REWARD_TAGS[o.tag]) bits.push(G.t('ff_prize', G.REWARD_TAGS[o.tag].name));
-    if (bits.length) cardText(22, bits.join(' · '), o && o.cursed ? '#ff6a5a' : '#c8f0ff', 3, { life: 3.2, max: 3.2, vy: -3 });
+    if (bits.length) cardText(24, bits.join(' · '), o && o.cursed ? '#ff6a5a' : '#c8f0ff', 3, { life: 3.2, max: 3.2, vy: -3 });
     St.flash(0.25, col);
     if (G.Audio && G.Audio.landTitle) G.Audio.landTitle();
   }
@@ -4506,7 +4549,7 @@
       const e = FF.edges[i];
       if ((e.t += dt) >= 0.9) { FF.edges.splice(i, 1); continue; }
       const q = ringPos(e.a, 0), x = clamp(q.x, 6, W - 6), y = clamp(q.y, 22, H - 24), a = 1 - e.t / 0.9;
-      glow(x, y, 7, '#ff2a2a', 0.45 * a);
+      glow(x, y, 11, '#ff2a2a', 0.5 * a); glow(x, y, 5, '#ffd0c0', 0.5 * a);
       const dx = b.x - x, dy = b.y - y, l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l;
       lctx.globalAlpha = a; lctx.fillStyle = Math.floor(time * 10) % 2 ? '#ff4f4f' : '#ffffff';
       for (let j = 0; j < 3; j++) { const d = 6 + j * 5 + (e.t * 20) % 5; lctx.fillRect(Math.round(x + ux * d - uy * 2), Math.round(y + uy * d + ux * 2), 2, 2); lctx.fillRect(Math.round(x + ux * d + uy * 2), Math.round(y + uy * d - ux * 2), 2, 2); lctx.fillRect(Math.round(x + ux * (d + 2)), Math.round(y + uy * (d + 2)), 2, 2); }
@@ -4570,7 +4613,9 @@
     if (FF.evo && FF.evo.t < FF.evo.at) id = FF.evo.from;
     if (!id) id = G.S.skin || 'classic';
     const L = (SPR.BTN_LOOKS && SPR.BTN_LOOKS[id]) || null, sk = L ? null : G.SKINS.find(s => s.id === id);
-    const look = L || { base: sk ? sk.base : '#e8413c' };
+    // (an evolved skin this file has no look for: its evolution's colour, as G.BUTTON_EVOS gives it)
+    let ev = null; if (!L && !sk && G.BUTTON_EVOS) for (const k in G.BUTTON_EVOS) if (G.BUTTON_EVOS[k].skin === id) ev = G.BUTTON_EVOS[k];
+    const look = L || { base: sk ? sk.base : ev && ev.col ? ev.col : '#e8413c' };
     return { id, look, base: cs && cs.base ? cs.base : look.base, glow: cs && cs.glow ? cs.glow : look.glow, aura: look.aura };
   }
   St.btnLook = btnLookNow;
@@ -4612,10 +4657,15 @@
     if (!E) return;
     FF.evo = { t: 0, T: 2.6, at: 1.3, from: (B && B.skin) || 'classic', col: E.col || '#ffffff', golden: evo === 'golden', burst: false };
   });
+  // (its clock runs every frame, the Button drawn or not: a boss on the field hides the Button, not the evolution's time)
+  function stepEvo(dt) {
+    const v = FF.evo; if (!v) return;
+    v.t += dt;
+    if (v.t >= v.T) FF.evo = null;
+  }
   function drawEvoUnder(b, dt) {
     const v = FF.evo; if (!v) return 0;
-    v.t += dt;
-    if (v.t >= v.T) { FF.evo = null; return 0; }
+    void dt;
     const pre = v.t < v.at, k = pre ? v.t / v.at : 1 - (v.t - v.at) / (v.T - v.at);
     // light rays turn behind the Button, faster as it charges
     if (Q.glows) {
@@ -4684,6 +4734,8 @@
   // under the crowd (after the ground and the zone's light): the finale's sky, the camp, the door's gate
   function siegeUnder(dt, vdt) {
     shrineChargeStep(dt);
+    stepEvo(dt);
+    if (St.ffOff) return; // (tests: the frame's cost without this section's drawing)
     drawFinaleSky(dt);
     drawCamp(dt);
     drawGate(dt);
@@ -4691,12 +4743,14 @@
   }
   // over everything on the pixel layer: the edge telegraphs, the loot moment, the pillars and the shimmer
   function siegeOver(dt, vdt) {
+    if (St.ffOff) return;
     drawEdges(dt);
     drawLootMoment(dt);
     drawPillars(vdt > 0 ? Math.max(vdt, dt * 0.3) : dt);
   }
   // on the Button itself (drawButton): its look's aura, the Last Light, a pact's runes, the cracks, the pip over it
   function siegeOnButton(b, lk) {
+    if (St.ffOff) return;
     drawBtnAura(b, lk);
     if (FF.light) glow(b.x, b.y - 10, 20, '#fff3a0', 0.16 + 0.08 * Math.sin(time * 5));
     drawPact(b, fdt);

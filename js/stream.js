@@ -10,19 +10,25 @@
 //   relicTouch), the tally is drawn by run_ui (G.RunUI.voteTally). The streamer can still click: a choice taken by hand
 //   closes the window. When it ends untouched, the top choice is taken (a tie: one of the tied at random); with no
 //   votes nothing is taken and the choice's own clock is given back. A full relic belt is the streamer's (it needs to
-//   know which relic to drop): no vote then.
+//   know which relic to drop): no vote then. C1: shrine boons are voted as cards are (G.shrineTouch / G.boonPick); the
+//   boss's loot moment too when the streamer switches it on (off by default: the moment is a ~5-s pause and chat sees
+//   the stream seconds late, so its window is its own 10 s, after the ultra-rares' reveal, never on a junk moment;
+//   G.lootTouch / G.lootTake(i): the card goes on whoever it is an upgrade for, else into the bag).
 // - Calls: !goblin (the Hoarder, world.js's loot goblin, as its own clock spawns it; 90 s global cooldown), !champ (the
 //   land's champion through G.forceChamp: once a land, never when it already came), !hype (the ADRENALINE frenzy event
 //   through G.startEvent('frenzy'); 3 min cooldown). A call waits (up to 45 s) for the field to be live: no boss, march,
 //   run screen, cinematic or other event in the way; if it never is, its cooldown is given back. Calls are off in a
 //   ranked Daily (the board must stay fair); votes are just choices and stay on.
 // - The feed: top-right on the field, 4 lines, "name: !goblin" only (never message text), names sanitized (an ASCII
-//   display name or the login, 14 chars), drawn as text nodes; lines fade after 12 s. DOM is touched only when a line
+//   display name or the login, 16 chars), drawn as text nodes; lines fade after 12 s. DOM is touched only when a line
 //   comes or goes (no per-frame work); the vote/call clock is one 250-ms interval of plain reads.
+// - Hidden names (DESIGN §13, C1): the player's own names show as 'Streamer' (on by default), other players' on the
+//   boards as 'Player K7Q' / 'Player #4' (off by default); the save and what is posted never change (see below).
 // - Settings: ui.js's Settings page emits 'uiSettings'(body); this module fills its #setStream slot (the switch, the
 //   channel, the status, the per-command switches, the run code with Copy). Saved in S.set.stream.
 // API: G.Stream = { on(), status(), cfg(), set(patch), connect(), disconnect(), chat(text, user, tags) (a local line, as
-// if from chat: tests and tools), vote() (the open window or null), feed(name, cmd, kind), tune {win, gob, hype, wait} }.
+// if from chat: tests and tools), vote() (the open window or null), feed(name, cmd, kind), namesHidden() -> {me, others},
+// tune {win, lootWin, gob, hype, wait} }.
 // Events: 'streamStatus'(state), 'streamVote'(kind, index, counts), 'streamCall'(cmd, name, ok, why).
 (function (G) {
   'use strict';
@@ -35,7 +41,8 @@
   const $ = (s, r) => (r || document).querySelector(s);
   const safe = (f, d) => { try { return f(); } catch (e) { if (typeof console !== 'undefined') console.error(e); return d; } };
   // the windows and cooldowns, in real seconds (tests shorten them)
-  const TUNE_ST = St.tune = Object.assign({ win: 15, gob: 90, hype: 180, wait: 45, feedLife: 12, feedMax: 4, rejectGap: 8 }, St.tune || {});
+  // (lootWin: the boss's loot moment is ~5 s for the player; chat sees the stream 2-5 s late, so its window is its own)
+  const TUNE_ST = St.tune = Object.assign({ win: 15, lootWin: 10, gob: 90, hype: 180, wait: 45, feedLife: 12, feedMax: 4, rejectGap: 8 }, St.tune || {});
   const IRC_URL = 'wss://irc-ws.chat.twitch.tv:443';
 
   if (G.tAdd) G.tAdd({
@@ -44,16 +51,40 @@
     st_s_off: 'Off', st_s_noch: 'Type your channel name', st_s_conn: 'Connecting to #{0}…', st_s_live: 'Reading #{0} chat',
     st_s_wait: 'Offline · retrying in {0} s', st_s_err: 'Twitch: {0}', st_s_bad: 'Not a channel name (letters, digits, _)',
     st_votes: 'Chat votes', st_votesHint: '!1 !2 !3 !4 · 15 s · one vote each · you can still click',
-    st_v_card: 'Cards', st_v_door: 'Doors', st_v_relic: 'Relics',
+    st_v_card: 'Cards', st_v_door: 'Doors', st_v_relic: 'Relics', st_v_boon: 'Boons', st_v_loot: 'Loot',
+    st_lootHint: 'Loot: chat picks the boss loot card too (holds the loot moment 10 s; off by default)',
     st_calls: 'Chat calls', st_callsHint: '!goblin 90 s cooldown · !champ once a land · !hype 3 min cooldown · off in a ranked Daily',
     st_feed: 'Chat feed on the field', st_feedHint: 'Top right, 4 lines: who called what',
     st_code: 'Run code', st_codeHint: 'Chat can replay this Siege: Enter a code at the setup', st_copy: 'Copy', st_copied: 'Copied',
     st_cd: '{0} s', st_champDone: 'came this land', st_daily: 'off in the Daily', st_busy: 'busy', st_picks: 'chat picks {0}',
     st_votesSeen: '{0} chatters seen',
+    st_names: 'Hidden names', st_namesHint: 'Mine: your hero, account and board name show as Streamer · Others: other players on the boards',
+    st_n_me: 'Mine', st_n_other: 'Others', st_meName: 'Streamer', st_anonName: 'Player {0}', st_anonRank: 'Player #{0}',
   });
+  // Russian for these keys, the way store.js hands its table over (G.STR_RU, G.addStrings('ru', ...) when the i18n
+  // stream's loader exists); the i18n stream owns how and when it is applied
+  const RU_ST = {
+    st_mode: 'Режим стримера', st_modeHint: 'Чат Twitch голосует и вызывает события. Только чтение: без входа, в чат ничего не пишется.',
+    st_channel: 'Канал Twitch', st_chPh: 'твой_канал', st_connect: 'Подключить', st_reconnect: 'Переподключить',
+    st_s_off: 'Выключено', st_s_noch: 'Введи название канала', st_s_conn: 'Подключаюсь к #{0}…', st_s_live: 'Читаю чат #{0}',
+    st_s_wait: 'Нет связи · повтор через {0} с', st_s_err: 'Twitch: {0}', st_s_bad: 'Это не название канала (буквы, цифры, _)',
+    st_votes: 'Голосование чата', st_votesHint: '!1 !2 !3 !4 · 15 с · один голос от зрителя · ты всё равно можешь выбрать сам',
+    st_v_card: 'Карты', st_v_door: 'Двери', st_v_relic: 'Реликвии', st_v_boon: 'Дары', st_v_loot: 'Лут',
+    st_lootHint: 'Лут: чат выбирает и карту добычи с босса (момент добычи ждёт 10 с; по умолчанию выключено)',
+    st_calls: 'Вызовы чата', st_callsHint: '!goblin раз в 90 с · !champ раз за землю · !hype раз в 3 мин · выключены в рейтинговой Daily',
+    st_feed: 'Лента чата на поле', st_feedHint: 'Справа вверху, 4 строки: кто что вызвал',
+    st_code: 'Код забега', st_codeHint: 'Чат может переиграть эту Осаду: «Ввести код» при настройке', st_copy: 'Копировать', st_copied: 'Скопировано',
+    st_cd: '{0} с', st_champDone: 'уже был в этой земле', st_daily: 'выкл. в Daily', st_busy: 'занято', st_picks: 'чат выбрал {0}',
+    st_votesSeen: 'зрителей: {0}',
+    st_names: 'Скрытые имена', st_namesHint: 'Мои: имя героя, аккаунта и в таблице видны как «Стример» · Чужие: другие игроки в таблицах',
+    st_n_me: 'Мои', st_n_other: 'Чужие', st_meName: 'Стример', st_anonName: 'Игрок {0}', st_anonRank: 'Игрок #{0}',
+  };
+  G.STR_RU = Object.assign(G.STR_RU || {}, RU_ST);
+  try { if (G.addStrings) G.addStrings('ru', RU_ST); } catch (e) { /* the i18n stream's loader: optional */ }
 
   // ---------- settings (S.set.stream) ----------
-  const DEF = { on: 0, ch: '', vc: 1, vd: 1, vr: 1, gob: 1, champ: 1, hype: 1, feed: 1 };
+  // (vb: shrine boons, as cards; vl: the loot moment - off by default: it stretches the owner's ~5-s pause to lootWin)
+  const DEF = { on: 0, ch: '', vc: 1, vd: 1, vr: 1, vb: 1, vl: 0, gob: 1, champ: 1, hype: 1, feed: 1, hn: 1, ho: 0 };
   function cfg() {
     const S = G.S;
     if (!S || !S.set) return Object.assign({}, DEF);
@@ -72,11 +103,11 @@
   }
   St.on = () => !!cfg().on;
   St.cfg = () => Object.assign({}, cfg());
-  St.set = function (patch) {
+  St.set = function (patch, noSync) {
     const c = cfg();
     for (const k in patch || {}) if (k in DEF) c[k] = k === 'ch' ? String(patch[k] || '').slice(0, 40) : patch[k] ? 1 : 0;
     if (G.dirty) safe(() => G.dirty());
-    sync(true);
+    if (!noSync) sync(true);
     return St.cfg();
   };
 
@@ -176,12 +207,12 @@
     else if (idle > 360000) send('PING :tmi.twitch.tv');
   }, 30000);
 
-  // ---------- names: an ASCII display name, else the login; 14 characters at most; only ever set as text ----------
+  // ---------- names: an ASCII display name, else the login; 16 characters at most; only ever set as text ----------
   function nameOf(login, tags) {
     const dn = tags && tags['display-name'];
     let n = dn && /^[A-Za-z0-9_]{1,25}$/.test(dn) ? dn : String(login || '').replace(/[^a-z0-9_]/gi, '');
     if (!n) n = '?';
-    return n.length > 14 ? n.slice(0, 13) + '…' : n;
+    return n.length > 16 ? n.slice(0, 15) + '…' : n;
   }
   St._nameOf = nameOf;
 
@@ -193,7 +224,9 @@
     login = String(login || '').toLowerCase();
     const who = tags['user-id'] || login;
     if (!who) return false;
-    const s = String(text || '').trim().toLowerCase();
+    let s = String(text || '').trim().toLowerCase();
+    // (a reply in Twitch's chat starts with '@parent ': the vote or the call follows it)
+    if (tags['reply-parent-msg-id'] || tags['reply-parent-user-login']) s = s.replace(/^@\S+\s+/, '');
     if (s[0] !== '!') return false;
     if (irc.seen.size < 5000) irc.seen.add(who);
     const v = s.match(/^!([1-9])(?:\s|$)/);
@@ -205,7 +238,7 @@
   St.chat = (text, user, tags) => safe(() => chat(text, user || 'tester', tags || {}), false);
 
   // ---------- votes ----------
-  let V = null, lastDone = null;
+  let V = null, lastDone = null, lastSig = '';
   const RU = () => G.RunUI;
   const screens = () => safe(() => (RU() && RU().state ? RU().state().screens : []), []);
   // the choice open on screen now (and the switch allows): {kind, obj, n, sig}
@@ -216,17 +249,29 @@
     if (c.vc && top === 'cards') { const o = G.cardOffer && G.cardOffer(); if (o && o.ids && o.ids.length >= 2) return { kind: 'card', obj: o, n: Math.min(9, o.ids.length), sig: o.ids.join(',') }; }
     if (c.vd && top === 'doors') { const d = r.doors; if (d && d.opts && d.opts.length >= 2) return { kind: 'door', obj: d, n: Math.min(9, d.opts.length), sig: d.opts.map(x => x.land).join(',') }; }
     if (c.vr && top === 'relic') { const o = r.relicOffer; if (o && o.ids && o.ids.length >= 2 && !(r.belt && r.beltMax && r.belt.length >= r.beltMax)) return { kind: 'relic', obj: o, n: Math.min(9, o.ids.length), sig: o.ids.join(',') }; }
+    if (c.vb && top === 'boon') { const o = r.boonOffer; if (o && o.ids && o.ids.length >= 2) return { kind: 'boon', obj: o, n: Math.min(9, o.ids.length), sig: o.ids.join(',') }; }
+    // the loot moment: after its reveal (an ultra-rare's pillar: L.wait), never a junk moment that collapses into the
+    // Furnace by itself, and only while 2+ cards are still open for a pick left (the Mad Button's second pick: a second
+    // window; sig carries what is taken). Votes for a taken or burned card don't count (ok[])
+    if (c.vl && top === 'loot') {
+      const L = r.loot;
+      if (L && Array.isArray(L.cards) && !L.collapse && !(L.wait > 0) && L.taken < L.pick) {
+        const ok = L.cards.map(x => !x.taken && !x.burned);
+        if (ok.filter(Boolean).length >= 2) return { kind: 'loot', obj: L, n: Math.min(9, L.cards.length), sig: ok.map(x => (x ? 'o' : 'x')).join('') + L.taken, ok };
+      }
+    }
     return null;
   }
   // (the choice's own clock waits while chat votes; the touch it had before is given back when nobody voted)
-  function touch(kind) { if (kind === 'card' && G.cardTouch) G.cardTouch(); else if (kind === 'door' && G.doorsTouch) G.doorsTouch(); else if (kind === 'relic' && G.relicTouch) G.relicTouch(); }
+  const TOUCH = { card: 'cardTouch', door: 'doorsTouch', relic: 'relicTouch', boon: 'shrineTouch', loot: 'lootTouch' };
+  function touch(kind) { const f = G[TOUCH[kind]]; if (typeof f === 'function') f(); }
   function openVote(ch) {
-    V = { kind: ch.kind, obj: ch.obj, sig: ch.sig, n: ch.n, counts: new Array(ch.n).fill(0), voters: new Set(), t0: now(), end: now() + TUNE_ST.win * 1000, prevTouch: ch.obj.touch | 0, drawn: '' };
+    V = { kind: ch.kind, obj: ch.obj, sig: ch.sig, n: ch.n, ok: ch.ok || null, counts: new Array(ch.n).fill(0), voters: new Set(), t0: now(), end: now() + (ch.kind === 'loot' ? TUNE_ST.lootWin : TUNE_ST.win) * 1000, prevTouch: ch.obj.touch | 0, drawn: '' };
     touch(V.kind);
     drawTally(true);
   }
   function castVote(who, i) {
-    if (!V || !(i >= 0 && i < V.n) || V.voters.has(who)) return false;
+    if (!V || !(i >= 0 && i < V.n) || (V.ok && !V.ok[i]) || V.voters.has(who)) return false;
     V.voters.add(who);
     V.counts[i]++;
     V.dirty = 1;
@@ -242,7 +287,7 @@
   }
   function endVote(take) {
     if (!V) return;
-    const v = V; V = null; lastDone = v.obj;
+    const v = V; V = null; lastDone = v.obj; lastSig = v.sig;
     safe(() => RU() && RU().voteTally && RU().voteTally(v.kind, null));
     if (!take) return;
     const tot = v.counts.reduce((a, x) => a + x, 0);
@@ -250,7 +295,9 @@
     const mx = Math.max.apply(null, v.counts), top = [];
     v.counts.forEach((x, i) => { if (x === mx) top.push(i); });
     const i = top[Math.floor(Math.random() * top.length)];
-    const ok = safe(() => (v.kind === 'card' ? G.cardPick(i, 'chat') : v.kind === 'door' ? G.runDoor(i) : G.relicPick(i)), false);
+    // (the loot card goes where a plain G.lootTake puts it: on whoever it is an upgrade for, else into the bag)
+    const PICK = { card: () => G.cardPick(i, 'chat'), door: () => G.runDoor(i), relic: () => G.relicPick(i), boon: () => G.boonPick(i), loot: () => G.lootTake(i) };
+    const ok = safe(PICK[v.kind], false);
     if (ok) { G.emit('streamVote', v.kind, i, v.counts.slice()); feed('', t('st_picks', '!' + (i + 1)), 'sys'); }
   }
   St.vote = () => (V ? { kind: V.kind, counts: V.counts.slice(), left: Math.max(0, (V.end - now()) / 1000), voters: V.voters.size } : null);
@@ -285,13 +332,13 @@
       return false;
     };
     if (rankedDaily()) return reject(t('st_daily'));
-    if (pend.some(p => p.cmd === cmd)) return reject(t('st_busy'));
     if (cmd === 'champ') {
       const k = runId() + ':' + slotNow();
       if (champDone[k] || R.champ || champCame()) return reject(t('st_champDone'));
       champDone[k] = 1;
     } else {
       if (T < cd[cmd]) return reject(t('st_cd', Math.ceil((cd[cmd] - T) / 1000)));
+      if (pend.some(p => p.cmd === cmd)) return reject(t('st_busy'));
       cd[cmd] = T + TUNE_ST[cmd === 'goblin' ? 'gob' : 'hype'] * 1000;
     }
     pend.push({ cmd, name, t: T, land: runId() + ':' + slotNow() });
@@ -382,7 +429,7 @@
   function tick() {
     const c = cfg(), key = c.on + '|' + c.ch;
     if (key !== lastCfg) { lastCfg = key; sync(true); if (!c.on) feedClear(); }
-    if (!c.on) { if (V) endVote(false); pend.length = 0; return; }
+    if (!c.on) { if (V) endVote(false); pend.length = 0; namesSync(); return; }
     if (!c.feed && feedEl && feedEl.childElementCount) feedClear();
     const ch = choiceNow();
     if (V) {
@@ -392,9 +439,11 @@
       else if (now() >= V.end) endVote(true);
       else drawTally(false);
     }
-    if (!V && ch && ch.obj !== lastDone && (irc.joined || St._test)) openVote(ch);
+    // (one window a choice; the loot moment's second pick is a new choice on the same object: its sig differs)
+    if (!V && ch && (ch.obj !== lastDone || (ch.kind === 'loot' && ch.sig !== lastSig)) && (irc.joined || St._test)) openVote(ch);
     runCalls();
     if (slotEl && slotEl.isConnected) drawStatus();
+    namesSync();
   }
   setInterval(() => safe(tick), 250);
   // (a new save - import, reset, a cloud load - is read on the next tick: cfg() reads G.S each time)
@@ -437,10 +486,11 @@
       ${tg(c.on, 'data-st-on', t('st_mode'), t('st_modeHint'))}
       ${c.on ? `
       <div class="setRow stChRow"><span>${esc(t('st_channel'))}<small class="stStatus" role="status"></small></span>
-        <span class="stChIn"><input id="stCh" type="text" inputmode="latin" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('st_chPh'))}" value="${esc(c.ch)}" aria-label="${esc(t('st_channel'))}"><button class="btn" data-st-go>${esc(irc.joined ? t('st_reconnect') : t('st_connect'))}</button></span></div>
-      ${seg([['vc', t('st_v_card')], ['vd', t('st_v_door')], ['vr', t('st_v_relic')]], t('st_votes'), t('st_votesHint'))}
+        <span class="stChIn"><input id="stCh" type="text" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t('st_chPh'))}" value="${esc(c.ch)}" aria-label="${esc(t('st_channel'))}"><button class="btn" data-st-go>${esc(irc.joined ? t('st_reconnect') : t('st_connect'))}</button></span></div>
+      ${seg([['vc', t('st_v_card')], ['vd', t('st_v_door')], ['vr', t('st_v_relic')], ['vb', t('st_v_boon')], ['vl', t('st_v_loot')]], t('st_votes'), t('st_votesHint') + ' · ' + t('st_lootHint'))}
       ${seg([['gob', '!goblin'], ['champ', '!champ'], ['hype', '!hype']], t('st_calls'), t('st_callsHint'))}
       ${tg(c.feed, 'data-st-feed', t('st_feed'), t('st_feedHint'))}
+      ${seg([['hn', t('st_n_me')], ['ho', t('st_n_other')]], t('st_names'), t('st_namesHint'))}
       ${code ? `<div class="setRow stCode"><span>${esc(t('st_code'))}<small>${esc(t('st_codeHint'))}</small></span><span class="stCodeV"><b></b><button class="btn" data-st-copy>${esc(t('st_copy'))}</button></span></div>` : ''}` : ''}
     </div>`;
     const inp = slot.querySelector('#stCh');
@@ -453,11 +503,13 @@
       // (the field's keys must not fire while typing a name)
       inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); go(inp.value); } });
     }
-    slot.addEventListener('click', e => {
+    // (one listener a slot element: a refill re-renders its inside, not the slot)
+    if (!slot._st) slot._st = 1, slot.addEventListener('click', e => {
+      const c = cfg(), inp = slot.querySelector('#stCh');
       if (e.target.closest('[data-st-on]')) { St.set({ on: !c.on }); safe(() => G.Audio && G.Audio.unlock && G.Audio.unlock()); refill(); return; }
       if (e.target.closest('[data-st-go]')) { go(inp ? inp.value : c.ch); return; }
       const k = e.target.closest('[data-st-k]');
-      if (k) { const key = k.dataset.stK; St.set({ [key]: !cfg()[key] }); refill(); return; }
+      if (k) { const key = k.dataset.stK; St.set({ [key]: !c[key] }); refill(); return; }
       if (e.target.closest('[data-st-feed]')) { St.set({ feed: !c.feed }); refill(); return; }
       const cp = e.target.closest('[data-st-copy]');
       if (cp) {
@@ -468,9 +520,116 @@
     });
     drawStatus();
   }
-  function go(v) { draft = null; const ch = chanOf(v); St.set({ ch: ch || v }); if (ch) { irc.tries = 0; connect(ch); } else setState('bad'); refill(); }
+  // Connect / Reconnect: the channel saved, then one connection (St.set without its own sync, so it isn't opened twice)
+  function go(v) { draft = null; const ch = chanOf(v); St.set({ ch: ch || v }, true); if (ch) { irc.tries = 0; connect(ch); } else { disconnect(true); setState('bad'); } refill(); }
   function refill() { if (slotEl && slotEl.isConnected) { const body = slotEl.parentNode; if (body) fill(body); } }
   G.on('uiSettings', body => safe(() => fill(body)));
+
+
+  // ---------- hidden names (DESIGN §13: streamer mode hides names) ----------
+  // Mine (hn, on by default): the player's own names - the hero's ladder name (S.profile.name), the Daily board name
+  // (G.Daily.name()), the platform account name (G.Net.myName, which can be a real full name) - show as 'Streamer'
+  // wherever the game writes them; their two inputs are blurred until focused. Others (ho): the other players on the
+  // ladder, the rivals and the Daily board show as 'Player K7Q' / 'Player #4'. Nothing is changed in the save or in
+  // what is posted: G.Net's name getters are wrapped (every ladder/rival/profile line reads them) and, for the places
+  // that write the own name straight from the save (ui.js's hero/town cards, daily.js's board, a toast), one
+  // MutationObserver masks the text nodes added to the page - live only while streamer mode hides something. It reads
+  // only the nodes a render added (no per-frame work; the field is a canvas and never holds a name).
+  const hideMe = () => { const c = cfg(); return !!(c.on && c.hn); };
+  const hideOthers = () => { const c = cfg(); return !!(c.on && c.ho); };
+  const isMe = e => { const N = G.Net; return !!(e && (e.me || (N && N.uid && (e.uid === N.uid || e.id === N.uid)))); };
+  const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  const pseud = e => { let h = hash(String((e && (e.uid || e.id || e.name)) || '?')), k = ''; for (let i = 0; i < 3; i++) { k += B32[h & 31]; h >>>= 5; } return t('st_anonName', k); };
+  function wrapNet() {
+    const N = G.Net;
+    if (!N || typeof N.displayName !== 'function' || N.displayName._st) return;
+    const dn = N.displayName, an = typeof N.accountName === 'function' ? N.accountName : null;
+    N.displayName = function (e) {
+      const n = dn.apply(this, arguments);
+      if (isMe(e) ? hideMe() : hideOthers()) return n || (e && e.uid) ? (isMe(e) ? t('st_meName') : pseud(e)) : n;
+      return n;
+    };
+    N.displayName._st = 1;
+    if (an) N.accountName = function (e) { const n = an.apply(this, arguments); return (isMe(e) ? hideMe() : hideOthers()) ? '' : n; };
+  }
+  wrapNet();
+  // the own names, as one regex (longest first; whole words only; never the plain 'Warden' fallback or the mask itself)
+  let meKey = null, meRe = null;
+  function meRegex() {
+    const S = G.S, N = G.Net, D = G.Daily, out = [];
+    const add = v => { v = String(v || '').trim(); if (v.length >= 2) out.push(v); };
+    add(S && S.profile && S.profile.name);
+    safe(() => D && D.name && add(D.name()));
+    if (N && N.myName) { add(N.myName); add(String(N.myName).trim().split(/\s+/)[0].slice(0, 16)); }
+    const skip = new Set([t('wardenName'), t('st_meName'), 'Warden', 'Streamer', RU_ST.st_meName].map(x => String(x).toLowerCase()));
+    const list = [...new Set(out)].filter(v => !skip.has(v.toLowerCase())).sort((a, b) => b.length - a.length);
+    const key = list.join('\n');
+    if (key !== meKey) {
+      meKey = key;
+      const reEsc = v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      try { meRe = list.length ? new RegExp('(^|[^\\p{L}\\p{N}_])(' + list.map(reEsc).join('|') + ')(?![\\p{L}\\p{N}_])', 'gu') : null; }
+      catch (e) { meRe = list.length ? new RegExp('(^|\\W)(' + list.map(reEsc).join('|') + ')(?!\\w)', 'g') : null; }
+    }
+    return meRe;
+  }
+  St._meRegex = meRegex;
+  const SKIP_TAG = { SCRIPT: 1, STYLE: 1, CANVAS: 1, TEXTAREA: 1, INPUT: 1, svg: 1 };
+  let masked = 0, maskT0 = 0;
+  function maskNode(n, re) {
+    const s = n.nodeValue;
+    if (!s || s.length < 2) return;
+    re.lastIndex = 0;
+    if (!re.test(s)) return;
+    const p = n.parentNode;
+    if (!p || SKIP_TAG[p.nodeName] || (p.closest && p.closest('#stFeed,[contenteditable]'))) return;
+    re.lastIndex = 0;
+    n.nodeValue = s.replace(re, (m, pre) => pre + t('st_meName'));
+    masked++;
+  }
+  function maskOthers(el) {
+    // the Daily board (daily.js): every row but the player's own; the name is the row's first text node
+    const rows = el.matches && el.matches('.bdRow') ? [el] : el.querySelectorAll ? el.querySelectorAll('.bdRow') : [];
+    for (const r of rows) {
+      if (r.classList.contains('me')) continue;
+      const nm = r.querySelector('.nm'), tx = nm && nm.firstChild, rk = r.querySelector('.rk');
+      if (!tx || tx.nodeType !== 3 || nm._st === tx.nodeValue) continue;
+      tx.nodeValue = t('st_anonRank', rk ? String(rk.textContent || '').replace(/\D/g, '') || '?' : '?');
+      nm._st = tx.nodeValue;
+    }
+  }
+  function maskTree(root) {
+    const re = hideMe() ? meRegex() : null, oth = hideOthers();
+    if (!root || (!re && !oth)) return;
+    if (root.nodeType === 3) { if (re) maskNode(root, re); return; }
+    if (root.nodeType !== 1 || SKIP_TAG[root.nodeName]) return;
+    if (re) { const w = document.createTreeWalker(root, 4); let n; while ((n = w.nextNode())) maskNode(n, re); }
+    if (oth) maskOthers(root);
+  }
+  let mo = null, namesOn = '';
+  function namesSync() {
+    const me = hideMe(), oth = hideOthers(), re = me ? meRegex() : null, key = (me ? 'm' : '') + (oth ? 'o' : '') + (re ? meKey : '');
+    if (key === namesOn) return;
+    const was = namesOn;
+    namesOn = key;
+    if (document.body) document.body.classList.toggle('stHideMe', me);
+    // (the observer only while there is a name to hide: a player with no name set costs nothing)
+    if (!re && !oth) { if (mo) { mo.disconnect(); mo = null; } if (was && was !== 'm') safe(() => G.UI && G.UI.render && G.UI.render()); return; }
+    if (!mo && typeof MutationObserver !== 'undefined' && document.body) {
+      mo = new MutationObserver(recs => {
+        // (a guard: something re-writing the name over and over - never seen - is left alone for a second)
+        const T = now(); if (T - maskT0 > 1000) { maskT0 = T; masked = 0; } if (masked > 400) return;
+        for (const r of recs) {
+          if (r.type === 'characterData') maskTree(r.target);
+          else for (const n of r.addedNodes) maskTree(n);
+        }
+      });
+      mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
+    // (what is on the page already: once; and the ladder lines that read the wrapped getters, at their next render)
+    maskTree(document.body);
+    safe(() => G.UI && G.UI.render && G.UI.render());
+  }
+  St.namesHidden = () => ({ me: hideMe(), others: hideOthers() });
 
   // ---------- CSS (from css/style.css's variables; the pixel look: hard edges, ink outlines, the display font) ----------
   const css = `
@@ -491,17 +650,22 @@
 .fighting #stFeed{top:124px}
 @media (max-width:860px){#stFeed{top:50px;right:8px;max-width:min(58%,250px)}.fighting #stFeed{top:104px}#stFeed .stL{font-size:12px;padding:2px 5px}#stFeed .stL .stC{font-size:7px}}
 @media (prefers-reduced-motion:reduce){#stFeed .stL{animation:none}#stFeed .stL.out{transition:none}}
-.stSet .stChIn{display:flex;gap:6px;align-items:center;flex:none}
-.stSet #stCh{width:150px;min-width:0;background:var(--ink);color:var(--text);border:2px solid var(--line);padding:5px 7px;font:13px/1.2 ui-monospace,monospace;-webkit-user-select:text;user-select:text}
+.stSet .stChRow,.stSet .stSeg,.stSet .stCode{flex-wrap:wrap;row-gap:8px}
+.stSet .stChRow>span:first-child,.stSet .stSeg>span:first-child,.stSet .stCode>span:first-child{flex:1 1 200px;min-width:0}
+.stSet .stChIn{display:flex;gap:6px;align-items:center;flex:1 1 220px;min-width:0}
+.stSet #stCh{flex:1 1 auto;width:120px;min-width:0;background:var(--ink);color:var(--text);border:2px solid var(--line);padding:5px 7px;font:13px/1.2 ui-monospace,monospace;-webkit-user-select:text;user-select:text}
 .stSet #stCh:focus{outline:none;border-color:#9146ff}
+.stSet .stChIn .btn{flex:none}
 .stSet .stStatus{color:var(--dim)}
 .stSet .stStatus[data-state=live]{color:var(--good)}
 .stSet .stStatus[data-state=wait],.stSet .stStatus[data-state=err],.stSet .stStatus[data-state=bad]{color:var(--bad)}
 .stSet .stStatus[data-state=conn]{color:var(--gold)}
-.stSet .stCodeV{display:flex;gap:6px;align-items:center;min-width:0}
-.stSet .stCodeV b{font:8px/1.3 var(--font-display);color:var(--gold);word-break:break-all;-webkit-user-select:text;user-select:text}
-.stSet .stSeg .seg button[data-st-k]{font-family:var(--font-body)}
-@media (max-width:520px){.stSet .stChRow,.stSet .stSeg,.stSet .stCode{flex-wrap:wrap}.stSet .stChIn,.stSet .stCodeV{width:100%}.stSet #stCh{flex:1 1 auto;width:auto}.stSet .stSeg .seg{width:100%;justify-content:flex-start}}
+.stSet .stSeg .seg{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
+.stSet .stSeg .seg button{white-space:nowrap}
+.stSet .stCodeV{display:flex;gap:8px;align-items:center;flex:1 1 220px;justify-content:flex-end;min-width:0}
+.stSet .stCodeV b{font:8px/1.4 var(--font-display);color:var(--gold);overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
+.stSet .stCodeV .btn{flex:none}
+body.stHideMe #heroName:not(:focus),body.stHideMe #bdNameIn:not(:focus){color:transparent;text-shadow:0 0 7px var(--text)}
 `;
   const st = document.createElement('style');
   st.id = 'stCss'; st.textContent = css;

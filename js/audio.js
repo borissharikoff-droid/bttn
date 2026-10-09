@@ -21,8 +21,11 @@
       limiter = ac.createDynamicsCompressor ? ac.createDynamicsCompressor() : null;
       if (limiter) {
         const set = (p, v) => { try { p.value = v; } catch (e) { /* older engines */ } };
-        set(limiter.threshold, -9); set(limiter.knee, 2); set(limiter.ratio, 20); set(limiter.attack, 0.002); set(limiter.release, 0.18);
-        limiter.connect(master);
+        // (a high threshold and no knee: it only touches the peaks; WebAudio adds a makeup gain to every compressor, so a
+        // trim after it keeps the everyday sounds at their 3.x level - measured: tests/fieldfx/audio.js)
+        set(limiter.threshold, -1.5); set(limiter.knee, 0); set(limiter.ratio, 20); set(limiter.attack, 0.002); set(limiter.release, 0.18);
+        const trim = ac.createGain(); trim.gain.value = 0.92;
+        limiter.connect(trim); trim.connect(master);
       }
       sfxBus = ac.createGain(); sfxBus.connect(limiter || master);
       musicBus = ac.createGain(); musicBus.connect(master);
@@ -380,10 +383,10 @@
     boom(0.24, w, 66);
     crash(0.05, w + 0.02, 1.4);
     // the strike: a wide ninth chord in detuned saws that opens up, then rings
-    [0, 7, 12, 16, 19, 23, 26].forEach((s, i) => { voice(note(7 + s), 2.4, { type: 'sawtooth', vol: 0.04, when: w + i * 0.012, det: -8, lp: 700, lp2: 5000, lpT: 0.5, rel: 1.8 }); voice(note(7 + s), 2.4, { type: 'sawtooth', vol: 0.03, when: w + i * 0.012, det: 9, lp: 700, lp2: 5000, lpT: 0.5, rel: 1.8 }); });
+    [0, 7, 12, 16, 19, 23, 26].forEach((s, i) => { voice(note(7 + s), 3, { type: 'sawtooth', vol: 0.04, when: w + i * 0.012, det: -8, lp: 700, lp2: 5000, lpT: 0.5, rel: 2.3 }); voice(note(7 + s), 3, { type: 'sawtooth', vol: 0.03, when: w + i * 0.012, det: 9, lp: 700, lp2: 5000, lpT: 0.5, rel: 2.3 }); });
     // a run up the chord, and bells on top
     [0, 4, 7, 11, 14, 19, 23, 26, 31].forEach((s, i) => voice(note(31 + s), 0.18, { type: i % 2 ? 'triangle' : 'square', vol: 0.05, when: w + 0.1 + i * 0.045 }));
-    bellAt(43, 2.2, 0.1, w + 0.5); bellAt(38, 2.4, 0.07, w + 0.56);
+    bellAt(43, 2.8, 0.1, w + 0.5); bellAt(38, 3, 0.08, w + 0.56); bellAt(31, 3, 0.06, w + 0.62);
     hiss(1.8, 0.03, w + 0.4, 'highpass', 6000, 11000, 0.3);
   }
   function divineChoir(w) {
@@ -412,6 +415,17 @@
     if (tier === 'divine') divineChoir(0);
     else if (tier === 'unique') uniqueFanfare(0);
     else mythicChord(0);
+  };
+  // a true relic onto the belt: relic_fx's short show (G.relicBelt) strikes on these beats over the relic sting - the
+  // inhale, the spear at 0.4 s (a sub drop, a crack, a zap), R E L I C slammed in at 0.8 s + 0.08 s a letter, a bell
+  A.relicStrike = function () {
+    if (!ac || !throttle('rstrike', 400)) return;
+    hiss(0.4, 0.05, 0, 'bandpass', 500, 7000, 0.36, 1);
+    voice(note(-3), 0.36, { type: 'sawtooth', vol: 0.025, slide: note(21), lp: 900, lp2: 4000, att: 0.3, rel: 0.05 });
+    boom(0.22, 0.4, 64); hiss(0.9, 0.07, 0.4, 'lowpass', 5000, 150, 0.003, 0.5);
+    voice(1800, 0.08, { type: 'sine', vol: 0.05, slide: 60, when: 0.4 });
+    [0, 4, 7, 11, 12].forEach((s, i) => { const w = 0.8 + i * 0.08; thud(0.12, 0.09 + (i === 4 ? 0.05 : 0), w, 700); voice(note(12 + s), 0.12, { type: 'square', vol: 0.04, when: w }); });
+    bellAt(43, 2.2, 0.07, 1.12); bellAt(50, 1.8, 0.035, 1.14);
   };
   // a card that burns into Embers: a soft whoosh and a crackle
   A.burn = function () {
