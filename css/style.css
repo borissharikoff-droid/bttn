@@ -1668,3 +1668,27 @@ body.lowfx .btn.newSiege::after { animation: none; opacity: .6; }
 .twTile i.bw { position: absolute; right: 1px; bottom: 1px; width: 14px; height: 14px; display: grid; place-items: center; background: #0a0910cc; pointer-events: none; }
 .twTile i.bw img { width: 12px; height: 12px; image-rendering: pixelated; }
 .setRow.autoInv { margin-bottom: 8px; background: var(--panel2); border: 2px solid var(--ink); padding: 6px 8px; }
+
+/* ---- 4.0 metaui continuation 1: the meta stream's final API on the meta pages ---- */
+/* the collection's combat kinds, off by the budget */
+.bonusList .off { color: var(--dim); opacity: .75; }
+.bonusList b.off { color: var(--dim); font-weight: 400; }
+.bonusList b.off s { color: var(--dim); }
+/* quest tags: the day's x2 deed, the weekly deed */
+.qTag { display: inline-block; margin-right: 6px; padding: 0 5px; font: 7px/1.9 var(--font-display); font-style: normal; color: #1a1420; background: #ffd84a; border: 2px solid var(--ink); vertical-align: 2px; }
+.qTag.wk { background: #ff8ae0; }
+.quest.weekly { border-color: #ff8ae0; }
+/* the Alchemist's starting potions (III+: the player's choice) */
+.twStartPots { margin: 10px 10px 0; padding: 8px; background: var(--panel2); border: 2px solid var(--ink); display: grid; gap: 4px; }
+.twStartPots b { font-weight: 600; font-size: 15px; }
+.twStartPots small { color: var(--dim); }
+p.twStartPots { color: var(--dim); }
+.apChips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.apChip { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 2px 8px 2px 4px; font: inherit; font-size: 14px; color: var(--text); background: var(--slot); border: 2px solid var(--ink); cursor: pointer; }
+.apChip img { width: 22px; height: 22px; image-rendering: pixelated; }
+.apChip.on { border-color: #ffd84a; box-shadow: inset 0 0 0 2px #ffd84a55; color: #ffd84a; }
+/* the recipe book: a hint bought with a token */
+.evoRow .btn.small { margin-top: 4px; padding: 3px 8px; font-size: 13px; min-height: 30px; }
+/* a Deed's toast: what it opens */
+.toast .unl { color: #8fe3ff; }
+.toast .unl small { color: var(--dim); }

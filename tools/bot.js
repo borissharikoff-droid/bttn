@@ -169,15 +169,47 @@ function shop(G, cps) {
   G.S.quests.forEach((q, i) => { if (q.done) G.claimQuest(i); });
   if (G.dailyAvailable()) G.claimDaily();
 }
-// the Hall of Fame (G.LEGACY, 4.0: capped ranks for Fame), cheapest first: only when a test asks (the personas play
+// the Hall of Fame (G.HALL, 4.0: capped ranks for Fame), cheapest first: only when a test asks (the personas play
 // with no meta; the bots stream adds the meta tiers)
 function buyLegacy(G) {
+  const H = G.HALL || G.LEGACY;
+  let n = 0;
   for (let guard = 0; guard < 200; guard++) {
-    const l = G.LEGACY.filter(x => (G.S.legacy[x.id] || 0) < x.max).sort((a, b) => G.legacyCost(a) - G.legacyCost(b))[0];
-    if (!l || !G.buyLegacy(l.id)) break;
+    const l = H.filter(x => (G.S.legacy[x.id] || 0) < x.max).sort((a, b) => G.legacyCost(a) - G.legacyCost(b))[0];
+    if (!l || !(G.buyHall || G.buyLegacy)(l.id)) break;
+    n++;
   }
+  return n;
+}
+// 4.0 meta helpers (the meta stream's): what a player buys between Sieges. Fame -> the Hall's cheapest rank; Embers -> the
+// cheapest of the next Town level and the next visible Star Chart node (o.town / o.stars false: skip that sink). Returns
+// what it bought {hall, town, stars}
+function buyMeta(G, o) {
+  o = o || {};
+  const S = G.S, out = { hall: o.hall === false ? 0 : buyLegacy(G), town: 0, stars: 0 };
+  for (let guard = 0; guard < 400; guard++) {
+    const t = o.town === false ? null : (G.BLD || []).filter(b => G.bldLvl(b.id) < G.BLD_MAX && (!G.bldOpen || G.bldOpen(b.id))).map(b => ({ k: 'town', id: b.id, c: G.bldCost(b.id) })).sort((a, b) => a.c - b.c)[0];
+    const n = o.stars === false ? null : (G.NODES || []).filter(nd => (S.nodes[nd.id] || 0) < nd.max && G.nodeAvailable(nd) && G.nodeVisible(nd)).map(nd => ({ k: 'stars', id: nd.id, c: G.nodeCost(nd) })).sort((a, b) => a.c - b.c)[0];
+    const best = [t, n].filter(Boolean).sort((a, b) => a.c - b.c)[0];
+    if (!best || (S.embers || 0) < best.c) break;
+    if (best.k === 'town' ? G.buildUp(best.id) : G.buyNode(best.id)) out[best.k]++; else break;
+  }
+  return out;
+}
+// a share k (0..1) of the full meta set at once (the PT_META cells): every Hall rank, Town level and Star Chart node at
+// round(max x k); o.pets / o.unlock also fill the pets (golden, level 25) and open every lockable thing (the Deeds' unlocks)
+function metaFill(G, k, o) {
+  o = o || {};
+  const S = G.S;
+  for (const l of G.HALL || G.LEGACY) S.legacy[l.id] = Math.round(l.max * k);
+  for (const b of G.BLD) S.bld[b.id] = Math.round(G.BLD_MAX * k);
+  for (const n of G.NODES) S.nodes[n.id] = Math.round(n.max * k);
+  if (o.pets) { for (const p of G.PETS) S.pets[p.id] = { lvl: 25, n: 99, gold: true }; S.active = G.PETS.map(p => p.id); }
+  if (o.unlock && G.UNLOCK_LOCKED) for (const kind in G.UNLOCK_LOCKED) for (const id of G.UNLOCK_LOCKED[kind]) G.unlockAdd(kind + ':' + id);
+  G.dirty(); G.recalc();
+  return G.metaPower ? G.metaPower() : null;
 }
 // (4.0: Plunder is in: rares, champions and Hoarders drop a chest)
 const PERK_PRIORITY = ['might', 'frenzy', 'momentum', 'nova', 'blades', 'corpse', 'multi', 'overkill', 'aura', 'glass', 'chain', 'burn', 'execute', 'laststand', 'cleave', 'crush', 'thunder', 'mark', 'ricochet', 'bulwark', 'aegis', 'thorns', 'secondwind', 'warband', 'frost', 'souls', 'greed', 'avarice', 'reach', 'fortress', 'leech', 'loot', 'plunder'];
 
-module.exports = { makeWorld, metric, tryBuy, shop, siegeAct, siegeBeat, doorPick, buyLegacy, PERK_PRIORITY, SIEGE_POLICY };
+module.exports = { makeWorld, metric, tryBuy, shop, siegeAct, siegeBeat, doorPick, buyLegacy, buyHall: buyLegacy, buyMeta, metaFill, PERK_PRIORITY, SIEGE_POLICY };

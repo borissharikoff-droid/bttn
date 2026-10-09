@@ -22,6 +22,7 @@
     champMobsMin: 40, champMobsMax: 200, // ...but never under 40 or over 200 standard mobs of its depth
     champDelayMin: 20, champDelayMax: 45, // seconds into the land before it comes (3.4: lands are shorter now)
     champW: 5,                // its weight: clear bar, gold and XP of five brutes
+    champUqSiege: 0.05,       // 4.0 (DESIGN §5.3 'unique sources per run'): inside a Siege a slain champion drops a unique 5% of the time
   });
 
   // ---------- The mechanics ----------
@@ -402,6 +403,8 @@
 
   // ---------- The reward ----------
   function uniqueFor(d) {
+    // (4.0, runflow: inside a Siege the run's pool - world.js G.uniqueFor: the Deeds' unlocks, the Siege's depth gates)
+    if (G.inSiege && G.inSiege() && G.uniqueFor) return G.uniqueFor(d, false);
     const S = S_(), ok = (G.UNIQUE_IDS || []).filter(q => { const U = G.UNIQUES[q]; return U && U.minD <= d && !U.boss; });
     if (!ok.length) return null;
     const fresh = ok.filter(q => !S.uq[q]), from = fresh.length && chance(0.5) ? fresh : ok;
@@ -428,8 +431,8 @@
       const orbs = ['ascent', chance(0.15) ? 'grace' : chance(0.5) ? 'flux' : G.ORB_IDS && G.ORB_IDS[Math.floor(G.rng() * G.ORB_IDS.length)] || 'flux'];
       for (const [i, k] of orbs.entries()) if (!G.ORBS || G.ORBS[k]) { rew.orbs.push(k); G.dropItem('orb', k, m, Object.assign({ wait: 0.3 + i * 0.1 }, o)); }
       // now and then a unique (the first champion of a fresh save never; the tenth for sure, if none came)
-      const p = 0.06 + 0.01 * Math.min(10, c.key);
-      if ((S.st.champs >= 2 && chance(p)) || (S.st.champs >= 10 && !S.st.champUq)) {
+      const p = 0.06 + 0.01 * Math.min(10, c.key), siege = !!(G.inSiege && G.inSiege());
+      if (siege ? chance(TUNE.champUqSiege) : (S.st.champs >= 2 && chance(p)) || (S.st.champs >= 10 && !S.st.champUq)) {
         const q = uniqueFor(d);
         if (q) { rew.uq = q; S.st.champUq = (S.st.champUq || 0) + 1; G.dropItem('uq', q, m, Object.assign({ wait: 0.6 }, o)); }
       }

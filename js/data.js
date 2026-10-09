@@ -21,16 +21,19 @@
   G.STAR_THRESHOLDS = [1, 10, 100, 1000, 10000];
 
   // ---------- Collection bonus types (per star, before rarity multiplier) ----------
+  // (4.0, DESIGN §4.1 'no hidden power': the collection's combat kinds (crit, critd, boss) are off (combat: 1, game.js recalc
+  // skips them): one mythic Crown of Kings gave +18% boss damage for good, a season-2 collection +190%. The economy kinds
+  // stay: gold, Garrison, clicks, luck, item value, chest rate, eggs, pet power, combo, all inside the permanent block)
   G.BONUS = {
     click: { v: 0.02,  name: 'Click gold',  pct: true },
     gps:   { v: 0.01,  name: 'Garrison income', pct: true },
     gold:  { v: 0.01,  name: 'All gold',    pct: true },
-    crit:  { v: 0.001, name: 'Crit chance', pct: true },
-    critd: { v: 0.1,   name: 'Crit power',  pct: false, x: true },
+    crit:  { v: 0.001, name: 'Crit chance', pct: true, combat: 1 },
+    critd: { v: 0.1,   name: 'Crit power',  pct: false, x: true, combat: 1 },
     luck:  { v: 0.005, name: 'Luck',        pct: true },
     ess:   { v: 0.015, name: 'Essence',     pct: true },
     item:  { v: 0.02,  name: 'Item value',  pct: true },
-    boss:  { v: 0.03,  name: 'Boss damage', pct: true },
+    boss:  { v: 0.03,  name: 'Boss damage', pct: true, combat: 1 },
     chest: { v: 0.015, name: 'Chest rate',  pct: true },
     egg:   { v: 0.02,  name: 'Egg chance',  pct: true },
     pet:   { v: 0.015, name: 'Pet power',   pct: true },
@@ -221,11 +224,13 @@
     // Click arm (up)
     C('c_surge', 0, -1, 'click', ['spark'], 5, 2, 1.7, 'Power Surge', 'Click gold +20%',
       (L, D) => { D.clickMult *= 1 + 0.2 * L; }),
-    // (4.0: the Star Chart is permanent now, so its power is compressed: crit +0.6% and crit power +0.1 a level)
-    C('c_prec', -1, -2, 'click', ['c_surge'], 5, 4, 1.8, 'Precision', 'Crit chance +0.6%',
-      (L, D) => { D.crit += 0.006 * L; }),
-    C('c_brut', 1, -2, 'click', ['c_surge'], 5, 4, 1.8, 'Brutality', 'Crit power +0.1',
-      (L, D) => { D.critMult += 0.1 * L; }),
+    // (4.0: the Star Chart is permanent now, so its power is compressed: DESIGN §4.6 gave crit +0.6% and crit power +0.1 a
+    // level; the meta stream halved both (+0.3% / +0.05): the permanent block at full completion has to land inside DESIGN
+    // §4.1's budget (x1.6 damage), and crit is worth 2-3x what its arithmetic assumed (tests/meta/meta_rules.js, BUDGET))
+    C('c_prec', -1, -2, 'click', ['c_surge'], 5, 4, 1.8, 'Precision', 'Crit chance +0.3%',
+      (L, D) => { D.crit += 0.003 * L; }),
+    C('c_brut', 1, -2, 'click', ['c_surge'], 5, 4, 1.8, 'Brutality', 'Crit power +0.05',
+      (L, D) => { D.critMult += 0.05 * L; }),
     C('c_flow', 0, -3, 'click', ['c_prec', 'c_brut'], 3, 12, 2.2, 'Flow', 'Max combo +40',
       (L, D) => { D.comboCap += 40 * L; }),
     C('c_echo', -1, -4, 'click', ['c_flow'], 5, 30, 2, 'Resonance', 'Clicks +1% of garrison income',
@@ -281,8 +286,9 @@
       (L, D) => { D.bossEmbers = (D.bossEmbers || 1) * (1 + 0.1 * L); }),
     C('a_hatch', -2, -1, 'arcane', ['a_flow'], 5, 10, 2, 'Nesting', 'Egg chance +15%',
       (L, D) => { D.eggMult *= 1 + 0.15 * L; }),
-    C('a_slayer', -2, 1, 'arcane', ['a_flow'], 5, 8, 1.9, 'Bossbane', 'Boss damage +3%',
-      (L, D) => { D.bossMult *= 1 + 0.03 * L; }),
+    // (4.0 meta: +3% -> +1% a level: the Hall's Boss Slayer and Bossbane together stay inside the x1.9 against bosses)
+    C('a_slayer', -2, 1, 'arcane', ['a_flow'], 5, 8, 1.9, 'Bossbane', 'Boss damage +1%',
+      (L, D) => { D.bossMult *= 1 + 0.01 * L; }),
     C('a_bond', -3, -1, 'arcane', ['a_hatch'], 5, 20, 2, 'Bond', 'Pet power +15%',
       (L, D) => { D.petMult *= 1 + 0.15 * L; }),
     C('a_time', -3, 1, 'arcane', ['a_slayer'], 3, 15, 2.2, 'Time Dilation', 'Boss timer +4s',
@@ -575,7 +581,17 @@
     gold: { name: '+20% gold', fx: (n, d) => { d.goldMult *= 1 + 0.2 * n; } },
     xp: { name: '+15% XP', fx: (n, d) => { d.xpMult = (d.xpMult || 1) * (1 + 0.15 * n); } },
     reroll: { name: '+1 card reroll', once: 1 },
+    // (4.0 meta: the rest of the retired blessing cards, at a boon's size: Giant Slayer, Fortune, Live Wire, Orb Seeker)
+    boss: { name: '+15% boss damage', fx: (n, d) => { d.bossMult *= 1 + 0.15 * n; } },
+    luck: { name: 'Chest find +15%, luck +10%', fx: (n, d) => { d.chestProg *= 1 + 0.15 * n; d.luck += 0.1 * n; } },
+    od: { name: 'Overdrive charges +30%', fx: (n, d) => { d.odRate = (d.odRate || 1) * (1 + 0.3 * n); } },
+    orbs: { name: 'Orbs drop +50%', fx: (n, d) => { d.orbMult = (d.orbMult || 1) * (1 + 0.5 * n); } },
   };
+  // (each boon's line for the UI; G.BOONS[id].desc)
+  for (const k in G.BOONS) if (!G.BOONS[k].desc) G.BOONS[k].desc = G.BOONS[k].name;
+  // the retired blessing cards (js/blessings.js G.BLESSINGS) and where each went: a Power shrine boon, a Pact, or gone
+  G.BLESS_TO = { gilded: 'boon:gold', warpath: 'boon:dmg', iron: 'boon:hp', quick: 'boon:spd', fortune: 'boon:luck', livewire: 'boon:od',
+    seeker: 'boon:orbs', scholar: 'boon:xp', slayer: 'boon:boss', glass: 'pact:glass', greed: 'pact:greed', reckless: null };
   // Pacts: a curse now, a reward at the lord (blood, greed, hunt: this land; glass: the rest of the run)
   G.PACTS = {
     blood: { name: 'Blood Pact', desc: 'Horde +50% health in this land; the lord’s loot +1 rarity and +1 card', land: { mobHp: 1.5 } },
@@ -589,30 +605,43 @@
   G.STAR_KILLS = i => 18000 * (1 + 0.1 * i); // 2.1: the Horde comes 1.4-2x thicker
   G.STAR_SWIFT = 20;
 
-  // ---------- The Hall of Fame (4.0; the 3.x Legacy re-made): capped ranks bought with Fame ----------
-  // Rank k costs base x k^2 (sq). At max: damage x1.2, speed x1.15, crit +5%, bosses x1.25, health x1.3; the rest are run
-  // knobs read at a run's start (hf_wind, hf_reroll, hf_banish, hf_belt) or by the camp, doors and setup streams (hf_door,
-  // hf_keep, hf_qm). Same G.LEGACY / S.legacy / G.buyLegacy as before, so the 3.x Temple panel shows it as it is.
-  // (3.x lg_* ranks are gone with season 3: their Fame became new Fame, G.foundersGift)
-  G.LEGACY = [
-    { id: 'hf_might', base: 60, sq: 1, max: 5, name: 'Ancestral Might', desc: 'Party damage +4% a rank', fx: (L, D) => { D.heroMult *= 1 + 0.04 * L; } },
-    { id: 'hf_iron', base: 60, sq: 1, max: 5, name: 'Iron Will', desc: 'Button and party health +6% a rank', fx: (L, D) => { D.hpMult *= 1 + 0.06 * L; } },
-    { id: 'hf_swift', base: 80, sq: 1, max: 5, name: 'Swift Hands', desc: 'Attack speed +3% a rank', fx: (L, D) => { D.spdMult *= 1 + 0.03 * L; } },
-    { id: 'hf_keen', base: 80, sq: 1, max: 5, name: 'Keen Eye', desc: 'Crit chance +1% a rank', fx: (L, D) => { D.crit += 0.01 * L; } },
-    { id: 'hf_boss', base: 80, sq: 1, max: 5, name: 'Boss Slayer', desc: 'Boss damage +5% a rank', fx: (L, D) => { D.bossMult *= 1 + 0.05 * L; } },
-    { id: 'hf_xp', base: 40, sq: 1, max: 5, name: 'Scholar', desc: 'XP +5% a rank', fx: (L, D) => { D.xpMult = (D.xpMult || 1) * (1 + 0.05 * L); } },
-    { id: 'hf_gold', base: 40, sq: 1, max: 5, name: 'Greed', desc: 'Gold +8% a rank', fx: (L, D) => { D.goldMult *= 1 + 0.08 * L; } },
-    { id: 'hf_chest', base: 40, sq: 1, max: 5, name: 'Treasure Sense', desc: 'Chest find +10% a rank', fx: (L, D) => { D.chestProg *= 1 + 0.1 * L; } },
-    { id: 'hf_fame', base: 100, sq: 1, max: 5, name: 'Renown', desc: 'Fame +5% a rank', fx: (L, D) => { D.fameMult *= 1 + 0.05 * L; } },
-    { id: 'hf_wind', base: 400, sq: 1, max: 1, name: 'Second Wind', desc: '+1 Integrity pip', fx: () => {} },
-    { id: 'hf_reroll', base: 120, sq: 1, max: 3, name: 'Reroll', desc: '+1 card reroll a run', fx: () => {} },
-    { id: 'hf_banish', base: 120, sq: 1, max: 3, name: 'Banish', desc: '+1 banish a run', fx: () => {} },
-    { id: 'hf_door', base: 300, sq: 1, max: 1, name: 'Third Door', desc: '3 land doors at each fork', fx: () => {} },
-    { id: 'hf_belt', base: 500, sq: 1, max: 2, name: 'Relic Belt', desc: '+1 belt slot', fx: () => {} },
-    { id: 'hf_keep', base: 1500, sq: 1, max: 1, name: 'Heirloom Shelf', desc: '+1 keepsake slot', fx: () => {} },
-    { id: 'hf_qm', base: 200, sq: 1, max: 2, name: 'Quartermaster', desc: '+1 camp market offer', fx: () => {} },
+  // ---------- The Hall of Fame (4.0, DESIGN §4.4; the 3.x Legacy re-made): capped ranks bought with Fame ----------
+  // Rank k costs base x k^2 (sq: 41,060 Fame for all of it). The stat ranks go into recalc's permanent block (game.js, capped
+  // as a whole by DESIGN §4.1's power budget: TUNE.metaDmg / metaBoss / metaHp); the run knobs are read where they act:
+  // G.hall('hf_wind') (+1 Integrity pip), hf_reroll / hf_banish (cards a run), hf_belt (belt slots: js/run.js at the run's
+  // start), hf_door (a 3rd door), hf_keep (a keepsake slot), hf_qm (a camp market offer). The ranks live in S.legacy (the
+  // save's 3.x field: G.hall(id) reads it); G.LEGACY / G.LEGACY_BY_ID / G.legacyCost / G.buyLegacy stay as names for the
+  // same list (the 3.x Temple panel and old callers). per: the effect of one rank, for the UI (desc says it in words)
+  // (4.0 meta: Keen Eye +1% -> +0.5%, Swift Hands +3% -> +2% and Boss Slayer +5% -> +3% a rank: measured on the bots'
+  // mid-run states, crit is worth 2-3x what DESIGN's arithmetic gave it (companions are 50-80% of the party's damage, many
+  // with crit gear), and the whole permanent block at full completion has to land inside x1.6 damage, x1.9 against bosses
+  // (so the boss-only ranks of the Hall and the Star Chart together are worth ~x1.19 on top) and x1.35 health;
+  // tests/meta/meta_rules.js 'BUDGET')
+  const HF = (id, base, max, name, desc, per, fx) => ({ id, base, sq: 1, max, name, desc, per, fx: fx || (() => {}) });
+  G.HALL = [
+    HF('hf_might', 60, 5, 'Ancestral Might', 'Party damage +4% a rank', 0.04, (L, D) => { D.heroMult *= 1 + 0.04 * L; }),
+    HF('hf_iron', 60, 5, 'Iron Will', 'Button and party health +6% a rank', 0.06, (L, D) => { D.hpMult *= 1 + 0.06 * L; }),
+    HF('hf_swift', 80, 5, 'Swift Hands', 'Attack speed +2% a rank', 0.02, (L, D) => { D.spdMult *= 1 + 0.02 * L; }),
+    HF('hf_keen', 80, 5, 'Keen Eye', 'Crit chance +0.5% a rank', 0.005, (L, D) => { D.crit += 0.005 * L; }),
+    HF('hf_boss', 80, 5, 'Boss Slayer', 'Boss damage +3% a rank', 0.03, (L, D) => { D.bossMult *= 1 + 0.03 * L; }),
+    HF('hf_xp', 40, 5, 'Scholar', 'XP +5% a rank', 0.05, (L, D) => { D.xpMult = (D.xpMult || 1) * (1 + 0.05 * L); }),
+    HF('hf_gold', 40, 5, 'Greed', 'Gold +8% a rank', 0.08, (L, D) => { D.goldMult *= 1 + 0.08 * L; }),
+    // (the owner's 'upgradable find rate': the holding meter's chests, a Siege's main source)
+    HF('hf_chest', 40, 5, 'Treasure Sense', 'Chest find +10% a rank', 0.1, (L, D) => { D.chestProg *= 1 + 0.1 * L; }),
+    HF('hf_fame', 100, 5, 'Renown', 'Fame +5% a rank', 0.05, (L, D) => { D.fameMult *= 1 + 0.05 * L; }),
+    HF('hf_wind', 400, 1, 'Second Wind', '+1 Integrity pip', 1),
+    HF('hf_reroll', 120, 3, 'Reroll', '+1 card reroll a run', 1),
+    HF('hf_banish', 120, 3, 'Banish', '+1 banish a run', 1),
+    HF('hf_door', 300, 1, 'Third Door', '3 land doors at each fork', 1),
+    HF('hf_belt', 500, 2, 'Relic Belt', '+1 belt slot', 1),
+    HF('hf_keep', 1500, 1, 'Heirloom Shelf', '+1 keepsake slot', 1),
+    HF('hf_qm', 200, 2, 'Quartermaster', '+1 camp market offer', 1),
   ];
-  G.LEGACY_BY_ID = {}; G.LEGACY.forEach(l => G.LEGACY_BY_ID[l.id] = l);
+  // the stat ranks (recalc's permanent block) and the run knobs (read by G.hall(id))
+  G.HALL.forEach(l => { l.kind = ['hf_wind', 'hf_reroll', 'hf_banish', 'hf_door', 'hf_belt', 'hf_keep', 'hf_qm'].includes(l.id) ? 'run' : 'stat'; });
+  G.HALL_BY_ID = {}; G.HALL.forEach(l => { G.HALL_BY_ID[l.id] = l; });
+  // (the 3.x names for the same list)
+  G.LEGACY = G.HALL; G.LEGACY_BY_ID = G.HALL_BY_ID;
 
   // ---------- Button skins ----------
   G.SKINS = [
@@ -624,6 +653,10 @@
     { id: 'obsidian', base: '#3a3348', name: 'Obsidian', unlock: 'madbutton' },
     { id: 'rainbow',  base: 'rainbow', name: 'Rainbow',  unlock: 'all_items' },
     { id: 'divine',   base: '#f4f6ff', name: 'Divine',   unlock: 'first_divine' },
+    // 4.0: THE GOLDEN BUTTON (DESIGN §6.1: its own skin; opened by a secret recipe, js/blessings.js)
+    { id: 'golden',   base: '#ffd84a', name: 'Golden',   unlock: 'recipe' },
+    // 4.0: the Founder skin (DESIGN §11: a season-2 save that played over 30 minutes; S.founders.skin, js/run.js)
+    { id: 'founder',  base: '#ffb347', name: 'Founder',  unlock: 'founders' },
   ];
 
   // ---------- Wisp buffs (golden-cookie style event) ----------
@@ -639,8 +672,11 @@
   ];
 
   // ---------- Daily login rewards (7-day cycle) ----------
+  // (4.0 meta: a day's gift is meta, never the run's power: 10-90 minutes of income claimed mid-Siege bought out every camp,
+  // and the day-7 divine chest ignored the run's rarity cap. Embers and eggs now (essence is retired); the Gems are
+  // game.js's TUNE.gemDaily on top, as before)
   G.DAILY = [
-    { kind: 'gold', mins: 10 }, { kind: 'eggs', n: 2 }, { kind: 'gold', mins: 30 }, { kind: 'ess', n: 25 },
-    { kind: 'eggs', n: 4 }, { kind: 'gold', mins: 90 }, { kind: 'chest', tier: 6 },
+    { kind: 'embers', n: 15 }, { kind: 'eggs', n: 2 }, { kind: 'embers', n: 30 }, { kind: 'embers', n: 45 },
+    { kind: 'eggs', n: 4 }, { kind: 'embers', n: 75 }, { kind: 'embers', n: 150 },
   ];
 })(globalThis.G = globalThis.G || {});

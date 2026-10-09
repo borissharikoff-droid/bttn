@@ -45,13 +45,22 @@
 
   // a boss about to come on its own would cut the event short; with the auto-boss off, a full bar doesn't hold events back
   const bossSoon = () => R.bossReady && G.S.set.autoBoss;
-  // (3.6: and an invasion that is due goes first)
-  const invDue = () => R.invT != null && R.invT <= 0 && (G.S.bestDepth || 0) >= 3;
+  // how deep the player is, for which events can come: 4.0 (runflow): inside a Siege this run's depth (every run starts
+  // from zero: a lifetime best of 17 must not bring a Crimson Moon or a Warlord into the muster), else the lifetime best
+  const siege = () => !!(G.S.run && G.S.run.on);
+  const reach = () => { const S = G.S; return siege() ? Math.max(S.depth || 0, S.maxDepth || 0) : S.bestDepth || 0; };
+  G.eventReach = reach;
+  // (3.6: and an invasion that is due goes first; 4.0: in a Siege by world.js's own gate - Acts II-III, one a run)
+  const invDue = () => {
+    if (!(R.invT != null && R.invT <= 0)) return false;
+    const S = G.S, r = S.run;
+    return siege() ? S.depth >= (TUNE.invSiegeFrom || 6) && (r.inv | 0) < 1 && r.invRoll < (TUNE.invSiegeP == null ? 1 : TUNE.invSiegeP) : (S.bestDepth || 0) >= 3;
+  };
   const busy = () => R.boss || R.rift || R.inv || R.march || R.champ || bossSoon() || R.stun > 0 || invDue() || (G.director && !G.director.can('event', 1));
   const S_ = () => G.S;
 
   function startEvent(k) {
-    const S = S_(), d = S.bestDepth || 0;
+    const S = S_(), d = reach();
     const pool = EVENTS.filter(e => d >= e.at && e.w > 0);
     if (R.ev) endEvent(false);
     let e = k ? EV_BY_ID[k] : null;
@@ -64,7 +73,7 @@
     if (e.mul && (e.mul.rate || e.mul.mobHp)) R.dirty = true;
     if (e.id === 'ambush') ambush(ev);
     if (e.id === 'goblins') goblins(ev);
-    if (e.id === 'portals') { ev.por = []; const n = 3 + ((S.bestDepth || 0) >= 15 ? 1 : 0); for (let i = 0; i < n; i++) ev.por.push({ id: i + 1, a: (ev.a + i / n + rand(-0.05, 0.05)) % 1, p: rand(0.5, 0.62), hp: 3, acc: rand(0, 1) }); }
+    if (e.id === 'portals') { ev.por = []; const n = 3 + (reach() >= 15 ? 1 : 0); for (let i = 0; i < n; i++) ev.por.push({ id: i + 1, a: (ev.a + i / n + rand(-0.05, 0.05)) % 1, p: rand(0.5, 0.62), hp: 3, acc: rand(0, 1) }); }
     if (e.id === 'warlord') warlord(ev);
     if (G.director) G.director.mark('event', e.t);
     emit('evStart', ev, e);
@@ -98,7 +107,7 @@
     const a = ev.a, mk = (kind, da, p) => { const m = G.makeMob(kind, a + da, p); m.amb = 1; ev.ids.push(m.id); return m; };
     mk('magic', 0, 0.6); mk('magic', 0.03, 0.56);
     mk('brute', -0.03, 0.62); mk('brute', 0.05, 0.58);
-    if ((S_().bestDepth || 0) >= 10) mk('rare', 0.01, 0.5);
+    if (reach() >= 10) mk('rare', 0.01, 0.5);
     for (let i = 0, n = G.crowdN ? G.crowdN(40) : 40; i < n && R.mobs.length < TUNE.mobMax; i++) G.makeMob('fodder', a + rand(-0.06, 0.06), rand(0.4, 0.65));
   }
   function goblins(ev) {

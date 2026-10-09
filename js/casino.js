@@ -196,9 +196,11 @@
   });
 
   // a new run starts clean: boosts and bubbles go
+  // (4.0, runflow: and the purse's income estimate starts over: a Siege starts from zero gold, so the last run's rate would
+  // price the next run's merchant, gambler and wishes far over what its purse takes in)
   G.on('ascend', () => {
     const c = C();
-    c.boosts = {}; c.bubbles.length = 0; c.casc = 0;
+    c.boosts = {}; c.bubbles.length = 0; c.casc = 0; c.rate = 0; c.gPrev = -1; c.own = 0;
     G.dirty();
   });
 })(globalThis.G = globalThis.G || {});

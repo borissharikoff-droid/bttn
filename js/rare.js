@@ -212,8 +212,11 @@
     if (i >= 0) { R.mobs.splice(i, 1); m.dead = true; m.gone = true; emit('mobFlee', m); }
     if (R.focus === m.id) R.focus = null;
   }
+  const siege = () => !!(G.inSiege && G.inSiege());
   function uniqueAny() {
     const S = S_(), d = G.depthNow ? G.depthNow() : S.depth;
+    // (4.0, runflow: inside a Siege the run's pool - world.js G.uniqueFor: the Deeds' unlocks, the Siege's depth gates)
+    if (siege() && G.uniqueFor) return G.uniqueFor(d, false);
     const ok = (G.UNIQUE_IDS || []).filter(q => { const U = G.UNIQUES[q]; return U && U.minD <= d && !U.boss; });
     if (!ok.length) return null;
     const fresh = ok.filter(q => !S.uq[q]), from = fresh.length && chance(0.6) ? fresh : ok;
@@ -249,6 +252,11 @@
   G.RARE_WARES = WARES;
   const rarName = r => (G.RARITIES && G.RARITIES[r] ? G.RARITIES[r].name : 'rare');
   function gambleUnit() { return Math.max(10, G.gambleCost ? G.gambleCost() : 30); }
+  // 4.0 (DESIGN §5.6: a Merchant door's visitor is 'priced in run gold'): inside a Siege every ware is gold, in seconds of
+  // income (the wares that cost shards outside: their SIEGE_SECS)
+  const SIEGE_SECS = { gear: 90, eggs: 60, uq: 300 };
+  const wareCur = k => (siege() ? 'gold' : WARES[k].cur);
+  const warePrice = k => { const W = WARES[k]; return wareCur(k) === 'gold' ? Math.ceil(inc() * (W.cur === 'gold' ? W.secs : SIEGE_SECS[k] || 90)) : Math.ceil(gambleUnit() * W.sh); };
   function makeOffers() {
     const pool = ['orbs', 'egg', 'trove', 'midas', 'eggs'];
     const out = ['gear'];
@@ -256,8 +264,8 @@
     while (out.length < 4 && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
     return out.map(k => {
       const W = WARES[k];
-      const price = W.cur === 'gold' ? Math.ceil(inc() * W.secs) : Math.ceil(gambleUnit() * W.sh);
-      return { k, cur: W.cur, price, was: Math.ceil(price * (3 + Math.floor(rng() * 3))), sold: false, desc: W.desc() };
+      const price = warePrice(k);
+      return { k, cur: wareCur(k), price, was: Math.ceil(price * (3 + Math.floor(rng() * 3))), sold: false, desc: W.desc() };
     });
   }
   function spawnMerchant() {
@@ -282,7 +290,7 @@
     if (!c || c.k !== 'merchant' || (c.st !== 'wait' && c.st !== 'in')) return null;
     c.st = 'shop'; c.shopT = TUNE.rareShopTime;
     // (prices follow what the purse takes in right now)
-    for (const o of c.offers) if (!o.sold && o.cur === 'gold') { const W = WARES[o.k]; o.price = Math.ceil(inc() * W.secs); o.was = Math.max(o.was, o.price * 3); }
+    for (const o of c.offers) if (!o.sold && o.cur === 'gold') { o.price = warePrice(o.k); o.was = Math.max(o.was, o.price * 3); }
     emit('rareShop', c);
     return c;
   }
@@ -341,7 +349,9 @@
   G.on('marchStart', () => {
     const r = RR(), S = S_();
     if (r.own || r.land) return;
-    if (blocked() || (S.bestDepth || 0) < TUNE.rareLandFrom || (S.st.playTime || 0) < TUNE.rareFrom) return;
+    // (4.0: inside a Siege, how deep this run is: every run starts from zero)
+    const reach = siege() ? S.maxDepth || 0 : S.bestDepth || 0;
+    if (blocked() || reach < TUNE.rareLandFrom || (S.st.playTime || 0) < TUNE.rareFrom) return;
     const P = pity(), now = S.st.playTime || 0;
     if (!S.st.rareMap && S.st.rareLandAt != null && now - S.st.rareLandAt < TUNE.rareLandGap) return;
     P.land = (P.land || 0) + 1;
@@ -426,13 +436,19 @@
     land.why = why;
     if (G.director) G.director.end('rare');
     emit('rareLandEnd', land, why);
-    // and the party marches back to where it was
-    if (why === 'time' && !R.rift && !R.boss) {
-      R.march = { t: TUNE.marchTime || 2.4, T: TUNE.marchTime || 2.4 };
-      r.own = true; emit('marchStart', R.march.T, false); r.own = false;
-    }
+    // and the party marches back to where it was (4.0: through game.js's one march, G.startMarch; same depth: no new land)
+    if (why === 'time' && !R.rift && !R.boss) march(r);
   }
   G.rareLandEnd = () => endLand('debug');
+  // a march in or out of a secret land: game.js's G.startMarch from the depth the party stands at (no new land, no 'realm';
+  // r.own keeps this module's own marchStart roll from finding another land in it)
+  function march(r) {
+    r.own = true;
+    try {
+      if (G.startMarch) G.startMarch(S_().depth);
+      else { R.march = { t: TUNE.marchTime || 2.4, T: TUNE.marchTime || 2.4 }; emit('marchStart', R.march.T, false); }
+    } finally { r.own = false; }
+  }
   // every mob born in a secret land or a Golden Horde is made of gold
   G.on('mobSpawn', m => { const r = R.rare; if (r && (r.land && r.land.on || r.gild)) m.gild = 1; });
 
@@ -485,10 +501,20 @@
   function tickGild(g, dt) {
     if (R.ev !== g.ev) { RR().gild = null; emit('rareHordeEnd', g); return; }
     // packs from every side, not one
-    g.acc += dt;
-    while (g.acc >= 0.45 && R.mobs.length < TUNE.mobMax) { g.acc -= 0.45; G.spawnPack(false, rng()); }
-    if (g.acc >= 0.45) g.acc = 0;
+    hordeLoop(g, dt, TUNE.mobMax, 0.45);
   }
+  // the Golden Horde's loop: a pack from a random side every `every` s while the field holds fewer than `cap` bodies (the
+  // clock st.acc doesn't bank packs the cap held back). 4.0: exported for the Siege's Last Stand (js/run.js, DESIGN §2.3),
+  // which runs it with the quality tier's crowd cap. Returns the packs that came
+  function hordeLoop(st, dt, cap, every) {
+    every = every > 0 ? every : 0.45; cap = cap > 0 ? cap : TUNE.mobMax;
+    st.acc = (st.acc || 0) + dt;
+    let n = 0;
+    while (st.acc >= every && R.mobs.length < cap) { st.acc -= every; G.spawnPack(false, rng()); n++; }
+    if (st.acc >= every) st.acc = 0;
+    return n;
+  }
+  G.hordeLoop = hordeLoop;
 
   // ================= THE WISHING WELL =================
   const WISHES = {
@@ -835,8 +861,7 @@
     if (kind === 'land') {
       if (r.land) endLand('force');
       const land = startLand(sub);
-      R.march = { t: TUNE.marchTime || 2.4, T: TUNE.marchTime || 2.4 };
-      r.own = true; emit('marchStart', R.march.T, false); r.own = false;
+      march(r);
       return land;
     }
     if (kind === 'pet') return hatchMythic('force');

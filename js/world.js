@@ -491,7 +491,9 @@
   function spawnShrine(kind) {
     const siege = !!(S_().run && S_().run.on), fury = FURY[Math.floor(G.rng() * FURY.length)];
     if (siege && G.SHRINE_KINDS) {
-      if (!kind) { const ks = Object.keys(G.SHRINE_KINDS).filter(k => !G.shrineOpen || G.shrineOpen(k)); kind = ks[G.weighted(ks.map(k => G.SHRINE_KINDS[k].w))]; }
+      // (4.0, runflow: the Deeds' unlocks: G.shrineOpen, or the meta's G.unlocked('shrine', kind); Power and Fury are always open)
+      const open = k => k === 'power' || k === 'fury' || ((!G.shrineOpen || G.shrineOpen(k)) && (!G.unlocked || G.unlocked('shrine', k) !== false));
+      if (!kind) { const ks = Object.keys(G.SHRINE_KINDS).filter(open); kind = ks[G.weighted(ks.map(k => G.SHRINE_KINDS[k].w))]; }
       R.shrine = { kind, k: kind === 'fury' ? fury : kind, a: rand(0.2, 0.8), p: 0.5, t: TUNE.shrineLife, ch: 0 };
     } else R.shrine = { kind: 'fury', k: fury, a: rand(0.2, 0.8), p: 0.5, t: TUNE.shrineLife, ch: 0 };
     emit('shrine', R.shrine);
@@ -629,26 +631,30 @@
       // the clock runs through boss fights too; the invasion waits for the fight to end
       if (R.invT == null) R.invT = S.st.invasions ? rand(0.8, 1.2) * TUNE.invEvery : TUNE.invFirst;
       if (R.invT > 0) R.invT -= dt;
-      if (R.invT <= 0 && !busy() && !R.march && !R.champ && !(R.bossReady && S.set.autoBoss) && !R.ev && (!G.director || G.director.can('invasion', 1))) { R.invT = rand(0.8, 1.2) * TUNE.invEvery; startInvasion(); }
+      // (4.0, runflow: never into the Last Stand)
+      if (R.invT <= 0 && !busy() && !R.march && !R.champ && !R.lastStand && !(R.bossReady && S.set.autoBoss) && !R.ev && (!G.director || G.director.can('invasion', 1))) { R.invT = rand(0.8, 1.2) * TUNE.invEvery; startInvasion(); }
     }
     // first-time timers: a Hoarder in the first minute, a shrine soon after (3.6: counted from the tutorial's end)
     const tut = !!(G.Tut && S.tut >= 0);
     if (R.hoardT == null) R.hoardT = S.st.hoards ? rand(0.6, 1.2) * TUNE.hoardEvery : TUNE.hoardFirst;
-    if (R.shrineT == null) R.shrineT = S.st.shrines ? rand(0.6, 1.2) * TUNE.shrineEvery : TUNE.shrineFirst;
+    // (4.0, runflow: inside a Siege every run's first shrine comes shrineFirst s in, DESIGN §5.8; the run's reset clears the clock)
+    if (R.shrineT == null) R.shrineT = S.st.shrines && !(S.run && S.run.on) ? rand(0.6, 1.2) * TUNE.shrineEvery : TUNE.shrineFirst;
     if (R.breachT == null) R.breachT = S.st.breaches ? rand(0.7, 1.3) * TUNE.breachEvery : TUNE.breachFirst;
     // the first of each comes on a fixed clock; after that the land's rule speeds them up
     // (3.0: the clocks run through boss fights too, and what's due comes as soon as the fight is over)
+    // (4.0, runflow: Breaches from depth 3 of THIS run inside a Siege - every run starts from zero - not the lifetime best)
+    const deep = (S.run && S.run.on ? Math.max(S.depth || 0, S.maxDepth || 0) : S.bestDepth || 0) >= 3;
     if (!tut) {
       R.hoardT = Math.max(0, R.hoardT - dt * (S.st.hoards ? L.hoard || 1 : 1));
       if (!R.shrine && !R.shr) R.shrineT = Math.max(0, R.shrineT - dt * (S.st.shrines ? L.shrine || 1 : 1));
-      if (!R.breach && S.bestDepth >= 3) R.breachT = Math.max(0, R.breachT - dt * (L.breach || 1));
+      if (!R.breach && deep) R.breachT = Math.max(0, R.breachT - dt * (L.breach || 1));
     }
     // (3.6: what's due comes when the pacing director has room for a small moment: one at a time, never on a boss's heels)
     const room = () => !busy() && !R.march && (!G.director || G.director.can('small', 0));
     const took = () => { if (G.director) G.director.mark('small'); };
     if (R.hoardT <= 0 && room()) { R.hoardT = rand(0.7, 1.3) * TUNE.hoardEvery; spawnHoarder(); took(); }
     if (!R.shrine && !R.shr && R.shrineT <= 0 && room()) { R.shrineT = rand(0.7, 1.3) * TUNE.shrineEvery; spawnShrine(); took(); }
-    if (!R.breach && S.bestDepth >= 3 && R.breachT <= 0 && room()) { R.breachT = rand(0.7, 1.3) * TUNE.breachEvery; openBreach(); took(); }
+    if (!R.breach && deep && R.breachT <= 0 && room()) { R.breachT = rand(0.7, 1.3) * TUNE.breachEvery; openBreach(); took(); }
     // an untouched shrine is claimed by the Warden (4.0: inside a Siege it fades: it was the Hand's to charge)
     if (R.shrine && (R.shrine.t -= dt) <= 0) { if (S.run && S.run.on) { const s0 = R.shrine; R.shrine = null; emit('shrineFade', s0); } else G.useShrine('auto'); }
     // the Breach pours mobs out of one spot

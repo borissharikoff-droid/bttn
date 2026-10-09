@@ -278,7 +278,8 @@
       if (!ok()) return null;
       try {
         if (!ac) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null; ac = new AC(); bus = ac.createGain(); bus.connect(ac.destination); }
-        if (ac.state === 'suspended') ac.resume();
+        // (resume() is a promise: Safari rejects it with 'Failed to start the audio device' when iOS holds the audio)
+        if (ac.state === 'suspended') { const pr = ac.resume(); if (pr && pr.catch) pr.catch(() => {}); }
         bus.gain.value = 0.42 * (G.S.set.vol || 1);
         return ac;
       } catch (e) { return null; }

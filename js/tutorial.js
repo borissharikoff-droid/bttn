@@ -59,7 +59,7 @@
     tip_orb: 'Currency! At the Enchanter in town, pick an item, then an orb: reroll affixes, add one, or gamble (Orb of Ruin).',
     tip_rift: 'The Rift Gate in town is open: timed runs at your chosen level, better loot. Your best shows on the ladder.',
     tip_evo: 'Evolution ready! A maxed perk plus the right gear evolves. Look for the golden card.',
-    tip_potion: 'A potion! It boosts a stat until you ascend. See Garrison.',
+    tip_potion: 'A potion! It boosts a stat for the rest of this Siege.',
     help_title: 'How to play', help_intro: 'Watch intro', help_tut: 'Replay tutorial',
     help_1: 'You are the Hand', help_1t: 'Clicks spill gold, fill the chest bar and zap mobs near the Button. Fast clicks build a combo.',
     help_2: 'Loot', help_2t: 'Tap loot to grab it, or the Warden will; beams mark good drops. Orbs reshape gear at the Enchanter in town.',

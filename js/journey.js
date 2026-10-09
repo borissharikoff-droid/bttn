@@ -1,6 +1,6 @@
 // BTTN — long-term goals and the daily rhythm, DOM-free.
 //  • The Journey: an ordered road of goals, always one on screen, each with a
-//    reward and a permanent +2% Warden damage. It never runs out.
+//    reward (4.0: the meta's: eggs, Embers, Fame, Gems; no more +2% damage a step). It never runs out.
 //  • The Omen of the day: a daily twist to the Horde, the same for everyone.
 //  • The daily Bounty: slay enough of today's Horde for eggs and a chest.
 (function (G) {
@@ -8,80 +8,85 @@
   const J = G.Journey = {};
 
   // ---------- The Journey ----------
+  // 4.0 (DESIGN §4.1 'no hidden power'): a finished step no longer makes the Warden stronger (J.bonus is 1), and its rewards
+  // are the meta's (eggs, Embers, Fame, Gems), never the run's power: the 3.x chests opened at any rarity mid-run and the
+  // shards and essence went into the Siege. The road is the Siege's now: lands, lords, the Void, wins, Heat, the Codex, the
+  // town (the Ascend steps became wins; the enchant +15/+20 steps, out of reach in a Siege, became Temper and Codex goals)
   const maxWorn = (S, f) => G.SLOTS.reduce((m, s) => { const g = S.hero.eq[s]; return g ? Math.max(m, f(g)) : m; }, 0);
   const bestRarity = S => { let r = -1; for (const id in S.coll) if (S.coll[id] > 0) r = Math.max(r, G.ITEM_BY_ID[id] ? G.ITEM_BY_ID[id].r : -1); return r; };
   const perkRanks = S => Object.keys(S.hero.perks || {}).filter(k => !k.startsWith('evo_')).reduce((a, k) => a + S.hero.perks[k], 0);
   const maxedPerk = S => Object.keys(G.PERKS).some(k => (S.hero.perks[k] || 0) >= G.PERKS[k].max) ? 1 : 0;
   const evos = S => Object.keys(S.rec.evos || {}).length;
-  const starsTotal = S => G.ITEMS.reduce((a, it) => a + G.stars(S.coll[it.id] || 0), 0);
-  const depth = n => ({ text: 'Clear depth ' + n, cur: S => S.bestDepth, need: n });
+  const depth = n => ({ text: 'Reach depth ' + n, cur: S => Math.min(n, (S.bestDepth | 0) + 1), need: n });
   const uniques = S => Object.keys(S.uq || {}).length;
-  const rift = S => (S.rift && S.rift.best) || 0;
+  const codexN = S => Object.keys(S.codex || {}).length;
+  const wins = S => S.st.siegeWins | 0;
+  const heatWon = S => Math.max(0, (S.heatWon == null ? -1 : S.heatWon) + 1);
+  const lords = S => S.st.lordKills | 0;
+  const deeds = S => Object.keys(S.ach || {}).length + Object.keys(S.deeds || {}).length;
+  const town = S => (G.townLvl ? G.townLvl() : 0);
+  const hall = S => Object.values(S.legacy || {}).reduce((a, v) => a + (v | 0), 0);
   const STEPS = [
-    { text: 'Slay 300 mobs', cur: S => S.hero.kills, need: 300, rew: { eggs: 1 } },
+    { text: 'Slay 300 of the Horde', cur: S => S.hero.kills, need: 300, rew: { eggs: 1 } },
     { text: 'Catch a Hoarder', cur: S => S.st.hoards || 0, need: 1, rew: { eggs: 1 }, hint: 'Tap it so the Warden gives chase' },
-    { text: 'Defeat a boss', cur: S => S.st.bossKills, need: 1, rew: { chest: 2 } },
-    { text: 'Pick 5 perks', cur: perkRanks, need: 5, rew: { ess: 5 } },
-    { text: 'Wear a rare item', cur: S => maxWorn(S, g => g.r >= 2 ? 1 : 0), need: 1, rew: { shards: 30 } },
-    Object.assign(depth(5), { text: 'Slay the depth 5 lord', rew: { eggs: 2 } }),
-    { text: 'Find a unique', cur: uniques, need: 1, rew: { chest: 3 }, hint: 'From lords, rares, Hoarders, Rift Guardians' },
-    { text: 'Collect 5 orbs', cur: S => S.st.orbs || 0, need: 5, rew: { ess: 8 }, hint: 'Party tab: pick an item, then an orb' },
+    { text: 'Defeat a boss', cur: S => S.st.bossKills, need: 1, rew: { embers: 10 } },
+    { text: 'Pick 5 cards', cur: perkRanks, need: 5, rew: { embers: 10 } },
+    { text: 'Wear a rare item', cur: S => maxWorn(S, g => g.r >= 2 ? 1 : 0), need: 1, rew: { embers: 15 } },
+    { text: 'Slay a land’s lord', cur: lords, need: 1, rew: { eggs: 2 } },
+    Object.assign(depth(5), { rew: { embers: 20 } }),
+    { text: 'Find a unique', cur: uniques, need: 1, rew: { embers: 25 }, hint: 'Lords, Hoarders and champions drop them' },
+    { text: 'Build in the town', cur: town, need: 1, rew: { fame: 10 }, hint: 'Embers from the Furnace build it' },
     { text: 'Hatch 3 different pets', cur: S => Object.keys(S.pets).length, need: 3, rew: { eggs: 2 } },
-    { text: 'Enchant to +5', cur: S => maxWorn(S, g => g.e), need: 5, rew: { ess: 10 } },
-    Object.assign(depth(10), { rew: { eggs: 3 } }),
-    { text: 'Clear a Rift', cur: rift, need: 1, rew: { chest: 3 } },
-    { text: 'Ascend once', cur: S => S.ascensions, need: 1, rew: { fame: 5 } },
-    { text: 'Find a legendary', cur: S => bestRarity(S) >= 4 ? 1 : 0, need: 1, rew: { chest: 3 } },
+    { text: 'Buy a Hall of Fame rank', cur: hall, need: 1, rew: { embers: 25 }, hint: 'Fame buys it, in the Temple' },
+    Object.assign(depth(7), { text: 'Reach Act II (depth 7)', rew: { eggs: 3 } }),
+    { text: 'Temper an item to +5', cur: S => maxWorn(S, g => g.e), need: 5, rew: { embers: 30 }, hint: 'Temper at camp: +2 on everything worn' },
+    { text: 'Find a legendary', cur: S => bestRarity(S) >= 4 ? 1 : 0, need: 1, rew: { embers: 30 } },
     { text: 'Max a perk', cur: maxedPerk, need: 1, rew: { eggs: 2 } },
-    { text: 'Evolve a perk', cur: evos, need: 1, rew: { chest: 4 }, hint: 'Max a perk in its evolution gear (see Collection)' },
+    { text: 'Evolve a perk', cur: evos, need: 1, rew: { embers: 40 }, hint: 'Max a perk while wearing its evolution gear' },
+    { text: 'Slay 10 lords', cur: lords, need: 10, rew: { fame: 25 } },
+    { text: 'Complete 10 Deeds', cur: deeds, need: 10, rew: { gems: 5 } },
+    Object.assign(depth(13), { text: 'Reach Act III (depth 13)', rew: { eggs: 4 } }),
     { text: 'Slay 10 rares', cur: S => S.st.rares || 0, need: 10, rew: { eggs: 3 } },
-    Object.assign(depth(15), { rew: { ess: 40 } }),
-    { text: 'Clear Rift 15', cur: rift, need: 15, rew: { chest: 4 } },
-    { text: 'Find 4 kinds of unique', cur: uniques, need: 4, rew: { eggs: 4 } },
-    { text: 'Slay 40,000 mobs', cur: S => S.hero.kills, need: 40000, rew: { chest: 4 } },
-    Object.assign(depth(20), { rew: { eggs: 5 } }),
-    { text: 'Discover 3 evolutions', cur: evos, need: 3, rew: { chest: 5 } },
-    { text: 'Ascend 5 times', cur: S => S.ascensions, need: 5, rew: { fame: 25 } },
-    { text: 'Enchant to +10', cur: S => maxWorn(S, g => g.e), need: 10, rew: { shards: 300 } },
+    { text: 'Collect 4 Codex entries', cur: codexN, need: 4, rew: { embers: 60 } },
+    Object.assign(depth(16), { text: 'Reach the Void (depth 16)', rew: { fame: 40 } }),
+    { text: 'Win a Siege', cur: wins, need: 1, rew: { gems: 10, embers: 100 } },
+    { text: 'Discover 3 evolutions', cur: evos, need: 3, rew: { embers: 80 } },
+    { text: 'Reach town level 10', cur: town, need: 10, rew: { eggs: 5 } },
+    { text: 'Win at Heat 1', cur: heatWon, need: 2, rew: { fame: 60 } },
     { text: 'Find a mythic', cur: S => bestRarity(S) >= 5 ? 1 : 0, need: 1, rew: { eggs: 5 } },
-    Object.assign(depth(25), { rew: { chest: 5 } }),
-    { text: 'Clear Rift 25', cur: rift, need: 25, rew: { chest: 5 } },
+    { text: 'Slay 40,000 of the Horde', cur: S => S.hero.kills, need: 40000, rew: { embers: 120 } },
+    { text: 'Complete 30 Deeds', cur: deeds, need: 30, rew: { gems: 10 } },
+    { text: 'Win 3 Sieges', cur: wins, need: 3, rew: { embers: 150 } },
     { text: 'Hatch every pet', cur: S => Object.keys(S.pets).length, need: 12, rew: { eggs: 10 } },
-    Object.assign(depth(30), { rew: { ess: 200 } }),
-    { text: 'Discover 6 evolutions', cur: evos, need: 6, rew: { chest: 6 } },
+    { text: 'Discover 6 evolutions', cur: evos, need: 6, rew: { embers: 200 } },
     { text: 'Find a divine', cur: S => bestRarity(S) >= 6 ? 1 : 0, need: 1, rew: { eggs: 8 } },
-    { text: 'Earn 60 collection stars', cur: starsTotal, need: 60, rew: { ess: 300 }, hint: 'Item stars at 1, 10, 100, 1K, 10K copies' },
-    Object.assign(depth(35), { rew: { chest: 6 } }),
-    { text: 'Find 8 kinds of unique', cur: uniques, need: 8, rew: { chest: 6 } },
-    { text: 'Clear Rift 35', cur: rift, need: 35, rew: { fame: 80 } },
-    { text: 'Ascend 10 times', cur: S => S.ascensions, need: 10, rew: { fame: 60 } },
-    { text: 'Beat the Mad Button (depth 40)', cur: S => S.bestDepth, need: 40, rew: { fame: 100, chest: 6 } },
-    { text: 'Slay 400,000 mobs', cur: S => S.hero.kills, need: 400000, rew: { eggs: 10 } },
-    Object.assign(depth(45), { rew: { eggs: 10 } }),
-    { text: 'Enchant to +15', cur: S => maxWorn(S, g => g.e), need: 15, rew: { shards: 1500 } },
-    { text: 'Earn 110 collection stars', cur: starsTotal, need: 110, rew: { ess: 1000 } },
-    { text: 'Slay 100 rares', cur: S => S.st.rares || 0, need: 100, rew: { chest: 6 } },
-    Object.assign(depth(50), { rew: { chest: 6, eggs: 10 } }),
-    { text: 'Clear Rift 50', cur: rift, need: 50, rew: { chest: 6, fame: 150 } },
-    { text: 'Find every unique', cur: uniques, need: G.UNIQUE_IDS ? G.UNIQUE_IDS.length : 19, rew: { fame: 250 } },
-    { text: 'Discover 9 evolutions', cur: evos, need: 9, rew: { fame: 150 } },
-    { text: 'Ascend 25 times', cur: S => S.ascensions, need: 25, rew: { fame: 200 } },
-    { text: 'Enchant to +20', cur: S => maxWorn(S, g => g.e), need: 20, rew: { shards: 3000 } },
-    Object.assign(depth(55), { rew: { eggs: 15 } }),
-    { text: 'Slay 4,000,000 mobs', cur: S => S.hero.kills, need: 4e6, rew: { chest: 6, eggs: 15 } },
-    { text: 'Discover every evolution', cur: evos, need: 11, rew: { fame: 250 } },
-    { text: 'Earn 160 collection stars', cur: starsTotal, need: 160, rew: { fame: 300 } },
-    Object.assign(depth(60), { rew: { chest: 6, eggs: 20 } }),
-    { text: 'Earn 10,000 total fame', cur: S => S.fameTotal, need: 10000, rew: { eggs: 25 } },
+    { text: 'Win at Heat 3', cur: heatWon, need: 4, rew: { fame: 100 } },
+    { text: 'Collect 8 Codex entries', cur: codexN, need: 8, rew: { embers: 250 } },
+    { text: 'Reach town level 25', cur: town, need: 25, rew: { gems: 15 } },
+    { text: 'Slay 100 lords', cur: lords, need: 100, rew: { eggs: 10 } },
+    Object.assign(depth(20), { text: 'Push On to depth 20', rew: { embers: 300 } }),
+    { text: 'Win 10 Sieges', cur: wins, need: 10, rew: { fame: 150 } },
+    { text: 'Complete 60 Deeds', cur: deeds, need: 60, rew: { gems: 20 } },
+    { text: 'Win at Heat 5', cur: heatWon, need: 6, rew: { fame: 200 } },
+    { text: 'Slay 400,000 of the Horde', cur: S => S.hero.kills, need: 400000, rew: { eggs: 10 } },
+    { text: 'Collect 14 Codex entries', cur: codexN, need: 14, rew: { embers: 500 } },
+    { text: 'Discover 9 evolutions', cur: evos, need: 9, rew: { fame: 250 } },
+    { text: 'Reach town level 40', cur: town, need: 40, rew: { gems: 25 } },
+    { text: 'Find every unique', cur: uniques, need: G.UNIQUE_IDS ? G.UNIQUE_IDS.length : 19, rew: { fame: 300 } },
+    { text: 'Win at Heat 7', cur: heatWon, need: 8, rew: { fame: 300 } },
+    { text: 'Win 25 Sieges', cur: wins, need: 25, rew: { embers: 1000 } },
+    { text: 'Complete 100 Deeds', cur: deeds, need: 100, rew: { gems: 30 } },
+    { text: 'Discover every evolution', cur: evos, need: 15, rew: { fame: 400 } },
+    { text: 'Win at Heat 10', cur: heatWon, need: 11, rew: { fame: 500, gems: 50 } },
   ];
-  // Past the written road it keeps going: ten depths at a time
+  // Past the written road it keeps going: 50 more lords at a time
   J.step = function (i) {
     if (i < STEPS.length) return STEPS[i];
-    const n = 60 + 10 * (i - STEPS.length + 1);
-    return Object.assign(depth(n), { rew: { chest: 6, eggs: 5 + Math.floor(n / 20), fame: n } });
+    const k = i - STEPS.length + 1, n = 100 + 50 * k;
+    return { text: 'Slay ' + n + ' lords', cur: lords, need: n, rew: { eggs: 5, embers: 200 + 50 * k } };
   };
   J.count = STEPS.length;
-  // where each step of the pre-1.0 road (44 steps) sits on this one
+  // where each step of the pre-1.0 road (44 steps) sat (an old save's index; 4.0 keeps the count, the road is new)
   const V0 = [0, 2, 3, 4, 5, 8, 9, 10, 12, 13, 14, 15, 16, 17, 20, 21, 22, 23, 24, 25, 26, 28, 29, 30, 31, 32, 33, 36, 37, 38, 39, 40, 41, 42, 43, 46, 47, 48, 49, 50, 51, 52, 53, 54];
   J.fromV0 = k => (k = Math.max(0, k | 0)) < V0.length ? V0[k] : k + (STEPS.length - V0.length);
   J.current = () => J.step(G.S.journey || 0);
@@ -89,16 +94,15 @@
     const st = J.current(), S = G.S;
     return { st, cur: Math.min(st.need, st.cur(S) || 0), need: st.need };
   };
-  // Each finished step makes the Warden 2% stronger, for good
-  J.bonus = () => 1 + 0.02 * (G.S.journey || 0);
+  // 4.0: no hidden power: the Journey's steps no longer add damage (DESIGN §4.1)
+  J.bonus = () => 1;
 
   function give(rew) {
-    const S = G.S, D = G.D, got = [];
+    const S = G.S, got = [];
     if (rew.eggs) { G.addEggs(rew.eggs); got.push(['ic_egg', rew.eggs]); }
-    if (rew.ess) { G.addEssence(rew.ess * (D.essMult || 1)); got.push(['ic_ess', Math.round(rew.ess * (D.essMult || 1))]); }
-    if (rew.shards) { S.hero.shards += rew.shards; got.push(['ic_shard', rew.shards]); }
+    if (rew.embers) { if (G.addEmbers) G.addEmbers(rew.embers, 'journey'); else S.embers = (S.embers || 0) + rew.embers; got.push(['ic_ember', rew.embers]); }
     if (rew.fame) { S.fame += rew.fame; S.fameTotal += rew.fame; got.push(['ic_fame', rew.fame]); }
-    if (rew.chest != null) { const tier = Math.min(6, rew.chest); G.openChest(G.makeChest(tier, 'ghost'), 'journey'); got.push(['chest_' + tier, 1]); }
+    if (rew.gems && G.addGems) { G.addGems(rew.gems, 'journey'); got.push(['ic_gem', rew.gems]); }
     return got;
   }
   let checkT = 0;
@@ -152,7 +156,8 @@
     if (S.bounty.done) return;
     if ((S.bounty.n += n || 1) >= J.BOUNTY) {
       S.bounty.done = true;
-      const got = give({ eggs: 3, chest: Math.min(6, 1 + Math.floor(S.bestDepth / 8)) });
+      // (4.0: eggs and Embers: a chest opened mid-Siege ignored the run's rarity cap)
+      const got = give({ eggs: 3, embers: 20 + 5 * Math.min(17, S.bestDepth | 0) });
       G.emit('bounty', got);
     }
   };

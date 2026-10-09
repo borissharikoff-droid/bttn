@@ -161,7 +161,10 @@
   // ---------- The drop ----------
   // one boss in 600, one lord in 200, 10% more per Torment level; never in a Rift
   // (3.0: bad luck protection: every boss without one adds 1% to the odds, so a long dry spell ends)
-  G.relicOdds = lord => (lord ? G.TUNE.relicLord : G.TUNE.relicBoss) * (1 + G.TUNE.relicTorment * (G.torment ? G.torment().n : 0)) * (1 + 0.01 * ((S_().st && S_().st.relicDry) || 0));
+  // 4.0 (DESIGN §5.3/§5.7): no relic item drops inside a Siege: relics come as belt choices after the act bosses (js/run.js);
+  // TUNE.siegeRelicItems 1 brings the drop back (a test, a later mode). The dry counter doesn't climb there either
+  const siegeOff = () => !!(G.inSiege && G.inSiege() && !G.TUNE.siegeRelicItems);
+  G.relicOdds = lord => (siegeOff() ? 0 : (lord ? G.TUNE.relicLord : G.TUNE.relicBoss) * (1 + G.TUNE.relicTorment * (G.torment ? G.torment().n : 0)) * (1 + 0.01 * ((S_().st && S_().st.relicDry) || 0)));
   const owned = () => {
     const S = S_(), h = S.hero, n = Object.assign({}, (S.rec && S.rec.relicN) || {});
     const all = [].concat(h.bag || [], G.SLOTS.map(s => h.eq[s]), ...(S.party || []).map(m => G.SLOTS.map(s => m.eq[s])));
@@ -220,7 +223,7 @@
 
   G.on('bossWin', (rew, b) => {
     const S = S_();
-    if (!b || R.rift || !S.hero || !S.hero.cls) return;
+    if (!b || R.rift || !S.hero || !S.hero.cls || siegeOff()) return;
     S.st.relicRolls = (S.st.relicRolls || 0) + 1;
     S.st.relicDry = (S.st.relicDry || 0) + 1;
     if (G.rng() < G.relicOdds(b.lord)) dropRelic('boss', b);

@@ -126,6 +126,14 @@
     riftPowers: 'What the Rift Gate opens', riftOldGone: 'The old Rifts are closed: the Siege is the run now.',
     starsHint4: 'Lasting stars, bought with Embers.', starsVis: 'The Observatory {2} shows {0} of {1} stars.', starsNeedObs: 'Build the Observatory ({0} Embers) to see the Star Chart.', starHidden: 'Not yet seen: the Observatory {0} shows it.',
     collMoved: 'Uniques, relics and evolutions are in the Codex and the recipe book.', awayBarracks: 'the Barracks',
+    // (continuation 1: the meta stream's final API)
+    collCombatOff: 'Crit, crit power and boss damage from the collection are off: permanent power has a budget now.', collOff: 'off',
+    hfPower: 'Permanent power: damage {0} · bosses {1} · health {2} (budget {3} / {4} / {5})', hfCapped: 'At the budget: the rest is scaled down.',
+    qDaily: '×2 today', qWeekly: 'Weekly',
+    setAutoRun: 'Auto-Run', setAutoRunHint: 'Clockwork plays on by itself: the next Siege starts when one ends, and it extracts at camp {0}.', setAutoRunCamp: 'Auto-Run extracts at camp',
+    deedDone: 'Deed', unlTitle: 'Unlocked', unlOpens: 'opens: ', unlNext: 'from the next Siege', unlNow: 'now',
+    alchStart: 'Each Siege starts with {0} potion(s)', alchPickHint: 'Pick up to {0}: tap to choose, tap again to drop.', alchRandom: 'Each Siege starts with {0} random potion(s). Alchemist III lets you choose them.',
+    bevoTok: 'Hint tokens: {0} (one for each ranked Daily Siege finished).', bevoBuy: 'Read the hint',
     autoCards: 'Cards: auto-pick', autoCardsHint: 'Picks for you after {0} s. Off: the card waits (the field waits too).', autoInvest: 'Auto-invest', autoInvestHint: 'Spends the run’s gold on Upgrades and the Garrison by payback, keeping half for the camp',
     setSiege: 'This Siege', abandonTitle: 'Abandon the Siege', abandonHint: 'Ends it like a fall: Fame in full, Embers ×0.5.', abandon: 'Abandon', abandonSure: 'Sure? Tap again',
     setLang: 'Language', setLangPick: 'Language', setLangSoon: 'English. Русский is on its way.', setStream: 'Streamer mode', setStreamSoon: 'Twitch chat votes on cards, doors and relics: coming in this update.',
@@ -133,8 +141,8 @@
     rec_sieges: 'Sieges', rec_wins: '{0} won', rec_heat: 'Heat won',
     tab_codex: 'Codex', tab_recipes: 'Recipes', tab_bestiary: 'Bestiary', tab_deeds: 'Deeds', tab_hall: 'Hall of Fame', tab_fallen: 'The Fallen', tab_buttons: 'Buttons', tab_rift: 'Daily Siege',
     bld_forge_1: 'ENCHANT ALL (camp and Forge)', bld_forge_2: 'Reforge at camp: an item’s level to this depth', bld_forge_3: 'Scrapping pays orbs (1 per 40 shards)', bld_forge_4: '+1 card at lords’ loot', bld_forge_5: 'A Siege’s first legendary rolls +1 perk rank',
-    bld_tavern_1: '4 recruits to choose from at camp', bld_tavern_2: 'Recruits arrive with armour', bld_tavern_3: 'Companions +15% damage', bld_tavern_4: 'Companions +15% health', bld_tavern_5: 'Start each Siege with a companion',
-    bld_enchant_1: 'Gamble ware at the camp market', bld_enchant_2: 'Enchanting costs 20% less', bld_enchant_3: 'Whetstones ×2 from lords', bld_enchant_4: 'The Orb of Ruin never bricks', bld_enchant_5: 'Crit damage +0.1',
+    bld_tavern_1: '4 recruits to choose from at camp', bld_tavern_2: 'Recruits arrive with armour', bld_tavern_3: 'Companions +10% damage', bld_tavern_4: 'Companions +15% health', bld_tavern_5: 'Start each Siege with a companion',
+    bld_enchant_1: 'Gamble ware at the camp market', bld_enchant_2: 'Enchanting costs 20% less', bld_enchant_3: 'Whetstones ×2 from lords', bld_enchant_4: 'The Orb of Ruin never bricks', bld_enchant_5: 'Crit power +0.05',
     bld_alch_1: 'A random potion at the start', bld_alch_2: '+1 Mend charge a Siege', bld_alch_3: '2 potions at the start', bld_alch_4: 'Potion caps +2', bld_alch_5: '3 potions at the start',
     bld_barracks_1: 'Embers while away: 3% of your best payout an hour, up to 4 h', bld_barracks_2: 'Up to 6 h away', bld_barracks_3: 'Up to 8 h away', bld_barracks_4: 'Up to 10 h away', bld_barracks_5: 'Up to 12 h away',
     bld_museum_1: 'A keepsake slot and the Codex shelf', bld_museum_2: 'Codex rank cap 3', bld_museum_3: 'Unique chance +20%', bld_museum_4: 'Codex rank cap 4', bld_museum_5: 'Item Embers +10%',
@@ -270,7 +278,9 @@
     const t0 = performance.now();
     const go = () => {
       const R = G.R, St = G.Stage || {}, waited = performance.now() - t0;
-      const hard = !$('#modal').hidden || !$('#intro').hidden || (G.relicShow && G.relicShow()) || R.boss || !(G.S.hero && G.S.hero.cls) || (G.runHeld && G.runHeld());
+      // (4.0: a run screen or a card offer holds it; with no Siege on G.runHeld() is true too, but nothing of a run is up
+      // then, so it no longer keeps the card waiting for good)
+      const run = G.S.run, hard = !$('#modal').hidden || !$('#intro').hidden || (G.relicShow && G.relicShow()) || R.boss || !(G.S.hero && G.S.hero.cls) || !!(run && run.on && ((G.runHeld && G.runHeld()) || run.offer));
       let soft = false;
       try { soft = !!(R.march || (St.marching && St.marching()) || (St.cardBusy && St.cardBusy()) || bannerBusy || (o.dir && G.director && G.director.can && !G.director.can('card', 2))); } catch (e) { soft = false; }
       if (hard || (soft && waited < (o.maxWait || 20000))) { setTimeout(go, 400); return; }
@@ -283,7 +293,13 @@
   // the chapter card (3.6: after the march and the new land's title card, never on top of them)
   UI.chapter = function (li, slot) {
     if (slot == null) slot = li;
-    if (!$('#modal').hidden || (G.relicShow && G.relicShow()) || G.R.boss || (G.runHeld && G.runHeld())) { whenFree(() => UI.chapter(li, slot), { dir: true, secs: 5 }); return; }
+    // (4.0: the chapter belongs to its Siege: with the Siege over it is dropped. A Siege on its own clocks (Clockwork's
+    // beats, Auto-Run) has nobody to close a window, and a window holds the field and every run clock: a toast then.
+    // It never covers a run screen or a card offer waiting between two beats)
+    const r = G.S.run;
+    if (G.inSiege && !(r && r.on)) return;
+    if (r && r.on && ((+r.beatAfter || 0) > 0 || r.autoAgain)) { UI.toast(`<b>${esc(t('chTitle', slot + 1, G.REALMS[li].name))}</b>`, 'ach', 'ic_star', { k: 'chapter', p: 0 }); return; }
+    if (!$('#modal').hidden || (G.relicShow && G.relicShow()) || G.R.boss || (G.runHeld && G.runHeld()) || (r && r.offer) || (G.RunUI && G.RunUI.busy && G.RunUI.busy())) { whenFree(() => UI.chapter(li, slot), { dir: true, secs: 5 }); return; }
     // (4.0: the road is chosen at the doors, so the card tells the land's story, not the next stop; the Torment line went;
     // its number is the land's place in this Siege)
     UI.modal(t('chTitle', slot + 1, G.REALMS[li].name), `<div class="chapter"><p class="story">${esc(t('ch_' + li))}</p>
@@ -518,6 +534,19 @@
   // ---------- Events ----------
   function listen() {
     G.on('achievement', a => { UI.toast(`<span>${esc(t('achievement'))}: <b>${esc(L(a.name))}</b></span>`, 'ach', 'ic_trophy', { k: 'ach' }); dirtyTab('deeds'); });
+    // 4.0 (js/ach.js): a run Deed done mid-run says so; what a Deed opens says when (a Deed done in a Siege opens it from
+    // the next one). Achievements already had their toast above: only what they open is added. A thing opened by no Deed
+    // (the Golden Button's recipe) has its own line
+    const unlWhen = () => (G.inSiege && G.inSiege() ? t('unlNext') : t('unlNow'));
+    const unlLine = un => (un || []).slice(0, 3).map(u => esc(u && u.name ? u.name : String(u))).join(', ');
+    G.on('deed', (d, un) => {
+      if (!d) return;
+      dirtyTab('deeds');
+      const opens = un && un.length ? ` · <span class="unl">${esc(t('unlOpens', ''))}${unlLine(un)} <small>(${esc(unlWhen())})</small></span>` : '';
+      if (d.ach) { if (opens) UI.toast(`<span><b>${esc(t('unlTitle'))}</b>${opens}</span>`, 'ach', 'ic_key', { k: 'unl' }); return; }
+      UI.toast(`<span>${esc(t('deedDone'))}: <b>${esc(L(d.name))}</b>${opens}</span>`, 'ach', 'ic_trophy', { k: 'deed' });
+    });
+    G.on('unlock', (kind, id, deed) => { if (deed) return; UI.toast(`<span><b>${esc(t('unlTitle'))}</b> · ${esc(G.unlockName ? G.unlockName(kind, id) : id)}</span>`, 'ach', 'ic_key', { k: 'unl' }); dirtyTab('buttons'); });
     G.on('questDone', q => UI.toast(`<b>${esc(t('questDone'))}</b>`, '', 'ic_scroll', { k: 'quest', p: 0 }));
     // (4.0: land stars are completion marks: no bonus line)
     G.on('landStar', (i, bit) => { zoneKey = ''; UI.toast(`<span><b style="color:#ffd84a">\u2605 ${esc(G.REALMS[i].name)} · ${esc(t('starName_' + bit))}</b></span>`, 'ach', 'ic_star', { k: 'star' }); });
@@ -1437,9 +1466,11 @@
     const S = G.S, D = G.D;
     const found = G.ITEMS.filter(it => (S.coll[it.id] || 0) > 0).length;
     const sums = D.collSums || {};
+    // (4.0: the collection's combat kinds (G.BONUS[k].combat: crit, crit power, boss damage) give nothing now: struck out)
     const bonusRows = Object.keys(G.BONUS).filter(k => sums[k]).map(k => {
-      const b = G.BONUS[k], v = sums[k];
-      return `<span>${esc(L(b.name))}</span><b>${b.pct ? G.fmtPct(v) : (b.x ? '+' + v.toFixed(1) + '×' : '+' + Math.floor(v))}</b>`;
+      const b = G.BONUS[k], v = sums[k], txt = b.pct ? G.fmtPct(v) : (b.x ? '+' + v.toFixed(1) + '×' : '+' + Math.floor(v));
+      return b.combat ? `<span class="off" title="${esc(t('collCombatOff'))}">${esc(L(b.name))}</span><b class="off"><s>${txt}</s> ${esc(t('collOff'))}</b>`
+        : `<span>${esc(L(b.name))}</span><b>${txt}</b>`;
     }).join('');
     body.innerHTML = `
       <p class="note">${esc(t('collFound', found, G.ITEMS.length))}. ${esc(t('collHint'))}</p>
@@ -1573,7 +1604,7 @@
     const S = G.S;
     const avail = G.dailyAvailable();
     const streak = avail ? (S.daily.last ? S.daily.streak + 1 : 0) : S.daily.streak; // a missed day pauses the streak
-    const dayIcon = d => { const r = G.DAILY[d % 7]; return r.kind === 'gold' ? 'ic_coin' : r.kind === 'eggs' ? 'ic_egg' : r.kind === 'ess' ? 'ic_ess' : 'chest_6'; };
+    const dayIcon = d => { const r = G.DAILY[d % 7]; return r.kind === 'embers' ? EMB() : r.kind === 'gems' ? 'ic_gem' : r.kind === 'gold' ? 'ic_coin' : r.kind === 'eggs' ? 'ic_egg' : r.kind === 'ess' ? 'ic_ess' : 'chest_6'; };
     const om = G.omen(), B = S.bounty && S.bounty.day === G.todayKey() ? S.bounty : { n: 0, done: false };
     const jp = G.Journey.progress();
     const nextSteps = [1, 2, 3].map(k => G.Journey.step((S.journey || 0) + k).text);
@@ -1626,9 +1657,11 @@
       refs.qKey = key;
       refs.q.innerHTML = S.quests.map((q, i) => {
         if (q.wait) return `<div class="quest wait" data-i="${i}"><span data-wait></span></div>`;
-        const rwIcon = q.rw === 'gold' ? 'ic_coin' : q.rw === 'ess' ? 'ic_ess' : 'ic_egg';
-        return `<div class="quest ${q.done ? 'done' : ''}" data-i="${i}">
-          <div class="top"><b>${esc(questText(q))}</b><span class="reward">${img(rwIcon, '', 2)}<span data-rw></span></span></div>
+        // (4.0: rewards in Embers and, for the weekly deed, Gems; the day's first deed pays x2 (Quest Board III))
+        const rwIcon = q.rw === 'embers' ? EMB() : q.rw === 'gems' ? 'ic_gem' : q.rw === 'gold' ? 'ic_coin' : q.rw === 'ess' ? 'ic_ess' : 'ic_egg';
+        const tag = q.weekly ? `<em class="qTag wk">${esc(t('qWeekly'))}</em>` : q.daily ? `<em class="qTag">${esc(t('qDaily'))}</em>` : '';
+        return `<div class="quest ${q.done ? 'done' : ''}${q.weekly ? ' weekly' : ''}" data-i="${i}">
+          <div class="top"><b>${tag}${esc(questText(q))}</b><span class="reward">${img(rwIcon, '', 2)}<span data-rw></span></span></div>
           <div class="pbar"><i data-bar></i><span data-p></span></div>
           <div class="top">${q.done ? `<button class="btn gold" data-claim="${i}">${esc(t('claim'))}</button>` : '<span></span>'}
             ${q.done ? '' : `<button class="btn" data-reroll="${i}" ${rerollLeft > 0 ? 'disabled' : ''}>${esc(t('reroll'))}</button>`}</div>
@@ -1661,7 +1694,9 @@
     const v = +m[2] * Lv;
     return (m[1] || '+') + (Number.isInteger(v) ? v : v.toFixed(1)) + m[3];
   }
-  const hfTotal = l => { let c = 0; for (let k = 0; k < l.max; k++) c += l.sq ? Math.ceil(l.base * (k + 1) * (k + 1)) : Math.ceil(l.base * Math.pow(l.growth, k)); return c; };
+  // (rank k's price: the meta's own when it has it; G.HALL ranks are base x k^2)
+  const hfCost = (l, k) => (l.sq || !l.growth ? Math.ceil(l.base * (k + 1) * (k + 1)) : Math.ceil(l.base * Math.pow(l.growth, k)));
+  const hfTotal = l => { if (G.hallTotal) return G.hallTotal(l); let c = 0; for (let k = 0; k < l.max; k++) c += hfCost(l, k); return c; };
   renderers.hall = function (body) {
     const S = G.S;
     body.innerHTML = `${metaHead('ic_fame', Math.floor(S.fame || 0), t('fame'), t('hallHint4'))}
@@ -1691,7 +1726,7 @@
     for (const c of rf.cards) {
       const l = c.l, Lv = S.legacy[l.id] | 0, maxed = Lv >= l.max, cost = maxed ? 0 : G.legacyCost(l);
       ranks += Lv; max += l.max; total += hfTotal(l);
-      for (let k = 0; k < Lv; k++) spent += l.sq ? Math.ceil(l.base * (k + 1) * (k + 1)) : Math.ceil(l.base * Math.pow(l.growth, k));
+      for (let k = 0; k < Lv; k++) spent += hfCost(l, k);
       const ph = Array.from({ length: l.max }, (_, k) => `<i class="${k < Lv ? 'on' : ''}"></i>`).join('');
       if (c.pips._h !== ph) { c.pips.innerHTML = ph; c.pips._h = ph; }
       setText(c.now, Lv ? t('hfNowIs', hfNow(l, Lv)) : t('hfNone'));
@@ -1702,7 +1737,10 @@
       setClass(c.el, 'maxed', maxed); setClass(c.el, 'can', !maxed && S.fame >= cost);
     }
     setText(rf.cur, fmt(Math.floor(S.fame || 0)));
-    setText(rf.sum, t('hfSum', ranks, max, fmt(spent), fmt(total)));
+    // (4.0: what the permanent block gives now against its budget: G.metaPower(), the meta's governor)
+    let pw = '';
+    if (G.metaPower) { try { const m = G.metaPower(), x = v => '×' + (+v || 1).toFixed(2); pw = ' · ' + t('hfPower', x(m.dmg), x(m.boss), x(m.hp), x(m.cap.dmg), x(m.cap.boss), x(m.cap.hp)) + (m.capped ? ' ' + t('hfCapped') : ''); } catch (e) { pw = ''; } }
+    setText(rf.sum, t('hfSum', ranks, max, fmt(spent), fmt(total)) + pw);
     setText($('#tabSub'), fmt(Math.floor(S.fame || 0)) + ' ' + t('fame').toLowerCase());
   };
 
@@ -1740,7 +1778,7 @@
     const open = G.btnOpen ? !!G.btnOpen(id) : G.BUTTONS ? (!G.unlocked || G.unlocked('button', id) !== false) : id === 'classic';
     const evo = b.evo || BTN_EVO[id] || null;
     return { id, base: b.base || b.skin || fb.base || '#e8413c', name: L(b.name) || str('n') || id[0].toUpperCase() + id.slice(1), rule: L(b.rule || b.desc) || str('r'),
-      card: b.card ? (G.PERKS[b.card] ? G.PERKS[b.card].name : L(b.card)) : str('c'), unl: L(b.unlockText || b.unlock && b.unlock.desc) || str('u'), open, secret: !!(b.secret || fb.secret), evo };
+      card: b.card ? (G.PERKS[b.card] ? G.PERKS[b.card].name : L(b.card)) : str('c'), unl: (() => { try { return G.unlockHint ? G.unlockHint('button', id) : ''; } catch (e) { return ''; } })() || L(b.unlockText || b.unlock && b.unlock.desc) || str('u'), open, secret: !!(b.secret || fb.secret), evo };
   }
   UI.btnInfo = id => btnInfo(id);
   function buttonsList() {
@@ -1820,13 +1858,20 @@
         const E = G.EVOS[id], got = S.rec.evos && S.rec.evos[id];
         return `<div class="evoRow ${got ? '' : 'off'}">${img(E.icon, '', 3, got ? null : { dark: true })}<div><b>${esc(got ? E.name : t('evoUnknown'))}</b><small>${esc(t('evoHint4', G.PERKS[E.from] ? G.PERKS[E.from].name : E.from, E.need))}</small>${got ? `<small class="d">${esc(E.desc)}</small>` : ''}</div></div>`;
       }).join('')}</div>
-      <div class="sect">${esc(t('bevoBook'))}</div><p class="note">${esc(t('bevoHint'))}</p>
+      <div class="sect">${esc(t('bevoBook'))}</div><p class="note">${esc(t('bevoHint'))}${G.btnHintBuy ? ' ' + esc(t('bevoTok', S.hintTok | 0)) : ''}</p>
       <div class="evoBook">${list.map(b => {
         const known = evoKnown(b.id, b.evo), hinted = evoHinted(b.id), nm = hasStr('bevo_' + b.evo + '_n') ? t('bevo_' + b.evo + '_n') : b.evo;
+        // (4.0: a hint is bought with a token: one for each ranked Daily Siege finished, G.btnHintBuy)
+        const ev = G.BUTTON_EVOS && G.BUTTON_EVOS[b.evo], hintTxt = hasStr('bevo_' + b.evo + '_h') ? t('bevo_' + b.evo + '_h') : ev && ev.hint ? ev.hint : t('bevoNoHint');
+        const buy = !known && !hinted && G.btnHintBuy ? `<button class="btn small ${(S.hintTok | 0) > 0 ? 'gold' : ''}" data-hintbuy="${esc(b.id)}" ${(S.hintTok | 0) > 0 ? '' : 'disabled'}>${esc(t('bevoBuy'))}</button>` : '';
         return `<div class="evoRow ${known ? '' : 'off'}"><img src="${btnSpr(b.base)}" alt="" class="${known ? '' : 'dk'}"><div><b class="${known ? 'rbw' : ''}">${esc(known ? nm : '???')}</b>
           <small>${esc(t('bevoFrom', b.secret && !b.open ? '???' : b.name))}</small>
-          <small class="d">${esc(known ? (hasStr('bevo_' + b.evo + '_r') ? t('bevo_' + b.evo + '_r') : '') : hinted && hasStr('bevo_' + b.evo + '_h') ? t('bevo_' + b.evo + '_h') : t('bevoNoHint'))}</small></div></div>`;
+          <small class="d">${esc(known ? (hasStr('bevo_' + b.evo + '_r') ? t('bevo_' + b.evo + '_r') : '') : hinted ? hintTxt : t('bevoNoHint'))}</small>${buy}</div></div>`;
       }).join('')}</div>`;
+    body.addEventListener('click', e => {
+      const hb = e.target.closest('[data-hintbuy]'); if (!hb || !G.btnHintBuy) return;
+      if (G.btnHintBuy(hb.dataset.hintbuy)) { G.Audio.buy && G.Audio.buy(); UI.render(); } else G.Audio.error();
+    });
   };
 
   // -- the Museum: the bestiary: every land, its Horde, its lord; kills and lords slain --
@@ -1878,7 +1923,10 @@
     const S = G.S, all = deedList(), done = all.filter(deedDone), unl = all.filter(d => d.unlock);
     // the nearest unlock: the open Deed with the most of its bar done
     const open = unl.filter(d => !deedDone(d)).map(d => ({ d, p: deedProg(d) })).sort((a, b) => (b.p ? b.p[0] / b.p[1] : -1) - (a.p ? a.p[0] / a.p[1] : -1));
-    const nx = open[0], nxP = nx && nx.p;
+    // (4.0: the meta's own pick when it has one, G.nextUnlocks: what changes the next run before a skin)
+    let nx = open[0];
+    try { const n1 = G.nextUnlocks && G.nextUnlocks(1)[0], d1 = n1 && (G.DEED_BY_ID ? G.DEED_BY_ID[n1.id] : all.find(d => d.id === n1.id)); if (d1) nx = { d: d1, p: [+n1.have || 0, +n1.need || 1] }; } catch (e) { /* the meta's */ }
+    const nxP = nx && nx.p;
     // (no unlocking Deeds known yet: the whole list)
     const flt = deedFlt === 'unl' && !unl.length ? 'all' : deedFlt, list = flt === 'unl' ? unl : flt === 'done' ? done : all;
     const stats = [['st_sieges', fmt(S.st.sieges | 0)], ['st_wins', fmt(S.st.siegeWins | 0)], ['st_extracts', fmt(S.st.extracts | 0)], ['st_deaths', fmt(S.st.deaths | 0)], ['st_heat', S.heatWon >= 0 ? S.heatWon : '—'],
@@ -2741,7 +2789,11 @@
       return `<div class="twPot">${img('pot_' + p.id, '', 4)}<div><b>${esc(L(p.name))}</b><small>${esc(L(p.desc))}</small><i class="bar"><u style="width:${Math.min(100, n / D.potCap * 100)}%;background:${p.color}"></u></i><small>${n} / ${D.potCap}</small></div>
         <button class="btn ${can ? 'gold' : ''}" data-twbrew="${p.id}" ${full ? 'disabled' : ''}>${full ? esc(t('max')) : `${esc(t('twBrew'))} ${img('ic_coin', '', 2)}${fmt(c)}`}</button></div>`;
     }).join('');
-    el.innerHTML = `<div class="tw alch">${twHeader('npc_alch', t('town_alch'), t('twAlchSub'))}<div class="twPots">${rows}</div></div>`;
+    // 4.0 (the Alchemist I-V): each Siege starts with D.startPots potions; from III the player picks which (G.alchPick)
+    const n = D.startPots | 0, pick = D.startPotsPick && G.alchPick ? (Array.isArray(S.alchPick) ? S.alchPick : []) : null;
+    const start = !n ? '' : pick ? `<div class="twStartPots"><b>${esc(t('alchStart', n))}</b><small>${esc(t('alchPickHint', n))}</small><div class="apChips">${G.POTIONS.map(p => `<button class="apChip ${pick.includes(p.id) ? 'on' : ''}" data-alpick="${p.id}" aria-pressed="${pick.includes(p.id) ? 'true' : 'false'}">${img('pot_' + p.id, '', 2)}${esc(L(p.name))}</button>`).join('')}</div></div>`
+      : `<p class="note twStartPots">${esc(t('alchRandom', n))}</p>`;
+    el.innerHTML = `<div class="tw alch">${twHeader('npc_alch', t('town_alch'), t('twAlchSub'))}${start}<div class="twPots">${rows}</div></div>`;
   }
   // QoL: the whole team at a glance: each one's power, damage, health, the four things they wear and how many
   // upgrades wait in the bag for them, the team's power, and EQUIP BEST right here
@@ -2820,7 +2872,7 @@
     el.addEventListener('click', e => {
       // (a page hosted here handles its own clicks; a target its handler already re-rendered away is no longer here)
       if (!e.target.isConnected || !el.contains(e.target) || e.target.closest('.twTabBody')) return;
-      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb],[data-twsub],[data-twbuild],[data-twgamb],[data-twseal],[data-twgo],[data-twsort],[data-cmpwho],[data-twlevels],[data-newsiege]') || e.target.closest('[data-g]');
+      const b = e.target.closest('[data-tw],[data-twwho],[data-twg],[data-twf],[data-twflt],[data-twa],[data-twbrew],[data-twrec],[data-twgear],[data-orb],[data-twsub],[data-twbuild],[data-twgamb],[data-twseal],[data-twgo],[data-twsort],[data-cmpwho],[data-twlevels],[data-newsiege],[data-alpick]') || e.target.closest('[data-g]');
       // (a phone shows the building's note on one line: a tap on it shows the whole of it)
       if (!b && e.target.closest('.twHead > div')) { e.target.closest('.twHead').classList.toggle('open'); return; }
       if (!b) { if (e.target === el) UI.townClose(); return; }
@@ -2864,6 +2916,12 @@
       else if (b.dataset.twgear != null) { tw.who = +b.dataset.twgear; UI.townOpen('forge'); return; }
       else if (b.dataset.twrec) { if (G.recruit(b.dataset.twrec)) { G.Audio.levelUp && G.Audio.levelUp(); UI.toast(esc(t('twRecruited', L(G.CLASS_BY_ID[b.dataset.twrec].name))), 'ach', G.CLASS_BY_ID[b.dataset.twrec].spr, { p: 2 }); } else G.Audio.error(); }
       else if (b.dataset.twbrew) { const p = G.brewPotion(b.dataset.twbrew); if (p) G.Audio.buy(); else G.Audio.error(); }
+      else if (b.dataset.alpick && G.alchPick) {
+        // (a tap adds the kind, a second removes it; past the number allowed the oldest choice gives way)
+        const id = b.dataset.alpick, cur = Array.isArray(G.S.alchPick) ? G.S.alchPick.slice() : [], n = G.D.startPots | 0;
+        const next = cur.includes(id) ? cur.filter(x => x !== id) : cur.concat(id).slice(-Math.max(1, n));
+        G.alchPick(next); G.Audio.click && G.Audio.click();
+      }
       else if (b.dataset.orb) {
         const f = tw.sel != null ? twFind(tw.sel) : null;
         if (!f) { G.Audio.error(); return; }
@@ -3081,6 +3139,8 @@
     // the Warden's own switches (kept on the hero, as the Character page has them); Overdrive is on unless switched off
     const htg = (k, label, hint) => row(k === 'autoOd' ? h.autoOd !== 0 : !!h[k], `data-ht="${k}"`, label, hint);
     const fmt0Demo = () => G.fmt(1234567890) + ' · ' + G.fmt(4.2e18);
+    // 4.0 (the Buttons: Clockwork's Deed opens Auto-Run): the next Siege starts by itself, extracting at camp N (1-5)
+    const autoRunRow = () => { const a = G.autoRun ? G.autoRun() : null; if (!a || !a.open) return ''; return `${row(a.on, 'data-autorun', t('setAutoRun'), t('setAutoRunHint', a.camp))}<div class="setRow"><span>${esc(t('setAutoRunCamp'))}</span><span class="seg" data-arcamp>${[1, 2, 3, 4, 5].map(c => `<button data-c="${c}" class="${a.camp === c ? 'on' : ''}">${c}</button>`).join('')}</span></div>`; };
     body.innerHTML = `
       <div class="setList">
         ${tg('sound', t('sound'))}${tg('music', t('music'))}
@@ -3092,6 +3152,7 @@
       <div class="setList">
         ${htg('autoPerk', t('autoCards'), t('autoCardsHint', (G.TUNE.cardAuto || 10)))}${htg('auto', t('autoEquip'))}${htg('cast', t('autoCast'))}${htg('autoOd', t('autoOd'), t('autoOdHint'))}
         ${row(s.autoInvest !== 0, 'data-t="autoInvest"', t('autoInvest'), t('autoInvestHint'))}
+        ${autoRunRow()}
         ${tg('lowfx', t('lowfx'), t('lowfxHint'))}
         <div class="setRow"><span>${esc(t('autoSalv'))}</span><span class="seg" data-hsalv>${[0, 1, 2, 3].map(r => `<button data-r="${r}" class="${(h.salv || 0) === r ? 'on' : ''}">${r === 0 ? esc(t('off')) : esc(L(G.RARITIES[r].name))}</button>`).join('')}</span></div>
         <div class="setRow"><span>${esc(t('numFmt'))}<small>${esc(fmt0Demo())}</small></span><span class="seg" data-nf>${[0, 1].map(v => `<button data-v="${v}" class="${(s.sci ? 1 : 0) === v ? 'on' : ''}">${esc(t('numFmt' + v))}</button>`).join('')}</span></div>
@@ -3116,6 +3177,10 @@
       <p class="note" style="margin-top:14px">${esc(t('keysHint'))}</p>
       <p class="note">BTTN · ${esc(t('tagline'))}</p>`;
     body.addEventListener('click', e => {
+      const arB = e.target.closest('[data-autorun]');
+      if (arB && G.autoRun) { G.autoRun(!G.autoRun().on); G.Audio.unlock(); UI.render(); return; }
+      const arC = e.target.closest('[data-arcamp] [data-c]');
+      if (arC && G.autoRun) { G.autoRun(null, +arC.dataset.c); UI.render(); return; }
       const tgB = e.target.closest('[data-t]');
       if (tgB) { const k = tgB.dataset.t; s[k] = k === 'autoInvest' ? (s[k] === 0 ? 1 : 0) : s[k] ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.render(); return; }
       const lb = e.target.closest('[data-lang] [data-v]');

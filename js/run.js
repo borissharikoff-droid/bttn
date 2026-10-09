@@ -76,18 +76,57 @@
   // ---------- The run object ----------
   // the offers' own random stream (route, doors, cards, loot cards, market: never the combat stream, so a seeded Daily
   // gives everyone the same offers whatever happens in a fight). Resumes where it was after a reload (rngN).
+  // 4.0 (runflow, DESIGN §6.5): one stream per offer site, keyed by where the offer stands in the run ('door:<slot>',
+  // 'card:<n>' (the n-th deal), 'loot:<depth>', 'camp:<n>:<rolls>', 'recruit:<n>', 'shrine:<n>', 'champ:<slot>'...), each
+  // seeded from the run's seed and the key. A single stream would let a shrine or a level-up card that one player met and
+  // another did not shift every later door and card; keyed, the k-th card, the doors of land 3 and the loot of depth 7 draw
+  // the same numbers for everyone who plays the same seed. G.runRngIn(key, fn [, all]) runs fn with that stream (all: and
+  // routes G.rng() to it meanwhile, for the helpers that roll an offer's item on the combat stream: G.gearFor, the
+  // merchant's wares). Draws outside a key take the run's default stream. The counts are saved (r.rngK), so a reload
+  // carries on where each stream was.
+  const fnv = str => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; };
   G.runRng = function () {
     const r = runOf();
     if (!r || !r.on) return G.rng();
+    const key = R.rngKey;
+    if (key) {
+      if (!R.rngS || R.rngS.id !== r.id) R.rngS = { id: r.id, m: {} };
+      const K = r.rngK || (r.rngK = {});
+      let f = R.rngS.m[key];
+      if (!f) { f = R.rngS.m[key] = G.seeded(fnv((r.seed >>> 0) + '|' + key) || 1); for (let i = 0; i < (K[key] | 0); i++) f(); }
+      K[key] = (K[key] | 0) + 1;
+      return f();
+    }
     if (!R.runRng || R.runRngId !== r.id) { R.runRng = G.seeded((r.seed >>> 0) || 1); R.runRngId = r.id; for (let i = 0; i < (r.rngN | 0); i++) R.runRng(); }
     r.rngN = (r.rngN | 0) + 1;
     return R.runRng();
   };
+  G.runRngIn = function (key, fn, all) {
+    const r = runOf();
+    if (!r || !r.on || !key) return fn();
+    const k0 = R.rngKey, rng0 = G.rng;
+    R.rngKey = String(key);
+    // (a run that ends inside fn falls back to the combat stream: never a loop through this wrapper)
+    if (all) G.rng = () => (on() ? G.runRng() : rng0());
+    try { return fn(); } finally { R.rngKey = k0; if (all) G.rng = rng0; }
+  };
+  // the stream a key would give a seed, from its first draw (the setup's preview of the first doors: no run yet)
+  G.runRngPeek = (seed, key) => G.seeded(fnv((seed >>> 0) + '|' + key) || 1);
   // the share code (streamer mode, setup's 'Enter a code'): BTTN-<seed>-<button>-H<heat>
   G.runCode = r => { r = r || runOf(); return r && r.seed != null ? 'BTTN-' + (r.seed >>> 0).toString(36).toUpperCase() + '-' + (r.btn || 'classic') + '-H' + (r.heat | 0) : ''; };
   G.runParseCode = function (code) {
     const m = /^BTTN-([0-9A-Z]+)-([a-z]+)-H(\d+)$/i.exec(String(code || '').trim());
     return m ? { seed: parseInt(m[1], 36) >>> 0, btn: m[2].toLowerCase(), heat: +m[3] } : null;
+  };
+  // (runflow, ADDENDUM 6) start an unranked replay of a code's seed: its Button (Classic while that one is locked here),
+  // its Heat (at most the Heat open here), the class and keepsakes of setup (none: a replay starts bare, like the Daily).
+  // The offers - first doors, doors, cards, loot cards, the market - are the code's run's (keyed streams, G.runRngIn);
+  // r.replay = 1 (no Daily rank, ladders may leave it out). Returns the run, or null (a bad code, a run on)
+  G.runFromCode = function (code, setup) {
+    const p = G.runParseCode(code);
+    if (!p) return null;
+    const btnOk = !G.btnOpen || G.btnOpen(p.btn) || p.btn === 'classic';
+    return G.runStart(Object.assign({}, setup || {}, { seed: p.seed, btn: btnOk ? p.btn : 'classic', heat: Math.max(0, Math.min(p.heat, G.tormentMax())), keeps: [], replay: 1 }));
   };
 
   function newRun(setup, n) {
@@ -95,7 +134,9 @@
     // (the offers' seed: the Daily's, a shared code's, or one drawn now)
     const seed = setup.seed != null ? setup.seed >>> 0 : Math.floor(G.rng() * 4294967296) >>> 0;
     return {
-      on: 1, n, id: 'r' + n + '-' + seed.toString(36), seed, rngN: 0, day: setup.day || '', ranked: setup.day ? 1 : 0,
+      on: 1, n, id: 'r' + n + '-' + seed.toString(36), seed, rngN: 0, day: setup.day || '', ranked: setup.day && !setup.replay ? 1 : 0,
+      // (a seed code's run: an unranked replay of another run's offers - ladders and records may leave it out)
+      replay: setup.replay ? 1 : 0,
       btn: setup.btn || 'classic', cls: setup.cls, heat: setup.heat | 0, keeps: (setup.keeps || []).slice(0, 2),
       // the lands (realm indices), the map mod and the reward tag of each land slot (the doors set them), the doors on offer
       route: [], mods: [null, null, null, null, null, null], tags: [null, null, null, null, null, null], doors: null,
@@ -123,7 +164,15 @@
 
   // ---------- Routes (until the doors stream adds doors: each act's lands in G.SIEGE.ROUTE order) ----------
   // G.landOpen(id): the Deeds' unlocks (the meta's); without it, the lands open from the start (REALMS[].start)
-  const landOpen = id => { const i = G.REALM_BY_ID[id]; if (i == null) return false; return G.landOpen ? !!G.landOpen(id) : !!G.REALMS[i].start; };
+  // (runflow: and the meta's G.unlocked('land', id) once it is the real one, not run.js's open-everything fallback)
+  const landOpen = id => {
+    const i = G.REALM_BY_ID[id];
+    if (i == null) return false;
+    if (G.landOpen) return !!G.landOpen(id);
+    if (typeof G.unlocked === 'function' && !G.unlocked.fallback) return G.unlocked('land', id) !== false;
+    return !!G.REALMS[i].start;
+  };
+  G.runLandOpen = landOpen;
   function defaultRoute(first) {
     const used = new Set(), route = [];
     for (let k = 0; k < SG().lands; k++) {
@@ -270,19 +319,35 @@
     const r = runOf();
     if (!r || !r.on) return;
     r.secs += dt; r.field += dt; r.parT += dt;
-    if (r.push) r.pushT = (r.pushT || 0) + dt;
+    if (r.push) {
+      r.pushT = (r.pushT || 0) + dt;
+      // (runflow: the Tide rises a step every Push minute: 'tide'(factor, minutes) for the screen)
+      const k = Math.floor(r.pushT / 60);
+      if (k > (r.tideK | 0)) { r.tideK = k; emit('tide', G.runTide(), k); }
+    }
     // the chest budget (game.js spawnChest): the events', champions' and rare visitors' chests, siegeChestRate a field minute
     r.chestTok = Math.min(TUNE.siegeChestCap, (r.chestTok == null ? TUNE.siegeChestCap : r.chestTok) + TUNE.siegeChestRate * dt / 60);
+    // (runflow: the Heat 7 Reaper - 2 minutes behind par, bites +10% for every further minute - comes and goes:
+    // 'reaper'(factor) when it starts biting, as it climbs a step, and 'reaper'(1) when the party is back in time)
+    if (G.heat().reaper) {
+      const rk = reaperK(), step = rk > 1 ? Math.floor((rk - 1) / TUNE.reaperPer + 1e-9) + 1 : 0;
+      if (step !== (r.reaperStep | 0)) { r.reaperStep = step; emit('reaper', rk, step); }
+    }
     // a card owed (a warm-up level during a fight that was lost) comes as soon as the field is quiet
     if (r.cardQ && r.cardQ.length && !r.offer && !R.boss) cardOpenField();
     // an Elite door's Land Champion, a few seconds into its land; a Merchant or a Mystery in the land's second zone
     if (r.eliteAt && r.field >= r.eliteAt && !R.boss && !R.march) { r.eliteAt = 0; if (G.forceChamp) G.forceChamp(); }
+    // (the Mad Button, its Last Stand over, waits for nothing: no boss-call countdown, no auto-boss toggle)
+    if (r.lsReady && !r.push && !R.boss && !R.lastStand && R.bossReady && S_().depth === SG().final && G.startBoss) G.startBoss();
+    // (a Hunt Pact's champion waiting for the field to be free; gone with its land)
+    if (r.huntQ) { if (!(r.pact && r.pact.id === 'hunt' && r.pact.slot === G.runSlot())) r.huntQ = 0; else if (!R.champ && !R.lastStand) huntChamp(); }
     const lt = r.landT, S = S_();
     if (lt && !lt.mid && lt.slot === G.runSlot() && S.depth % SIZE() === 1 && !R.boss && !R.march && r.field > 0) {
       lt.mid = 1;
       const tag = r.tags[lt.slot];
-      if (tag === 'merchant' && G.forceRare) G.forceRare('merchant');
-      else if (tag === 'mystery' && G.forceRare) { const ks = ['well', 'gambler', 'king', 'land']; G.forceRare(ks[Math.floor(G.runRng() * ks.length)]); }
+      // (runflow: the visitor and the merchant's wares from the land's own offers' stream: a Daily's are everyone's)
+      if (tag === 'merchant' && G.forceRare) G.runRngIn('merchant:' + lt.slot, () => G.forceRare('merchant'), true);
+      else if (tag === 'mystery' && G.forceRare) G.runRngIn('mystery:' + lt.slot, () => { const ks = ['well', 'gambler', 'king', 'land']; G.forceRare(ks[Math.floor(G.runRng() * ks.length)]); }, true);
     }
   };
 
@@ -407,7 +472,18 @@
     h.perkPts = (r.cardQ ? r.cardQ.length : 0) + (r.offer ? 1 : 0);
   }
   // deal one set (why: 'level' | 'boss' | 'train' | 'hexed' | 'bonus' | ...); null when nothing is left to deal
-  function deal(why, keep) {
+  // (runflow: each deal draws from its own offers' stream: 'card:<why>:<k>' - the k-th boss card (zone k's), the k-th
+  // warm-up level's, Train at camp k... - so a level-up that comes earlier for one player than another, or a Golden Click's
+  // extra card, doesn't move what the bosses deal; a reroll: '<its key>:r<n>')
+  function deal(why, keep, key) {
+    const r = runOf();
+    if (!key) { const K = r.dealK || (r.dealK = {}); K[why] = (K[why] | 0) + 1; key = 'card:' + why + ':' + K[why]; }
+    const k0 = dealKey;
+    dealKey = key;
+    try { return G.runRngIn(key, () => dealIn(why, keep)); } finally { dealKey = k0; }
+  }
+  let dealKey = null;
+  function dealIn(why, keep) {
     const r = runOf();
     const n = G.heat().cards || TUNE.cardN, cards = keep ? keep.slice() : [];
     while (cards.filter(c => !c.evo).length < n) { const c = drawCard(cards.map(x => x.id)); if (!c) break; cards.push(c); }
@@ -418,7 +494,7 @@
       while (cards.length < Math.min(n, ids.length)) { const k = ids[Math.floor(G.runRng() * ids.length)]; if (!cards.some(c => c.id === 'boon_' + k)) cards.push({ id: 'boon_' + k, tier: 0, add: 1, boon: 1 }); }
     }
     if (!cards.length) return null;
-    const offer = { why, ids: cards.map(c => c.id), add: cards.map(c => c.add), tier: cards.map(c => c.tier), t: 0, touch: 0 };
+    const offer = { why, key: dealKey, ids: cards.map(c => c.id), add: cards.map(c => c.add), tier: cards.map(c => c.tier), t: 0, touch: 0 };
     // (the Buttons can change it: Prism's 4th card)
     emit('cardDeal', offer, r);
     r.offer = offer;
@@ -587,7 +663,9 @@
     r.offer = null;
     // (a ready evolution stays)
     const keep = o.ids.map((id, i) => ({ id, add: o.add[i], tier: o.tier[i], evo: id.startsWith('evo_') ? 1 : 0 })).filter(c => c.evo);
-    deal(o.why, keep);
+    const rr = (o.rr | 0) + 1;
+    deal(o.why, keep, (o.key || 'card:' + o.why) + ':r' + rr);
+    if (r.offer) r.offer.rr = rr;
     emit('cardReroll', r.rerolls);
     if (!r.offer) cardClose();
     return true;
@@ -599,7 +677,7 @@
     if (!(i >= 0 && i < o.ids.length) || o.ids[i].startsWith('evo_') || o.ids[i].startsWith('boon_')) return false;
     const id = o.ids[i];
     r.banish--; r.banished.push(id);
-    const c = drawCard(o.ids);
+    const c = G.runRngIn('banish:' + r.banished.length, () => drawCard(o.ids));
     if (c) { o.ids[i] = c.id; o.add[i] = c.add; o.tier[i] = c.tier; } else { o.ids.splice(i, 1); o.add.splice(i, 1); o.tier.splice(i, 1); }
     syncHero(r);
     emit('cardBanish', id, r.banish);
@@ -657,9 +735,18 @@
   });
   function shrineHold() { const r = runOf(); if (r && r.phase === 'field') G.runPhase('shrine'); }
   function shrineFree() { const r = runOf(); if (r && r.phase === 'shrine' && !r.boonOffer && !r.pactOffer) G.runPhase('field'); }
+  // (runflow: each shrine of the run draws from its own offers' stream 'shrine:<n>')
   G.shrineEffect = function (kind, s, how) {
-    const S = S_(), r = runOf();
+    const r = runOf();
     if (!r || !r.on) return false;
+    r.shrineN = (r.shrineN | 0) + 1;
+    return G.runRngIn('shrine:' + r.shrineN, () => shrineEffectIn(kind, s, how));
+  };
+  function shrineEffectIn(kind, s, how) {
+    const S = S_(), r = runOf();
+    // (runflow: one land Pact at a time: with Blood, Greed or Hunt on this land already, only Glass is offered; with Glass
+    // taken too, the shrine is a Power shrine)
+    if (kind === 'pact' && r.pact && r.pact.slot === G.runSlot() && (r.glass || !(G.PACTS && G.PACTS.glass))) kind = 'power';
     if (kind === 'power') {
       const ids = Object.keys(G.BOONS || {}), pick = [];
       while (pick.length < Math.min(3, ids.length)) { const k = ids[Math.floor(G.runRng() * ids.length)]; if (!pick.includes(k)) pick.push(k); }
@@ -674,13 +761,14 @@
       else if (x < o[0] + o[1]) { out = 'loot'; r.lootUp = (r.lootUp | 0) + 1; }
       emit('shrineChance', out, cost, boon);
     } else if (kind === 'pact') {
-      const ids = Object.keys(G.PACTS || {}).filter(k => !(k === 'glass' && r.glass));
+      const land = r.pact && r.pact.slot === G.runSlot();
+      const ids = Object.keys(G.PACTS || {}).filter(k => (k === 'glass' ? !r.glass : !land));
       r.pactOffer = { id: ids[Math.floor(G.runRng() * ids.length)], t: 0, touch: 0 };
       shrineHold();
       emit('pactOffer', r.pactOffer);
     }
     return true;
-  };
+  }
   G.boonPick = function (i) {
     const r = runOf(), o = r && r.on && r.boonOffer;
     if (!o) return false;
@@ -699,13 +787,33 @@
       const slot = G.runSlot();
       if (o.id === 'glass') r.glass = 1;
       else r.pact = { id: o.id, slot };
-      if (o.id === 'hunt' && G.forceChamp) G.forceChamp();
+      if (o.id === 'hunt') huntChamp();
       G.dirty(); G.recalc();
     }
     emit('pact', o.id, !!yes);
     shrineFree();
     return true;
   };
+  // the Hunt Pact's champion: a SECOND one in this land (runflow: champions.js's forceChamp marks the land's champion as
+  // come, so the land's own would never follow; its mark is put back as it was). With a champion on the field (or the Last
+  // Stand) it waits for the field to be free (S.run.huntQ, runTick; a boss fight sends it away and back as any). 'huntChamp'(champ)
+  function huntChamp() {
+    const S = S_(), r = runOf();
+    if (!r || !r.on || !G.forceChamp) return false;
+    if (R.champ || R.lastStand) { r.huntQ = 1; return false; }
+    r.huntQ = 0;
+    const slot = G.runSlot(), cr = S.champRun && typeof S.champRun === 'object' ? S.champRun : (S.champRun = {}), had = cr[slot];
+    const c = G.forceChamp();
+    if (!had) delete cr[slot];
+    if (c) { c.hunt = 1; emit('huntChamp', c); }
+    return !!c;
+  }
+  G.runHuntChamp = huntChamp;
+  // ---------- Golden Clicks (DESIGN §5.8; game.js spawns and catches them: every 100-160 s, a 13-s window) ----------
+  // Frenzy (40: gold x7 and party damage x1.5 for 20 s), Loot Storm (25: +1 card at the next loot moment, a rare floor:
+  // S.run.lootStorm), Chest Rain (20: 2 chests), Click Storm (14), an egg (1); G.WISP_EFFECTS. The run counts them
+  // (S.run.golden, the summary's golden) and names what each did for the screen: 'goldenClick'(id, effect, run)
+  G.on('wispCatch', e => { const r = runOf(); if (!r || !r.on || !e) return; r.golden = (r.golden | 0) + 1; emit('goldenClick', e.id, e, r); });
   // left alone: a boon by the steady order; a pact declined
   function shrineTick(dt) {
     const r = runOf(), o = r.boonOffer || r.pactOffer;
@@ -776,7 +884,12 @@
   const ultraKind = g => (!g ? null : g.q ? (G.UNIQUES[g.q] && G.UNIQUES[g.q].relic ? 'relic' : 'unique') : g.r >= 6 ? 'divine' : g.r >= 5 ? 'mythic' : null);
   G.lootUltraKind = ultraKind;
   // a card's item, for the hero it would be shown to (cls: its perk ranks' schools), from the offers' stream
-  const mk = (it, il, cls) => G.makeGear(it.id, il, { cls, rng: G.runRng });
+  // (runflow: inside a keyed offers' stream each card's item rolls its affixes, ranks and Marks on a sub-stream of its own,
+  // '<key>:g<n>', so how many draws one card's item takes (its slot's Marks, its rarity's affixes) never moves the next card)
+  const mk = (it, il, cls) => {
+    const k = R.rngKey, mkOne = () => G.makeGear(it.id, il, { cls, rng: G.runRng });
+    return k ? G.runRngIn(k + ':g' + (R.rngG = (R.rngG | 0) + 1), mkOne) : mkOne();
+  };
   const card = (g, tag) => ({ g, tag: tag || '', taken: 0, burned: 0, who: -1, up: false, pct: 0, delta: 0 });
   // each open card's hero and ▲/▼ now, and the biggest ▲ (after a take the rest change: the Mad Button's second pick)
   function prep(L) {
@@ -855,6 +968,8 @@
     emit('lootBank', L);
     return L;
   };
+  // (runflow: each boss's moment draws from its own offers' stream 'loot:<depth>', whatever came before it)
+  { const lm0 = G.lootMoment; G.lootMoment = b => (b && b.d != null ? G.runRngIn('loot:' + b.d, () => { R.rngG = 0; return lm0(b); }) : lm0(b)); }
   // (a moment banked elsewhere - the Vault's after its secret land - gets its heroes and ▲/▼ too)
   G.on('lootBank', L => { if (L && L.best === undefined && Array.isArray(L.cards)) { for (const c of L.cards) Object.assign(c, Object.assign(card(c.g, c.tag), c)); prep(L); } });
   // ---- what the moment shows (DOM-free; 'lootMoment' carries it) ----
@@ -1045,7 +1160,8 @@
     const healer = G.ROLES[S.hero.cls] === 'heal' || S.party.some(m => G.ROLES[m.cls] === 'heal');
     // (the season-3 founders: their old companions come back as Veterans at Camp 1 of runs 1-3)
     const fc = S.founders && Array.isArray(S.founders.classes) ? S.founders.classes.filter(x => G.CLASS_BY_ID[x]) : [];
-    if (fc.length && c.n === 1 && (r.n | 0) <= 3) out.push({ cls: fc[Math.floor(G.runRng() * fc.length)], trait: 'veteran' });
+    // (not in the Daily: its candidates are everyone's)
+    if (fc.length && c.n === 1 && (r.n | 0) <= 3 && !r.day) out.push({ cls: fc[Math.floor(G.runRng() * fc.length)], trait: 'veteran' });
     if (!healer && !out.some(x => G.ROLES[x.cls] === 'heal')) out.push({ cls: 'cleric', trait: traits[Math.floor(G.runRng() * traits.length)] });
     while (out.length < n) out.push({ cls: cls[Math.floor(G.runRng() * cls.length)], trait: traits[Math.floor(G.runRng() * traits.length)] });
     c.recruits = out.slice(0, n);
@@ -1053,17 +1169,36 @@
   G.campOpen = function (ctx) {
     const r = runOf();
     if (!r || !r.on) return null;
-    const c = r.camp = { n: (r.campN | 0) + 1, slot: ctx ? ctx.slot : G.runSlot(), act: null, wares: [], rolls: 0, lock: -1, recruits: null, hired: 0, t: 0, touch: 0 };
+    const c = r.camp = { n: (r.campN | 0) + 1, slot: ctx ? ctx.slot : G.runSlot(), act: null, wares: [], rolls: 0, lock: -1, recruits: null, hired: 0, t: 0, touch: 0,
+      // (runflow: what the town has opened here, for the screen: Enchant All (Forge I), Reforge (Forge II), the gamble ware)
+      can: { enchant: !!G.D.enchantAll, reforge: !!G.D.reforge, gamble: !!G.D.gambleWare } };
     r.campN = c.n;
     // (a Button broken in the lord's fight mends at the camp, as it would have in the field: 50%, then Rest adds to it;
     // otherwise Rest heals nothing and the camp shows a Button at 0)
     if (TUNE.campMend && R.btnDown > 0 && S_().hero) { R.btnDown = 0; S_().hero.hp = Math.max(S_().hero.hp, (G.D.heroHp || 0) * 0.5); emit('buttonFixed'); }
-    wareRoll(c);
-    recruitsRoll(c);
+    // (runflow: the wares and the candidates from the camp's own offers' streams: a Daily's camps are everyone's)
+    G.runRngIn('camp:' + c.n + ':0', () => wareRoll(c), true);
+    G.runRngIn('recruit:' + c.n, () => recruitsRoll(c));
     G.mendRefill();
+    campExtract(c);
     emit('campOpen', c);
     return c;
   };
+  // the camp's Extract button (DESIGN §5.5; Camp 4: 'Extract now: N Embers safe, or go for x1.5'): c.extract = { n (the
+  // camp), embers (what Extract banks now, x1), fame (what it pays), camp4 (Camp 4 or later: the extract counts toward
+  // the ascensions; the 'or go for x1.5' line), win (the pile now if it were a win: x1.5, for the comparison), mul (1),
+  // winMul (1.5), zonesToMad, text: [strKey, ...args] (camp_extract4 at Camp 4+, else camp_extract) }. Refreshed after
+  // anything the camp does (G.campExtract() for the screen)
+  function campExtract(c) {
+    const r = runOf();
+    if (!c || !r || !r.on) return null;
+    const em = G.runEmbers('extract'), win = G.runEmbers('win'), camp4 = (c.n | 0) >= 4 && !r.push;
+    c.extract = { n: c.n | 0, embers: em, fame: G.runFame(), camp4, win, mul: G.EMBERS.end.extract, winMul: G.EMBERS.end.win,
+      zonesToMad: Math.max(0, SG().final + 1 - (r.cleared | 0)), text: camp4 ? ['camp_extract4', em] : ['camp_extract', em] };
+    return c.extract;
+  }
+  G.campExtract = () => campExtract(camp());
+  ['campAct', 'campBuy', 'campRecruit', 'campReforge', 'enchantAll'].forEach(k => G.on(k, () => { const c = camp(); if (c) campExtract(c); }));
   G.campAct = function (k) {
     const S = S_(), r = runOf(), c = camp();
     if (!c || c.act || !['rest', 'temper', 'train'].includes(k)) return false;
@@ -1076,7 +1211,9 @@
     emit('campAct', k, c);
     return true;
   };
-  G.campBuy = function (i) {
+  // (runflow: what a ware rolls when bought - an orb satchel's orbs, a potion - from the camp's offers' stream)
+  G.campBuy = i => { const c = camp(); return c ? G.runRngIn('buy:' + c.n + ':' + c.rolls + ':' + i, () => campBuyIn(i), true) : false; };
+  function campBuyIn(i) {
     const S = S_(), r = runOf(), c = camp(), h = S.hero;
     const w = c && c.wares[i];
     if (!w || w.sold) return false;
@@ -1098,14 +1235,14 @@
     G.dirty(); G.recalc();
     emit('campBuy', w, i);
     return true;
-  };
+  }
   G.campRerollCost = () => { const c = camp(); return c ? Math.ceil(Math.max(1, G.D.incomeRef || 1) * TUNE.marketRoll * Math.pow(TUNE.marketRollK, c.rolls)) : 0; };
   G.campReroll = function () {
     const S = S_(), c = camp(), cost = G.campRerollCost();
     if (!c || (S.gold || 0) < cost) return false;
     S.gold -= cost; c.rolls++;
     const keep = c.lock >= 0 ? c.wares[c.lock] : null;
-    wareRoll(c, keep && !keep.sold ? keep : null);
+    G.runRngIn('camp:' + c.n + ':' + c.rolls, () => wareRoll(c, keep && !keep.sold ? keep : null), true);
     c.lock = keep && !keep.sold ? 0 : -1;
     emit('campReroll', c);
     return true;
@@ -1113,7 +1250,8 @@
   G.campLock = i => { const c = camp(); if (!c || !c.wares[i]) return false; c.lock = c.lock === i ? -1 : i; return true; };
   G.campRecruit = function (i) {
     const c = camp(), x = c && c.recruits && c.recruits[i];
-    if (!x || c.hired || !G.recruit(x.cls, x.trait)) return false;
+    // (runflow: the recruit's gear (G.gearFor rolls it on the combat stream) from the camp's offers' stream)
+    if (!x || c.hired || !G.runRngIn('recruitGear:' + c.n, () => G.recruit(x.cls, x.trait), true)) return false;
     c.hired = 1;
     emit('campRecruit', x, i);
     return true;
@@ -1172,26 +1310,42 @@
   // open lands not yet visited; map mods from the second run on (a Calm mod before); at Heat 8+ one door is cursed (its
   // mod and its reward twice over). The 6th land is always the Void (one door). G.runDoor(i [, vault]) takes one.
   Object.assign(TUNE, { doorsN: 2, vaultLoot: 4 });
-  const wpickObj = o => { const ks = Object.keys(o); return ks[rpick(ks.map(k => o[k].w))]; };
-  G.runDoorsOpen = function (slot) {
-    const S = S_(), r = runOf();
-    if (!r || !r.on || (slot >= SG().lands && !r.push)) return null;
+  // 4.0 (runflow): the doors of a land slot as data, from a given random stream (the run's 'door:<slot>' stream, or the
+  // setup's preview of the next run's first doors: G.runRngPeek). ctx = { route (the lands so far), n (the run's number:
+  // map mods from the second run on), cursed (Heat 8+), extra (the Hall's Third Door), first (the first-ever run:
+  // Shoreline only, no twist, no prize) }. A door: { land (realm index), id, name, rule, ruleDesc, lord (name), lordSpr,
+  // minionSpr, champ (its Land Champion's name), act (ACT BOSS), final (THE MAD BUTTON), mod, tag, cursed }
+  function doorDeal(slot, ctx, rnd) {
+    const wpick = o => { const ks = Object.keys(o), w = ks.map(k => o[k].w); let t = 0; for (const x of w) t += x; let v = rnd() * t; for (let i = 0; i < w.length; i++) { v -= w[i]; if (v < 0) return ks[i]; } return ks[ks.length - 1]; };
     // (a Push land: any land but the Void, not yet visited)
-    const act = slot >= SG().lands ? -1 : SG().actOf[slot], visited = new Set(r.route.slice(0, slot));
+    const act = slot >= SG().lands ? -1 : SG().actOf[slot], visited = new Set((ctx.route || []).slice(0, slot));
     const voidI = G.REALM_BY_ID.void;
     const pool = act < 0 ? G.REALMS.map((x, i) => i).filter(i => G.REALMS[i].id !== 'void' && G.REALMS[i].act > 0) : (SG().ROUTE[act] || []).map(id => G.REALM_BY_ID[id]);
-    let lands = act === 0 ? [voidI] : pool.filter(i => i != null && !visited.has(i) && landOpen(G.REALMS[i].id));
-    if (!lands.length) lands = act < 0 ? pool.slice() : [r.route[slot]];
+    let lands = ctx.first ? [G.REALM_BY_ID.shore] : act === 0 ? [voidI] : pool.filter(i => i != null && !visited.has(i) && landOpen(G.REALMS[i].id));
+    // (a long Push runs out of new lands: the open ones again, corrupted deeper; never a locked one while any is open)
+    if (!lands.length && act < 0) lands = pool.filter(i => landOpen(G.REALMS[i].id));
+    if (!lands.length) lands = act < 0 ? pool.slice() : [ctx.route && ctx.route[slot] != null ? ctx.route[slot] : pool[0]];
     // (shuffled by the offers' stream)
-    for (let i = lands.length - 1; i > 0; i--) { const j = Math.floor(G.runRng() * (i + 1)); const t = lands[i]; lands[i] = lands[j]; lands[j] = t; }
-    const n = act === 0 ? 1 : TUNE.doorsN + ((S.legacy && S.legacy.hf_door) | 0);
+    for (let i = lands.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = lands[i]; lands[i] = lands[j]; lands[j] = t; }
+    const n = act === 0 || ctx.first ? 1 : TUNE.doorsN + (ctx.extra | 0);
+    const plain = act === 0 || ctx.first;
     const opts = lands.slice(0, n).map(i => {
-      const R_ = G.REALMS[i], d = slot * SIZE() + SIZE() - 1;
-      const mod = (r.n | 0) >= 2 && act !== 0 ? wpickObj(G.MAP_MODS) : 'calm', tag = act !== 0 ? wpickObj(G.REWARD_TAGS) : null;
-      return { land: i, id: R_.id, name: R_.name, rule: R_.rule || null, lord: R_.lordName, act: SG().actBoss.includes(d), final: d === SG().final, mod, tag, cursed: 0 };
+      const R_ = G.REALMS[i], d = slot * SIZE() + SIZE() - 1, C = G.CHAMPS ? G.CHAMPS[i % G.CHAMPS.length] : null;
+      const mod = (ctx.n | 0) >= 2 && !plain ? wpick(G.MAP_MODS) : 'calm', tag = !plain ? wpick(G.REWARD_TAGS) : null;
+      return { land: i, id: R_.id, name: R_.name, rule: R_.rule || null, ruleDesc: R_.ruleDesc || null, lord: R_.lordName, lordSpr: R_.lord, minionSpr: R_.minion,
+        champ: C ? C.name : null, act: SG().actBoss.includes(d), final: d === SG().final, mod, tag, cursed: 0 };
     });
     // Heat 8: one cursed door (its twist and its reward twice over; never a Calm one)
-    if (G.heat().cursed && opts.length > 1) { const o = opts[opts.length - 1]; o.cursed = 1; let g = 0; while (o.mod === 'calm' && g++ < 20) o.mod = wpickObj(G.MAP_MODS); }
+    if (ctx.cursed && opts.length > 1) { const o = opts[opts.length - 1]; o.cursed = 1; let g = 0; while (o.mod === 'calm' && g++ < 20) o.mod = wpick(G.MAP_MODS); }
+    return opts;
+  }
+  const doorCtx = (r, slot) => ({ route: r.route, n: r.n, cursed: !!G.heat().cursed, extra: (S_().legacy && S_().legacy.hf_door) | 0,
+    first: slot === 0 && (r.n | 0) <= 1 && !r.day && !r.replay });
+  G.runDoorsOpen = function (slot) {
+    const r = runOf();
+    if (!r || !r.on || (slot >= SG().lands && !r.push)) return null;
+    const act = slot >= SG().lands ? -1 : SG().actOf[slot];
+    const opts = G.runRngIn('door:' + slot, () => doorDeal(slot, doorCtx(r, slot), G.runRng));
     r.doors = { slot, opts, vault: (r.keys | 0) > 0 && act !== 0 ? 1 : 0, t: 0, touch: 0 };
     emit('doorsOpen', r.doors);
     return r.doors;
@@ -1208,9 +1362,11 @@
     if (vault) {
       r.keys--;
       const kinds = ['vault', 'candy', 'upside'], n = G.D.vaultKinds ? 3 : 2;
-      r.vaultGo = kinds[Math.floor(G.runRng() * n)];
+      r.vaultGo = kinds[Math.floor(G.runRngIn('vault:' + D_.slot, () => G.runRng()) * n)];
       emit('key', r.keys, 'vault');
     }
+    // (a Push land: 'pushLand'(k, land) for the screen: the Tide, the land's pay)
+    if (r.push && D_.slot >= SG().lands) emit('pushLand', D_.slot - SG().lands + 1, o);
     emit('door', o, D_.slot, !!vault);
     if (r.beat && r.beat.id === 'doors') G.beatDone('doors');
     return true;
@@ -1254,7 +1410,8 @@
   function champDecide(slot) {
     const S = S_(), r = runOf();
     if (!r || !r.on || G.heat().champ || r.tags[slot] === 'elite') return;
-    if (G.runRng() < TUNE.champLand) return;
+    // (runflow: from the land's own offers' stream: a Daily's lands have their champions for everyone)
+    if (G.runRngIn('champ:' + slot, () => G.runRng()) < TUNE.champLand) return;
     if (!S.champRun || typeof S.champRun !== 'object') S.champRun = {};
     S.champRun[slot] = 1; (r.noChamp = r.noChamp || {})[slot] = 1;
   }
@@ -1278,9 +1435,11 @@
     if (!r || !r.on || !r.vaultOn) return;
     r.vaultOn = null;
     if (why !== 'time') return;
-    // the Vault's own loot moment: 4 cards, a legendary floor
+    // the Vault's own loot moment: 4 cards, a legendary floor (runflow: from the offers' stream 'vaultLoot:<slot>', items too)
     const il = S.depth, cap = Math.max(4, G.rarityCap()), cards = [];
-    for (let i = 0; i < TUNE.vaultLoot; i++) { const it = baseOf(Math.min(6, 4 + (G.runRng() < 0.3 ? 1 : 0)), null, null) || baseOf(cap, null, null); if (it) cards.push({ g: G.makeGear(it.id, il), tag: 'V', taken: 0, burned: 0 }); }
+    G.runRngIn('vaultLoot:' + G.runSlot(), () => {
+      for (let i = 0; i < TUNE.vaultLoot; i++) { const it = baseOf(Math.min(6, 4 + (G.runRng() < 0.3 ? 1 : 0)), null, null) || baseOf(cap, null, null); if (it) cards.push({ g: G.makeGear(it.id, il, { rng: G.runRng }), tag: 'V', taken: 0, burned: 0 }); }
+    });
     r.loot = { d: S.depth, il, kind: 'vault', lord: false, slot: G.runSlot(), cards, pick: 1, taken: 0, t: 0, T: TUNE.lootT, touch: 0, collapse: 0, orbs: {}, key: 0 };
     emit('lootBank', r.loot);
     runBeatsOnly(['loot'], { d: S.depth, lord: false, kind: 'vault', act: false, final: false, slot: G.runSlot(), fresh: false, vault: 1 });
@@ -1304,10 +1463,17 @@
   // G.relicPick(i [, replace]): onto the belt (S.run.belt, merged into d.uq: every rule works as worn); a full belt
   // needs the index of the one it replaces. Recorded in the Codex at the run's end.
   Object.assign(TUNE, { relicN: 3, relicW: 1, relicUqW: 3 });
+  // (runflow: each relic choice from its own offers' stream, 'relic:<n>')
   G.relicOptions = function () {
+    const r = runOf();
+    if (!r || !r.on) return [];
+    return G.runRngIn('relic:' + ((r.beltLog || []).length + (r.relicSkips | 0)), relicDeal);
+  };
+  function relicDeal() {
     const S = S_(), r = runOf(), have = new Set(Object.keys(G.D.uq || {}).concat(r.belt || []));
     const pool = [];
-    for (const id of G.RELIC_IDS || []) if (!have.has(id) && (!G.relicOpen || G.relicOpen(id))) pool.push({ id, w: TUNE.relicW, relic: 1 });
+    // (runflow: the Deeds' unlocks: G.relicOpen, or the meta's G.unlocked('relic', id))
+    for (const id of G.RELIC_IDS || []) if (!have.has(id) && (!G.relicOpen || G.relicOpen(id)) && G.unlocked('relic', id) !== false) pool.push({ id, w: TUNE.relicW, relic: 1 });
     for (const q of G.UNIQUE_IDS) if (!G.UNIQUES[q].relic && !have.has(q) && (!G.uqOpen || G.uqOpen(q, 99))) pool.push({ id: q, w: TUNE.relicUqW, relic: 0 });
     const out = [];
     while (out.length < TUNE.relicN && pool.length) out.push(pool.splice(rpick(pool.map(x => x.w)), 1)[0].id);
@@ -1316,7 +1482,7 @@
     const sch = id => G.UQ_THEME && G.UQ_THEME[id] && schools.has(G.PERK_SCHOOL[G.UQ_THEME[id]]);
     if (schools.size && out.length && !out.some(sch)) { const alt = pool.filter(x => sch(x.id)); if (alt.length) out[out.length - 1] = alt[Math.floor(G.runRng() * alt.length)].id; }
     return out;
-  };
+  }
   G.relicPick = function (i, replace) {
     const r = runOf(), o = r && r.on && r.relicOffer;
     if (!o) return false;
@@ -1330,7 +1496,7 @@
     if (r.beat && r.beat.id === 'relic') G.beatDone('relic');
     return true;
   };
-  G.relicSkip = function () { const r = runOf(); if (!r || !r.relicOffer) return false; r.relicOffer = null; emit('relicSkip'); if (r.beat && r.beat.id === 'relic') G.beatDone('relic'); return true; };
+  G.relicSkip = function () { const r = runOf(); if (!r || !r.relicOffer) return false; r.relicOffer = null; r.relicSkips = (r.relicSkips | 0) + 1; emit('relicSkip'); if (r.beat && r.beat.id === 'relic') G.beatDone('relic'); return true; };
   G.relicTouch = () => { const r = runOf(); if (r && r.relicOffer) r.relicOffer.touch = 1; };
   G.runBeat({ id: 'relic', order: 30, fallback: 1,
     open(ctx) {
@@ -1500,7 +1666,7 @@
     if (R.ground) R.ground.length = 0;
     for (const m of R.mobs || []) m.dead = true;
     R.boss = null; R.bossReady = false; R.bossIn = null; R.bossHold = 0; R.march = null; R.combo = 0; R.wisp = null; R.wave = null;
-    R.lastStand = null; R.doomAt = null; R.ward = 0; R.cine = 0; R.zoneT = 0; R.runRng = null; R.dpsAvg = null;
+    R.lastStand = null; R.doomAt = null; R.ward = 0; R.cine = 0; R.zoneT = 0; R.runRng = null; R.rngS = null; R.rngKey = null; R.dpsAvg = null;
     if (R.pw) for (const k in R.pw) R.pw[k] = 0;
     if (R.town) { R.town = false; emit('town', false); }
     if (G.worldClear) G.worldClear();
@@ -1528,7 +1694,14 @@
     const S = S_();
     if ((S.run && S.run.on) || S.fallen) return null;
     const last = S.lastSetup || {};
-    setup = Object.assign({ btn: 'classic', cls: null, heat: 0, keeps: [], first: null }, last, { day: '', seed: null }, setup || {});
+    // (the caller's own first land (the setup screen's door) is honoured; one inherited from the last setup only when this
+    // run's doors offer it)
+    const firstAsked = setup && setup.first ? setup.first : null, doorAsked = setup && setup.door != null ? setup.door | 0 : null;
+    setup = Object.assign({ btn: 'classic', cls: null, heat: 0, keeps: [], first: null }, last, { day: '', seed: null, replay: 0 }, setup || {});
+    // (an ordinary run takes the seed the setup screen previewed its first doors with: S.nextSeed, G.setupOptions)
+    const seeded = setup.seed != null;
+    if (!seeded && !setup.day && S.nextSeed != null) setup.seed = S.nextSeed >>> 0;
+    S.nextSeed = null;
     if (!G.CLASS_BY_ID[setup.cls]) setup.cls = (S.hero && G.CLASS_BY_ID[S.hero.cls] && S.hero.cls) || (G.CLASS_BY_ID[last.cls] && last.cls) || 'knight';
     // (the Daily Siege is fixed at its own Heat, open or not; no keepsakes)
     setup.heat = setup.day ? clamp(setup.heat | 0, 0, G.TORMENT_MAX) : clamp(setup.heat | 0, 0, G.tormentMax());
@@ -1538,8 +1711,21 @@
     const r = S.run = newRun(setup, S.st.sieges);
     r.route = defaultRoute(setup.first);
     S.torment = r.heat;
+    // the first land (DESIGN §2.1: 2 doors from Act I's pool, the first-ever run Shoreline): its doors from the run's
+    // 'door:0' stream (the setup previewed the same ones), the land asked for (or the door index asked for), its map mod
+    // and reward tag
+    {
+      const fd = G.runRngIn('door:0', () => doorDeal(0, doorCtx(r, 0), G.runRng));
+      let o = doorAsked != null && fd[doorAsked] ? fd[doorAsked] : fd.find(x => x.id === (firstAsked || setup.first));
+      if (!o && firstAsked && !seeded && G.REALM_BY_ID[firstAsked] != null && G.REALMS[G.REALM_BY_ID[firstAsked]].act === 1) o = Object.assign({}, fd[0], { land: G.REALM_BY_ID[firstAsked], id: firstAsked });
+      o = o || fd[0];
+      if (o) { r.route[0] = o.land; r.mods[0] = o.mod && o.mod !== 'calm' ? o.mod : null; r.tags[0] = o.tag || null; (r.cursed = [0, 0, 0, 0, 0, 0])[0] = o.cursed ? 1 : 0; r.firstDoors = fd.map(x => x.id); }
+      // (the rest of the default route stays clear of the first land)
+      const used = new Set([r.route[0]]);
+      for (let k = 1; k < r.route.length; k++) if (used.has(r.route[k])) { const act = SG().actOf[k], alt = (SG().ROUTE[act] || []).map(id => G.REALM_BY_ID[id]).find(i => !used.has(i) && landOpen(G.REALMS[i].id)); if (alt != null) r.route[k] = alt; used.add(r.route[k]); } else used.add(r.route[k]);
+    }
     // (AGAIN repeats an ordinary setup, never the Daily)
-    if (!setup.day) S.lastSetup = { btn: r.btn, cls: setup.cls, heat: r.heat, keeps: r.keeps.slice(), first: setup.first || null };
+    if (!setup.day) S.lastSetup = { btn: r.btn, cls: setup.cls, heat: r.heat, keeps: r.keeps.slice(), first: G.REALMS[r.route[0]] ? G.REALMS[r.route[0]].id : setup.first || null };
     else {
       const ds = S.dailySiege && S.dailySiege.day === setup.day ? S.dailySiege : (S.dailySiege = { day: setup.day, tries: 0 });
       r.ranked = ds.tries === 0 ? 1 : 0; ds.tries++;
@@ -1555,7 +1741,7 @@
     G.dirty(); G.recalc();
     r.mendBonus = G.D.mendBonus | 0;
     for (let i = 0; i < (G.D.startPots | 0); i++) if (G.givePotion) G.givePotion();
-    if (G.D.startAlly) { const cl = G.CLASSES.map(c => c.id), tr = G.TRAIT_IDS || []; G.recruit(cl[Math.floor(G.runRng() * cl.length)], tr[Math.floor(G.runRng() * tr.length)]); }
+    if (G.D.startAlly) G.runRngIn('ally', () => { const cl = G.CLASSES.map(c => c.id), tr = G.TRAIT_IDS || []; G.recruit(cl[Math.floor(G.runRng() * cl.length)], tr[Math.floor(G.runRng() * tr.length)]); }, true);
     keepsakes(r);
     // (land 1's Land Champion: drawn now, as every later land's is at its march)
     champDecide(0);
@@ -1593,17 +1779,34 @@
   // classes (G.classOpen(id): the Deeds'; else Knight, Archer, Wizard + the founders' classes), Heat 0..heatWon+1,
   // keepsakes (the Codex) and their slots, the first land's 2 doors (Act I's open lands; the first-ever run: Shoreline only),
   // and the last setup (AGAIN)
-  G.setupOptions = function () {
+  // (runflow: the first land's doors are the next run's own: dealt from S.nextSeed, the seed G.runStart will use, so what the
+  // setup shows is what the run gets - map mod and reward tag included. firstLands: their land ids (the 3.x shape);
+  // firstDoors: the doors as G.runDoorsOpen gives them. o.heat: the Heat on the dial (Heat 8 curses a door))
+  // (o.seed: another seed's - the Daily's (G.dailySetup().seed) or a code's (G.runParseCode(code).seed): G.runStart with
+  // that seed and setup.door / setup.first takes one of these)
+  G.firstDoors = function (o) {
+    const S = S_();
+    if (S.run && S.run.on) return [];
+    o = o || {};
+    const own = o.seed == null;
+    if (own && S.nextSeed == null) S.nextSeed = Math.floor(G.rng() * 4294967296) >>> 0;
+    const heat = o.heat != null ? o.heat | 0 : (S.lastSetup && S.lastSetup.heat) | 0;
+    const row = G.heatInfo ? G.heatInfo(Math.max(0, Math.min(G.TORMENT_MAX || 10, heat))).row : null;
+    const n = (S.st.sieges | 0) + 1;
+    return doorDeal(0, { route: [], n, cursed: !!(row && row.cursed), extra: (S.legacy && S.legacy.hf_door) | 0, first: own && n <= 1 }, G.runRngPeek(own ? S.nextSeed : o.seed >>> 0, 'door:0'));
+  };
+  G.setupOptions = function (o) {
     const S = S_(), fc = (S.founders && S.founders.classes) || [];
     const btns = G.BUTTONS ? (Array.isArray(G.BUTTONS) ? G.BUTTONS.map(b => b.id) : Object.keys(G.BUTTONS)).filter(id => !G.btnOpen || G.btnOpen(id)) : ['classic'];
     const classes = G.CLASSES.map(c => c.id).filter(id => (G.classOpen ? G.classOpen(id) : ['knight', 'archer', 'wizard'].includes(id) || fc.includes(id)));
-    const first = (S.st.sieges | 0) === 0 ? ['shore'] : (SG().ROUTE[1] || []).filter(landOpen);
+    const doors = G.firstDoors(o);
     return { buttons: btns, classes, heat: { max: G.tormentMax(), won: S.heatWon }, keepSlots: G.keepSlots(),
       keepsakes: Object.keys(S.codex || {}).filter(q => G.UNIQUES[q]).map(q => ({ q, rank: S.codex[q].rank | 0, relic: S.codex[q].relic ? 1 : 0 })),
-      firstLands: first.slice(0, 2 + ((S.legacy && S.legacy.hf_door) | 0)), last: S.lastSetup || null, daily: !!G.D.daily };
+      firstLands: doors.map(x => x.id), firstDoors: doors, seed: S.nextSeed, last: S.lastSetup || null, daily: !!G.D.daily };
   };
-  // AGAIN: the last setup
-  G.runAgain = setup => G.runStart(Object.assign({}, S_().lastSetup || {}, setup || {}));
+  // AGAIN: the last setup (runflow: its first land only when this run's doors offer it again - runStart's inherited
+  // choice; a first land the caller names is the caller's)
+  G.runAgain = setup => { const s = Object.assign({}, S_().lastSetup || {}, setup || {}); if (!(setup && setup.first)) delete s.first; return G.runStart(s); };
   // ---------- The Daily Siege (DESIGN §6.5): one seed a UTC day for everyone, a fixed Button and class at Heat 2, no
   // keepsakes, no Continue; only offers are seeded (G.runRng), combat stays on G.rng. The first attempt is ranked: +50
   // Fame and +5 Gems, and its result goes out as 'dailyResult' {day, zones, secs, btn, cls, heat, seed} (js/daily.js posts it)
@@ -1615,7 +1818,8 @@
     const seed = hashStr('bttn-siege|' + day), D = G.DAILY_SIEGE;
     return { day, seed, btn: D.btn, cls: D.classes[seed % D.classes.length], heat: D.heat, keeps: [], first: null };
   };
-  G.runDaily = day => G.runStart(G.dailySetup(day));
+  // (o.door: which of the day's first doors, G.firstDoors({seed: G.dailySetup(day).seed, heat: 2}); default the first)
+  G.runDaily = (day, o) => G.runStart(Object.assign(G.dailySetup(day), o && o.door != null ? { door: o.door | 0 } : {}));
   // the camp's Extract (the camp stream's button): bank the Embers at x1
   G.runExtract = () => (on() ? G.runEnd('extract') : null);
   G.runAbandon = () => (on() ? G.runEnd(S_().fallen ? 'fall' : 'abandon') : null);
@@ -1643,7 +1847,7 @@
       route: r.route.slice(), land: (G.runLand(S.depth) || {}).id || '', secs: Math.round(r.secs), field: Math.round(r.field), par: G.runPace(),
       lvl: h.lvl, party: (S.party || []).map(m => m.cls), cards: perks.slice(0, 3).map(([k, v]) => ({ id: k, n: v })), cardsN: r.cards | 0,
       evos: Object.keys(h.perks || {}).filter(k => k.startsWith('evo_')).map(k => k.slice(4)), belt: (r.belt || []).slice(),
-      pips: r.pips, pipMax: r.pipMax, wipes: r.wipes | 0, keeps: r.keeps.slice(),
+      pips: r.pips, pipMax: r.pipMax, wipes: r.wipes | 0, keeps: r.keeps.slice(), golden: r.golden | 0, shrines: r.shrineN | 0, replay: r.replay ? 1 : 0,
       fame, embers, cause: kind === 'fall' ? r.cause || 'overrun' : kind === 'abandon' ? 'abandon' : null, nearMiss: nearMiss(r, kind),
       // the meta fills these at 'runEnding' (Deeds done, content unlocked, the next unlock and its progress)
       unlocked: [], next: [], deeds: r.deeds.slice(), codex, sticker: kind === 'win' && fame.lines.some(l => l.k === 'sticker'), at: Date.now(),
@@ -1672,6 +1876,12 @@
       }
       const stk = S.heatStk[r.btn];
       if (!(stk != null && stk >= r.heat)) S.heatStk[r.btn] = r.heat;
+      // (runflow, DESIGN §5.9: a win under par: the 'Swift' sticker for this Button at this Heat; S.swiftStk {btn: best Heat})
+      if (fame.lines.some(l => l.k === 'par')) {
+        sum.swift = 1;
+        const sw = (S.swiftStk = S.swiftStk && typeof S.swiftStk === 'object' ? S.swiftStk : {});
+        if (!(sw[r.btn] != null && sw[r.btn] >= r.heat)) { sw[r.btn] = r.heat; sum.unlocked.push({ kind: 'swift', btn: r.btn, heat: r.heat }); }
+      }
     }
     return sum;
   }
@@ -1731,6 +1941,9 @@
   G.runTide = () => { const r = runOf(); return r && r.on && r.push ? Math.pow(TUNE.tide, (r.pushT || 0) / 60) : 1; };
   const pushMul = slot => { const r = runOf(); return r && r.push && slot >= SG().lands ? 1 + TUNE.pushK * (slot - SG().lands + 1) : 1; };
   G.runPushMul = pushMul;
+  // (runflow: the Push's lands are the corrupted ones, DESIGN §2.4: past the Void a land's names read 'Corrupted <land>'
+  // (G.corrupt), II after six Push lands, ...; and world.js's loot +15% a cycle comes with it)
+  { const cyc0 = G.cycle; if (cyc0) G.cycle = d => { const r = runOf(); if (r && r.on && r.push && d >= SG().zones) return Math.max(cyc0(d), 1 + Math.floor((Math.floor(d / SIZE()) - SG().lands) / SG().lands)); return cyc0(d); }; }
   function askPush() {
     const r = runOf();
     r.pushAsk = { t: 0, fame: fameNow(r, 'win').total, embers: embersNow(r, 'win').total };
@@ -1748,6 +1961,7 @@
     // (the Push's own books from here: its Fame lines, its pouch, and the Furnace counts only what is found from now)
     r.fame = {}; r.pouch = 0; r.pouchLog = {}; r.pushFur0 = furnace(r).total;
     emit('runBanked', sum);
+    emit('pushOn', r, sum);
     G.runPhase('field');
     // the first Push land is chosen at doors too, then the march
     runBeatsOnly(['doors'], { d: SG().final, lord: true, kind: 'lord', act: false, final: false, slot: SG().lands - 1, fresh: true, push: true, march: 1 });
@@ -1757,15 +1971,25 @@
   // ---------- The finale (DESIGN §2.3): the Last Stand, then the Mad Button ----------
   // At the final depth, when the clear bar fills: the Last Stand (lastStand s; a retry after a lost Mad Button fight:
   // lastStandRetry s): the Horde at hordeScale 4.5 (hero.js reads R.lastStand), a pack from a random side every lsEvery s
-  // (up to the field's crowd cap), no clear bar. Then the Mad Button comes. ('lastStand'(R.lastStand), 'lastStandEnd')
-  Object.assign(TUNE, { lastStand: 75, lastStandRetry: 30, lsEvery: 0.45 });
+  // (rare.js's Golden Horde loop, G.hordeLoop) up to the quality tier's crowd cap (lsCaps: high / mid / low = G.Quality
+  // tiers 0 / 1-2 / 3, never over TUNE.mobMax), no clear bar: the party survives the clock. Then the Mad Button comes at
+  // once, into whatever of the Horde still stands. A wipe ends the Last Stand (back a zone, the next try is a full one);
+  // a lost Mad Button fight costs a pip and the retry is lastStandRetry s of Horde, then the Mad Button again.
+  // R.lastStand = { t (s left), T, acc, retry, cap, every, packs }. Events: 'lastStand'(L), 'lastStandEnd'(L | null: a
+  // wipe), 'madButton'(boss) when it enters after the Last Stand
+  Object.assign(TUNE, { lastStand: 75, lastStandRetry: 30, lsEvery: 0.45, lsCaps: [850, 600, 400] });
+  G.lastStandCap = function () {
+    const Q = G.Quality, t = Q && Q.tier != null ? Q.tier | 0 : 0, k = t <= 0 ? 0 : t >= 3 ? 2 : 1;
+    return Math.max(40, Math.min(TUNE.lsCaps[k] || TUNE.lsCaps[0], TUNE.mobMax || 850));
+  };
   G.lastStandDue = () => { const S = S_(), r = runOf(); return !!(r && r.on && !r.push && S.depth === SG().final && !R.lastStand && !r.lsReady && !R.boss); };
   G.lastStandStart = function () {
     const r = runOf();
     if (!r || !r.on || R.lastStand) return null;
     const T = r.lsDone ? TUNE.lastStandRetry : TUNE.lastStand;
-    R.lastStand = { t: T, T, acc: 0, retry: r.lsDone ? 1 : 0 };
+    R.lastStand = { t: T, T, acc: 0, retry: r.lsDone ? 1 : 0, cap: G.lastStandCap(), every: TUNE.lsEvery, packs: 0 };
     R.bossReady = false; R.bossIn = null;
+    r.lsN = (r.lsN | 0) + 1;
     if (G.director) G.director.mark('finale', T);
     emit('lastStand', R.lastStand);
     return R.lastStand;
@@ -1774,23 +1998,43 @@
     const L = R.lastStand, r = runOf();
     if (!L) return;
     if (!r || !r.on) { R.lastStand = null; return; }
-    L.t -= dt; L.acc += dt;
-    while (L.acc >= TUNE.lsEvery) { L.acc -= TUNE.lsEvery; if (G.spawnPack) G.spawnPack(false, G.rng()); }
+    L.t -= dt;
+    // (the quality governor may step while it runs: the cap follows it)
+    L.cap = G.lastStandCap();
+    if (G.hordeLoop) L.packs += G.hordeLoop(L, dt, L.cap, L.every);
+    else { L.acc += dt; while (L.acc >= L.every && R.mobs.length < L.cap) { L.acc -= L.every; if (G.spawnPack) G.spawnPack(false, G.rng()); L.packs++; } if (L.acc >= L.every) L.acc = 0; }
     if (L.t <= 0) {
       R.lastStand = null; r.lsReady = 1; r.lsDone = 1;
       S_().bossMeter = Math.max(S_().bossMeter || 0, G.D.bossNeed || 8);
       if (G.director) G.director.end('finale');
       emit('lastStandEnd', L);
+      // the Mad Button enters now (DESIGN §2.3), not after the boss call's countdown (when something holds the field just
+      // then - a card - it comes as soon as the hold is over, the bar being full), into whatever of the Horde still stands
+      R.bossReady = true; R.bossIn = 0; R.bossHold = 0;
+      emit('bossReady');
+      if (G.startBoss) G.startBoss();
     }
   });
+  // (hero.js's heroBossStart sweeps the field for a boss: not for the Mad Button after its Last Stand)
+  { const hb0 = G.heroBossStart; if (hb0) G.heroBossStart = function () {
+    const r = runOf();
+    if (!(r && r.on && r.lsReady && !r.push && S_().depth === SG().final)) return hb0.apply(this, arguments);
+    const keep = R.mobs.slice(); R.mobs.length = 0;
+    try { return hb0.apply(this, arguments); } finally { for (const m of keep) if (!m.dead) R.mobs.push(m); }
+  }; }
+  // (a reload between the Last Stand's end and the Mad Button: the zone starts over, but the Stand is done - the Mad Button
+  // comes at once, not after a new Stand or a refilled bar)
+  G.on('runResume', r => { const S = S_(); if (r && r.on && r.lsReady && !r.push && S.depth === SG().final) { S.bossMeter = Math.max(S.bossMeter || 0, G.D.bossNeed || 8); R.bossReady = true; R.bossIn = 0; } });
+  // 'madButton'(boss): it enters (after the Last Stand, after the retry's 30 s)
+  G.on('bossStart', b => { if (b && b.final && on()) emit('madButton', b); });
   // a wipe ends it (back a zone); a lost Mad Button fight means a shorter one before the retry
   G.on('wipe', () => { if (R.lastStand) { R.lastStand = null; if (G.director) G.director.end('finale'); emit('lastStandEnd', null); } });
-  G.on('bossFail', b => { const r = runOf(); if (r && r.on && b && b.kind === 'final') r.lsReady = 0; });
+  // (the retry's 30 s start at once: the bar counts as full, DESIGN §2.3 'the retry skips the Last Stand: 30 s of Horde')
+  G.on('bossFail', b => { const r = runOf(); if (r && r.on && b && b.kind === 'final') { r.lsReady = 0; S_().bossMeter = Math.max(S_().bossMeter || 0, G.D.bossNeed || 8); } });
 
   // ---------- Relic items (relic.js) ----------
-  // DESIGN §5.3: the relic item drop (1/600 bosses, 1/200 lords) is off inside a Siege: relics come as belt choices. relic.js
-  // rolls G.rng() < G.relicOdds(lord) on every boss; inside a Siege the odds are 0 (TUNE.siegeRelicItems turns it back on)
-  if (G.relicOdds) { const odds0 = G.relicOdds; G.relicOdds = lord => (on() && !TUNE.siegeRelicItems ? 0 : odds0(lord)); }
+  // DESIGN §5.3: the relic item drop (1/600 bosses, 1/200 lords) is off inside a Siege: relics come as belt choices.
+  // (runflow: relic.js itself now gives 0 odds inside a Siege, TUNE.siegeRelicItems turns it back on; nothing here)
 
   // ---------- 3.x leftovers inside a Siege ----------
   // the run blessings are retired (their effects become Button rules and Power-shrine boons; recalc applies none in a

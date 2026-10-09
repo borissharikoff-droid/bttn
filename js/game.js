@@ -225,44 +225,135 @@
   function hasBuff(id) { return G.S.buffs.some(b => b.id === id); }
   G.hasBuff = hasBuff;
 
+  // ---------- 4.0: the permanent block and its power budget (DESIGN §4.1, §15 'meta creep') ----------
+  // Everything a player keeps between Sieges that makes the party stronger goes into recalc's permanent block: the Star
+  // Chart, the Hall of Fame, the Town, the collection (economy only: data.js G.BONUS combat kinds are off), pets (their
+  // combat part capped at TUNE.petCap combined) and the Alchemist's starting potions. The block as a whole is held to the
+  // budget at full completion: sustained party damage <= TUNE.metaDmg, against bosses <= metaBoss, health <= metaHp.
+  // The ranks are tuned so a full meta lands at about the budget (tests/meta/meta_rules.js, BUDGET); the governor is the hard stop for
+  // what tuning can't foresee (a season-2 collection, a pen of golden lvl-25 pets): when the block would pass the budget,
+  // all of its combat effects are scaled back together (one exponent k on the multipliers, k x the crit and crit-power adds)
+  // until it fits. D.meta = { dmg, boss, hp, raw {dmg, boss, hp}, k / kb / kh (the scale kept on damage, the boss-only
+  // part, health: 1 = under the budget) } (G.metaPower(): the UI's line)
+  Object.assign(TUNE, { metaDmg: 1.6, metaBoss: 1.9, metaHp: 1.35, petCap: 1.05, metaAlly: 0.8 });
+  // crit's worth to damage on a few builds the bots reach (low crit with big crit power, high crit with small), the most of
+  // them: crit and crit power added on top of a build are worth a different share on each, the budget takes the worst
+  const CRIT_REF = [[0.03, 3], [0.05, 4.3], [0.12, 3.6], [0.2, 3.4], [0.3, 4]];
+  const CR_C = CRIT_REF.map(r => r[0]), CR_M = CRIT_REF.map(r => r[1]), CR_B = CRIT_REF.map(r => 1 + r[0] * (r[1] - 1));
+  function critK(dc, dcm) {
+    if (!dc && !dcm) return 1;
+    let m = 1;
+    for (let i = 0; i < CR_C.length; i++) { let c = CR_C[i] + dc; if (c > 0.9) c = 0.9; const v = (1 + c * (CR_M[i] + dcm - 1)) / CR_B[i]; if (v > m) m = v; }
+    return m;
+  }
+  const combatSnap = d => ({ h: d.heroMult, s: d.spdMult, c: d.crit, cm: d.critMult, b: d.bossMult, hp: d.hpMult, ad: d.allyDmgK || 1, ah: d.allyHpK || 1 });
+  // the damage a set of combat changes (x: ratios and adds against a snapshot) is worth, scaled by k (0..1)
+  function powDmg(x, k) {
+    return Math.pow(x.h, k) * Math.pow(x.s, k) * critK(x.dc * k, x.dcm * k) * (1 + TUNE.metaAlly * (Math.pow(x.ad, k) - 1));
+  }
+  function diffOf(d, m0) {
+    return { h: d.heroMult / m0.h, s: d.spdMult / m0.s, dc: d.crit - m0.c, dcm: d.critMult - m0.cm, b: d.bossMult / m0.b, hp: d.hpMult / m0.hp,
+      ad: (d.allyDmgK || 1) / m0.ad, ah: (d.allyHpK || 1) / m0.ah };
+  }
+  // the k (0..1) at which f(k) meets cap (f grows with k): bisection from the log guess's bracket (14 steps: k to ~1e-4)
+  function fitK(f, cap, raw) {
+    if (raw <= cap) return 1;
+    const g = Math.log(cap) / Math.log(raw);
+    let lo = 0, hi = 1;
+    if (f(g * 0.85) <= cap) lo = g * 0.85;
+    if (g * 1.2 < 1 && f(g * 1.2) > cap) hi = g * 1.2;
+    for (let i = 0; i < 14; i++) { const m = (lo + hi) / 2; if (f(m) > cap) hi = m; else lo = m; }
+    return lo;
+  }
+  // scale the combat changes made since m0 down to k (damage side) / kb (bosses) / kh (health)
+  function scaleBack(d, m0, x, k, kb, kh) {
+    if (k < 1) { d.heroMult = m0.h * Math.pow(x.h, k); d.spdMult = m0.s * Math.pow(x.s, k); d.crit = m0.c + x.dc * k; d.critMult = m0.cm + x.dcm * k; if (d.allyDmgK != null) d.allyDmgK = m0.ad * Math.pow(x.ad, k); }
+    if (kb < 1) d.bossMult = m0.b * Math.pow(x.b, kb);
+    if (kh < 1) { d.hpMult = m0.hp * Math.pow(x.hp, kh); if (d.allyHpK != null) d.allyHpK = m0.ah * Math.pow(x.ah, kh); }
+  }
+  // cap what a set of changes since m0 is worth: damage <= cap, bosses <= capB (with the damage), health <= capH. (cache: the
+  // last answer, kept while the changes and the caps are the same: recalc runs twice a second on the same meta)
+  const X_KEYS = ['h', 's', 'dc', 'dcm', 'b', 'hp', 'ad', 'ah'];
+  function govern(d, m0, cap, capB, capH, cache) {
+    const x = diffOf(d, m0);
+    let out = cache && cache.out;
+    if (!out || cache.cap !== cap || cache.capB !== capB || cache.capH !== capH || X_KEYS.some(k => cache.x[k] !== x[k])) {
+      const raw = powDmg(x, 1);
+      const k = fitK(kk => powDmg(x, kk), cap, raw), dmg = powDmg(x, k);
+      const kb = x.b > 1 && dmg * x.b > capB ? Math.max(0, Math.log(Math.max(1, capB / dmg)) / Math.log(x.b)) : 1;
+      const hpTop = Math.max(x.hp, x.ah), kh = hpTop > capH ? Math.log(capH) / Math.log(hpTop) : 1;
+      out = { dmg, boss: dmg * Math.pow(Math.max(1, x.b), kb), hp: Math.pow(x.hp, kh), raw: { dmg: raw, boss: raw * Math.max(1, x.b), hp: x.hp }, k, kb, kh };
+      if (cache) { cache.x = x; cache.cap = cap; cache.capB = capB; cache.capH = capH; cache.out = out; }
+    }
+    scaleBack(d, m0, x, out.k, out.kb, out.kh);
+    return out;
+  }
+  const GOV_PET = {}, GOV_META = {};
+  G.metaCritK = critK;
+  // the stat potions: att damage and clicks, def toughness, spd attack speed, dex crit, vit Garrison, wis essence, life
+  // gold, mana pet power (P: counts by kind, pp: potion power)
+  function potFx(d, P, pp) {
+    d.clickMult *= 1 + 0.05 * (P.att | 0) * pp; d.heroMult *= 1 + 0.05 * (P.att | 0) * pp; d.hpMult *= 1 + 0.08 * (P.def | 0) * pp;
+    d.spdMult *= 1 + 0.05 * (P.spd | 0) * pp; d.crit += 0.005 * (P.dex | 0) * pp;
+    d.gpsMult *= 1 + 0.05 * (P.vit | 0) * pp; d.essMult *= 1 + 0.05 * (P.wis | 0) * pp;
+    d.goldMult *= 1 + 0.03 * (P.life | 0) * pp; d.petMult *= 1 + 0.04 * (P.mana | 0) * pp;
+  }
+  // the run's starting potions (the Alchemist's, recorded at 'runSetup' in S.run.pots0) are the meta's; the rest the run's
+  function potSplit(S) {
+    const r = S.run, p0 = r && r.on && r.pots0, meta = {}, run = {};
+    for (const k in S.pots) { const m = p0 ? Math.min(S.pots[k] | 0, p0[k] | 0) : 0; meta[k] = m; run[k] = (S.pots[k] | 0) - m; }
+    return { meta, run };
+  }
+
   function recalc() {
     const S = G.S;
     const d = baseD();
     // (4.0: an upgrade that left the run shop does nothing, whatever an old save holds)
     for (const u of G.UPGRADES) { const L = S.upg[u.id] || 0; if (L && !u.off) u.fx(L, d); }
-    for (const n of G.NODES) { const L = S.nodes[n.id] || 0; if (L) n.fx(L, d); }
-    for (const l of G.LEGACY) { const L = S.legacy[l.id] || 0; if (L) l.fx(L, d); }
-    if (G.heroEcon) G.heroEcon(d);
-    // 4.0: the meta's capped bonuses (Hall of Fame, Town, Star Chart: their own modules) go in here, before the totals
-    if (G.HOOKS && G.HOOKS.meta) for (const f of G.HOOKS.meta) f(d);
-    // 4.0: the Button's rule (G.btnFx, js/blessings.js -> Buttons) where the run's blessing was; a blessing does nothing
-    // inside a Siege (the blessing cards are retired: their effects become Button rules and Power-shrine boons)
-    if (G.btnFx) G.btnFx(d);
-    else if (G.blessFx && !(S.run && S.run.on)) G.blessFx(d);
-    // Heat: gold (its Lean Purse rule), and what the 3.x Torment paid in XP and luck (nothing now); Fame is paid in js/run.js
-    { const T = torment(); d.goldMult *= T.gold; d.xpMult = (d.xpMult || 1) * T.xp; d.luck += T.luck; }
 
-    // Collection bonuses
+    // ---- the permanent block (see above): Star Chart, Hall of Fame, Town, collection, pets, starting potions ----
+    const m0 = combatSnap(d);
+    for (const n of G.NODES) { const L = S.nodes[n.id] || 0; if (L) n.fx(L, d); }
+    for (const l of G.HALL) { const L = S.legacy[l.id] || 0; if (L) l.fx(Math.min(L, l.max), d); }
+    // the town's buildings (mostly unlocks and flags now: see G.BLD)
+    if (S.bld && G.BLD) for (const b of G.BLD) { const L = Math.min(G.BLD_MAX, S.bld[b.id] || 0); if (L) b.fx(L, d); }
+    // Collection bonuses (4.0: the economy kinds only; G.BONUS[k].combat are off: no hidden power)
     const sums = {};
     for (const it of G.ITEMS) {
-      const s = stars(S.coll[it.id] || 0);
-      if (s) sums[it.bonus] = (sums[it.bonus] || 0) + G.BONUS[it.bonus].v * G.RARITIES[it.r].bonusMul * s;
+      const s = stars(S.coll[it.id] || 0), B = G.BONUS[it.bonus];
+      if (s && !B.combat) sums[it.bonus] = (sums[it.bonus] || 0) + B.v * G.RARITIES[it.r].bonusMul * s;
     }
     const sm = k => sums[k] || 0;
     d.clickMult *= 1 + sm('click'); d.gpsMult *= 1 + sm('gps'); d.goldMult *= 1 + sm('gold');
-    d.crit += sm('crit'); d.critMult += sm('critd'); d.luck += sm('luck'); d.essMult *= 1 + sm('ess');
-    d.itemMult *= 1 + sm('item'); d.bossMult *= 1 + sm('boss'); d.chestProg += sm('chest');
+    d.luck += sm('luck'); d.essMult *= 1 + sm('ess');
+    d.itemMult *= 1 + sm('item'); d.chestProg += sm('chest');
     d.eggMult *= 1 + sm('egg'); d.petMult *= 1 + sm('pet'); d.comboCap += Math.floor(sm('combo'));
     d.collSums = sums;
+    // the Alchemist's starting potions
+    const PS = potSplit(S);
+    potFx(d, PS.meta, d.potPow);
+    // Pets: what each gives with its power (petMult as it stands now); their combat part (crit, crit power, boss damage)
+    // at most TUNE.petCap together
+    const slots = d.petSlots;
+    S.active = S.active.filter(id => S.pets[id]).slice(0, slots);
+    {
+      const p0 = combatSnap(d);
+      for (const id of S.active) { const pet = G.PET_BY_ID[id]; if (pet.fx) pet.fx(petPower(S.pets[id]) * d.petMult, d); }
+      d.petPow = govern(d, p0, TUNE.petCap, TUNE.petCap, TUNE.petCap, GOV_PET);
+    }
+    d.meta = govern(d, m0, TUNE.metaDmg, TUNE.metaBoss, TUNE.metaHp, GOV_META);
 
-    // Potions
-    const P = S.pots, pp = d.potPow;
-    d.clickMult *= 1 + 0.05 * P.att * pp; d.heroMult *= 1 + 0.05 * P.att * pp; d.hpMult *= 1 + 0.08 * P.def * pp;
-    d.spdMult *= 1 + 0.05 * P.spd * pp; d.crit += 0.005 * P.dex * pp;
-    d.gpsMult *= 1 + 0.05 * P.vit * pp; d.essMult *= 1 + 0.05 * P.wis * pp;
-    d.goldMult *= 1 + 0.03 * P.life * pp; d.petMult *= 1 + 0.04 * P.mana * pp;
-    // the town's buildings
-    if (S.bld && G.BLD) for (const b of G.BLD) { const L = S.bld[b.id] || 0; if (L) b.fx(L, d); }
+    // ---- the run ----
+    if (G.heroEcon) G.heroEcon(d);
+    // 4.0: run-scoped bonuses (js/run.js: the Power shrine's boons, the Glass Pact) go in here, before the totals
+    if (G.HOOKS && G.HOOKS.meta) for (const f of G.HOOKS.meta) f(d);
+    // 4.0: the Button's rule (G.btnFx, js/blessings.js: the Buttons) where the run's blessing was (the blessing cards are
+    // retired: their effects became Power-shrine boons and Pacts)
+    if (G.btnFx) G.btnFx(d);
+    // Heat: gold (its Lean Purse rule), and what the 3.x Torment paid in XP and luck (nothing now); Fame is paid in js/run.js
+    { const T = torment(); d.goldMult *= T.gold; d.xpMult = (d.xpMult || 1) * T.xp; d.luck += T.luck; }
+    // Potions (the run's: lords', markets', chests')
+    potFx(d, PS.run, d.potPow);
 
     // Achievements & fame
     d.achCount = Object.keys(S.ach).length;
@@ -276,16 +367,9 @@
     if (d.legion) d.goldMult *= 1 + 0.08 * classes;
     if (d.vet) d.gpsMult *= 1 + d.vet * Math.floor(total / 10);
 
-    // Pets (after petMult is final)
+    // Pets' auto clicks (after petMult is final)
     d.petCps = 0;
-    const slots = d.petSlots;
-    S.active = S.active.filter(id => S.pets[id]).slice(0, slots);
-    for (const id of S.active) {
-      const pet = G.PET_BY_ID[id], st = S.pets[id];
-      const p = petPower(st) * d.petMult;
-      if (pet.fx) pet.fx(p, d);
-      if (pet.cps) d.petCps += petCps(pet, st) * Math.sqrt(d.petMult);
-    }
+    for (const id of S.active) { const pet = G.PET_BY_ID[id]; if (pet.cps) d.petCps += petCps(pet, S.pets[id]) * Math.sqrt(d.petMult); }
     d.crit = Math.min(0.9, d.crit);
     if (G.omen) d.wispRate *= G.omen().wisp;
     d.petCps *= d.spdMult; d.autoCps *= d.spdMult; d.petOpen *= d.spdMult;
@@ -406,14 +490,19 @@
   // ---------- Clicking ----------
   function critRoll() { return chance(D.crit); }
 
-  function manualClick(x, y) {
+  // (4.0: self: a press the Button makes on its own (the Clockwork Button's hold, js/blessings.js G.btnTick): not the Hand's,
+  // so the Hand's own 10-a-second ceiling doesn't count it; the Hand's own presses count for G.btnManualK() (Clockwork x0.5))
+  function manualClick(x, y, self) {
     const S = G.S;
     if (R.town || S.fallen || (G.runHeld && G.runHeld())) return null; // the field waits while the party is in town (or the Button is in pieces, or the Siege holds)
-    const now = performance.now();
-    const mt = R.manualTimes;
-    while (mt.length && now - mt[0] > 1000) mt.shift();
-    if (mt.length >= TUNE.maxManualCps) return null;
-    mt.push(now);
+    if (!self) {
+      const now = performance.now();
+      const mt = R.manualTimes;
+      while (mt.length && now - mt[0] > 1000) mt.shift();
+      if (mt.length >= TUNE.maxManualCps) return null;
+      mt.push(now);
+    }
+    const hk = self || !G.btnManualK ? 1 : G.btnManualK();
 
     // a broken Button gives nothing: no gold, no lightning, until it mends
     if (R.btnDown > 0) { emit('clickDead'); return null; }
@@ -426,22 +515,23 @@
     if (R.combo > S.st.maxCombo) S.st.maxCombo = R.combo;
     const crit = critRoll();
     const mega = D.mega && S.clicks % 25 === 0;
-    let gain = D.click * (1 + R.combo * D.comboPer);
+    let gain = D.click * (1 + R.combo * D.comboPer) * hk;
     if (crit) { gain *= D.critMult; S.st.crits++; questProgress('crit', 1); }
     if (mega) { gain *= 30; S.st.megas++; }
     if (G.evMul) gain *= G.evMul('click');
     addGold(gain, 'click');
-    const dmg = R.boss ? D.heroHit * TUNE.clickVolley : 0;
-    if (G.heroVolley && !(R.stun > 0)) G.heroVolley(TUNE.clickVolley, 'click');
-    S.chestMeter += D.chestProg;
+    const dmg = R.boss ? D.heroHit * TUNE.clickVolley * hk : 0;
+    if (G.heroVolley && !(R.stun > 0)) G.heroVolley(TUNE.clickVolley * hk, 'click');
+    S.chestMeter += D.chestProg * hk;
     spawnFromMeter();
     questProgress('clicks', 1);
     questProgress('combo', R.combo, true);
-    const ev = { gain, crit, mega, x, y, combo: R.combo, dmg };
+    const ev = { gain, crit, mega, x, y, combo: R.combo, dmg, self: !!self };
     emit('click', ev);
     return ev;
   }
   G.manualClick = manualClick;
+  G.selfClick = () => manualClick(null, null, true);
 
   // Auto clicks are aggregated: expected crit value, no combo.
   function autoClicks(n, dt) {
@@ -729,20 +819,57 @@
   // Gate): I the Daily Siege, II Push On, III vaultKinds +1, IV pushLoot 1.25.
   G.BLD = [
     { id: 'forge', v: 1, fx: (L, d) => { d.enchantAll = 1; if (L >= 2) d.reforge = 1; if (L >= 3) d.salvOrbs = 1; if (L >= 4) d.lordCard = 1; if (L >= 5) d.legendPk = 1; } },
-    { id: 'tavern', v: 1, fx: (L, d) => { d.recruitN = 4; if (L >= 2) d.recruitArmor = 1; if (L >= 3) d.allyDmgK = 1.15; if (L >= 4) d.allyHpK = 1.15; if (L >= 5) d.startAlly = 1; } },
-    { id: 'enchant', v: 1, fx: (L, d) => { d.gambleWare = 1; if (L >= 2) d.enchantK = 0.8; if (L >= 3) d.whet2 = 1; if (L >= 4) d.ruinSafe = 1; if (L >= 5) d.critMult += 0.1; } },
-    { id: 'alch', v: 1, fx: (L, d) => { d.startPots = [0, 1, 1, 2, 2, 3][L]; if (L >= 2) d.mendBonus = 1; if (L >= 4) d.potCap += 2; } },
+    // (4.0 meta: Tavern III companions +15% -> +10% damage, Enchanter V crit power +0.1 -> +0.05: companions are 50-80% of
+    // the party's damage, so DESIGN's +15% was worth ~+12% of it all; the permanent block's budget, tests/meta/meta_rules.js, BUDGET)
+    { id: 'tavern', v: 1, fx: (L, d) => { d.recruitN = 4; if (L >= 2) d.recruitArmor = 1; if (L >= 3) d.allyDmgK = 1.1; if (L >= 4) d.allyHpK = 1.15; if (L >= 5) d.startAlly = 1; } },
+    { id: 'enchant', v: 1, fx: (L, d) => { d.gambleWare = 1; if (L >= 2) d.enchantK = 0.8; if (L >= 3) d.whet2 = 1; if (L >= 4) d.ruinSafe = 1; if (L >= 5) d.critMult += 0.05; } },
+    // (the Alchemist: starting potions 1/1/2/2/3, chosen from III on (G.alchPick); II a Mend charge a run; IV potion caps +2)
+    { id: 'alch', v: 1, fx: (L, d) => { d.startPots = [0, 1, 1, 2, 2, 3][L]; if (L >= 2) d.mendBonus = 1; if (L >= 3) d.startPotsPick = 1; if (L >= 4) d.potCap += 2; } },
     { id: 'barracks', v: 1, fx: (L, d) => { d.offHours = [0, 4, 6, 8, 10, 12][L]; } },
     { id: 'museum', v: 1, fx: (L, d) => { d.keepSlots = 1; d.codexCap = L >= 4 ? 4 : L >= 2 ? 3 : 2; if (L >= 3) d.uqK = 1.2; if (L >= 5) d.itemEmb = 1.1; } },
-    { id: 'quests', v: 1, fx: (L, d) => { d.deedBoard = 2 + Math.min(3, L); } },
+    // (the Quest Board: its board of run deeds (S.quests) is 3 / 4 / 4 / 5 / 5 long; III: the day's first deed pays x2; V: a weekly
+    // deed for Gems)
+    { id: 'quests', v: 1, fx: (L, d) => { d.deedBoard = [3, 3, 4, 4, 5, 5][L]; if (L >= 3) d.deedDaily = 2; if (L >= 5) d.deedWeekly = 1; } },
     { id: 'stars', v: 1, fx: (L, d) => { d.nodesOpen = [0, 8, 16, 24, 32, 99][L]; } },
     { id: 'pets', v: 1, fx: (L, d) => { if (L >= 2) d.eggMult *= L >= 4 ? 2 : 1.5; if (L >= 3) d.petSlots += 1; if (L >= 5) d.goldenChance += 0.02; } },
     { id: 'temple', v: 0.05, fx: (L, d) => { d.fameMult *= 1 + 0.05 * Math.max(0, L - 1); } },
     { id: 'rift', v: 1, fx: (L, d) => { d.daily = 1; if (L >= 2) d.pushOn = 1; if (L >= 3) d.vaultKinds = 1; if (L >= 4) d.pushLoot = 1.25; } },
   ];
   G.BLD_BY_ID = {}; G.BLD.forEach(b => { G.BLD_BY_ID[b.id] = b; });
+  // the I-V table in words (DESIGN §4.5, with the meta's budget numbers): what each level opens or gives. (Data: the UI keeps
+  // its own strings, bld_<id>_<L>; G.bldFlags(id, L) is the same table as D flags)
+  G.BLD_LEVELS = {
+    forge: ['ENCHANT ALL (camp and Forge)', 'Reforge at camp: an item’s level to this depth', 'Scrapping pays orbs (1 per 40 shards)', '+1 card at lords’ loot', 'A Siege’s first legendary rolls +1 perk rank'],
+    tavern: ['4 recruits to choose from at camp', 'Recruits arrive with armour', 'Companions +10% damage', 'Companions +15% health', 'Start each Siege with a companion'],
+    enchant: ['Gamble ware at the camp market', 'Enchanting costs 20% less', 'Whetstones ×2 from lords', 'The Orb of Ruin never bricks', 'Crit power +0.05'],
+    alch: ['A random potion at the start', '+1 Mend charge a Siege', '2 chosen potions at the start', 'Potion caps +2', '3 chosen potions at the start'],
+    barracks: ['Embers while away: 3% of your best payout an hour, up to 4 h', 'Up to 6 h away', 'Up to 8 h away', 'Up to 10 h away', 'Up to 12 h away'],
+    museum: ['A keepsake slot and the Codex shelf', 'Codex rank cap 3', 'Unique chance +20%', 'Codex rank cap 4', 'Item Embers +10%'],
+    quests: ['3 run deeds on the board', '4 run deeds', 'The daily deed pays ×2', '5 run deeds', 'A weekly deed (Gems)'],
+    stars: ['The Star Chart opens: 8 stars', '16 stars', '24 stars', '32 stars', 'All 37 stars'],
+    pets: ['The egg incubator', 'Hatching ×1.5', '+1 pet seat', 'Hatching ×2', 'Golden egg chance +2%'],
+    temple: ['The Heat dial and the Hall of Fame', 'Fame +5%', 'Fame +10%', 'Fame +15%', 'Fame +20%'],
+    rift: ['The Daily Siege', 'Push On after a win', 'Vault doors: one more secret land', 'Push loot +25%', 'The Weekly League (4.1)'],
+  };
   G.BLD_MAX = 5;
   G.bldLvl = id => ((G.S.bld || {})[id] || 0);
+  G.bldLv = G.bldLvl;
+  // what a building's level L sets on D (the flags its fx writes; for the UI's I-V table and the tests)
+  G.bldFlags = function (id, L) {
+    const b = G.BLD_BY_ID[id]; if (!b || !(L > 0)) return {};
+    const d0 = baseD(), d = baseD(), out = {};
+    b.fx(Math.min(G.BLD_MAX, L), d);
+    for (const k in d) if (d[k] !== d0[k] && typeof d[k] !== 'object') out[k] = d[k];
+    return out;
+  };
+  // G.bldInfo(id) -> { id, lvl, max, cost (the next level's, 0 at max), costs [5], total, spent, can (Embers enough), open
+  // (G.bldOpen: the UI's own gate), flags (what this level sets), next (what the next one sets) }
+  G.bldInfo = function (id) {
+    const b = G.BLD_BY_ID[id]; if (!b) return null;
+    const L = G.bldLvl(id), max = G.BLD_MAX, cost = L < max ? G.BLD_COST[L] : 0;
+    return { id, lvl: L, max, cost, costs: G.BLD_COST.slice(), total: G.BLD_COST.reduce((a, c) => a + c, 0), spent: G.BLD_COST.slice(0, L).reduce((a, c) => a + c, 0),
+      can: L < max && (G.S.embers || 0) >= cost, open: !G.bldOpen || !!G.bldOpen(id), flags: G.bldFlags(id, L), next: L < max ? G.bldFlags(id, L + 1) : null };
+  };
   G.townLvl = () => G.BLD.reduce((a, b) => a + G.bldLvl(b.id), 0);
   // 4.0: the town is built with Embers (the Furnace's), not the run's gold: 50 / 150 / 400 / 1,000 / 2,500 a level
   // (so a run's gold can't turn into lasting power). What each level gives becomes mostly unlocks (the meta's, §4.5)
@@ -1054,6 +1181,8 @@
   function bossWin() {
     const S = G.S, b = R.boss;
     b.dead = true;
+    // (4.0: the Button's health share as the killing blow lands, before a boss's heal: the Deeds read it, 'By a Thread')
+    b.btnAt = S.hero && D.heroHp > 0 ? Math.max(0, S.hero.hp) / D.heroHp : 1;
     const d = b.d;
     const first = S.st.bossKills === 0;
     if (G.isMadLord(b) && S.rec && !S.rec.madTime) S.rec.madTime = S.st.playTime;
@@ -1279,22 +1408,111 @@
   }
   G.buyNode = buyNode;
 
-  // (4.0, the Hall of Fame: rank k costs base x k^2)
+  // ---------- 4.0: the Hall of Fame (DESIGN §4.4; data.js G.HALL): capped ranks bought with Fame, rank k costs base x k^2 ----------
+  //   G.hall(id) -> the rank owned (the run knobs read it: hf_wind, hf_reroll, hf_banish, hf_door, hf_belt, hf_keep, hf_qm)
+  //   G.hallCost(l | id) -> the next rank's price (0 at max); G.hallTotal(l | id) -> every rank's; G.buyHall(id) -> bool
+  //   ('hall'(id, rank, cost) and the 3.x 'buy'('legacy', id)). G.legacyCost / G.buyLegacy: the same, by their 3.x names
   function legacyCost(l, L) { return l.sq ? Math.ceil(l.base * (L + 1) * (L + 1)) : Math.ceil(l.base * Math.pow(l.growth, L)); }
+  const hallOf = x => (typeof x === 'string' ? G.HALL_BY_ID[x] : x);
+  G.hall = id => (G.S && G.S.legacy && G.S.legacy[id]) | 0;
+  G.hallCost = x => { const l = hallOf(x); if (!l) return 0; const L = G.hall(l.id); return L >= l.max ? 0 : legacyCost(l, L); };
+  G.hallTotal = x => { const l = hallOf(x); let c = 0; if (l) for (let k = 0; k < l.max; k++) c += legacyCost(l, k); return c; };
   G.legacyCost = l => legacyCost(l, G.S.legacy[l.id] || 0);
   function buyLegacy(id) {
-    const S = G.S, l = G.LEGACY_BY_ID[id];
+    const S = G.S, l = G.HALL_BY_ID[id];
     if (!l) return false;
     const L = S.legacy[id] || 0;
     if (L >= l.max) return false;
     const c = legacyCost(l, L);
-    if (S.fame < c) return false;
+    if (!(S.fame >= c)) return false;
     S.fame -= c; S.legacy[id] = L + 1;
     R.dirty = true; recalc();
+    emit('hall', id, L + 1, c);
     emit('buy', 'legacy', id);
     return true;
   }
+  G.buyHall = buyLegacy;
   G.buyLegacy = buyLegacy;
+
+  // ---------- 4.0: the meta's own reads (DESIGN §4) ----------
+  // the permanent block's power against the budget (recalc's D.meta): { dmg, boss, hp (what it gives now), raw {dmg, boss,
+  // hp} (what it would give uncapped), cap {dmg, boss, hp}, capped (the budget holds it back) }
+  G.metaPower = function () {
+    if (R.dirty || !D.meta) recalc();
+    const m = D.meta || { dmg: 1, boss: 1, hp: 1, raw: { dmg: 1, boss: 1, hp: 1 }, k: 1, kb: 1, kh: 1 };
+    return { dmg: m.dmg, boss: m.boss, hp: m.hp, raw: Object.assign({}, m.raw), cap: { dmg: TUNE.metaDmg, boss: TUNE.metaBoss, hp: TUNE.metaHp },
+      capped: Math.min(m.k, m.kb, m.kh) < 0.999, k: { dmg: m.k, boss: m.kb, hp: m.kh }, pets: D.petPow ? D.petPow.dmg : 1 };
+  };
+  // the Codex (DESIGN §4.7; S.codex {q: {n copies, rank, relic}}; js/run.js G.codexAdd records a run's uniques and relics at
+  // its end): a rank is the copies collected, up to the cap (2; the Museum II 3, IV 4; relics 2)
+  G.codexCap = () => D.codexCap || 2;
+  const codexCapOf = c => (c && c.relic ? 2 : G.codexCap());
+  // re-rank every entry against today's cap (a Museum level built after the copies came in; an older save)
+  G.codexSync = function () {
+    const S = G.S; let n = 0;
+    for (const q in S.codex || {}) { const c = S.codex[q]; if (!c || !(c.n > 0)) continue; const rk = Math.min(codexCapOf(c), c.n | 0); if (rk !== (c.rank | 0)) { c.rank = rk; n++; } }
+    return n;
+  };
+  G.on('build', id => { if (id === 'museum') { recalc(); G.codexSync(); } });
+  // G.codexInfo(q) -> { q, name, relic, n, rank, cap, k (its fixed affixes' factor: +12% a rank past the first), theme (the
+  // perk), themeRanks (2, +1 at rank 2, +1 at rank 4), rule, kept (in the keepsake loadout) } | null when not collected
+  G.codexInfo = function (q) {
+    const S = G.S, c = S.codex && S.codex[q], U = G.UNIQUES && G.UNIQUES[q];
+    if (!c || !U) return null;
+    const rk = c.rank | 0, th = G.UQ_THEME && G.UQ_THEME[q];
+    return { q, name: U.name, relic: !!(c.relic || U.relic), n: c.n | 0, rank: rk, cap: codexCapOf(c), k: G.codexAffixK ? G.codexAffixK(rk) : 1,
+      theme: th || null, themeRanks: th ? 2 + (rk >= 2 ? 1 : 0) + (rk >= 4 ? 1 : 0) : 0, rule: U.fx || '', kept: ((S.lastSetup && S.lastSetup.keeps) || []).includes(q) };
+  };
+  // the keepsake options (the Run Setup's): every Codex unique and relic, the kept ones first, then by rank
+  G.keepsakes = function () {
+    const S = G.S;
+    return Object.keys(S.codex || {}).map(G.codexInfo).filter(Boolean).sort((a, b) => (b.kept - a.kept) || (b.rank - a.rank) || (a.name < b.name ? -1 : 1));
+  };
+  // set the keepsake loadout for the next Siege (S.lastSetup.keeps; js/run.js reads it at runStart): Codex ids, up to
+  // G.keepSlots() (Museum I, the Hall's Heirloom Shelf). Returns the loadout kept
+  G.keepSet = function (qs) {
+    const S = G.S, slots = G.keepSlots ? G.keepSlots() : 0;
+    const out = []; for (const q of Array.isArray(qs) ? qs : []) if (S.codex && S.codex[q] && G.UNIQUES[q] && !out.includes(q) && out.length < slots) out.push(q);
+    S.lastSetup = Object.assign({ btn: 'classic', cls: (S.hero && S.hero.cls) || null, heat: 0, keeps: [], first: null }, S.lastSetup || {}, { keeps: out });
+    emit('keepsakes', out);
+    return out;
+  };
+  // the Alchemist's starting potions (DESIGN §4.5: 1 random at I, 2 chosen at III, 3 chosen at V): G.alchPick(ids) chooses
+  // them for the next Sieges (from Alchemist III; S.alchPick); kinds never repeat (each a different brew). At 'runSetup' the
+  // run's starters are dealt again by these rules and recorded in S.run.pots0 (recalc counts them in the permanent block)
+  G.alchPick = function (ids) {
+    const S = G.S, n = D.startPots | 0;
+    const out = []; for (const id of Array.isArray(ids) ? ids : []) if (G.POTIONS.some(p => p.id === id) && !out.includes(id) && out.length < n) out.push(id);
+    S.alchPick = out;
+    return out;
+  };
+  // (G.rng, not the run's offer stream G.runRng: the Daily's offers stay the same for players with different Alchemists).
+  // js/run.js has dealt D.startPots random ones (each a 'potion' event): kept as they are unless the player chose (III+) or
+  // a kind came twice; then dealt again, and 'startPots'(ids) says what the run starts with
+  G.on('runSetup', r => {
+    const S = G.S, n = D.startPots | 0;
+    if (!S.pots) return;
+    const have = []; for (const k in S.pots) for (let i = 0; i < (S.pots[k] | 0); i++) have.push(k);
+    const pick = D.startPotsPick && Array.isArray(S.alchPick) ? S.alchPick.filter(id => id in S.pots) : [];
+    const ids = [];
+    for (const id of pick) if (ids.length < n && !ids.includes(id)) ids.push(id);
+    for (const id of have) if (ids.length < n && !ids.includes(id)) ids.push(id);
+    while (ids.length < n) { const left = G.POTIONS.map(p => p.id).filter(id => !ids.includes(id)); if (!left.length) break; ids.push(left[Math.floor(G.rng() * left.length)]); }
+    const same = have.length === ids.length && have.slice().sort().join() === ids.slice().sort().join();
+    if (!same) {
+      for (const k in S.pots) S.pots[k] = 0;
+      for (const id of ids) S.pots[id] = (S.pots[id] | 0) + 1;
+      R.dirty = true;
+      emit('startPots', ids.slice());
+    }
+    r.pots0 = {}; for (const id of ids) r.pots0[id] = (r.pots0[id] | 0) + 1;
+  });
+  // the Barracks (DESIGN §4.5): Embers while away, TUNE.barracksRate of the best run's payout (S.rec.bestPay) an hour, up to
+  // D.offHours (4/6/8/10/12 h by its level). G.barracksInfo() -> { lvl, perHour, capH, best, maxPay }
+  G.barracksInfo = function () {
+    const best = (G.S.rec && G.S.rec.bestPay) || 0, capH = D.offHours | 0, perHour = capH > 0 ? best * TUNE.barracksRate : 0;
+    return { lvl: G.bldLvl('barracks'), perHour, capH, best, maxPay: Math.floor(perHour * capH) };
+  };
 
   // ---------- Pets / gacha ----------
   function pullOne() {
@@ -1370,14 +1588,26 @@
       case 'kills': q.n = Math.round((40 + lv * 6) * 30 / 100) * 100; break;
     }
     const roll = G.rng();
+    // (4.0: the Quest Board's run deeds pay eggs, Embers (essence is retired) or the run's gold (20 s of income, at claim))
     if (roll < 0.15) { q.rw = 'eggs'; q.rn = 1 + (lv > 30 ? 1 : 0); }
-    else if (roll < 0.5) { q.rw = 'ess'; q.rn = Math.round(4 + lv * 1.5); }
+    else if (roll < 0.5) { q.rw = 'embers'; q.rn = Math.round(6 + lv); }
     else { q.rw = 'gold'; q.rn = 20; } // seconds of income, paid at claim time
     return q;
   }
+  // 4.0: the Quest Board (DESIGN §4.5): a board of D.deedBoard run deeds (3, 4 at II, 5 at IV); from III the first one
+  // dealt each day is the day's deed and pays x2 (q.daily); at V one a week is the weekly deed: five times the work for 5
+  // Gems (q.weekly)
+  const weekKey = () => { const k = G.utcDayKey ? G.utcDayKey() : G.todayKey(); const t = Date.parse(k + 'T00:00:00Z'); return isFinite(t) ? 'w' + Math.floor((t / 864e5 + 3) / 7) : k; };
   function fillQuests() {
-    const S = G.S;
-    while (S.quests.length < 3) S.quests.push(makeQuest(S.quests.map(q => q.k)));
+    const S = G.S, n = Math.max(3, D.deedBoard | 0);
+    if (S.quests.length > n) S.quests.length = n;
+    while (S.quests.length < n) {
+      const q = makeQuest(S.quests.map(x => x.k));
+      const day = G.todayKey();
+      if (D.deedWeekly && S.questWeek !== weekKey() && q.k !== 'wisp' && q.k !== 'rarity') { S.questWeek = weekKey(); q.weekly = 1; q.n = Math.round(q.n * 5); q.rw = 'gems'; q.rn = 5; }
+      else if (D.deedDaily && S.questDay !== day) { S.questDay = day; q.daily = 1; }
+      S.quests.push(q);
+    }
   }
   const QUEST_COOLDOWN = 150;
   G.fillQuests = fillQuests;
@@ -1393,9 +1623,11 @@
   }
   G.questProgress = questProgress;
   function questReward(q) {
-    if (q.rw === 'gold') return D.incomeRef * q.rn * D.questMult;
-    if (q.rw === 'ess') return q.rn * D.questMult * D.essMult;
-    return q.rn;
+    const k = q.daily ? D.deedDaily || 2 : 1;
+    if (q.rw === 'gold') return D.incomeRef * q.rn * D.questMult * k;
+    if (q.rw === 'embers') return Math.round(q.rn * D.questMult * k);
+    if (q.rw === 'ess') return q.rn * D.questMult * D.essMult * k;
+    return q.rn * k;
   }
   G.questReward = questReward;
   function claimQuest(i) {
@@ -1403,6 +1635,8 @@
     if (!q || !q.done) return false;
     const v = questReward(q);
     if (q.rw === 'gold') addGold(v, 'quest');
+    else if (q.rw === 'embers') { if (G.addEmbers) G.addEmbers(v, 'quest'); else S.embers = (S.embers || 0) + v; }
+    else if (q.rw === 'gems') addGems(v, 'deed');
     else if (q.rw === 'ess') addEssence(v, 'quest');
     else addEggs(v);
     S.questsDone++;
@@ -1426,6 +1660,8 @@
   G.dailyAvailable = dailyAvailable;
   function dailyReward(day) {
     const r = G.DAILY[day % 7];
+    // (4.0: Embers, the meta's; data.js G.DAILY)
+    if (r.kind === 'embers') return { kind: 'embers', v: r.n };
     if (r.kind === 'gold') return { kind: 'gold', v: Math.max(500, D.incomeRef * 60 * r.mins) };
     if (r.kind === 'eggs') return { kind: 'eggs', v: r.n };
     if (r.kind === 'ess') return { kind: 'ess', v: r.n };
@@ -1439,7 +1675,8 @@
     S.daily.streak = S.daily.last ? S.daily.streak + 1 : 0;
     S.daily.last = G.todayKey();
     const r = dailyReward(S.daily.streak);
-    if (r.kind === 'gold') addGold(r.v);
+    if (r.kind === 'embers') { if (G.addEmbers) G.addEmbers(r.v, 'daily'); else S.embers = (S.embers || 0) + r.v; }
+    else if (r.kind === 'gold') addGold(r.v);
     else if (r.kind === 'eggs') addEggs(r.v);
     else if (r.kind === 'ess') addEssence(r.v);
     else openChest(makeChest(r.tier, 'ghost'), 'daily');
@@ -1608,6 +1845,8 @@
     spawnFromMeter();
     // 4.0: the run's own clocks (par, the Reaper, Mend's land refill...): js/run.js
     if (G.runTick) G.runTick(dt);
+    // 4.0: the run's Button (js/blessings.js: the Clockwork's own hold, its evolution clocks)
+    if (G.btnTick) G.btnTick(dt);
     // 4.0: Auto-invest, now and then (the Shop tab's toggle)
     if ((R.aiT = (R.aiT == null ? TUNE.autoEvery : R.aiT) - dt) <= 0) { R.aiT = TUNE.autoEvery; if (inSiege() && S.set.autoInvest !== 0) G.autoInvest(); }
     if (G.heroTick) G.heroTick(dt);
@@ -1769,6 +2008,9 @@
       if (!(data.hero && 'whp' in data.hero)) S.hero.whp = D.wardenHp;
       if (S.hero.hp <= 0 && G.TUNE.btnDown) R.btnDown = G.TUNE.btnDown;
     }
+    // 4.0: the meta's own fix-ups on a loaded save (js/ach.js: unlocks earned by Deeds already done, a founder's Deeds;
+    // the Codex ranks against today's Museum)
+    if (G.metaLoad) { try { G.metaLoad(S); } catch (e) { if (typeof console !== 'undefined') console.error('metaLoad', e); } }
     // 4.0: a Siege carries on from the start of the zone it was in (js/run.js), a beat (a card, the loot moment...) re-opens
     if (G.runResume) G.runResume();
     return S;

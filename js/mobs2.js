@@ -173,9 +173,13 @@
     R.hordeAcc = Math.max(-1, (R.hordeAcc || 0) - TUNE.m2Charge * Math.max(0, aliveW() - before + (k === 'mole' ? n * KINDS.mole.w : 0)));
     return n;
   }
+  // which land this is for the new kinds: 4.0 (runflow): inside a Siege the land SLOT (how deep the run is), not the index
+  // of whichever land the route put there (a Highlands first land would bring moles and walls into the muster)
+  const landNo = d => (G.inSiege && G.inSiege() ? Math.floor(Math.max(0, d) / G.REALM_SIZE) : G.realmIndex(d));
+  G.m2LandNo = landNo;
   // the kinds this depth can bring (the land's first zone brings only the kinds of the lands before it)
   function kindsAt(d) {
-    const ri = G.realmIndex(d);
+    const ri = landNo(d);
     return PACKS.filter(k => ri >= KINDS[k].land);
   }
   G.m2Pack = (k, a) => pack(k, a); // for testing: G.m2Pack('leaper')
@@ -202,7 +206,7 @@
       else if (k === 'mole' && m.pop > 0) m.pop = Math.max(0, m.pop - dt);
     } s.liveN = n; }
     // a new pack now and then
-    if (busy() || G.realmIndex(d) < TUNE.m2FromLand) return;
+    if (busy() || landNo(d) < TUNE.m2FromLand) return;
     if (s.t == null) s.t = TUNE.m2Every * rand(0.5, 1);
     if ((s.t -= dt) > 0) return;
     const ramp = Math.min(TUNE.m2RampMax, 1 + TUNE.m2RampPer * Math.max(0, d - G.REALM_SIZE * TUNE.m2FromLand));
@@ -257,9 +261,10 @@
     }
   }
   // the Horde's pace this tick, as hero.js reckons it (the frost orb, the land's rule, an event's pull)
+  // (4.0: the land as hero.js reads it - G.landNow, a door's map mod merged in: a Swift land's walls march faster too)
   function slowNow() {
-    const L = G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)] || {};
-    return (R.hb && R.hb.orb > 0 ? 0.4 : 1) * (L.slow || 1) * (G.evMul ? G.evMul('speed') : 1);
+    const L = (G.landNow ? G.landNow() : G.REALMS[G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth)]) || {};
+    return (R.hb && R.hb.orb > 0 ? 0.4 : 1) * (L.slow || 1) * (L.speed || 1) * (G.evMul ? G.evMul('speed') : 1);
   }
   function stepWalls(s, dt) {
     for (let i = s.walls.length - 1; i >= 0; i--) {
