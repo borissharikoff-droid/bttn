@@ -82,13 +82,16 @@
   }
   // 4.0: a Siege is 18 zones deep, so a unique's depth gate is its 3.x depth / 4.5 (the Other Cloak from depth 13), and
   // only the pool the Deeds have opened (G.uqOpen, the meta's; all of them without it)
-  G.uqOpen = G.uqOpen || ((q, depth) => { const U = G.UNIQUES[q]; return !!U && U.minD / 4.5 <= depth; });
-  function uniqueFor(depth, boss) {
+  // (and the Deeds' G.unlocked('unique', q), when the meta defines one that says no)
+  G.uqOpen = G.uqOpen || ((q, depth) => { const U = G.UNIQUES[q]; return !!U && U.minD / 4.5 <= depth && (!G.unlocked || G.unlocked('unique', q) !== false); });
+  // (rnd: the random stream: the loot moment passes the offers' own, G.runRng, so a Daily's uniques are everyone's)
+  function uniqueFor(depth, boss, rnd) {
+    rnd = rnd || G.rng;
     const ok = G.UNIQUE_IDS.filter(q => { const U = G.UNIQUES[q]; return G.uqOpen(q, depth) && (!U.boss || boss); });
     // half the time it's one you don't have yet, if there is one
     const fresh = ok.filter(q => !S_().uq[q]);
-    const from = fresh.length && chance(0.5) ? fresh : ok;
-    return from.length ? from[Math.floor(G.rng() * from.length)] : null;
+    const from = fresh.length && rnd() < 0.5 ? fresh : ok;
+    return from.length ? from[Math.floor(rnd() * from.length)] : null;
   }
   // (4.0: the loot moment's unique cards, js/run.js)
   G.uniqueFor = uniqueFor;
@@ -127,6 +130,9 @@
     if (kind === 'gear') { e.it = what; e.r = what.r; e.il = d + (chance(0.35) ? 1 : 0); }
     else if (kind === 'orb') { e.orb = what; e.r = what === 'grace' ? 6 : what === 'ascent' ? 4 : what === 'ruin' ? 3 : 1; }
     else { e.q = what; e.r = 7; e.il = d + 1; S.st.dryQ = 0; }
+    // 4.0 (ADDENDUM 2: ▲/▼ on rare+ ground labels): inside a Siege a rare or better piece (and a unique) is rolled where it
+    // falls, so its label can say whether it is an upgrade (G.groundCmp); the pickup takes that very item
+    if (G.inSiege && G.inSiege() && !R.rift && ((kind === 'gear' && e.r >= 2) || kind === 'uq')) e.g = kind === 'uq' ? G.makeUnique(e.q, e.il) : G.makeGear(e.it.id, e.il);
     place(e, m, (o && o.spread) || 0.025);
     if (o && o.at) { e.a = G.clamp(o.at.a + rand(-0.16, 0.16), 0, 1); e.p = G.clamp(o.at.p + rand(-0.22, 0.18), 0.2, 0.95); }
     e.life = kind === 'orb' ? TUNE.lingerOrb : kind === 'uq' ? TUNE.lingerUnique : what.r >= 3 ? TUNE.lingerGood : TUNE.lingerGear;
@@ -227,6 +233,8 @@
   };
 
   // Bosses and lords burst into loot where they stood
+  // (4.0: inside a Siege the boss's items are the loot moment's cards instead: game.js bossWin calls js/run.js
+  // G.lootMoment, banked in the save; this spray is the 3.x way, outside a Siege)
   G.bossLoot = function (b, tier, count) {
     const S = S_();
     const at = { a: 0.5, p: 0.72 };
@@ -252,13 +260,13 @@
     if (i < 0) return null;
     R.ground.splice(i, 1);
     let res = null;
-    if (e.k === 'gear') res = G.lootItem(e.it, 'ground', G.makeGear(e.it.id, e.il));
+    if (e.k === 'gear') res = G.lootItem(e.it, 'ground', e.g || G.makeGear(e.it.id, e.il));
     else if (e.k === 'orb') { h.orbs[e.orb] = (h.orbs[e.orb] || 0) + 1; S.st.orbs = (S.st.orbs || 0) + 1; }
     else if (e.k === 'uq') {
       const U = G.UNIQUES[e.q], it = G.ITEM_BY_ID[U.base];
       const first = !S.uq[e.q];
       S.uq[e.q] = (S.uq[e.q] || 0) + 1;
-      res = G.lootItem(it, 'unique', G.makeUnique(e.q, e.il));
+      res = G.lootItem(it, 'unique', e.g || G.makeUnique(e.q, e.il));
       res.first = first;
       if (first) G.feed('uq', U.name);
     }
@@ -270,6 +278,18 @@
   }
   G.pickup = pickup;
   G.pickupAll = () => { for (const e of R.ground.slice()) pickup(e, 'auto'); };
+  // 4.0: a ground label's ▲/▼ (the same rule as everywhere: G.bestWearer): { up, keep, pct, who, arrow '▲' | '▼' | '=', tier
+  // 'ultra' | 'normal', marks: [G.markInfo] } or null (not rolled: below rare, outside a Siege). Kept half a second of play
+  // time per label, so the stage can ask every frame
+  G.groundCmp = function (e) {
+    if (!e || !e.g) return null;
+    const t = (S_().st && S_().st.playTime) || 0;
+    if (e._cmp && t - e._cmpT < 0.5 && t >= e._cmpT) return e._cmp;
+    const bw = G.bestWearer(e.g);
+    e._cmpT = t;
+    return (e._cmp = { up: !!bw.up, keep: !!bw.keep, pct: bw.pct, who: bw.who, arrow: bw.up ? '\u25b2' : bw.pct < -1e-6 ? '\u25bc' : '=',
+      tier: G.lootTier ? G.lootTier(e.g) : (e.g.r >= 5 || e.g.q ? 'ultra' : 'normal'), marks: G.itemMarks ? G.itemMarks(e.g) : [] });
+  };
 
   // ---------- The feed: what friends see on the ladder ----------
   G.feed = function (kind, text) {

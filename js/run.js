@@ -355,13 +355,21 @@
   //   only those; rarity normal / Empowered / Golden (+1 / +2 / +3 ranks, to the perk's max); a ready evolution comes as
   //   a golden 4th card; a reroll (S.run.rerolls) deals again, a banish (S.run.banish) takes a perk out of this run.
   // The 3.x card panel works on: h.offer mirrors the ids, G.pickPerk(id) picks.
-  Object.assign(TUNE, { cardN: 3, cardSlots: 6, cardSchool: 0.6, cardRar: [0.75, 0.2, 0.05], cardAdd: [1, 2, 3], cardAuto: 10 });
+  Object.assign(TUNE, { cardN: 3, cardSlots: 6, cardSchool: 0.6, cardRar: [0.75, 0.2, 0.05], cardAdd: [1, 2, 3], cardAuto: 10, cardBoons: 1 });
+  // (cardsloot: a complete build - six perks held, every one at its max, no evolution ready - would leave a boss's card
+  // empty; measured, the active bot's builds were complete by zone ~12 with Empowered/Golden cards, 5 cards short of the
+  // 20-21 DESIGN §5.1 counts on. With cardBoons on such a card offers the Power shrine's run boons instead (G.BOONS:
+  // 'boon_<id>' cards); off: the card is skipped ('cardNone'))
   const own = k => (G.perkOwn ? G.perkOwn(k) : G.perk(k));
+  // the Deeds' unlocks: G.unlocked(kind, id) is the meta stream's ('perk', 'unique', 'relic', 'land', 'class', 'button'...).
+  // Until it exists everything is open (this fallback says so: .fallback; the meta's own assignment replaces it whatever
+  // the load order)
+  if (typeof G.unlocked !== 'function') { G.unlocked = function () { return true; }; G.unlocked.fallback = 1; }
   // may this perk be dealt now? (open with the Deeds, not banished, not at its max, Glass Cannon and Fortress apart,
   // Warband with a companion to lead)
   G.perkFit = function (k) {
     const S = S_(), r = runOf(), P = G.PERKS[k];
-    if (!P || (G.perkOpen && !G.perkOpen(k))) return false;
+    if (!P || (G.perkOpen && !G.perkOpen(k)) || !G.unlocked('perk', k)) return false;
     if (r && r.banished && r.banished.includes(k)) return false;
     if ((k === 'glass' && G.perk('fortress') > 0) || (k === 'fortress' && G.perk('glass') > 0)) return false;
     if (k === 'warband' && !(S.party && S.party.length)) return false;
@@ -381,10 +389,12 @@
     const x = G.runRng(), w = TUNE.cardRar, tier = x < w[0] ? 0 : x < w[0] + w[1] ? 1 : 2;
     return { id, tier, add: TUNE.cardAdd[tier] };
   }
+  // (the 3.x card panel knows perks and evolutions only: a boon offer isn't mirrored to it)
+  const panelOk = ids => ids.every(id => G.PERKS[id] || (String(id).startsWith('evo_') && G.EVOS[id.slice(4)]));
   function syncHero(r) {
     const h = S_().hero;
     if (!h) return;
-    h.offer = r.offer ? r.offer.ids : null; h.offerT = r.offer ? r.offer.t : 0;
+    h.offer = r.offer && panelOk(r.offer.ids) ? r.offer.ids : null; h.offerT = r.offer ? r.offer.t : 0;
     h.perkPts = (r.cardQ ? r.cardQ.length : 0) + (r.offer ? 1 : 0);
   }
   // deal one set (why: 'level' | 'boss' | 'train' | 'hexed' | 'bonus' | ...); null when nothing is left to deal
@@ -393,6 +403,11 @@
     const n = G.heat().cards || TUNE.cardN, cards = keep ? keep.slice() : [];
     while (cards.filter(c => !c.evo).length < n) { const c = drawCard(cards.map(x => x.id)); if (!c) break; cards.push(c); }
     if (!cards.some(c => c.evo)) { const ev = G.evoReady ? G.evoReady() : []; if (ev.length) cards.push({ id: 'evo_' + ev[0], tier: 2, add: 1, evo: 1 }); }
+    // (a complete build: the run's boons instead)
+    if (!cards.length && TUNE.cardBoons && G.BOONS) {
+      const ids = Object.keys(G.BOONS);
+      while (cards.length < Math.min(n, ids.length)) { const k = ids[Math.floor(G.runRng() * ids.length)]; if (!cards.some(c => c.id === 'boon_' + k)) cards.push({ id: 'boon_' + k, tier: 0, add: 1, boon: 1 }); }
+    }
     if (!cards.length) return null;
     const offer = { why, ids: cards.map(c => c.id), add: cards.map(c => c.add), tier: cards.map(c => c.tier), t: 0, touch: 0 };
     // (the Buttons can change it: Prism's 4th card)
@@ -405,16 +420,73 @@
     while (offer.add.length < offer.ids.length) { offer.add.push(1); offer.tier.push(0); }
     if (!offer.ids.length) { r.offer = null; syncHero(r); return null; }
     if (G.director) G.director.mark('small');
-    emit('cardOffer', offer, why);
+    emit('cardOffer', offer, why, G.cardView());
     return offer;
   }
   G.cardOffer = () => { const r = runOf(); return r && r.offer; };
+  // ---- what the card screen shows (DOM-free; the UI renders this, 'cardOffer' carries it) ----
+  // G.cardView() -> null | { why, title (string key), cards: [card], rerolls, banish, slots: {used, max, ids}, auto: {on,
+  //   after, left}, t }; card = { i, id, evo, perk (the perk it is or evolves from), name, desc, icon, school, tier (0 normal,
+  //   1 Empowered, 2 Golden), tierName, add, own (picked ranks), gear (ranks the party's gear gives), rank (effective now),
+  //   max, cap (max + gearPerkOver), to (picked ranks after), toEff (effective after), isNew (a new perk: takes a slot),
+  //   maxed (at its max after), evoWith ({id, name, need, have} the evolution this perk leads to), banishable }
+  const TIER_NAME = ['normal', 'empowered', 'golden'];
+  // (cardsloot: the card, loot and comparison screens' words; English, i18n_ru.js adds Russian)
+  if (G.tAdd) G.tAdd({
+    card_none: 'Your build is complete: nothing left to learn', card_boons: 'Your build is complete: choose a boon', card_school: 'School: {0}', card_new: 'NEW', card_rankTo: 'Rank {0} → {1}', card_gear: '+{0} from gear',
+    card_evoWith: 'Evolves with {0}', card_evoHave: 'You wear it: evolution ready at max', card_slotsFull: 'Slots full: only your perks now',
+    school_storm: 'Storm', school_blades: 'Blades', school_fire: 'Fire', school_frost: 'Frost', school_bastion: 'Bastion', school_greed: 'Greed', school_party: 'Party',
+    loot_ultra: 'ULTRA RARE', loot_best: 'Best for {0}', loot_take: 'Take', loot_stash: 'Stash', loot_left: '{0} left to take', loot_none: 'Nothing better here',
+    loot_tag_N: 'Treasure Nose', loot_mark: 'Mark', loot_ranks: '+{0} {1}', loot_rule: 'Rule: {0}', loot_keep: 'More power, but its rule/Mark would go',
+    cmp_worn: 'Worn', cmp_this: 'This', cmp_power: 'Power', cmp_dps: 'Damage/s', cmp_hp: 'Health', cmp_crit: 'Crit', cmp_main: 'Main stat',
+    cmp_ruleGain: 'New rule: {0}', cmp_ruleLose: 'Rule lost: {0}', cmp_ruleKept: '(still on through the party)', cmp_markGain: 'New Mark: {0}', cmp_markLose: 'Mark lost: {0}',
+    cmp_rankGain: '+{0} {1}', cmp_rankLose: '−{0} {1}', cmp_for: 'For {0}',
+    gear_auto: '{0}: {1} +{2}%', gear_onward: '{0} passed on to {1}', gear_fill: '{0} geared up from the bag',
+    ench_all: 'Enchant All', ench_even: 'Evenly', ench_power: 'Most power', ench_bag: 'Bag items too', ench_whet: 'Use whetstones ({0})', ench_go: 'Enchant +{0}',
+    ench_cost: '+{0} levels · {1} shards · {2} whetstones', ench_done: 'Enchanted: +{0} levels, power +{1}%', ench_none: 'Nothing affordable: shards come from breaking items down',
+  });
+  G.cardInfo = function (id, add, tier, i) {
+    const S = S_(), r = runOf();
+    if (String(id).startsWith('boon_')) {
+      const b = id.slice(5), B = (G.BOONS && G.BOONS[b]) || {};
+      return { i, id, boon: true, evo: false, perk: null, name: B.name || b, desc: B.desc || B.name || '', icon: null, school: null, tier: 0, tierName: 'normal', add: 1,
+        own: (r && r.boons && r.boons[b]) | 0, isNew: false, banishable: false };
+    }
+    if (String(id).startsWith('evo_')) {
+      const e = id.slice(4), E = G.EVOS[e] || {};
+      return { i, id, evo: true, perk: E.from || null, name: E.name || e, desc: E.desc || '', icon: E.icon || null, school: (G.PERK_SCHOOL && G.PERK_SCHOOL[E.from]) || null,
+        tier: 2, tierName: 'golden', add: 1, isNew: !(S.rec && S.rec.evos && S.rec.evos[e]), need: E.need || '', banishable: false };
+    }
+    const P = G.PERKS[id] || {}, o = own(id), gp = (G.D.gearPerk && G.D.gearPerk[id]) | 0, max = P.max || 1, over = TUNE.gearPerkOver || 0;
+    const to = Math.min(max, o + (add || 1)), eff = k => Math.min(max + over, k + gp);
+    const ev = Object.keys(G.EVOS).find(k => G.EVOS[k].from === id);
+    let evoWith = null;
+    if (ev) { const E = G.EVOS[ev], g = S.hero && S.hero.eq[E.slot]; evoWith = { id: ev, name: E.name, need: E.need, have: !!(g && E.types.includes(G.ITEM_TYPE[g.id])) }; }
+    return { i, id, evo: false, perk: id, name: P.name || id, desc: P.desc || '', icon: P.icon || null, school: (G.PERK_SCHOOL && G.PERK_SCHOOL[id]) || null,
+      tier: tier | 0, tierName: TIER_NAME[tier | 0] || 'normal', add: add || 1, own: o, gear: gp, rank: eff(o), max, cap: max + over, to, toEff: eff(to),
+      isNew: o === 0, maxed: to >= max, evoWith, banishable: !!(r && (r.banish | 0) > 0) };
+  };
+  G.cardView = function () {
+    const r = runOf(), o = r && r.on && r.offer, h = S_().hero;
+    if (!o) return null;
+    const auto = !!((h && h.autoPerk) || r.autoCards || !G.runUI);
+    const title = o.ids.every(id => String(id).startsWith('boon_')) ? 'card_boons' : { level: 'card_level', boss: 'card_boss', train: 'card_train', hexed: 'card_hexed' }[o.why] || 'card_bonus';
+    return { why: o.why, title, lvl: h ? h.lvl : 1, cards: o.ids.map((id, i) => G.cardInfo(id, o.add[i], o.tier[i], i)), rerolls: r.rerolls | 0, banish: r.banish | 0,
+      slots: { used: G.cardSlotsUsed().length, max: TUNE.cardSlots, ids: G.cardSlotsUsed() }, auto: { on: auto, after: TUNE.cardAuto, left: auto && !o.touch ? Math.max(0, TUNE.cardAuto - o.t) : null }, t: o.t, queued: (r.cardQ || []).length };
+  };
   // the next card owed, if any: true when one is on screen
   function cardNext() {
     const r = runOf();
     if (!r || !r.on) return false;
     if (r.offer) return true;
-    while (r.cardQ.length) if (deal(r.cardQ.shift())) return true;
+    while (r.cardQ.length) {
+      const why = r.cardQ.shift();
+      if (deal(why)) return true;
+      // (nothing left to deal: six perks held, every one at its max, no evolution ready - the build is complete;
+      // 'cardNone'(why) so the screen can say so instead of a card)
+      r.cardsNone = (r.cardsNone | 0) + 1;
+      emit('cardNone', why);
+    }
     syncHero(r);
     return false;
   }
@@ -451,11 +523,15 @@
     if (!o || !h) return false;
     const i = typeof x === 'number' ? x : o.ids.indexOf(x);
     if (!(i >= 0 && i < o.ids.length)) return false;
-    const id = o.ids[i], add = o.add[i] || 1;
+    const id = o.ids[i], add = o.add[i] || 1, card = G.cardInfo(id, add, o.tier[i], i);
     h.perks = h.perks || {};
     r.offer = null;
     let rank;
-    if (id.startsWith('evo_')) {
+    if (id.startsWith('boon_')) {
+      const b = id.slice(5);
+      if (G.boonApply) G.boonApply(b);
+      rank = (r.boons && r.boons[b]) | 0;
+    } else if (id.startsWith('evo_')) {
       h.perks[id] = rank = 1;
       const e = id.slice(4), first = !S.rec.evos[e];
       S.rec.evos[e] = 1;
@@ -470,6 +546,8 @@
     r.cards = (r.cards | 0) + 1; r.cardLog.push(id);
     syncHero(r);
     emit('cardPick', id, rank, o.tier[i] | 0, how || 'pick', o.why);
+    // (the event bus carries 5 arguments: the card as it was on screen, with how and why, comes in its own event)
+    emit('cardPicked', Object.assign(card, { rank, how: how || 'pick', why: o.why }));
     cardClose();
     return true;
   };
@@ -503,7 +581,7 @@
     const r = runOf(), o = r && r.on && r.offer;
     if (!o || !((r.banish | 0) > 0)) return false;
     const i = typeof x === 'number' ? x : o.ids.indexOf(x);
-    if (!(i >= 0 && i < o.ids.length) || o.ids[i].startsWith('evo_')) return false;
+    if (!(i >= 0 && i < o.ids.length) || o.ids[i].startsWith('evo_') || o.ids[i].startsWith('boon_')) return false;
     const id = o.ids[i];
     r.banish--; r.banished.push(id);
     const c = drawCard(o.ids);
@@ -511,6 +589,8 @@
     syncHero(r);
     emit('cardBanish', id, r.banish);
     if (!o.ids.length) { r.offer = null; cardClose(); }
+    // (the screen shows the new card: the same 'cardOffer' as a deal)
+    else emit('cardOffer', o, o.why, G.cardView());
     return true;
   };
   function cardTick(dt) {
@@ -629,14 +709,20 @@
   // card is a unique lootUqBoss of the time, a lord's moment holds one lootUqLord of the time (sure on the lootUqPity-th
   // dry lord), the Mad Button's always (The Last Button on its first kill), the First Hand's on its first kill. A lord
   // also gives 1-2 orbs and a Key one time in three (straight away). The player takes 1 (2 at the Mad Button): tap to
-  // wear it (G.lootTake(i, who)), or to stash it (G.lootTake(i, 'bag', true)); the rest burn into the pouch at
-  // EMBERS.card of their item value. Left alone, after lootT s (lootTSlow on runs 1-3 and at the Mad Button; a touch stops
-  // the clock) the biggest upgrade is taken; with no upgrade and nothing legendary or better it collapses into a burn
-  // after lootCollapse s. Card bonuses: a Treasure door +1 at each boss; an Elite lord or Forge IV +1 at lords; Armored
-  // +1 rarity; a Blood Pact +1 card and +1 rarity at its lord; a Loot Storm (Golden Click) +1 card with a rare floor; a
-  // Chance shrine's win one card a rarity above the cap.
+  // wear it on the hero the card shows (G.lootTake(i, who)), or stash it (G.lootTake(i, 'bag')); the rest burn into the
+  // pouch at EMBERS.card of their item value (x a Mark's Ember Heart). Left alone, after lootT s (lootTSlow on runs 1-3
+  // and at the Mad Button; with an ultra-rare in it the clock waits lootUltraT for its pillar; a touch stops it) the biggest
+  // upgrade is taken; with no upgrade and nothing legendary or better it collapses into a burn after lootCollapse s.
+  // Card bonuses: a Treasure door +1 at each boss; an Elite lord or Forge IV +1 at lords; Armored +1 rarity; a Blood Pact
+  // +1 card and +1 rarity at its lord; a Loot Storm (Golden Click) +1 card with a rare floor; a Chance shrine's win one
+  // card a rarity above the cap; a Treasure Nose Mark II +1 at lords (III: that one a rarity above the cap).
+  // 4.0 (cardsloot): every card names the hero it is shown for (c.who: the one it suits best, G.bestWearer) and carries
+  // its ▲/▼ (c.up, c.pct, c.delta); L.best is the biggest ▲ (Space/Enter's card; -1: none). Its items are rolled from the
+  // offers' stream (G.runRng: a Daily deals the same), a mythic's or divine's perk ranks from the schools of the class it
+  // is shown for. The timer runs in real seconds while the phase is 'loot' (the hold's tick, never the field's).
+  // R.loot is the open moment: the same object as S.run.loot (the save's), read through a getter so the two never drift.
   Object.assign(TUNE, { lootT: 5, lootTSlow: 8, lootSlowRuns: 3, lootCollapse: 1.5, lootCards: { boss: 3, lord: 4, act: 4, final: 5 },
-    lootW: [20, 50, 30], lootA: 0.7, lootUqBoss: 0.02, lootUqLord: 0.2, lootUqPity: 4, lootKey: 1 / 3, lootOrbs: [1, 2] });
+    lootW: [20, 50, 30], lootA: 0.7, lootUqBoss: 0.02, lootUqLord: 0.2, lootUqPity: 4, lootKey: 1 / 3, lootOrbs: [1, 2], lootUltraT: 1.2 });
   const rpick = w => { let t = 0; for (const x of w) t += x; let v = G.runRng() * t; for (let i = 0; i < w.length; i++) { v -= w[i]; if (v < 0) return i; } return w.length - 1; };
   const clsOf = who => (who < 0 ? S_().hero.cls : S_().party[who] && S_().party[who].cls);
   // an item base of rarity r (or the best below it that exists for the slot), for a slot and a class's weapons
@@ -665,7 +751,23 @@
   }
   const loot = () => { const r = runOf(); return r && r.on ? r.loot : null; };
   G.lootNow = loot;
+  if (!Object.getOwnPropertyDescriptor(R, 'loot')) Object.defineProperty(R, 'loot', { configurable: true, enumerable: false, get: () => loot(), set: v => { const r = runOf(); if (r && r.on) r.loot = v || null; } });
   function rollOrbId() { const ids = G.ORB_IDS; return ids[rpick(ids.map(k => G.ORBS[k].w))]; }
+  // ultra-rares: mythic, divine, unique, relic (the rainbow flip, the pillar, the tier's sting)
+  const ultra = g => !!(g && (g.r >= 5 || g.q));
+  G.lootTier = g => (ultra(g) ? 'ultra' : 'normal');
+  // a card's item, for the hero it would be shown to (cls: its perk ranks' schools), from the offers' stream
+  const mk = (it, il, cls) => G.makeGear(it.id, il, { cls, rng: G.runRng });
+  const card = (g, tag) => ({ g, tag: tag || '', taken: 0, burned: 0, who: -1, up: false, pct: 0, delta: 0 });
+  // each open card's hero and ▲/▼ now, and the biggest ▲ (after a take the rest change: the Mad Button's second pick)
+  function prep(L) {
+    for (const c of L.cards) { if (c.taken || c.burned) continue; const bw = G.bestWearer(c.g); c.who = bw.who; c.up = !!bw.up; c.pct = bw.pct; c.delta = bw.delta; }
+    let bi = -1, bp = 1e-6;
+    L.cards.forEach((c, i) => { if (!c.taken && !c.burned && c.up && c.pct > bp) { bp = c.pct; bi = i; } });
+    L.best = bi;
+    if (L.ultra == null) L.ultra = L.cards.some(c => ultra(c.g)) ? 1 : 0;
+    return L;
+  }
   G.lootMoment = function (b) {
     const S = S_(), r = runOf(), h = S.hero;
     if (!r || !r.on || !h || !h.cls) return null;
@@ -679,38 +781,45 @@
     const cap = Math.min(6, cap0 + rar);
     let n = (TUNE.lootCards[kind] || 3) + (tag.bossCards | 0) + (lord ? (mod.lordCards | 0) + (G.D.lordCard | 0) + (blood ? 1 : 0) : 0);
     const cards = [];
-    const push = (it, tag2, g0) => { if (!it && !g0) return; const g = g0 || G.makeGear(it.id, il); cards.push({ g, tag: tag2 || '', taken: 0, burned: 0 }); };
+    const push = (it, tag2, cls) => { if (it) cards.push(card(mk(it, il, cls), tag2)); };
     // luck (a Scavenger companion): a card's rarity one step up now and then
     const luck = (G.D.lootLuck || 0);
     const rollR = () => { const w = TUNE.lootW, k = rpick(w); let x = Math.max(0, cap - k); if (luck > 0 && x < cap && G.runRng() < luck) x++; return x; };
     // A: the weakest slot
     const wk = weakest(cap, il);
-    if (wk) push(baseOf(G.runRng() < TUNE.lootA ? cap : cap - 1, wk.slot, wk.cls), 'A');
+    if (wk) push(baseOf(G.runRng() < TUNE.lootA ? cap : cap - 1, wk.slot, wk.cls), 'A', wk.cls);
     // B (lords): a class weapon at the cap for the weakest weapon
-    if (lord && n >= 4) { const ww = weakest(cap, il, true); if (ww) push(baseOf(cap, 'weapon', ww.cls), 'W'); }
+    if (lord && n >= 4) { const ww = weakest(cap, il, true); if (ww) push(baseOf(cap, 'weapon', ww.cls), 'W', ww.cls); }
     // a Loot Storm's card (a rare floor) and a Chance shrine's (one above the cap)
     if (r.lootStorm > 0) { r.lootStorm--; push(baseOf(Math.max(2, rollR()), null, null), 'S'); n++; }
     if (r.lootUp > 0) { r.lootUp--; push(baseOf(Math.min(6, cap + 1), null, null), 'C'); n++; }
     // an Elite door's champion slain: a card with a legendary floor
     if (r.lootLeg > 0) { r.lootLeg--; push(baseOf(Math.max(4, cap), null, null), 'E'); n++; }
+    // a Treasure Nose Mark (js/powers.js): II +1 card at lords, III that card a rarity above the cap
+    const nose = G.markOn ? G.markOn('nose') : 0;
+    if (lord && nose >= 2) { push(baseOf(nose >= 3 ? Math.min(6, cap + 1) : rollR(), null, null), 'N'); n++; }
     // (the Rift Gate IV: Push loot +25%: a card more one time in four)
     if (r.push && G.D.pushLoot && G.runRng() < G.D.pushLoot - 1) n++;
     while (cards.length < n) push(baseOf(rollR(), null, null), '');
-    // the uniques
-    const st = S.st;
+    // the uniques (drawn from the offers' stream too)
+    const st = S.st, uqFor = boss => (G.uniqueFor ? G.uniqueFor(il, boss, G.runRng) : null);
     let uq = null;
-    if (kind === 'final') uq = !S.uq.lastbutton ? 'lastbutton' : (G.uniqueFor && G.uniqueFor(il, true)) || 'lastbutton';
+    if (kind === 'final') uq = !S.uq.lastbutton ? 'lastbutton' : uqFor(true) || 'lastbutton';
     else if (G.isHandLord(b) && !S.uq.firsthand) uq = 'firsthand';
-    else if (lord && !st.firstLordUq) { st.firstLordUq = 1; uq = S.uq.pincer ? (G.uniqueFor && G.uniqueFor(il, false)) || 'goldgrin' : 'pincer'; }
+    else if (lord && !st.firstLordUq) { st.firstLordUq = 1; uq = S.uq.pincer ? uqFor(false) || 'goldgrin' : 'pincer'; }
     else if (lord) {
       st.lordDryQ = (st.lordDryQ | 0) + 1;
       // (Museum III: unique chances +20%; a Hunt Pact on this land: 20% more)
       const hunt = r.pact && r.pact.id === 'hunt' && r.pact.slot === slot ? 0.2 : 0;
-      if (st.lordDryQ >= TUNE.lootUqPity || G.runRng() < TUNE.lootUqLord * (G.D.uqK || 1) + hunt) uq = G.uniqueFor ? G.uniqueFor(il, G.isMadLord(b) || G.isHandLord(b)) : null;
+      if (st.lordDryQ >= TUNE.lootUqPity || G.runRng() < TUNE.lootUqLord * (G.D.uqK || 1) + hunt) uq = uqFor(G.isMadLord(b) || G.isHandLord(b));
     }
     // (the unique takes a plain card's place: the weakest slot's card and a lord's weapon stay)
-    if (uq) { st.lordDryQ = 0; let i = cards.findIndex(c => !c.tag); if (i < 0) i = cards.length - 1; cards[i] = { g: G.makeUnique(uq, il), tag: 'U', taken: 0, burned: 0 }; }
-    if (!lord) for (let i = 0; i < cards.length; i++) if (cards[i].tag !== 'A' && G.runRng() < TUNE.lootUqBoss * (G.D.uqK || 1)) { const q = G.uniqueFor ? G.uniqueFor(il, false) : null; if (q) cards[i] = { g: G.makeUnique(q, il), tag: 'U', taken: 0, burned: 0 }; }
+    if (uq) { st.lordDryQ = 0; let i = cards.findIndex(c => !c.tag); if (i < 0) i = cards.length - 1; cards[i] = card(G.makeUnique(uq, il), 'U'); }
+    // (a boss's 2% a card: on its plain cards only - card A, a Loot Storm's, a Chance shrine's, an Elite's stay what they are)
+    if (!lord) for (let i = 0; i < cards.length; i++) if (!cards[i].tag && G.runRng() < TUNE.lootUqBoss * (G.D.uqK || 1)) { const q = uqFor(false); if (q) cards[i] = card(G.makeUnique(q, il), 'U'); }
+    // a mythic's or divine's perk ranks from the schools of the class it is shown for (card A and B know theirs)
+    // (drawn for every such card, whoever it is shown to: the offers' stream takes the same draws for every player of a Daily)
+    for (const c of cards) if (!c.g.q && c.g.r >= 5 && c.tag !== 'A' && c.tag !== 'W') { const bw = G.bestWearer(c.g), pk = G.rollPk(c.g.r, clsOf(bw.who) || h.cls, G.runRng); if (pk) c.g.pk = pk; }
     // a lord's orbs (Enchanter III: whetstones twice) and a Key one time in three, at once
     const orbs = {};
     let key = 0;
@@ -720,52 +829,87 @@
       if (kind !== 'final' && G.runRng() < TUNE.lootKey) { key = 1; r.keys = (r.keys | 0) + 1; emit('key', r.keys, 'lord'); }
     }
     const slow = (r.n | 0) <= TUNE.lootSlowRuns || kind === 'final';
-    const L = r.loot = { d: b.d, il, kind, lord, slot, cards, pick: kind === 'final' ? 2 : 1, taken: 0, t: 0, T: slow ? TUNE.lootTSlow : TUNE.lootT, touch: 0, collapse: 0, orbs, key };
+    const L = r.loot = { d: b.d, il, kind, lord, slot, cards, pick: kind === 'final' ? 2 : 1, taken: 0, t: 0, T: slow ? TUNE.lootTSlow : TUNE.lootT, wait: 0, touch: 0, collapse: 0, orbs, key, best: -1, ultra: null };
+    prep(L);
     G.dirty();
     emit('lootBank', L);
     return L;
   };
-  // the cards as the player sees them now: each with its best wearer and the upgrade (the UI's ▲/▼)
-  G.lootView = function () {
+  // (a moment banked elsewhere - the Vault's after its secret land - gets its heroes and ▲/▼ too)
+  G.on('lootBank', L => { if (L && L.best === undefined && Array.isArray(L.cards)) { for (const c of L.cards) Object.assign(c, Object.assign(card(c.g, c.tag), c)); prep(L); } });
+  // ---- what the moment shows (DOM-free; 'lootMoment' carries it) ----
+  // G.lootCard(i) -> the card as the screen shows it: { i, g, tag, taken, burned, who (taken: who has it, -1 the Warden,
+  //   'bag'), id, q, name, r, rarity (name), tier ('ultra' | 'normal'), unique, relic, slot, type, il, e, main (main stat),
+  //   affixes [{k, v, name}], ranks [{id, n, name}], marks [G.markInfo], rule ({q, name, fx} | null), v (Embers if burned),
+  //   delta (power), pct (fraction), up, keep, arrow ('▲' | '▼' | '='), best (this is L.best), rows (G.compareRows for the
+  //   hero shown: worn | this) }
+  G.lootCard = function (i) {
+    const L = loot(), c = L && L.cards[i];
+    if (!c) return null;
+    const g = c.g, it = G.ITEM_BY_ID[g.id] || {}, U = g.q ? G.UNIQUES[g.q] : null, open = !c.taken && !c.burned;
+    const bw = open ? G.bestWearer(g) : { who: c.who, delta: c.delta, pct: c.pct, up: c.up, keep: false };
+    const who = open ? bw.who : c.who, hw = typeof who === 'number' ? who : -1;
+    return { i, g, tag: c.tag, taken: c.taken, burned: c.burned, who, id: g.id, q: g.q || null, name: U ? U.name : it.name, r: g.r, rarity: G.RARITIES[g.r] ? G.RARITIES[g.r].name : '',
+      tier: G.lootTier(g), unique: !!g.q, relic: !!(U && U.relic), slot: G.slotOf(g.id), type: G.ITEM_TYPE[g.id], il: g.il | 0, e: g.e | 0, main: G.mainStat(g),
+      affixes: (g.a || []).map(([k, v]) => ({ k, v, name: G.AFFIXES[k] ? G.AFFIXES[k].name : k })), ranks: Object.keys(g.pk || {}).map(k => ({ id: k, n: g.pk[k] | 0, name: G.PERKS[k] ? G.PERKS[k].name : k })),
+      marks: G.itemMarks ? G.itemMarks(g) : [], rule: U ? { q: g.q, name: U.name, fx: U.fx } : null, v: Math.round(G.itemEmbers(g) * G.EMBERS.card * (G.D.burnEmb || 1) * 10) / 10,
+      delta: bw.delta, pct: bw.pct, up: !!bw.up, keep: !!bw.keep, arrow: bw.up ? '▲' : bw.pct < -1e-6 ? '▼' : '=', best: i === L.best, rows: G.canWear(hw, g) ? G.compareRows(hw, g) : [] };
+  };
+  // all of them, and the moment around them: G.lootView() -> [card] (the core's view: each card with its best wearer,
+  // the upgrade and its burn value); G.lootState() -> { kind, lord, d, il, pick, taken, left (picks), t, T, wait (s before
+  // the clock runs: an ultra-rare's pillar), timeLeft, touch, collapse, best, ultra, orbs, key, cards: G.lootView() }
+  G.lootView = function () { const L = loot(); return L ? L.cards.map((c, i) => G.lootCard(i)) : null; };
+  G.lootState = function () {
     const L = loot();
     if (!L) return null;
-    return L.cards.map((c, i) => Object.assign({ i, g: c.g, tag: c.tag, taken: c.taken, burned: c.burned, v: Math.round(G.itemEmbers(c.g) * G.EMBERS.card * 10) / 10 }, G.bestWearer(c.g)));
+    return { kind: L.kind, lord: L.lord, d: L.d, il: L.il, pick: L.pick, taken: L.taken, left: Math.max(0, L.pick - L.taken), t: L.t, T: L.T, wait: L.wait || 0, timeLeft: L.touch ? null : Math.max(0, L.T - L.t),
+      touch: L.touch, collapse: L.collapse, best: L.best, ultra: L.ultra, orbs: L.orbs, key: L.key, cards: G.lootView() };
   };
   G.lootTouch = () => { const L = loot(); if (L) L.touch = 1; };
-  // take card i: worn by who (a hero index, -1 the Warden; default the one it suits best, else the bag), or stashed
+  // take card i: worn by who (a hero index, -1 the Warden: the hero the card shows is what a tap passes), stashed (who
+  // 'bag', or stash true: a hold); with no who, the hero it suits best if it is an upgrade for anyone, else the bag. A hero
+  // who can't wear it (a companion and another class's weapon): the bag. Wearing it offers what that hero took off to
+  // the rest of the party (G.wearOn). Emits 'lootTake'(i, card, who, info, view)
   G.lootTake = function (i, who, stash) {
     const S = S_(), L = loot(), h = S.hero;
     if (!L || !h) return false;
     const c = L.cards[i];
     if (!c || c.taken || c.burned || L.taken >= L.pick) return false;
     const g = c.g, it = G.ITEM_BY_ID[g.id];
+    const view = G.lootCard(i);
     const before = S.coll[g.id] | 0;
     S.coll[g.id] = before + 1;
     if (g.r === 6) S.st.divine++;
     let first = false;
     if (g.q) { first = !S.uq[g.q]; S.uq[g.q] = (S.uq[g.q] | 0) + 1; S.st.dryQ = 0; if (first && G.feed) G.feed('uq', G.UNIQUES[g.q].name); if (G.first) G.first('uq'); }
-    let w = stash || who === 'bag' ? 'bag' : who;
-    if (w !== 'bag' && (w == null || !G.canWear(w, g))) { const bw = G.bestWearer(g); w = bw.up ? bw.who : 'bag'; }
+    let w;
+    if (stash || who === 'bag') w = 'bag';
+    else if (who == null) { const bw = G.bestWearer(g); w = bw.up ? bw.who : 'bag'; }
+    else w = G.canWear(who, g) ? who : 'bag';
+    let info = null;
+    if (w !== 'bag') { info = G.wearOn(g, w); if (!info) w = 'bag'; }
     if (w === 'bag') { h.bag.push(g); if (G.bagTrim) G.bagTrim(); G.dirty(); G.recalc(); }
-    else G.equip(g, true, w);
     c.taken = 1; c.who = w; L.taken++;
     if (G.questProgress) G.questProgress('rarity', g.r);
     emit('loot', { it, v: 0, g, isNew: before === 0, star: false, first }, 'moment');
-    emit('lootTake', i, c, w);
+    emit('lootTake', i, c, w, info, view);
     if (L.taken >= L.pick || L.cards.every(x => x.taken || x.burned)) lootFinish();
+    else { prep(L); L.t = 0; emit('lootUpdate', L, G.lootView()); }
     return true;
   };
-  // the cards nobody took burn into the pouch (a flying '+N' each)
+  // Space / Enter: the highlighted card (the biggest ▲), on the hero it shows; false when no card is ▲
+  G.lootTakeBest = function () { const L = loot(); if (!L) return false; prep(L); return L.best >= 0 ? G.lootTake(L.best, L.cards[L.best].who) : false; };
+  // the cards nobody took burn into the pouch (a flying '+N' each): 'lootBurn'([{i, v, id, q, r}], total)
   G.lootBurn = function () {
     const L = loot();
     if (!L) return 0;
     let tot = 0;
-    const out = [];
+    const out = [], k = G.EMBERS.card * (G.D.burnEmb || 1);
     L.cards.forEach((c, i) => {
       if (c.taken || c.burned) return;
       c.burned = 1;
-      const v = G.pouchAdd(G.itemEmbers(c.g) * G.EMBERS.card, 'card', L.slot);
-      tot += v; out.push({ i, v });
+      const v = G.pouchAdd(G.itemEmbers(c.g) * k, 'card', L.slot);
+      tot += v; out.push({ i, v, id: c.g.id, q: c.g.q || null, r: c.g.r });
     });
     if (out.length) emit('lootBurn', out, tot);
     return tot;
@@ -786,7 +930,7 @@
     let guard = 0;
     while (loot() === L && L.taken < L.pick && guard++ < 8) {
       let bi = -1, bd = 1e-6;
-      L.cards.forEach((c, i) => { if (c.taken || c.burned) return; const bw = G.bestWearer(c.g); if (bw.delta > bd) { bd = bw.delta; bi = i; } });
+      L.cards.forEach((c, i) => { if (c.taken || c.burned) return; const bw = G.bestWearer(c.g); if (bw.up && bw.pct > bd) { bd = bw.pct; bi = i; } });
       if (bi >= 0) { G.lootTake(bi, null, false); continue; }
       let ki = -1, kv = 0;
       L.cards.forEach((c, i) => { if (c.taken || c.burned || !(c.g.q || c.g.r >= 4)) return; const v = G.itemEmbers(c.g); if (v > kv) { kv = v; ki = i; } });
@@ -803,19 +947,29 @@
       const L = loot();
       if (!L) return false;
       if (!L.cards.length) { runOf().loot = null; return false; }
-      L.t = 0; L.collapse = lootDull(L) ? 1 : 0;
-      emit('lootMoment', L, ctx);
+      prep(L);
+      L.t = 0; L.wait = L.ultra ? TUNE.lootUltraT : 0; L.collapse = lootDull(L) ? 1 : 0;
+      emit('lootMoment', L, ctx, G.lootView());
       return true;
     },
+    // (real seconds: the hold's tick runs whatever holds the field, at the frame's own time)
     tick(dt) {
       const L = loot();
       if (!L) { G.beatDone('loot'); return; }
-      if (!L.touch) L.t += dt;
+      // (an ultra-rare's 1.2-s pillar first: the clock waits for it)
+      if (L.wait > 0) L.wait = Math.max(0, L.wait - dt);
+      else if (!L.touch) L.t += dt;
       if (L.collapse && L.t >= TUNE.lootCollapse) { emit('lootCollapse', L); lootFinish(); }
       else if (G.runUI && L.t >= L.T) G.lootAuto();
     },
     auto() { G.lootAuto(); },
-    resume() { if (!loot()) G.beatDone('loot'); },
+    // a reload mid-moment: the banked cards come back with the whole timer
+    resume(ctx) {
+      const L = loot();
+      if (!L) { G.beatDone('loot'); return; }
+      prep(L); L.t = 0; L.touch = 0; L.wait = L.ultra ? TUNE.lootUltraT : 0;
+      emit('lootMoment', L, ctx, G.lootView());
+    },
   });
 
   // ---------- Camp (DESIGN §5.5): after every lord but the Mad Button, before the doors ----------
@@ -901,7 +1055,8 @@
     if (w.k === 'gamble') { if (!G.gamble || !G.gamble(w.slot)) return false; }
     else {
       S.gold -= w.price;
-      if (w.k === 'item') { h.bag.push(w.g); const bw = G.bestWearer(w.g); if (bw.up) G.equip(w.g, true, bw.who); else if (G.bagTrim) G.bagTrim(); S.coll[w.g.id] = (S.coll[w.g.id] | 0) + 1; }
+      // (cardsloot: the one gear rule: on the hero it suits best, what they wore offered onward - G.wearOn)
+      if (w.k === 'item') { h.bag.push(w.g); const bw = G.bestWearer(w.g); if (bw.up) G.wearOn(w.g, bw.who); else if (G.bagTrim) G.bagTrim(); S.coll[w.g.id] = (S.coll[w.g.id] | 0) + 1; }
       else if (w.k === 'orbs') for (let j = 0; j < G.WARES.orbs.n; j++) { const k = rollOrbId(); h.orbs[k] = (h.orbs[k] | 0) + 1; }
       else if (w.k === 'potion') { if (G.givePotion) G.givePotion(); }
       else if (w.k === 'mend') { r.mend = (r.mend | 0) + 1; emit('mendCharge', r.mend, r.mendMax); }

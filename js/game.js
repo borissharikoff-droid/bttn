@@ -1084,6 +1084,9 @@
     // 3.4: on to the next zone: a short march, the ground rolling by. 4.0: what comes after a boss first (the loot moment,
     // the card, a relic, camp and doors: js/run.js beats) holds the field, and the march starts when they're done
     if (!R.rift && !(G.runAfterBoss && G.runAfterBoss(b))) startMarch(d);
+    // 4.0 (ADDENDUM: the boss's items are banked in the save the moment it dies): with the moment open (its beat holds the
+    // field, its cards in S.run.loot) the save is written now, so a reload mid-moment brings the same cards back
+    if (inSiege() && G.UI && G.save && G.S.run && G.S.run.loot) { try { G.save(); } catch (e) { /* the periodic save tries again */ } }
   }
   // 4.0: the one place a march starts (bossWin, the end of the post-boss beats, a secret land's return)
   function startMarch(fromD) {

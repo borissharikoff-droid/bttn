@@ -66,12 +66,18 @@
   const SMALL = k => !!(G.SMALL && G.SMALL[k]);
   const DIRECT = { auto: 1, hero: 1, ally: 1, click: 1, pet: 1 };
   let rk = {};                       // this run's ranks, refreshed each tick and each recalc
+  // 4.0 (DESIGN §5.2): a perk's rank is the picked ranks plus the party's gear's (mythic/divine ranks, uniques' themes:
+  // G.perk = min(max + 2, own + gear), D.gearPerk built in heroFinish), so a Nightfang's Executioner works with no pick.
+  // Built here once a second and at every recalc: the hot paths read one key of rk, as before
   function ranks() {
     const h = G.S && G.S.hero, o = {};
     if (!h || !h.perks) { rk = o; return; }
     for (const k in h.perks) if (h.perks[k] > 0) o[k] = h.perks[k];
+    const gp = G.D && G.D.gearPerk;
+    if (gp && G.perk && TUNE.p2Gear !== 0) for (const k in gp) if (G.PERKS[k] && !k.startsWith('evo_')) { const v = G.perk(k); if (v > 0) o[k] = v; }
     rk = o;
   }
+  G.perk2Ranks = () => Object.assign({}, rk);
   let T = 0;                         // game clock (s), runs with the arena
   // time-based budgets so a frame never does unbounded work, whatever the tick length
   const bucket = (rate, cap) => ({ rate, cap, v: cap });
