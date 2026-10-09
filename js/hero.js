@@ -1366,7 +1366,7 @@
     // Plunder (4.0): a rare, a Land Champion or a Hoarder drops a chest where it falls, 20% a rank (not the blue champions
     // that come in pairs: measured, they made Plunder III ~20 chests a minute against the 2-4 a minute the Siege wants)
     if (perk('plunder') && !m.add && (m.kind === 'rare' || m.kind === 'hoard' || m.champ) && G.spawnChest && chance(TUNE.plunder * perk('plunder'))) {
-      R.dropAt = m; const c = G.spawnChest(); R.dropAt = null;
+      R.dropAt = m; const c = G.spawnChest(undefined, undefined, false, false, true); R.dropAt = null;
       if (c) emit('plunder', m, c);
     }
     if (perk('leech')) h.hp = Math.min(D.heroHp, h.hp + D.heroHp * 0.003 * perk('leech') * (G.SMALL[m.kind] ? 0.3 : 4) * (evo('bloodpact') ? 4 : 1));

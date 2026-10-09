@@ -15,10 +15,11 @@
     lingerOrb: 1.2, lingerGear: 2.6, lingerGood: 4.5, lingerUnique: 7,
     // (3.6: orbs a tenth more, for the Lucky Spin's gems) 4.0: far fewer drops (0.12/0.55/0.0011 before): at most a few
     // rare+ labels a minute; the boss's loot moment is where items come from
-    // (4.0, continuation 2: a quarter fewer again, 0.02/0.2/0.0002 -> 0.015/0.15/0.00015: rare+ labels were ~5.5 a minute
-    // with the sudden events on, DESIGN §14 wants 5 at most)
-    dropBrute: 0.015, dropMagic: 0.15, dropFodder: 0.00015, orbShare: 0.033,
-    hoardEvery: 150, hoardFirst: 40, hoardLife: 16, hoardSiege: [2, 3], hoardUqSiege: 0.03, rareSiege: [1, 2],
+    // (4.0, continuation 2: 0.02/0.2/0.0002 -> 0.014/0.14/0.00014, and a rare mob drops 1 piece in a Siege, not 1-2: rare+
+    // labels were ~6 a minute with the sudden events on (kills ~2.5, rares' showers ~1.8, champions ~1, Hoarders ~0.4);
+    // DESIGN §14 wants 5 at most)
+    dropBrute: 0.014, dropMagic: 0.14, dropFodder: 0.00014, orbShare: 0.033,
+    hoardEvery: 150, hoardFirst: 40, hoardLife: 16, hoardSiege: [2, 3], hoardUqSiege: 0.03, rareSiege: [1, 1],
     // 4.0 (DESIGN §5.8): a shrine every 110 s (the first at 60 s), charged by holding the Hand on it for shrineCharge s
     shrineEvery: 110, shrineFirst: 60, shrineLife: 12, shrineDur: 15, shrineCharge: 2,
     breachEvery: 300, breachFirst: 240, breachDur: 12, breachRate: 2.5,

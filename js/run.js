@@ -110,6 +110,8 @@
       boons: {}, boonOffer: null, pactOffer: null, pact: null, glass: 0, lootStorm: 0, lootUp: 0, loot: null,
       // the books: lords and act bosses slain, the deepest zone cleared, the Embers pouch, Keys, the raw Fame by line
       lords: 0, acts: 0, cleared: 0, maxDepth: 0, cards: 0, camps: 0, pouch: 0, pouchLog: {}, keys: 0, fame: {},
+      // the chest budget's tokens (game.js spawnChest: chests that aren't the Hand's, a Golden Click's, a Treasure door's)
+      chestTok: TUNE.siegeChestCap,
       // clocks: field time (the shelter), par time (field + camp), all of it (the summary)
       field: 0, parT: 0, secs: 0, t0: (S.st && S.st.playTime) || 0, wall0: Date.now(),
       assisted: 0, conts: 0, push: 0, won: 0, phase: 'field', beat: null, lsT: 0, deeds: [],
@@ -260,6 +262,8 @@
     if (!r || !r.on) return;
     r.secs += dt; r.field += dt; r.parT += dt;
     if (r.push) r.pushT = (r.pushT || 0) + dt;
+    // the chest budget (game.js spawnChest): the events', champions' and rare visitors' chests, siegeChestRate a field minute
+    r.chestTok = Math.min(TUNE.siegeChestCap, (r.chestTok == null ? TUNE.siegeChestCap : r.chestTok) + TUNE.siegeChestRate * dt / 60);
     // a card owed (a warm-up level during a fight that was lost) comes as soon as the field is quiet
     if (r.cardQ && r.cardQ.length && !r.offer && !R.boss) cardOpenField();
     // an Elite door's Land Champion, a few seconds into its land; a Merchant or a Mystery in the land's second zone
@@ -867,6 +871,9 @@
     if (!r || !r.on) return null;
     const c = r.camp = { n: (r.campN | 0) + 1, slot: ctx ? ctx.slot : G.runSlot(), act: null, wares: [], rolls: 0, lock: -1, recruits: null, hired: 0, t: 0, touch: 0 };
     r.campN = c.n;
+    // (a Button broken in the lord's fight mends at the camp, as it would have in the field: 50%, then Rest adds to it;
+    // otherwise Rest heals nothing and the camp shows a Button at 0)
+    if (R.btnDown > 0 && S_().hero) { R.btnDown = 0; S_().hero.hp = Math.max(S_().hero.hp, (G.D.heroHp || 0) * 0.5); emit('buttonFixed'); }
     wareRoll(c);
     recruitsRoll(c);
     G.mendRefill();
@@ -1042,7 +1049,7 @@
     if (!r || !r.on) return;
     const slot = G.runSlot(), tag = r.tags[slot];
     r.landT = { slot, mid: 0 };
-    if (tag === 'treasure' && G.spawnChest) G.spawnChest(Math.max(2, G.rarityCap() - 1), 'golden');
+    if (tag === 'treasure' && G.spawnChest) G.spawnChest(Math.max(2, G.rarityCap() - 1), 'golden', false, false, true);
     if (tag === 'shrine' && G.spawnShrine && !R.shrine) G.spawnShrine('power');
     if (tag === 'elite') r.eliteAt = (r.field || 0) + 8;
   }

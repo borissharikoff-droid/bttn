@@ -21,6 +21,10 @@ function makeWorld(seed) {
   // 4.0: bots play Sieges to their end (a fall or a win) and never abandon one: the 3.x Ascend shim (fameGain > 0 means
   // 'abandon now for this much Fame') reads 0 for them. A class pick with no Siege on starts one (hero.js chooseClass).
   G.fameGain = () => 0;
+  // 4.0: the persona's own answers at the camp and the doors (G.botPolicy, below): a hold left to the game (no run UI)
+  // is resolved through G.beatAuto, so the policy steps in there, before the game's own auto()
+  const beatAuto0 = G.beatAuto;
+  if (beatAuto0) G.beatAuto = function () { return siegeBeat(G) || beatAuto0.apply(this, arguments); };
   return { G, clock };
 }
 
@@ -66,6 +70,47 @@ function tryBuy(G, cps) {
   if (best.kind === 'upg') G.buyUpgrade(best.id); else G.buyHero(best.id, 1);
   return true;
 }
+// 4.0: per-persona Siege policies (DESIGN §13 item 16). G.botPolicy is the persona's (a test or tools/playtest.js sets it:
+// G.botPolicy = SIEGE_POLICY[name]; shop() infers one from the click rate when nothing set it; null: the game's own auto()
+// for every hold, as the 3.x page with no run UI does):
+//   camp: Rest under rest (50%) of the Button's health, else Temper (the game's campAuto then recruits the missing role,
+//     buys what helps and enchants); extract: at Camp extract.camp with fewer than extract.pips pips, bank the run (x1);
+//   doors: the first door whose reward tag is in tags (active: Elite, then Treasure), else whose map mod is in mods (casual:
+//     Calm), else the one with the mildest twist (MOD_RISK); vault: spend a Key on the Vault when holding one;
+//   Continue: never (no G.fallAsk: a fall ends the run at once).
+const SIEGE_POLICY = {
+  active: { name: 'active', rest: 0.5, tags: ['elite', 'treasure'], mods: null, vault: 1, extract: null },
+  casual: { name: 'casual', rest: 0.5, tags: null, mods: ['calm'], vault: 0, extract: { camp: 4, pips: 2 } },
+  idle: null,
+};
+SIEGE_POLICY.hardcore = SIEGE_POLICY.active;
+SIEGE_POLICY.returner = SIEGE_POLICY.casual;
+// how much a map mod hurts a casual party (the door policy's tie-break: the mildest)
+const MOD_RISK = { calm: 0, treasure: 1, thick: 2, elite: 3, swift: 4, nomend: 5, armored: 6, hexed: 7 };
+function doorPick(G, pol, opts) {
+  let i = -1;
+  if (pol.tags) for (const t of pol.tags) { i = opts.findIndex(o => o.tag === t && !o.cursed); if (i >= 0) return i; }
+  if (pol.mods) { i = opts.findIndex(o => pol.mods.includes(o.mod || 'calm') && !o.cursed); if (i >= 0) return i; }
+  const risk = o => (MOD_RISK[o.mod || 'calm'] || 0) * (o.cursed ? 2 : 1);
+  i = 0; opts.forEach((o, k) => { if (risk(o) < risk(opts[i])) i = k; });
+  return i;
+}
+// the persona's answer to the hold on screen (G.beatAuto's wrapper): true when it took care of it
+function siegeBeat(G) {
+  const S = G.S, r = S && S.run, pol = G.botPolicy;
+  if (!pol || !r || !r.on || !r.beat || !r.beat.id) return false;
+  if (r.beat.id === 'camp' && r.camp) {
+    const c = r.camp;
+    if (pol.extract && c.n === pol.extract.camp && (r.pips | 0) < pol.extract.pips && G.runExtract) { G.runExtract(); return true; }
+    if (!c.act && pol.rest != null) G.campAct(S.hero.hp < (G.D.heroHp || 1) * pol.rest ? 'rest' : 'temper');
+    return false; // (the rest of the camp: the game's campAuto)
+  }
+  if (r.beat.id === 'doors' && r.doors && r.doors.opts.length) {
+    const D_ = r.doors;
+    return G.runDoor(doorPick(G, pol, D_.opts), !!(pol.vault && D_.vault && (r.keys | 0) > 0));
+  }
+  return false;
+}
 // 4.0: the Siege, minimal policy (the bots stream improves it): no run on -> AGAIN (the last setup); a fall -> no Continue,
 // the run ends; a post-boss beat on screen (the loot moment, a card, camp, doors...) -> its own auto() (the best loot, the
 // best card, the default door), so the field never waits on a bot that checks in once a minute
@@ -82,6 +127,8 @@ function siegeAct(G) {
   return null;
 }
 function shop(G, cps) {
+  // (a persona's Siege policy, when nothing set one: by its click rate)
+  if (G.botPolicy === undefined) G.botPolicy = cps >= 9 ? SIEGE_POLICY.active : cps > 0 ? SIEGE_POLICY.casual : SIEGE_POLICY.idle;
   siegeAct(G);
   const siege = !!(G.S.run && G.S.run.on);
   // take on companions as slots open: a healer, a tank and damage, skipping what the Warden already is
@@ -116,4 +163,4 @@ function buyLegacy(G) {
 // (4.0: Plunder is in: rares, champions and Hoarders drop a chest)
 const PERK_PRIORITY = ['might', 'frenzy', 'momentum', 'nova', 'blades', 'corpse', 'multi', 'overkill', 'aura', 'glass', 'chain', 'burn', 'execute', 'laststand', 'cleave', 'crush', 'thunder', 'mark', 'ricochet', 'bulwark', 'aegis', 'thorns', 'secondwind', 'warband', 'frost', 'souls', 'greed', 'avarice', 'reach', 'fortress', 'leech', 'loot', 'plunder'];
 
-module.exports = { makeWorld, metric, tryBuy, shop, siegeAct, buyLegacy, PERK_PRIORITY };
+module.exports = { makeWorld, metric, tryBuy, shop, siegeAct, siegeBeat, doorPick, buyLegacy, PERK_PRIORITY, SIEGE_POLICY };

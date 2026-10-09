@@ -55,12 +55,23 @@
     // 4.0: a Siege boss's least fight length is measured by the party's damage averaged over this many s of field time
     // (0: by the steady damage only, as before)
     bossFloorAvg: 15,
+    // 4.0: Heat n: the Horde's and the bosses' health x heatHp^n, bites x heatBite^n (DESIGN §6.3 said 1.15 / 1.10; measured
+    // with the full meta (x2.0 damage, x2.9 on bosses, x1.3 health: over the design's x1.6 / x1.9 / x1.35) and Heat's own
+    // rarity +n/3, the active bot won 48% at Heat 8: 1.18 / 1.12 puts its top Heat with 35%+ wins at 6, DESIGN §14 5-7)
+    heatHp: 1.18, heatBite: 1.12,
     // 4.0: the Barracks pays this share of the best run's Embers an hour away
     barracksRate: 0.03,
     // 4.0: Auto-invest (DESIGN §5.5): every autoEvery s of field time, the run's gold into the Hand upgrades and the
     // Garrison by payback, keeping autoKeep of it back for the camp's market; autoBuys purchases a go (each one tries
     // every candidate with a recalc, ~2 ms: one at a time, often, keeps a phone's frames smooth)
     autoEvery: 0.5, autoKeep: 0.5, autoBuys: 1,
+    // 4.0 (continuation 3): inside a Siege the chests that are not the Hand's own (the holding meter), a Golden Click's, a
+    // Treasure door's, Plunder's or the jackpot's come out of a budget: siegeChestRate a minute of field time, up to
+    // siegeChestCap banked (a run starts with the cap). DESIGN §5.3 wants 2-4 chests a field minute and holding alone gives
+    // ~3; the sudden events (stampede 6-10, ambush 4-6, portals 5-8, warlord 5-7, chest rain 22), the Land Champions (1-2)
+    // and the rare visitors' rains added ~4 more (measured 7-8 a minute). Past the budget a chest comes as coin
+    // (siegeChestGold of its worth, 'chestCoin'): the event keeps its moment, a few chests and a shower of gold
+    siegeChestRate: 0.5, siegeChestCap: 3, siegeChestGold: 0.3,
   };
 
   // ---------- State ----------
@@ -302,17 +313,21 @@
   G.recalc = recalc;
 
   // ---------- Heat (4.0; the 2.3 Torment re-made): the Siege's difficulty ladder ----------
-  // Chosen at setup only, 0..heatWon+1 (Heat N opens with a win at N-1). Each level: Horde and boss health x1.15, bites
-  // x1.10, Fame x(1+0.2n), Embers x(1+0.15n), rarity +n/3, drops +15%, and the named rules (data.js G.HEAT_RULES).
+  // Chosen at setup only, 0..heatWon+1 (Heat N opens with a win at N-1). Each level: Horde and boss health x1.18, bites
+  // x1.12 (TUNE.heatHp / heatBite), Fame x(1+0.2n), Embers x(1+0.15n), rarity +n/3, drops +15%, and the named rules
+  // (data.js G.HEAT_RULES).
   // The table keeps the Torment's field names (mobHp, bite, bossHp, n, drop, rarity...): champions, events, rare
   // visitors and relics read them as G.torment().
   const TORMENT_MAX = G.TORMENT_MAX = 10;
   const T_BY_N = [];
   const heatNow = () => { const r = G.S && G.S.run; return r && r.on ? Math.max(0, Math.min(TORMENT_MAX, r.heat | 0)) : 0; };
   G.heatNow = heatNow;
+  // (TUNE.heatHp / heatBite: a level's Horde and boss health and its bites; the table is kept until they change)
+  let tKey = '';
   function torment() {
-    const n = R.rift ? 0 : heatNow();
-    return T_BY_N[n] || (T_BY_N[n] = Object.freeze({ n, mobHp: Math.pow(1.15, n), bite: Math.pow(1.1, n), bossHp: Math.pow(1.15, n),
+    const n = R.rift ? 0 : heatNow(), k = TUNE.heatHp + '|' + TUNE.heatBite;
+    if (k !== tKey) { tKey = k; T_BY_N.length = 0; }
+    return T_BY_N[n] || (T_BY_N[n] = Object.freeze({ n, mobHp: Math.pow(TUNE.heatHp, n), bite: Math.pow(TUNE.heatBite, n), bossHp: Math.pow(TUNE.heatHp, n),
       bossTime: 1 + 0.05 * n, horde: 1, affix: 0, lordAffix: n >= 3 ? 1 : 0, gold: n >= 2 ? 0.75 : 1, xp: 1, luck: 0,
       drop: 1 + 0.15 * n, fame: 1 + 0.2 * n, embers: 1 + 0.15 * n, rarity: Math.floor(n / 3),
       doom: TUNE.doomK[n <= 2 ? 0 : n <= 5 ? 1 : 2], startHp: n >= 4 ? 0.8 : 1, rest: n >= 4 ? 0.25 : 0.4, cards: n >= 5 ? 2 : 3, noCont: n >= 5, reaper: n >= 7,
@@ -500,10 +515,23 @@
     return c;
   }
 
-  function spawnChest(tier, mod, fromBoss, small) {
+  // (free: a chest the Siege's budget doesn't count: the holding meter's, a Golden Click's, a Treasure door's, Plunder's;
+  // the jackpot's always are)
+  function spawnChest(tier, mod, fromBoss, small, free) {
     const S = G.S;
     if (tier === undefined || tier === null) tier = rollTier();
     tier = Math.min(tier, rarityCap());
+    // 4.0: the Siege's chest budget (TUNE.siegeChestRate; js/run.js refills S.run.chestTok with field time)
+    if (!free && inSiege() && !(R.ev && R.ev.k === 'jackpot')) {
+      const r = S.run, tok = r.chestTok == null ? TUNE.siegeChestCap : r.chestTok;
+      if (tok < 1) {
+        const v = chestValue(tier) * TUNE.siegeChestGold * (small ? TUNE.smallChestK : 1);
+        addGold(v, 'chestCoin');
+        emit('chestCoin', tier, v, R.dropAt || null);
+        return null;
+      }
+      r.chestTok = tok - 1;
+    }
     if (mod === undefined) mod = rollMod();
     if (mod === 'chromatic') tier = Math.min(6, tier + 1);
     if (S.chests.length >= D.slots) {
@@ -536,7 +564,7 @@
     let guard = 0;
     while (S.chestMeter >= D.chestNeed && guard++ < 40) {
       S.chestMeter -= D.chestNeed;
-      spawnChest();
+      spawnChest(undefined, undefined, false, false, true);
     }
     if (S.chestMeter > D.chestNeed * 40) S.chestMeter = 0;
   }
@@ -1111,7 +1139,7 @@
       if (inSiege()) S.run.lootStorm = (S.run.lootStorm | 0) + 1; else spawnChest();
     } else if (e.id === 'rain') {
       // (4.0: 2 chests, not 8: chests are few and each one an event)
-      for (let i = 0; i < TUNE.wispRain; i++) spawnChest();
+      for (let i = 0; i < TUNE.wispRain; i++) spawnChest(undefined, undefined, false, false, true);
     } else if (e.id === 'lucky') {
       amount = Math.min(S.gold * 0.15 + D.incomeRef * 30, D.incomeRef * 600);
       addGold(amount, 'wisp');
