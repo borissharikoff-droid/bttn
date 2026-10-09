@@ -750,6 +750,33 @@
     const cur = eqOf(best.who)[sl], from = powerWith(sl, cur === g ? null : cur || null, best.who), to = powerWith(sl, g, best.who);
     return { who: best.who, slot: sl, delta: to - from, pct: best.pct, up: best.up, keep: best.pct > 1e-6 && !best.up, from, to };
   };
+  // what in the bag is a ▲ for whom, by THE rule (G.upgrade): { total (items that would go on someone, each once), n:
+  // {who: count}, whoFor: Map(uid -> who: the hero it suits best, as G.bestWearer picks) }. For the Forge / Character
+  // badges, the town button's glow and the wipe's 'better gear in the bag' hint (4.0, cardsloot: ui.js's own bagUps /
+  // bagHasUp left uniques to the Warden - the ring bug's last trace - and the UI wave switches them to this). One power
+  // per hero and slot as worn (cached in the call), one per bag item and hero: ~2 ms for a full bag and a party of 4
+  G.bagUps = function () {
+    const S = G.S, h = S.hero, n = {}, whoFor = new Map();
+    if (!h || !h.cls) return { total: 0, n, whoFor };
+    const whos = [-1].concat((S.party || []).map((_, i) => i)), base = {};
+    for (const w of whos) n[w] = 0;
+    for (const g of h.bag) {
+      const sl = G.slotOf(g.id);
+      let bw = null, bp = 0;
+      for (const w of whos) {
+        if (!G.canWear(w, g)) continue;
+        const cur = eqOf(w)[sl], key = w + ':' + sl;
+        if (cur === g) continue;
+        if (base[key] == null) base[key] = powerWith(sl, cur || null, w);
+        const now = base[key], p = now > 0 ? powerWith(sl, g, w) / now - 1 : 1;
+        if (!upgrade(w, g, p)) continue;
+        n[w]++;
+        if (bw == null || p > bp + 1e-9) { bw = w; bp = p; }
+      }
+      if (bw != null) whoFor.set(g.u, bw);
+    }
+    return { total: whoFor.size, n, whoFor };
+  };
   // the side-by-side 'Worn | This' rows for one hero (-1 the Warden): [{ k, worn, item, delta }] (also a/b/d, the same
   // three). k: 'power' | 'dps' | 'hp' | 'crit' (that hero's, with it on) | 'main' (the item's main stat) | 'aff:<affix>'
   // | 'rule' (worn / item: unique ids or null; change 'gain' | 'lose' | 'swap'; kept: the party still has the lost rule
