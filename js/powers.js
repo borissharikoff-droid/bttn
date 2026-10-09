@@ -56,8 +56,8 @@
   const ROMAN = ['', 'I', 'II', 'III'];
   Object.assign(G.TUNE, {
     // Mythic: 1 Mark, tier I pwMythic[0] of the time else II; Divine: 2 different Marks, tier II pwDivine[0] else III
-    // (marks 0: no item rolls a Mark - a balance lever and an A/B switch for the sweeps)
-    marks: 1, pwMythic: [0.7, 0.3], pwDivine: [0.6, 0.4],
+    // (marks 0: no item rolls a Mark; marksOff: [ids] never rolled - balance levers and A/B switches for the sweeps)
+    marks: 1, marksOff: null, pwMythic: [0.7, 0.3], pwDivine: [0.6, 0.4],
     // Stormlash every pwArcEvery attacks at pwArcK of the hit; Overcharge's splash share and radius; Meteor's hit and radius
     pwArcEvery: 4, pwArcK: 0.6, pwArcR: 0.45, pwSurgeK: 0.25, pwSurgeR: 0.08, pwMeteorK: 12, pwMeteorR: 0.15,
     pwBoltK: 6, pwBoltN: 5, pwGoldK: 5, pwLight: 0.35, pwEngStep: 0.005, pwEngLapse: 5, pwNose: 2,
@@ -82,7 +82,8 @@
   G.rollMarks = function (slot, r, rnd) {
     if (!(r >= 5) || !G.TUNE.marks) return null;
     rnd = rnd || rng;
-    const pool = G.MARK_IDS.filter(id => { const s = G.MARKS[id].slots; return s.includes('any') || s.includes(slot); });
+    const off = G.TUNE.marksOff || null;
+    const pool = G.MARK_IDS.filter(id => { const s = G.MARKS[id].slots; return (s.includes('any') || s.includes(slot)) && !(off && off.includes(id)); });
     const n = r >= 6 ? 2 : 1, out = [];
     for (let i = 0; i < n && pool.length; i++) {
       const id = pool.splice(Math.floor(rnd() * pool.length), 1)[0];

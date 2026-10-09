@@ -596,7 +596,8 @@
   function cardTick(dt) {
     const r = runOf(), o = r && r.offer, h = S_().hero;
     if (!o) return;
-    if (!o.touch) o.t += dt;
+    // (a window over the field - G.uiBusy: settings, a modal - stops the clock: nothing is picked for the player unseen)
+    if (!o.touch && !(G.uiBusy && G.uiBusy())) o.t += dt;
     if (h) h.offerT = o.t;
     // auto-pick: the player's toggle, the run's (Clockwork, Auto-Run), or no run UI to show the card (the 3.x page, a bot)
     if (o.t >= TUNE.cardAuto && ((h && h.autoPerk) || r.autoCards || !G.runUI)) G.cardAuto();
@@ -956,8 +957,9 @@
     tick(dt) {
       const L = loot();
       if (!L) { G.beatDone('loot'); return; }
-      // (an ultra-rare's 1.2-s pillar first: the clock waits for it)
-      if (L.wait > 0) L.wait = Math.max(0, L.wait - dt);
+      // (an ultra-rare's 1.2-s pillar first: the clock waits for it; and a window over the field (G.uiBusy) stops it)
+      if (G.uiBusy && G.uiBusy()) { /* the moment waits under a window */ }
+      else if (L.wait > 0) L.wait = Math.max(0, L.wait - dt);
       else if (!L.touch) L.t += dt;
       if (L.collapse && L.t >= TUNE.lootCollapse) { emit('lootCollapse', L); lootFinish(); }
       else if (G.runUI && L.t >= L.T) G.lootAuto();
