@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Privacy · BTTN</title>
-<meta name="description" content="What BTTN records when you play: anonymous play stats, no cookies, no names, no ad trackers.">
+<meta name="description" content="What BTTN records when you play: anonymous play stats, purchase receipts tied to a random id, the Daily Siege board. No cookies, no ad trackers.">
 <link rel="canonical" href="%ORIGIN%/privacy">
 <meta name="theme-color" content="#0d0a12">
 <meta name="color-scheme" content="dark">
@@ -38,14 +38,14 @@ hr{border:0;border-top:2px solid var(--line);margin:44px 0 30px}
 
   <article>
     <h1>Privacy</h1>
-    <p class="mut">Last updated 4 October 2026.</p>
-    <div class="card"><b>In short:</b> BTTN counts anonymous play stats to learn where players come from and where the game loses them. No cookies, no accounts, no names or emails, no ad trackers, no third-party analytics. Your save stays in your browser.</div>
+    <p class="mut">Last updated 9 October 2026.</p>
+    <div class="card"><b>In short:</b> BTTN counts anonymous play stats to learn where players come from and where the game loses them. No cookies, no accounts, no emails, no ad trackers, no third-party analytics. Your save stays in your browser. If you buy something, we keep a receipt tied to your random visitor id so the Gems or look reach you; if you post a Daily Siege result, the name you choose is shown on the board.</div>
 
     <h2>What this site records</h2>
     <ul>
       <li><b>A random visitor id</b>, made in your browser and kept in its local storage (<code>bttn_vid</code>, with the date of your first visit and the link that first brought you here). It is not a cookie and is never linked to your name.</li>
       <li><b>On the home page:</b> that you saw it, whether you pressed Play, how far you scrolled, which questions you opened, and which language you chose.</li>
-      <li><b>In the game:</b> milestones (intro, class picked, first press, tutorial steps, bosses, depths and lands reached, runs, recruits, town buildings), and every 30 seconds while the tab is open: total play time, depth, level, party size, frame rate and graphics quality.</li>
+      <li><b>In the game:</b> milestones (intro, class picked, first press, tutorial steps, bosses, depths and lands reached, runs and how they ended, cards and doors chosen, recruits, town buildings, store steps such as opening the store or finishing a purchase), and every 30 seconds while the tab is open: total play time, depth, level, party size, frame rate and graphics quality.</li>
       <li><b>Where you came from:</b> the <code>utm_*</code> tags or <code>ref</code> in the link you used, and the referring site's domain name (never the full address).</li>
       <li><b>Your device, roughly:</b> screen and window size, pixel ratio, touch or mouse, browser language and time zone, and the browser's user-agent string (to tell phones from desktops and bots from people).</li>
       <li><b>Errors:</b> the text of JavaScript errors you hit, so they can be fixed.</li>
@@ -55,7 +55,7 @@ hr{border:0;border-top:2px solid var(--line);margin:44px 0 30px}
     <ul>
       <li>Your IP address. The server keeps only a salted one-way hash of it (12 characters) to count people and to slow down abuse; the address itself is never written down.</li>
       <li>Your location from the IP. No IP lookup is done: the country in the stats comes from your browser's time zone (or, if a CDN in front of the site adds a country header, from that header).</li>
-      <li>Names, emails, payment details or anything you type.</li>
+      <li>Emails, card numbers or other payment details, or anything you type (the one exception: the name you choose for the Daily Siege board).</li>
       <li>Your game save. It lives in your browser's local storage (<code>bttn-save-v1</code>) and is not sent to this server.</li>
     </ul>
 
@@ -69,8 +69,24 @@ hr{border:0;border-top:2px solid var(--line);margin:44px 0 30px}
       <li>Clearing this site's data in your browser removes the visitor id (and your save, so export it first: Settings → Export).</li>
     </ul>
 
-    <h2>Purchases and ads</h2>
-    <p>There is nothing to buy and no ads on this site yet. If a store opens, payments will be handled by the payment provider (we never see card numbers) and this page will be updated before it does.</p>
+    <h2>Purchases (the Gems store)</h2>
+    <p>The store sells Gems and looks only, never power or anything random. Payments are handled entirely by the provider you pay through: <b>YooKassa</b> (cards and SBP on this site), <b>Telegram</b> (Stars), <b>VK</b> (votes) or <b>Yandex Games</b>. We never see card numbers or bank details; each provider's own privacy policy covers what it collects.</p>
+    <p>For each paid order the server keeps a receipt in a file on its disk (<code>store-ledger</code>):</p>
+    <ul>
+      <li>your random visitor id (<code>bttn_vid</code>), or on VK your VK user id when the order doesn't carry a visitor id, so the purchase reaches the right game;</li>
+      <li>what was bought, the price and currency, the provider and the provider's payment id, the time;</li>
+      <li>whether your game has collected it yet, and any refund.</li>
+    </ul>
+    <p>Receipts are kept as long as tax and consumer law require (up to 5 years), to deliver, restore or refund a purchase. They are never sold or shared beyond the payment provider that handled the payment.</p>
+
+    <h2>The Daily Siege board</h2>
+    <p>If you post your Daily Siege result, the board stores: the name you choose (up to 16 letters, digits, spaces, <code>_</code> or <code>-</code>), zones cleared, time, Button, class, Heat and the day's seed. Everyone can see the name and the result. With it the server keeps a one-way hash of your visitor id (to allow one ranked attempt a day) and a one-way hash of your IP address (to stop flooding); neither is shown. Boards are kept for up to 400 days. Want a name removed? Use the contact below.</p>
+
+    <h2>Ads</h2>
+    <p>This site shows no ads. In the Yandex Games, VK and Telegram versions an optional rewarded video may be offered (for example, to continue a fallen run once a day); those videos are served by the platform under its own privacy policy, and only when you choose to watch one.</p>
+
+    <h2>Streamer mode</h2>
+    <p>Off by default. When a streamer turns it on and enters a Twitch channel, the game in their browser connects straight to Twitch chat (<code>irc-ws.chat.twitch.tv</code>), anonymously and read-only, to count votes and commands. Nothing from the chat is sent to this server.</p>
 
     <h2>Contact</h2>
     <p>%CONTACT%</p>
@@ -80,13 +96,13 @@ hr{border:0;border-top:2px solid var(--line);margin:44px 0 30px}
 
   <article id="ru" lang="ru">
     <h1>Приватность</h1>
-    <p class="mut">Обновлено 4 октября 2026.</p>
-    <div class="card"><b>Коротко:</b> BTTN собирает анонимную статистику игры, чтобы понять, откуда приходят игроки и где игра их теряет. Без cookie, без аккаунтов, без имён и почты, без рекламных трекеров и сторонней аналитики. Сохранение остаётся в твоём браузере.</div>
+    <p class="mut">Обновлено 9 октября 2026.</p>
+    <div class="card"><b>Коротко:</b> BTTN собирает анонимную статистику игры, чтобы понять, откуда приходят игроки и где игра их теряет. Без cookie, без аккаунтов, без почты, без рекламных трекеров и сторонней аналитики. Сохранение остаётся в твоём браузере. Если ты что-то покупаешь, мы храним чек, привязанный к твоему случайному id, чтобы самоцветы или облик дошли до тебя; если отправляешь результат ежедневной осады, на доске видно выбранное тобой имя.</div>
     <h2>Что записывается</h2>
     <ul>
       <li><b>Случайный id посетителя</b>, созданный в браузере и хранящийся в его local storage (<code>bttn_vid</code>, плюс дата первого визита и ссылка, по которой ты пришёл). Это не cookie, и он не связан с твоим именем.</li>
       <li><b>На главной:</b> что ты её открыл, нажал ли «Играть», как далеко пролистал, какие вопросы раскрыл и какой язык выбрал.</li>
-      <li><b>В игре:</b> ключевые моменты (интро, выбор класса, первое нажатие, шаги обучения, боссы, глубина и земли, забеги, наём, здания), а раз в 30 секунд, пока вкладка открыта: время игры, глубина, уровень, размер отряда, частота кадров и качество графики.</li>
+      <li><b>В игре:</b> ключевые моменты (интро, выбор класса, первое нажатие, шаги обучения, боссы, глубина и земли, забеги и чем они кончились, выбранные карты и двери, наём, здания, шаги в магазине — открыл, начал или завершил покупку), а раз в 30 секунд, пока вкладка открыта: время игры, глубина, уровень, размер отряда, частота кадров и качество графики.</li>
       <li><b>Откуда ты пришёл:</b> метки <code>utm_*</code> или <code>ref</code> в ссылке и домен сайта, с которого был переход (не полный адрес).</li>
       <li><b>Устройство, примерно:</b> размер экрана и окна, плотность пикселей, касание или мышь, язык и часовой пояс браузера, строка user-agent.</li>
       <li><b>Ошибки:</b> текст ошибок JavaScript, чтобы их исправить.</li>
@@ -95,7 +111,7 @@ hr{border:0;border-top:2px solid var(--line);margin:44px 0 30px}
     <ul>
       <li>IP-адрес. Сервер хранит только солёный односторонний хеш (12 символов) для подсчёта людей и защиты от злоупотреблений.</li>
       <li>Местоположение по IP. Поиска по IP нет: страна в статистике берётся из часового пояса браузера (или из заголовка страны, если его добавляет CDN перед сайтом).</li>
-      <li>Имена, почта, платёжные данные и всё, что ты вводишь.</li>
+      <li>Почта, номера карт и другие платёжные данные, всё, что ты вводишь (кроме имени, которое ты сам выбираешь для доски ежедневной осады).</li>
       <li>Сохранение игры: оно лежит в local storage браузера (<code>bttn-save-v1</code>) и на сервер не отправляется.</li>
     </ul>
     <h2>Сколько хранится и кто видит</h2>
@@ -106,8 +122,24 @@ hr{border:0;border-top:2px solid var(--line);margin:44px 0 30px}
       <li>В игре: <b>Settings → Anonymous stats</b> — выключить.</li>
       <li>Очистка данных сайта удаляет id посетителя (и сохранение — сначала сделай экспорт: Settings → Export).</li>
     </ul>
-    <h2>Покупки и реклама</h2>
-    <p>Покупок и рекламы на сайте пока нет. Если магазин откроется, платежи будет обрабатывать платёжный сервис (номера карт мы не видим), а эта страница обновится заранее.</p>
+    <h2>Покупки (магазин самоцветов)</h2>
+    <p>В магазине продаются только самоцветы и облики, никогда — сила или что-то случайное. Платёж целиком проводит сервис, через который ты платишь: <b>ЮKassa</b> (карты и СБП на этом сайте), <b>Telegram</b> (звёзды), <b>ВКонтакте</b> (голоса) или <b>Яндекс Игры</b>. Номера карт и банковские данные мы не видим; что собирает сам сервис, описано в его политике конфиденциальности.</p>
+    <p>По каждому оплаченному заказу сервер хранит чек в файле на своём диске (<code>store-ledger</code>):</p>
+    <ul>
+      <li>твой случайный id посетителя (<code>bttn_vid</code>), а во ВКонтакте — твой id ВКонтакте, если в заказе нет id посетителя, чтобы покупка попала в нужную игру;</li>
+      <li>что куплено, цена и валюта, платёжный сервис и номер платежа у него, время;</li>
+      <li>забрала ли игра покупку и был ли возврат.</li>
+    </ul>
+    <p>Чеки хранятся столько, сколько требуют налоговые законы и закон о защите прав потребителей (до 5 лет), чтобы выдать, восстановить или вернуть покупку. Они не продаются и не передаются никому, кроме проводившего платёж сервиса.</p>
+
+    <h2>Доска ежедневной осады</h2>
+    <p>Если ты отправляешь результат ежедневной осады, на доске сохраняется: выбранное тобой имя (до 16 букв, цифр, пробелов, <code>_</code> или <code>-</code>), пройденные зоны, время, Кнопка, класс, Жар и сид дня. Имя и результат видят все. Вместе с ними сервер хранит односторонний хеш id посетителя (чтобы в рейтинг шла одна попытка в день) и односторонний хеш IP-адреса (против флуда); ни тот, ни другой не показываются. Доски хранятся до 400 дней. Хочешь убрать имя — напиши по контактам ниже.</p>
+
+    <h2>Реклама</h2>
+    <p>На этом сайте рекламы нет. В версиях для Яндекс Игр, ВКонтакте и Telegram может предлагаться необязательное видео за награду (например, продолжить проигранный забег раз в день); такие видео показывает платформа по своей политике конфиденциальности и только если ты сам решишь посмотреть.</p>
+
+    <h2>Режим стримера</h2>
+    <p>По умолчанию выключен. Когда стример включает его и вводит канал Twitch, игра в его браузере подключается напрямую к чату Twitch (<code>irc-ws.chat.twitch.tv</code>), анонимно и только на чтение, чтобы считать голоса и команды. На этот сервер из чата ничего не отправляется.</p>
     <h2>Связь</h2>
     <p>%CONTACT_RU%</p>
   </article>

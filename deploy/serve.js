@@ -1,17 +1,53 @@
-// BTTN — the public host (Railway, Render, any Node host). No dependencies.
+// BTTN — the public host (Railway, Render, any Node host). No dependencies (Node 18+: fetch, crypto).
 //  GET  /            the landing page (deploy/landing.html): the pitch and one big PLAY that carries the utm tags on
 //  GET  /play        the game (docs/index.html), with the analytics flag and share tags put in; /play/* too.
 //                    Old links still work: /?play=1 and /index.html redirect to /play with their query.
+//  GET  /press       the press kit (deploy/press.html; ?lang=ru for Russian); its files at /press/<name>
+//                    (deploy/assets/press/*, streamed from disk with byte ranges, never from a user-built path)
 //  GET  /privacy, /sitemap.xml, /robots.txt, /manifest.webmanifest, /favicon.ico, /og.png, /assets/*
-//  GET  /api/config  which payment and ad providers are configured (from env vars, all off by default), public
-//                    links (LINK_* env vars) and a rounded weekly player count for the landing's social proof
+//  GET  /api/config  which payment and ad providers are configured (from env vars, all off by default), the store
+//                    (store.on, store.providers), prices per SKU, rewarded ads, public links (LINK_* env vars) and a
+//                    rounded weekly player count for the landing's social proof
 //  POST /api/ev      anonymous events from js/analytics.js and the landing, appended to $DATA_DIR/ev-YYYY-MM-DD.ndjson
+//  4.0 store (Gems packs, the Starter Kit and looks; never power, unlocks or anything random — DESIGN §4.9):
+//  POST /api/store/telegram/invoice {sku, v} → {link}          Bot API createInvoiceLink in Stars (XTR)
+//  POST /api/store/telegram/webhook                             Bot updates (secret-token header): pre-checkout, payment
+//  POST /api/store/yookassa/create {sku, v, return_url} → {confirmation_url, id}
+//  POST /api/store/yookassa/webhook                             payment.succeeded / refund.succeeded, re-fetched from the API
+//  POST /api/store/yandex/verify {signature, v} → {grants}      a Yandex Games signed purchase (HMAC-SHA256)
+//  POST /api/store/vk/callback                                  VK payments callback (md5 sig): get_item, order_status_change
+//  GET  /api/store/claim?v= → {grants}   POST /api/store/ack {v, ids}   (a grant is delivered until it is acked, once)
+//       Every paid order lands in $DATA_DIR/store-ledger.ndjson: append-only, one grant per provider payment id.
+//  GET  /api/daily?day=&v= → the Daily Siege board   POST /api/daily {day, zones, secs, btn, cls, heat, name, v, seed}
+//       ($DATA_DIR/daily-YYYY-MM-DD.json; the first attempt per visitor per UTC day, rate-limited per IP)
+//  POST /api/csp     Content-Security-Policy violation reports (counted in memory for the dashboard)
 //  GET  /admin       the admin dashboard (deploy/admin.html); its data needs the ADMIN_TOKEN
-//  GET  /api/admin/stats, /api/admin/live, /api/admin/export   (header x-admin-token)
+//  GET  /api/admin/stats, /api/admin/live, /api/admin/export, /api/admin/store, /api/admin/daily  (header x-admin-token)
+//  POST /api/admin/store/grant, /api/admin/store/telegram-setup, /api/admin/daily/hide
 //  GET  /health
-// Pages and assets are read once at boot, kept in memory with brotli/gzip copies and ETags.
+// Pages and assets are read once at boot, kept in memory with brotli/gzip copies and ETags. Every page gets a CSP that
+// names its own inline scripts by hash (computed at boot), so a rebuilt game needs no change here.
 // Events are kept on disk (a Railway volume at $DATA_DIR) and folded into memory at boot, so the dashboard is
 // instant. No raw IPs are stored: only a salted hash, to count people and to rate-limit.
+//
+// Environment (all optional; everything that sells or shows ads is OFF until configured):
+//  PORT, PUBLIC_URL (https://…, canonical links and the only allowed YooKassa return origin), DATA_DIR, KEEP_DAYS,
+//  ADMIN_TOKEN, ANALYTICS_SALT, CONTACT_EMAIL, LINK_TELEGRAM/DISCORD/VK/YOUTUBE/REDDIT/CONTACT/TG_APP/YANDEX_GAMES/
+//  CRAZYGAMES/STEAM (public links).
+//  PAYMENTS=1            the master switch: nothing is sold without it (webhooks, claims and acks still work)
+//  TELEGRAM_BOT_TOKEN + TELEGRAM_WEBHOOK_SECRET   Stars invoices; the secret is the setWebhook secret_token
+//                        (/admin → Store → "Connect the Telegram webhook" sets it up)
+//  YOOKASSA_SHOP_ID + YOOKASSA_SECRET_KEY         card/SBP payments in RUB; YOOKASSA_IP_CHECK=1 adds the IP allow-list
+//  YANDEX_GAMES_SECRET   the game's secret key from the Yandex Games console (signed purchases)
+//  VK_APP_SECRET (+ VK_APP_ID)                    the VK Mini App's secure key (payments callback, launch params)
+//  STORE_SECRET          signs Telegram invoice payloads (default: derived from TELEGRAM_BOT_TOKEN)
+//  STORE_COS             the looks for sale, "id:tier,…" (tiers 1/2/3 = $0.99/$1.99/$2.99); default below
+//  ADS_REWARDED          comma list of platforms whose rewarded video may pay a continue: yandex, vk, telegram
+//                        (telegram needs ADSGRAM_BLOCK_ID); ADSGRAM_BLOCK_ID, YANDEX_RTB_ID, ADSENSE_CLIENT (3.6 flags)
+//  ALLOWED_ORIGINS       extra origins (comma list, * wildcards) allowed to call /api/config, /api/store/*, /api/daily
+//  CSP=on|report|off     the Content-Security-Policy mode (default on); CSP_CONNECT extra connect-src sources (a ladder
+//                        server, for example)
+//  TELEGRAM_API, YOOKASSA_API   provider API base URLs, for local tests against a mock only
 'use strict';
 const http = require('http');
 const fs = require('fs');
@@ -28,6 +64,38 @@ const KEEP_DAYS = +process.env.KEEP_DAYS || 400;
 // the public address, for canonical links, the sitemap and og:image (crawlers want absolute URLs)
 const ORIGIN = (process.env.PUBLIC_URL || 'https://bttn-production.up.railway.app').replace(/\/+$/, '');
 fs.mkdirSync(DATA, { recursive: true });
+const env = k => String(process.env[k] || '').trim();
+// secrets never reach a log line: every message passes through this
+const SECRETS = ['ADMIN_TOKEN', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET', 'YOOKASSA_SECRET_KEY', 'YANDEX_GAMES_SECRET', 'VK_APP_SECRET', 'STORE_SECRET', 'ANALYTICS_SALT'].map(env).filter(s => s.length >= 6);
+const redact = s => { s = String(s); for (const k of SECRETS) s = s.split(k).join('***'); return s.slice(0, 400); };
+const log = (...a) => console.log(redact(a.join(' ')));
+
+// ---------- Content-Security-Policy: each page's own inline scripts by hash, no 'unsafe-inline' for scripts ----------
+// The game is one file with one inline script; hashes are taken from the very bytes served, at boot, so a rebuilt
+// docs/index.html needs no change here. The game also gets: Twitch chat for streamer mode (4.0, ADDENDUM 6), and the
+// platform SDKs the store loads (Yandex Games, VK Bridge from a CDN, Telegram WebApp, Adsgram).
+const CSP_MODE = (env('CSP') || 'on').toLowerCase();
+const CSP_HDR = CSP_MODE === 'report' ? 'content-security-policy-report-only' : 'content-security-policy';
+const CSP_EXTRA = env('CSP_CONNECT').split(/[\s,]+/).filter(s => /^(https|wss):\/\/[a-z0-9.*:-]+(\/[^\s;,'"]*)?$/i.test(s)).join(' ');
+const SDK_SCRIPTS = 'https://yandex.ru https://*.yandex.ru https://yastatic.net https://telegram.org https://unpkg.com https://cdn.jsdelivr.net https://sad.adsgram.ai';
+const SDK_CONNECT = 'https://yandex.ru https://*.yandex.ru https://*.yandex.net https://*.adsgram.ai https://*.vk.com https://*.vk-apps.com';
+function scriptHashes(html) {
+  const out = new Set(), re = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+  for (let m; (m = re.exec(html));) {
+    if (/\bsrc\s*=/i.test(m[1])) continue;
+    const ty = /\btype\s*=\s*["']?([^"'\s>]+)/i.exec(m[1]);
+    if (ty && !/^((text|application)\/(java|ecma)script|module)$/i.test(ty[1])) continue; // data blocks (ld+json) never run
+    out.add("'sha256-" + crypto.createHash('sha256').update(m[2], 'utf8').digest('base64') + "'");
+  }
+  return [...out];
+}
+function cspFor(html, kind) {
+  if (CSP_MODE === 'off') return '';
+  const h = scriptHashes(html), scripts = h.length ? "'self' " + h.join(' ') : "'none'";
+  const base = "object-src 'none'; base-uri 'self'; form-action 'self'; report-uri /api/csp";
+  if (kind === 'game') return `default-src 'self'; script-src ${scripts} ${SDK_SCRIPTS}; connect-src 'self' wss://irc-ws.chat.twitch.tv ${SDK_CONNECT}${CSP_EXTRA ? ' ' + CSP_EXTRA : ''}; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-src 'self' https:; worker-src 'self' blob:; ${base}`;
+  return `default-src 'self'; script-src ${scripts}; connect-src 'self'; img-src 'self' data:${kind === 'admin' ? ' blob:' : ''}; media-src 'self'; font-src 'self'; style-src 'self' 'unsafe-inline'; ${kind === 'admin' ? "frame-ancestors 'none'; " : ''}${base}`;
+}
 
 // ---------- files: read once, compressed once ----------
 function pack(buf, type, cache) {
@@ -41,6 +109,8 @@ function pack(buf, type, cache) {
 const readOr = (f, alt) => { try { return fs.readFileSync(path.join(__dirname, f)); } catch (e) { return Buffer.from(alt); } };
 const HTML = 'text/html; charset=utf-8';
 const origin = s => s.replace(/%ORIGIN%/g, ORIGIN);
+const withCsp = (o, kind) => { o.csp = cspFor(o.raw.toString('utf8'), kind); return o; };
+const escH = x => String(x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 // the game, at /play
 const HEAD = `<meta name="description" content="Hold the Button against a 1,000-monster Horde. Your party fights, your clicks call lightning, the loot rains. Free, in the browser.">
@@ -50,12 +120,12 @@ const HEAD = `<meta name="description" content="Hold the Button against a 1,000-
 <script>window.BTTN_AN='/api/ev'</script>`;
 function loadPage() {
   const html = fs.readFileSync(path.join(ROOT, 'docs', 'index.html'), 'utf8');
-  return pack(Buffer.from(html.includes('</head>') ? html.replace('</head>', HEAD + '\n</head>') : HEAD + html), HTML);
+  return withCsp(pack(Buffer.from(html.includes('</head>') ? html.replace('</head>', HEAD + '\n</head>') : HEAD + html), HTML), 'game');
 }
 const page = loadPage();
 // the landing, at / (and /?lang=ru, the same page with Russian marked as its language for crawlers)
 const landingSrc = origin(readOr('landing.html', '<!doctype html><a href="/play">Play</a>').toString('utf8'));
-const landing = { en: pack(Buffer.from(landingSrc), HTML), ru: pack(Buffer.from(landingSrc.replace('<html lang="en">', '<html lang="ru">').replace(`<link rel="canonical" href="${ORIGIN}/">`, `<link rel="canonical" href="${ORIGIN}/?lang=ru">`).replace('content="en_US"', 'content="ru_RU"').replace('content="ru_RU">\n<meta name="twitter', 'content="en_US">\n<meta name="twitter')), HTML) };
+const landing = { en: withCsp(pack(Buffer.from(landingSrc), HTML), 'page'), ru: withCsp(pack(Buffer.from(landingSrc.replace('<html lang="en">', '<html lang="ru">').replace(`<link rel="canonical" href="${ORIGIN}/">`, `<link rel="canonical" href="${ORIGIN}/?lang=ru">`).replace('content="en_US"', 'content="ru_RU"').replace('content="ru_RU">\n<meta name="twitter', 'content="en_US">\n<meta name="twitter')), HTML), 'page') };
 const CONTACT = (() => {
   const m = String(process.env.CONTACT_EMAIL || '').trim(), l = String(process.env.LINK_TELEGRAM || process.env.LINK_CONTACT || '').trim();
   const esc = x => x.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -63,8 +133,8 @@ const CONTACT = (() => {
   if (/^https:\/\/[^\s"'<>]+$/i.test(l)) return { en: `Questions or a deletion request: <a href="${esc(l)}">${esc(l)}</a>.`, ru: `Вопросы или просьба удалить данные: <a href="${esc(l)}">${esc(l)}</a>.` };
   return { en: 'Questions or a deletion request: use the contact links on the <a href="/">home page</a>. Clearing this site\'s data also unlinks you from everything recorded so far.', ru: 'Вопросы или просьба удалить данные: ссылки для связи на <a href="/">главной</a>.' };
 })();
-const privacy = pack(Buffer.from(origin(readOr('privacy.html', 'Privacy: anonymous play stats only.').toString('utf8')).replace('%CONTACT%', CONTACT.en).replace('%CONTACT_RU%', CONTACT.ru)), HTML);
-const admin = pack(readOr('admin.html', 'no dashboard'), HTML);
+const privacy = withCsp(pack(Buffer.from(origin(readOr('privacy.html', 'Privacy: anonymous play stats only.').toString('utf8')).replace('%CONTACT%', CONTACT.en).replace('%CONTACT_RU%', CONTACT.ru)), HTML), 'page');
+const admin = withCsp(pack(readOr('admin.html', 'no dashboard'), HTML), 'admin');
 const og = (() => { try { return pack(fs.readFileSync(path.join(__dirname, 'og.png')), 'image/png', 'public, max-age=86400'); } catch (e) { return null; } })();
 const BOOT_DAY = new Date().toISOString().slice(0, 10);
 const sitemap = pack(Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
@@ -72,6 +142,8 @@ const sitemap = pack(Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>
 <url><loc>${ORIGIN}/</loc><lastmod>${BOOT_DAY}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority><xhtml:link rel="alternate" hreflang="en" href="${ORIGIN}/"/><xhtml:link rel="alternate" hreflang="ru" href="${ORIGIN}/?lang=ru"/><xhtml:link rel="alternate" hreflang="x-default" href="${ORIGIN}/"/></url>
 <url><loc>${ORIGIN}/?lang=ru</loc><lastmod>${BOOT_DAY}</lastmod><changefreq>weekly</changefreq><priority>0.9</priority><xhtml:link rel="alternate" hreflang="en" href="${ORIGIN}/"/><xhtml:link rel="alternate" hreflang="ru" href="${ORIGIN}/?lang=ru"/><xhtml:link rel="alternate" hreflang="x-default" href="${ORIGIN}/"/></url>
 <url><loc>${ORIGIN}/play</loc><lastmod>${BOOT_DAY}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+<url><loc>${ORIGIN}/press</loc><lastmod>${BOOT_DAY}</lastmod><changefreq>monthly</changefreq><priority>0.5</priority><xhtml:link rel="alternate" hreflang="en" href="${ORIGIN}/press"/><xhtml:link rel="alternate" hreflang="ru" href="${ORIGIN}/press?lang=ru"/></url>
+<url><loc>${ORIGIN}/press?lang=ru</loc><lastmod>${BOOT_DAY}</lastmod><changefreq>monthly</changefreq><priority>0.4</priority><xhtml:link rel="alternate" hreflang="en" href="${ORIGIN}/press"/><xhtml:link rel="alternate" hreflang="ru" href="${ORIGIN}/press?lang=ru"/></url>
 <url><loc>${ORIGIN}/privacy</loc><lastmod>${BOOT_DAY}</lastmod><changefreq>yearly</changefreq><priority>0.2</priority></url>
 </urlset>
 `), 'application/xml; charset=utf-8', 'public, max-age=3600');
@@ -82,18 +154,121 @@ const manifest = pack(Buffer.from(JSON.stringify({
   icons: [{ src: '/assets/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/assets/icon-512.png', sizes: '512x512', type: 'image/png' }, { src: '/assets/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }],
 })), 'application/manifest+json; charset=utf-8', 'public, max-age=86400');
 // deploy/assets/*: the landing's posters, video loops, sprite atlas, fonts and icons
-const TYPES = { '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm', '.woff2': 'font/woff2', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json' };
+const TYPES = { '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm', '.woff2': 'font/woff2', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json', '.zip': 'application/zip', '.pdf': 'application/pdf' };
 const assets = new Map();
 (function loadAssets(dir, pre) {
   let names = []; try { names = fs.readdirSync(dir); } catch (e) { return; }
   for (const n of names) {
     const f = path.join(dir, n), st = fs.statSync(f);
-    if (st.isDirectory()) { loadAssets(f, pre + n + '/'); continue; }
+    if (st.isDirectory()) { if (!(pre === '' && n === 'press')) loadAssets(f, pre + n + '/'); continue; } // press media: from disk, at /press/*
     const type = TYPES[path.extname(n).toLowerCase()]; if (!type) continue;
     assets.set(pre + n, pack(fs.readFileSync(f), type, /\.(woff2)$/.test(n) ? 'public, max-age=604800, immutable' : 'public, max-age=86400'));
   }
 })(path.join(__dirname, 'assets'), '');
 const favicon = assets.get('favicon-32.png') || null;
+// public links (LINK_* env vars): the landing's footer and badges, and the press kit
+const okLink = u => (/^https:\/\/[^\s"'<>]+$/i.test(u) ? u : '');
+const MAIL = /^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(env('CONTACT_EMAIL')) ? env('CONTACT_EMAIL') : '';
+const LINKS = (() => {
+  const l = {
+    telegram: okLink(env('LINK_TELEGRAM')), discord: okLink(env('LINK_DISCORD')), vk: okLink(env('LINK_VK')), youtube: okLink(env('LINK_YOUTUBE')), reddit: okLink(env('LINK_REDDIT')),
+    contact: MAIL ? 'mailto:' + MAIL : okLink(env('LINK_CONTACT')),
+    tg_app: okLink(env('LINK_TG_APP')), yandex: okLink(env('LINK_YANDEX_GAMES')), crazygames: okLink(env('LINK_CRAZYGAMES')), steam: okLink(env('LINK_STEAM')),
+  };
+  for (const k in l) if (!l[k]) delete l[k];
+  return l;
+})();
+
+// ---------- the press kit: /press (EN), /press?lang=ru, and its files at /press/<name> ----------
+// deploy/press.html holds both languages in <!--en-->…<!--/en--> and <!--ru-->…<!--/ru--> blocks; each variant is cut
+// at boot, so crawlers and readers without JS get one language. The media list comes from
+// deploy/assets/press/manifest.json and shows only files that exist. Press media are big (PNG screenshots, video), so
+// they are streamed from disk: the folder's names are read once into an allow-list, and a request can only ever name
+// one of them (nothing from the URL is joined into a file path).
+const PRESS_DIR = path.join(__dirname, 'assets', 'press');
+const pressFiles = new Map();
+try {
+  for (const n of fs.readdirSync(PRESS_DIR)) {
+    if (!/^[a-z0-9][a-z0-9._-]{0,80}$/i.test(n) || n === 'manifest.json') continue;
+    const f = path.join(PRESS_DIR, n), st = fs.statSync(f), type = TYPES[path.extname(n).toLowerCase()];
+    if (!st.isFile() || !type) continue;
+    pressFiles.set(n, { f, size: st.size, type, etag: 'W/"' + st.size.toString(36) + '-' + Math.floor(st.mtimeMs).toString(36) + '"' });
+  }
+} catch (e) {}
+const press = (() => {
+  const src = origin(readOr('press.html', '<!doctype html><title>BTTN press kit</title><a href="/play">Play BTTN</a>').toString('utf8'));
+  let M = { items: [] };
+  try { M = JSON.parse(fs.readFileSync(path.join(PRESS_DIR, 'manifest.json'), 'utf8')); } catch (e) {}
+  const mb = (n, ru) => { const s = (n / 1048576).toFixed(1); return (ru ? s.replace('.', ',') : s) + (ru ? ' МБ' : ' MB'); };
+  const kb = (n, ru) => Math.round(n / 1024) + (ru ? ' КБ' : ' KB');
+  const sizeOf = n => { const F = pressFiles.get(n); return F ? F.size : 0; };
+  function media(lang) {
+    const ru = lang === 'ru', T = ru ? { dl: 'Скачать', soon: 'вид 3.6 — обновим с интерфейсом 4.0', none: 'Медиафайлы скоро появятся.' } : { dl: 'Download', soon: '3.6 look — to be refreshed with the 4.0 UI', none: 'Media is on its way.' };
+    const out = { shot: [], phone: [], clip: [], brand: [] };
+    for (const it of Array.isArray(M.items) ? M.items : []) {
+      if (!it || typeof it.file !== 'string' || !pressFiles.has(it.file)) continue;
+      const cap = escH((ru ? it.ru : it.en) || it.en || it.file), file = escH(it.file), w = it.w | 0, h = it.h | 0;
+      const thumb = typeof it.thumb === 'string' && pressFiles.has(it.thumb) ? escH(it.thumb) : file;
+      const fmt = escH(path.extname(it.file).slice(1).toUpperCase()), sz = sizeOf(it.file) >= 1048576 ? mb(sizeOf(it.file), ru) : kb(sizeOf(it.file), ru);
+      const meta = `<span class="meta">${w && h ? w + '×' + h + ' · ' : ''}${fmt} · ${sz}${it.refresh ? ' · <i>' + T.soon + '</i>' : ''}</span>`;
+      const dl = `<a class="dl" href="/press/${file}?dl=1" download>${T.dl}</a>`;
+      const kind = ['shot', 'phone', 'clip', 'brand'].includes(it.kind) ? it.kind : 'brand';
+      if (kind === 'clip' && !/\.gif$/i.test(it.file)) {
+        const poster = typeof it.poster === 'string' && pressFiles.has(it.poster) ? ` poster="/press/${escH(it.poster)}"` : '';
+        out.clip.push(`<figure class="tile clip"><video controls muted loop playsinline preload="none"${poster}${w && h ? ` width="${w}" height="${h}"` : ''}><source src="/press/${file}" type="${escH(pressFiles.get(it.file).type)}"></video><figcaption><b>${cap}</b>${meta}${dl}</figcaption></figure>`);
+      } else {
+        out[kind].push(`<figure class="tile ${kind}"><a class="pic" href="/press/${file}"><img src="/press/${thumb}" alt="${cap}" loading="lazy" decoding="async"${w && h ? ` width="${w}" height="${h}"` : ''}></a><figcaption><b>${cap}</b>${meta}${dl}</figcaption></figure>`);
+      }
+    }
+    const grid = (k, cls) => (out[k].length ? `<div class="grid ${cls}">${out[k].join('')}</div>` : '');
+    const html = grid('shot', 'g-shot') + grid('phone', 'g-phone') + grid('clip', 'g-clip') + grid('brand', 'g-brand');
+    return html || `<p class="dim">${T.none}</p>`;
+  }
+  function links(lang) {
+    const ru = lang === 'ru';
+    const NAME = { tg_app: 'Telegram Mini App', yandex: ru ? 'Яндекс Игры' : 'Yandex Games', crazygames: 'CrazyGames', steam: 'Steam', telegram: 'Telegram', discord: 'Discord', vk: ru ? 'ВКонтакте' : 'VK', youtube: 'YouTube', reddit: 'Reddit' };
+    return Object.keys(NAME).filter(k => LINKS[k]).map(k => `<a class="btn2" href="${escH(LINKS[k])}" rel="noopener">${NAME[k]}</a>`).join('');
+  }
+  function contact(lang) {
+    const ru = lang === 'ru';
+    if (MAIL) return `<a href="mailto:${escH(MAIL)}">${escH(MAIL)}</a>`;
+    if (LINKS.contact || LINKS.telegram) { const u = LINKS.contact || LINKS.telegram; return `<a href="${escH(u)}" rel="noopener">${escH(u.replace(/^https:\/\//, ''))}</a>`; }
+    return ru ? 'через ссылки на <a href="/?lang=ru">главной</a>' : 'through the links on the <a href="/">home page</a>';
+  }
+  function steam(lang) {
+    if (!LINKS.steam) return '';
+    return `<a class="btn2 gold" href="${escH(LINKS.steam)}" rel="noopener">${lang === 'ru' ? 'В желаемое в Steam' : 'Wishlist on Steam'}</a>`;
+  }
+  const build = lang => {
+    const ru = lang === 'ru';
+    let s = src.replace(/<!--(en|ru)-->([\s\S]*?)<!--\/\1-->/g, (m, l, body) => (l === lang ? body : ''));
+    if (ru) s = s.replace('<html lang="en">', '<html lang="ru">').replace(`<link rel="canonical" href="${ORIGIN}/press">`, `<link rel="canonical" href="${ORIGIN}/press?lang=ru">`);
+    const vals = { MEDIA: media(lang), LINKS: links(lang), CONTACT: contact(lang), STEAM: steam(lang), SIZE: mb(page.raw.length, ru), SIZE_BR: page.br ? kb(page.br.length, ru) : mb(page.raw.length, ru) };
+    s = s.replace(/\{\{(MEDIA|LINKS|CONTACT|STEAM|SIZE|SIZE_BR)\}\}/g, (m, k) => vals[k]);
+    return withCsp(pack(Buffer.from(s), HTML), 'page');
+  };
+  return { en: build('en'), ru: build('ru') };
+})();
+// a file from the press folder: ETag, byte ranges (Safari wants them for video), ?dl=1 for a download
+function serveFile(req, res, F, dl) {
+  const h = Object.assign({ 'content-type': F.type, 'cache-control': 'public, max-age=86400', etag: F.etag, 'accept-ranges': 'bytes' }, SEC);
+  if (dl) h['content-disposition'] = 'attachment; filename="bttn-' + path.basename(F.f) + '"';
+  const inm = req.headers['if-none-match'];
+  if (inm && inm.split(/\s*,\s*/).includes(F.etag)) { res.writeHead(304, h); return res.end(); }
+  let a = 0, b = F.size - 1, code = 200;
+  const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+  if (range && (range[1] || range[2])) {
+    a = range[1] === '' ? F.size - +range[2] : +range[1]; b = range[1] !== '' && range[2] !== '' ? Math.min(+range[2], F.size - 1) : F.size - 1;
+    if (a < 0) a = 0;
+    if (a > b || a >= F.size) { res.writeHead(416, Object.assign(h, { 'content-range': 'bytes */' + F.size })); return res.end(); }
+    code = 206; h['content-range'] = `bytes ${a}-${b}/${F.size}`;
+  }
+  h['content-length'] = b - a + 1;
+  res.writeHead(code, h);
+  if (req.method === 'HEAD' || F.size === 0) return res.end();
+  const st = fs.createReadStream(F.f, { start: a, end: b });
+  st.on('error', () => res.destroy()); st.pipe(res);
+}
 
 // ---------- who's on the other end ----------
 const BOT = /bot|crawl|spider|slurp|headless|playwright|puppeteer|phantom|python|curl|wget|httpclient|lighthouse|preview|facebookexternalhit|embedly|vkshare/i;
@@ -115,14 +290,19 @@ function country(req, tz, lang) {
   const m = /^[a-z]{2,3}-([A-Z]{2})$/i.exec(lang || '');
   return m ? m[1].toUpperCase() : '??';
 }
-const ipOf = req => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+// Railway's edge sets X-Real-IP to the client's address (docs: networking/public-networking/specs-and-limits); a client
+// can't forge it there, unlike the first X-Forwarded-For hop
+const ipOf = req => String(req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
 const hashIp = ip => crypto.createHash('sha256').update(SALT + ip).digest('hex').slice(0, 12);
 
 // ---------- the store ----------
 const dayKey = ts => new Date(ts).toISOString().slice(0, 10);
 const visitors = new Map(); // vid -> visitor
 const sessions = new Map(); // sid -> session
-const MILESTONE = new Set(['intro_next', 'intro_skip', 'intro_done', 'class', 'first_click', 'tut', 'tut_end', 'hold', 'boss_win', 'boss_fail', 'land', 'depth', 'run_over', 'run_cont', 'run_end', 'gems', 'ascend', 'bless', 'champ', 'recruit', 'seat', 'town', 'build', 'relic', 'jackpot', 'od', 'rank', 'lvl', 'err', 'end', 'start']);
+const MILESTONE = new Set(['intro_next', 'intro_skip', 'intro_done', 'class', 'first_click', 'tut', 'tut_end', 'hold', 'boss_win', 'boss_fail', 'land', 'depth', 'run_over', 'run_cont', 'run_end', 'gems', 'ascend', 'bless', 'champ', 'recruit', 'seat', 'town', 'build', 'relic', 'jackpot', 'od', 'rank', 'lvl', 'err', 'end', 'start',
+  // 4.0 (DESIGN §12, ADDENDUM 12): the Siege and the store funnel; camelCase names (runStart) arrive as run_start
+  'run_start', 'door', 'card', 'loot', 'camp', 'extract', 'deed', 'daily', 'store_open', 'buy_start', 'buy_ok', 'buy_fail', 'ad_show', 'ad_ok']);
+const snake = t => (/[A-Z]/.test(t) ? t.replace(/[A-Z]/g, c => '_' + c.toLowerCase()) : t);
 const clip = (v, n) => (typeof v === 'string' ? v.slice(0, n) : v);
 const touchOf = d => ({ src: clip(d.src, 60) || '', med: clip(d.med, 40) || '', cmp: clip(d.cmp, 80) || '', cnt: clip(d.cnt, 80) || '', ref: clip(d.ref, 80) || '' });
 const lands = new Map(); // sid -> one landing page view
@@ -165,8 +345,9 @@ function ingest(rec) {
     Ss = { sid: s, vid: v, start: r, last: r, touch: null, dev, cc, pt0: null, pt: 0, d: 0, bd: 0, tut: null, secs: 0, n: 0, ev: [], bot: dev.bot };
     sessions.set(s, Ss); V.ses++; V.days.add(dayKey(r));
   }
-  for (const x of e.slice(0, 300)) {
+  for (let x of e.slice(0, 300)) {
     if (!x || typeof x.t !== 'string') continue;
+    if (/[A-Z]/.test(x.t)) x = Object.assign({}, x, { t: snake(x.t) });
     const ts = Math.min(r, Math.max(r - 6 * 3600e3, +x.ts || r)); // the client clock, trusted within reason
     const d = x.d && typeof x.d === 'object' ? x.d : {};
     Ss.n++; Ss.last = Math.max(Ss.last, ts); V.last = Math.max(V.last, ts);
@@ -216,6 +397,495 @@ function append(rec) { fs.appendFile(path.join(DATA, 'ev-' + dayKey(rec.r) + '.n
 const hits = new Map();
 setInterval(() => hits.clear(), 60e3).unref();
 const limited = (k, max) => { const n = (hits.get(k) || 0) + 1; hits.set(k, n); return n > max; };
+// per UTC day (the Daily board's per-IP cap): reset when the day turns
+let dayHits = { day: '', m: new Map() };
+const limitedDay = (k, max) => { const d = dayKey(Date.now()); if (dayHits.day !== d) dayHits = { day: d, m: new Map() }; const n = (dayHits.m.get(k) || 0) + 1; dayHits.m.set(k, n); return n > max; };
+
+// ---------- request bodies and small helpers ----------
+const J = (res, code, o, extra) => send(res, code, 'application/json; charset=utf-8', JSON.stringify(o), extra);
+// a body over the cap gets 413 and the connection is closed once the answer is out (the rest is never read)
+function tooBig(req, res) { if (res.headersSent) return; res.on('finish', () => req.destroy()); J(res, 413, { error: 'too big' }, { connection: 'close' }); }
+function readBody(req, res, max, cb) {
+  if ((+req.headers['content-length'] || 0) > max) return tooBig(req, res);
+  let size = 0, over = false; const chunks = [];
+  req.on('data', c => { if (over) return; size += c.length; if (size > max) { over = true; chunks.length = 0; return tooBig(req, res); } chunks.push(c); });
+  req.on('end', () => { if (!over) cb(Buffer.concat(chunks)); });
+  req.on('error', () => { over = true; });
+}
+const readJson = (req, res, max, cb) => readBody(req, res, max, buf => {
+  let b; try { b = JSON.parse(buf.toString('utf8')); } catch (e) { return J(res, 400, { error: 'bad json' }); }
+  if (!b || typeof b !== 'object' || Array.isArray(b)) return J(res, 400, { error: 'bad body' });
+  cb(b);
+});
+const safeEq = (a, b) => { a = Buffer.from(String(a)); b = Buffer.from(String(b)); return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b); };
+const hmac = (key, s, enc) => crypto.createHmac('sha256', key).update(s).digest(enc);
+const b64url = buf => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const rid = n => Array.from(crypto.randomBytes(n), b => (b % 36).toString(36)).join('');
+const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+const VID_RE = /^[a-z0-9]{6,24}$/;         // the analytics visitor id (localStorage bttn_vid, js/analytics.js)
+const VKV_RE = /^vk:\d{1,12}$/;            // a VK buyer without a visitor id in the order (claims need signed launch params)
+// for allow-lists: X-Real-IP, else the address the nearest proxy saw (the last X-Forwarded-For hop)
+const ipStrict = req => String(req.headers['x-real-ip'] || String(req.headers['x-forwarded-for'] || '').split(',').pop() || req.socket.remoteAddress || '').trim();
+
+// ======================================================================================================
+// ---------- 4.0: the Gems store (ADDENDUM 9; DESIGN §4.9; MONETIZATION 1.2a) ----------
+// Sells fixed Gems packs, the Starter Kit (100 Gems + the Founder Flame look) and looks (cos_<id>). Never power, never
+// unlocks, never anything random. Prices live only here (a client's price is never trusted): the MONETIZATION §3 ladder,
+// linear (no "bonus" decoys), ₽ at about 0.72× the dollar rate, Stars at about $0.02, VK votes at 7 ₽.
+const TIERS = {
+  1: { usd: 0.99, rub: 59, stars: 50, votes: 8 }, 2: { usd: 1.99, rub: 119, stars: 100, votes: 17 }, 3: { usd: 2.99, rub: 179, stars: 150, votes: 26 },
+  10: { usd: 9.99, rub: 599, stars: 500, votes: 86 },
+};
+const SKUS = Object.assign(Object.create(null), {
+  gems_100: { gems: 100, tier: 1, en: '100 Gems', ru: '100 самоцветов' },
+  gems_300: { gems: 300, tier: 3, en: '300 Gems', ru: '300 самоцветов' },
+  gems_1000: { gems: 1000, tier: 10, en: '1,000 Gems', ru: '1000 самоцветов' },
+  starter: { gems: 100, cos: 'founder_flame', tier: 2, once: 1, en: 'Starter Kit', ru: 'Набор новичка' },
+});
+// looks: "id:tier,…" (STORE_COS replaces the default); the name comes from the id: <kind>_<word>
+const COS_KIND = { skin: ['Button skin', 'Облик Кнопки'], trail: ['Hand trail', 'След Руки'], beam: ['Loot beam', 'Столб лута'], flame: ['Flame', 'Пламя'] };
+const COS_WORD = { frost: ['Frost', 'Иней'], candy: ['Candy', 'Карамель'], ember: ['Ember', 'Угли'], void: ['Void', 'Пустота'], azure: ['Azure', 'Лазурь'], crimson: ['Crimson', 'Багрянец'], verdant: ['Verdant', 'Зелень'], prism: ['Prism', 'Призма'], rose: ['Rose', 'Роза'], ice: ['Ice', 'Лёд'], gold: ['Gold', 'Золото'], founder: ['Founder', 'Основателя'] };
+for (const part of (env('STORE_COS') || 'skin_frost:2,skin_candy:2,skin_ember:2,skin_void:2,trail_azure:1,trail_crimson:1,trail_verdant:1,trail_prism:1,beam_rose:1,beam_ice:1').split(',')) {
+  const m = /^\s*([a-z0-9_]{2,28}):(1|2|3)\s*$/.exec(part); if (!m) continue;
+  const [kind, ...rest] = m[1].split('_'), K = COS_KIND[kind] || ['Look', 'Облик'], wk = rest.join('_'), W = COS_WORD[wk] || [wk.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase()) || m[1], wk || m[1]];
+  SKUS['cos_' + m[1]] = { gems: 0, cos: m[1], tier: +m[2], once: 1, en: (W[0] + ' ' + K[0]).slice(0, 32), ru: (K[1] + ' «' + W[1] + '»').slice(0, 32) };
+}
+const okSku = s => own(SKUS, s);
+const priceOf = sku => TIERS[SKUS[sku].tier];
+const descOf = (sku, lang) => {
+  const S = SKUS[sku], ru = lang === 'ru';
+  if (S.cos && S.gems) return ru ? `${S.gems} самоцветов и облик «Пламя основателя». Только внешний вид, никакой силы.` : `${S.gems} Gems and the Founder Flame look. Looks only, never power.`;
+  if (S.cos) return ru ? 'Облик для BTTN. Только внешний вид, без характеристик.' : 'A look for BTTN. Looks only, never stats.';
+  return ru ? 'Самоцветы для BTTN: на продолжение забега и на облики. Ничего случайного, никакой силы.' : 'Gems for BTTN: they pay for a Continue and for looks. Nothing random, never power.';
+};
+
+// ---------- the ledger: $DATA_DIR/store-ledger.ndjson, append-only, folded into memory at boot ----------
+//  {t:'order', prov, pid, sku, v, amt, cur, at}            a payment we created (YooKassa), waiting for the provider
+//  {t:'grant', id, prov, pid, sku, gems, cos, v, amt, cur, at, test?, flag?, hold?}   a paid order: what the player gets
+//  {t:'ack', id, at}   the client saved it (never delivered again)     {t:'refund', id, at}   money went back
+//  {t:'orphan', prov, pid, amt, cur, at, why}   money arrived but the order can't be read (for /admin, by hand)
+// A grant's id is a hash of provider + payment id, and a payment id is granted once: retried webhooks are harmless.
+const LEDGER = path.join(DATA, 'store-ledger.ndjson');
+const ledger = { grants: new Map(), byKey: new Map(), byV: new Map(), orders: new Map(), ordersByV: new Map(), orphans: [], lines: 0, bad: 0 };
+function fold(x) {
+  if (!x || typeof x !== 'object') return;
+  if (x.t === 'grant' && typeof x.id === 'string' && !ledger.grants.has(x.id)) {
+    const g = { id: x.id, prov: String(x.prov), pid: String(x.pid), sku: x.sku, gems: x.gems | 0, cos: x.cos || null, v: String(x.v), amt: +x.amt || 0, cur: x.cur || '', at: +x.at || 0, test: x.test ? 1 : 0, flag: x.flag || '', hold: x.hold ? 1 : 0, acked: 0, refunded: 0 };
+    ledger.grants.set(g.id, g); ledger.byKey.set(g.prov + ':' + g.pid, g.id);
+    let s = ledger.byV.get(g.v); if (!s) ledger.byV.set(g.v, (s = new Set())); s.add(g.id);
+    const o = ledger.orders.get(g.prov + ':' + g.pid); if (o) o.state = 'paid';
+  } else if (x.t === 'ack') { const g = ledger.grants.get(x.id); if (g && !g.acked) g.acked = +x.at || 1; }
+  else if (x.t === 'refund') { const g = ledger.grants.get(x.id); if (g && !g.refunded) g.refunded = +x.at || 1; }
+  else if (x.t === 'order' && x.prov && x.pid) {
+    const k = x.prov + ':' + x.pid; if (ledger.orders.has(k)) return;
+    ledger.orders.set(k, { prov: String(x.prov), pid: String(x.pid), sku: x.sku, v: String(x.v), amt: +x.amt || 0, cur: x.cur || '', at: +x.at || 0, test: x.test ? 1 : 0, state: ledger.byKey.has(k) ? 'paid' : 'pending', checked: 0 });
+    let a = ledger.ordersByV.get(String(x.v)); if (!a) ledger.ordersByV.set(String(x.v), (a = [])); a.push(k);
+  } else if (x.t === 'orphan') { ledger.orphans.push(x); if (ledger.orphans.length > 100) ledger.orphans.shift(); }
+}
+(function loadLedger() {
+  let txt = ''; try { txt = fs.readFileSync(LEDGER, 'utf8'); } catch (e) { return; }
+  for (const line of txt.split('\n')) { if (!line) continue; try { fold(JSON.parse(line)); ledger.lines++; } catch (e) { ledger.bad++; } }
+  // a crash mid-line must not glue the next record onto it
+  if (txt && !txt.endsWith('\n')) fs.appendFileSync(LEDGER, '\n');
+  log(`store: ${ledger.grants.size} grants, ${ledger.orders.size} orders from ${ledger.lines} ledger lines${ledger.bad ? ' (' + ledger.bad + ' unreadable)' : ''}`);
+})();
+// written and fsynced before the provider hears "OK": a failure throws, the webhook answers 5xx and the provider retries
+function ledgerWrite(xs) {
+  const fd = fs.openSync(LEDGER, 'a');
+  try { fs.writeSync(fd, xs.map(x => JSON.stringify(x)).join('\n') + '\n'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  for (const x of xs) fold(x);
+}
+function grant(prov, pid, sku, v, amt, cur, extra) {
+  const key = prov + ':' + pid, have = ledger.byKey.get(key);
+  if (have) return { g: ledger.grants.get(have), dup: true };
+  let id = 'g_' + crypto.createHash('sha256').update(key).digest('hex').slice(0, 20);
+  while (ledger.grants.has(id)) id += 'x'; // (80 bits; never in practice)
+  const S = SKUS[sku];
+  ledgerWrite([Object.assign({ t: 'grant', id, prov, pid: String(pid), sku, gems: S.gems, cos: S.cos || null, v, amt, cur, at: Date.now() }, extra || {})]);
+  log(`store: grant ${id} ${prov} ${sku} ${amt} ${cur}${extra && extra.test ? ' (test)' : ''}${extra && extra.flag ? ' FLAG ' + extra.flag : ''}`);
+  return { g: ledger.grants.get(id), dup: false };
+}
+const refund = id => { const g = ledger.grants.get(id); if (g && !g.refunded) { ledgerWrite([{ t: 'refund', id, at: Date.now() }]); log('store: refund ' + id); } };
+const orphan = (prov, pid, amt, cur, why) => { ledgerWrite([{ t: 'orphan', prov, pid: String(pid).slice(0, 200), amt, cur, at: Date.now(), why }]); log(`store: ORPHAN ${prov} payment (${why}): grant it by hand in /admin`); };
+const gOf = v => [...(ledger.byV.get(v) || [])].map(id => ledger.grants.get(id));
+const owned = (v, sku) => gOf(v).some(g => g.sku === sku && !g.refunded);
+const claimable = v => gOf(v).filter(g => !g.acked && !g.refunded && !g.hold);
+const view = g => ({ id: g.id, sku: g.sku, gems: g.gems, cos: g.cos });
+
+// ---------- providers: on when configured; PAYMENTS=1 gates every sale ----------
+const PAY_ON = () => env('PAYMENTS') === '1';
+const PROV = {
+  yandex: () => !!env('YANDEX_GAMES_SECRET'),
+  vk: () => !!env('VK_APP_SECRET'),
+  telegram: () => !!(env('TELEGRAM_BOT_TOKEN') && env('TELEGRAM_WEBHOOK_SECRET')),
+  yookassa: () => !!(env('YOOKASSA_SHOP_ID') && env('YOOKASSA_SECRET_KEY')),
+};
+const PROV_ENV = { yandex: ['YANDEX_GAMES_SECRET'], vk: ['VK_APP_SECRET'], telegram: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET'], yookassa: ['YOOKASSA_SHOP_ID', 'YOOKASSA_SECRET_KEY'] };
+const storeProviders = () => (PAY_ON() ? Object.keys(PROV).filter(k => PROV[k]()) : []);
+const selling = p => PAY_ON() && PROV[p]();
+const stat = { tgInvoices: 0, tgPreOk: 0, tgPreNo: 0, ykCreated: 0, yaVerified: 0, yaBadSig: 0, vkBadSig: 0, hookBad: 0 };
+
+// --- Telegram Stars: createInvoiceLink (XTR, one price), then the bot's webhook ---
+const TG_API = (env('TELEGRAM_API') || 'https://api.telegram.org').replace(/\/+$/, '');
+const PAYLOAD_KEY = env('STORE_SECRET') || crypto.createHash('sha256').update('bttn-store-payload|' + env('TELEGRAM_BOT_TOKEN')).digest('hex');
+// the invoice payload (≤128 bytes): sku|v|nonce|sig, so a pre-checkout query can be checked with no state
+const signPayload = (sku, v) => { const body = sku + '|' + v + '|' + rid(8); return body + '|' + b64url(hmac(PAYLOAD_KEY, body)).slice(0, 16); };
+function openPayload(p) {
+  if (typeof p !== 'string' || p.length > 128) return null;
+  const a = p.split('|'); if (a.length !== 4) return null;
+  return { sku: a[0], v: a[1], ok: safeEq(a[3], b64url(hmac(PAYLOAD_KEY, a[0] + '|' + a[1] + '|' + a[2])).slice(0, 16)) };
+}
+async function tgCall(method, body) {
+  const r = await fetch(`${TG_API}/bot${env('TELEGRAM_BOT_TOKEN')}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(8000) });
+  const j = await r.json().catch(() => null);
+  if (!j || !j.ok) throw new Error(`telegram ${method}: ${(j && j.description) || 'HTTP ' + r.status}`);
+  return j.result;
+}
+// Mini App initData (optional on the invoice call): HMAC-SHA256 with secret = HMAC("WebAppData", bot token), ≤ 24 h old.
+// The newer 'signature' field is tried both in and out of the check string (either form proves the bot token).
+function tgInitData(raw) {
+  if (typeof raw !== 'string' || !raw || raw.length > 4096) return null;
+  const q = new URLSearchParams(raw), hash = q.get('hash'); if (!hash) return null;
+  const secret = crypto.createHmac('sha256', 'WebAppData').update(env('TELEGRAM_BOT_TOKEN')).digest();
+  const dcs = skip => [...q.entries()].filter(([k]) => k !== 'hash' && k !== skip).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map(([k, v]) => k + '=' + v).join('\n');
+  if (!safeEq(hash, hmac(secret, dcs(''), 'hex')) && !safeEq(hash, hmac(secret, dcs('signature'), 'hex'))) return null;
+  if (Date.now() / 1000 - (+q.get('auth_date') || 0) > 86400) return null;
+  let u = null; try { u = JSON.parse(q.get('user') || 'null'); } catch (e) {}
+  return { uid: u && u.id ? String(u.id) : '' };
+}
+async function tgInvoice(req, res, b) {
+  if (!selling('telegram')) return J(res, 503, { error: 'off' });
+  const { sku, v } = b;
+  if (!okSku(sku)) return J(res, 400, { error: 'sku' });
+  if (typeof v !== 'string' || !VID_RE.test(v)) return J(res, 400, { error: 'v' });
+  if (SKUS[sku].once && owned(v, sku)) return J(res, 409, { error: 'owned' });
+  const init = req.headers['x-tg-init-data'];
+  if (init != null && !tgInitData(String(init))) return J(res, 401, { error: 'init data' });
+  const lang = b.lang === 'ru' ? 'ru' : 'en', S = SKUS[sku], P = priceOf(sku);
+  try {
+    const link = await tgCall('createInvoiceLink', Object.assign({ title: S[lang], description: descOf(sku, lang), payload: signPayload(sku, v), provider_token: '', currency: 'XTR', prices: [{ label: S[lang], amount: P.stars }] },
+      /^https:/.test(ORIGIN) ? { photo_url: ORIGIN + '/assets/icon-512.png', photo_width: 512, photo_height: 512 } : {}));
+    if (typeof link !== 'string' || !/^https:\/\//.test(link)) throw new Error('telegram createInvoiceLink: no link');
+    stat.tgInvoices++;
+    return J(res, 200, { link });
+  } catch (e) { log('store: telegram invoice failed:', e.message); return J(res, 502, { error: 'provider' }); }
+}
+function tgWebhook(req, res, b) {
+  const want = env('TELEGRAM_WEBHOOK_SECRET');
+  if (!want || !env('TELEGRAM_BOT_TOKEN')) return J(res, 503, { error: 'off' });
+  if (!safeEq(req.headers['x-telegram-bot-api-secret-token'] || '', want)) { stat.hookBad++; return J(res, 401, { error: 'secret' }); }
+  const q = b.pre_checkout_query;
+  if (q && typeof q === 'object') {
+    const P = openPayload(q.invoice_payload);
+    const why = !P || !P.ok ? 'bad payload' : !okSku(P.sku) || !VID_RE.test(P.v) ? 'unknown item' : q.currency !== 'XTR' || +q.total_amount !== priceOf(P.sku).stars ? 'price' : SKUS[P.sku].once && owned(P.v, P.sku) ? 'owned' : !PAY_ON() ? 'closed' : '';
+    if (why) { stat.tgPreNo++; log('store: telegram pre-checkout refused:', why); } else stat.tgPreOk++;
+    // answered in the webhook reply itself: no outbound call, well inside Telegram's 10 s
+    const lang = q.from && /^ru/.test(String(q.from.language_code || '')) ? 'ru' : 'en';
+    const msg = why === 'owned' ? (lang === 'ru' ? 'Это у тебя уже есть.' : 'You already own this.') : (lang === 'ru' ? 'Этот товар сейчас недоступен. Открой магазин заново.' : 'This item is not available right now. Please reopen the store.');
+    return J(res, 200, Object.assign({ method: 'answerPreCheckoutQuery', pre_checkout_query_id: String(q.id), ok: !why }, why ? { error_message: msg } : {}));
+  }
+  const m = b.message && typeof b.message === 'object' ? b.message : null;
+  try {
+    const sp = m && m.successful_payment;
+    if (sp && typeof sp === 'object') {
+      const pid = String(sp.telegram_payment_charge_id || ''), P = openPayload(sp.invoice_payload), amt = +sp.total_amount || 0;
+      if (!pid || pid.length > 200) return J(res, 200, {});
+      if (!P || !okSku(P.sku) || !VID_RE.test(P.v)) { if (!ledger.byKey.has('telegram:' + pid)) orphan('telegram', pid, amt, 'XTR', 'payload'); return J(res, 200, {}); }
+      // the money has moved: grant even if the signing key changed since the invoice (flagged), hold if it's short
+      const short = sp.currency !== 'XTR' || amt < priceOf(P.sku).stars;
+      grant('telegram', pid, P.sku, P.v, amt, 'XTR', Object.assign({}, P.ok ? {} : { flag: 'sig' }, short ? { flag: 'amount', hold: 1 } : {}));
+    }
+    const rp = m && m.refunded_payment;
+    if (rp && typeof rp === 'object') { const id = ledger.byKey.get('telegram:' + String(rp.telegram_payment_charge_id || '')); if (id) refund(id); }
+  } catch (e) { log('store: telegram webhook failed:', e.message); return J(res, 500, { error: 'ledger' }); }
+  return J(res, 200, {});
+}
+
+// --- YooKassa: create a payment (redirect), then the webhook, verified by fetching the payment back ---
+const YK_API = (env('YOOKASSA_API') || 'https://api.yookassa.ru/v3').replace(/\/+$/, '');
+const YK_ID = /^[A-Za-z0-9_-]{8,64}$/;
+async function ykCall(method, p, body, idem) {
+  const h = { authorization: 'Basic ' + Buffer.from(env('YOOKASSA_SHOP_ID') + ':' + env('YOOKASSA_SECRET_KEY')).toString('base64'), 'content-type': 'application/json' };
+  if (idem) h['idempotence-key'] = idem;
+  const r = await fetch(YK_API + p, { method, headers: h, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(10000) });
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j) { const e = new Error(`yookassa ${method} ${p.split('/')[1]}: HTTP ${r.status}${j && j.code ? ' ' + j.code : ''}`); e.status = r.status; throw e; }
+  return j;
+}
+async function ykCreate(req, res, b) {
+  if (!selling('yookassa')) return J(res, 503, { error: 'off' });
+  const { sku, v } = b;
+  if (!okSku(sku)) return J(res, 400, { error: 'sku' });
+  if (typeof v !== 'string' || !VID_RE.test(v)) return J(res, 400, { error: 'v' });
+  if (SKUS[sku].once && owned(v, sku)) return J(res, 409, { error: 'owned' });
+  // the way back must be our own site (no open redirect through the payment page): PUBLIC_URL, or the address this
+  // request came in on (Railway's edge routes only our own domains here, and says which in X-Forwarded-Host)
+  let ret = ORIGIN + '/play?paid=yookassa';
+  const self = (String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || 'http') + '://' + String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+  if (b.return_url != null) {
+    let x = null; try { x = new URL(String(b.return_url)); } catch (e) {}
+    if (!x || !/^https?:$/.test(x.protocol) || (x.origin !== ORIGIN && x.origin !== self) || String(b.return_url).length > 512 || x.username || x.password) return J(res, 400, { error: 'return_url' });
+    ret = x.toString();
+  }
+  const P = priceOf(sku);
+  // a double click inside a minute gets the same payment back (YooKassa's own idempotence)
+  const idem = crypto.createHash('sha256').update(['yk', v, sku, ret, Math.floor(Date.now() / 60e3)].join('|')).digest('hex').slice(0, 36);
+  try {
+    const p = await ykCall('POST', '/payments', { amount: { value: P.rub.toFixed(2), currency: 'RUB' }, capture: true, confirmation: { type: 'redirect', return_url: ret }, description: ('BTTN: ' + SKUS[sku].ru).slice(0, 128), metadata: { sku, v } }, idem);
+    const url = p && p.confirmation && p.confirmation.confirmation_url;
+    if (!p || !YK_ID.test(String(p.id)) || typeof url !== 'string' || !/^https:\/\//.test(url)) throw new Error('yookassa create: no confirmation url');
+    if (!ledger.orders.has('yookassa:' + p.id)) ledgerWrite([{ t: 'order', prov: 'yookassa', pid: String(p.id), sku, v, amt: P.rub, cur: 'RUB', at: Date.now(), test: p.test ? 1 : undefined }]);
+    stat.ykCreated++;
+    return J(res, 200, { confirmation_url: url, id: String(p.id) });
+  } catch (e) { log('store: yookassa create failed:', e.message); return J(res, 502, { error: 'provider' }); }
+}
+// the one place a YooKassa payment becomes a grant: its state as the API reports it, never as a notification says
+async function ykSettle(pid) {
+  const o = ledger.orders.get('yookassa:' + pid); if (o) o.checked = Date.now();
+  const p = await ykCall('GET', '/payments/' + encodeURIComponent(pid));
+  if (String(p.id) !== pid) throw new Error('yookassa: id mismatch');
+  if (p.status === 'canceled') { if (o) o.state = 'canceled'; return null; }
+  if (p.status !== 'succeeded' || p.paid !== true) return null;
+  const md = p.metadata || {}, amt = Number(p.amount && p.amount.value) || 0;
+  if (!okSku(md.sku) || typeof md.v !== 'string' || !VID_RE.test(md.v)) { if (!ledger.byKey.has('yookassa:' + pid)) orphan('yookassa', pid, amt, 'RUB', 'metadata'); return null; }
+  const want = o && o.sku === md.sku ? o.amt : priceOf(md.sku).rub;
+  const short = (p.amount && p.amount.currency) !== 'RUB' || amt + 1e-9 < want;
+  return grant('yookassa', pid, md.sku, md.v, amt, 'RUB', Object.assign({}, p.test ? { test: 1 } : {}, short ? { flag: 'amount', hold: 1 } : {})).g;
+}
+const YK_NETS = ['185.71.76.0/27', '185.71.77.0/27', '77.75.153.0/25', '77.75.156.11/32', '77.75.156.35/32', '77.75.154.128/25'];
+const ip4 = s => { const m = /^(?:::ffff:)?(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/i.exec(s); return m ? ((+m[1] << 24) >>> 0) + (+m[2] << 16) + (+m[3] << 8) + +m[4] : null; };
+const ykIpOk = ip => /^2a02:5180:/i.test(ip) || (n => n != null && YK_NETS.some(c => { const [a, bits] = c.split('/'), mask = (~0 << (32 - +bits)) >>> 0; return ((n & mask) >>> 0) === ((ip4(a) & mask) >>> 0); }))(ip4(ip));
+async function ykWebhook(req, res, b) {
+  if (!PROV.yookassa()) return J(res, 503, { error: 'off' });
+  if (env('YOOKASSA_IP_CHECK') === '1' && !ykIpOk(ipStrict(req))) { stat.hookBad++; return J(res, 403, { error: 'ip' }); }
+  const ev = String(b.event || ''), id = String((b.object && b.object.id) || '');
+  if (!YK_ID.test(id)) { stat.hookBad++; return J(res, 400, { error: 'id' }); }
+  try {
+    if (ev.startsWith('payment.')) await ykSettle(id);
+    else if (ev === 'refund.succeeded') {
+      const r = await ykCall('GET', '/refunds/' + encodeURIComponent(id));
+      const gid = r && r.status === 'succeeded' && ledger.byKey.get('yookassa:' + String(r.payment_id || '')), g = gid && ledger.grants.get(gid);
+      if (g && Number(r.amount && r.amount.value) + 1e-9 >= g.amt) refund(gid); else if (g) log('store: partial refund on ' + gid + ', grant kept');
+    }
+  } catch (e) {
+    // a made-up id: nothing to do (200 stops the retries); anything else: 502, YooKassa tries again for a day
+    if (e.status === 404) { stat.hookBad++; return J(res, 200, { ok: true }); }
+    log('store: yookassa webhook failed:', e.message); return J(res, 502, { error: 'provider' });
+  }
+  return J(res, 200, { ok: true });
+}
+
+// --- Yandex Games: a signed purchase ('<base64 HMAC-SHA256>.<base64 JSON>', key = the game's secret) ---
+function yaVerify(req, res, b) {
+  const key = env('YANDEX_GAMES_SECRET');
+  if (!key) return J(res, 503, { error: 'off' });
+  const v = b.v, sig = typeof b.signature === 'string' ? b.signature : '';
+  if (typeof v !== 'string' || !VID_RE.test(v)) return J(res, 400, { error: 'v' });
+  const dot = sig.indexOf('.');
+  if (dot < 1) return J(res, 400, { error: 'signature' });
+  const data = sig.slice(dot + 1), norm = x => x.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+  if (!safeEq(norm(sig.slice(0, dot)), norm(hmac(key, data, 'base64')))) { stat.yaBadSig++; return J(res, 403, { error: 'signature' }); }
+  let p; try { p = JSON.parse(Buffer.from(data, 'base64').toString('utf8')); } catch (e) { return J(res, 400, { error: 'payload' }); }
+  const items = p && Array.isArray(p.data) ? p.data : p && p.data && typeof p.data === 'object' ? [p.data] : [];
+  const grants = [], tokens = [];
+  try {
+    for (const it of items.slice(0, 50)) {
+      if (!it || typeof it !== 'object' || it.errorCode) continue;
+      const tok = String(it.token || it.purchaseToken || ''), sku = (it.product && it.product.id) || it.productID;
+      if (!tok || tok.length > 200 || !okSku(sku)) continue;
+      // a developerPayload that names another visitor: bought by someone else (a replayed signature gets nothing)
+      if (typeof it.developerPayload === 'string' && VID_RE.test(it.developerPayload) && it.developerPayload !== v) continue;
+      const price = (it.product && it.product.price) || {};
+      const r = grant('yandex', tok, sku, v, +price.value || 0, String(price.code || 'YAN').slice(0, 8));
+      if (r.g.v !== v) continue;
+      tokens.push(tok);
+      if (!r.g.acked && !r.g.refunded && !r.g.hold) grants.push(view(r.g));
+    }
+  } catch (e) { log('store: yandex verify failed:', e.message); return J(res, 500, { error: 'ledger' }); }
+  stat.yaVerified++;
+  // tokens: the purchases this server holds for you, safe to consumePurchase() once the grants are saved
+  return J(res, 200, { grants, tokens });
+}
+
+// --- VK Mini Apps payments callback (form POST; sig = md5 of the sorted k=v pairs + the app's secure key) ---
+const vkSig = (o, secret) => crypto.createHash('md5').update(Object.keys(o).filter(k => k !== 'sig').sort().map(k => k + '=' + o[k]).join('') + secret).digest('hex');
+// item: '<sku>' or '<sku>:<visitor id>' (VKWebAppShowOrderBox {type:'item', item})
+function vkItem(s) { const m = /^([a-z0-9_]{2,32})(?:[:|~]([a-z0-9]{6,24}))?$/.exec(String(s || '')); return m && okSku(m[1]) ? { sku: m[1], v: m[2] || '' } : null; }
+// signed launch params (the Mini App's query string): sign = base64url(HMAC-SHA256(secret, sorted vk_* params))
+function vkLaunch(raw) {
+  const secret = env('VK_APP_SECRET'); if (!secret || typeof raw !== 'string' || !raw || raw.length > 4096) return null;
+  const q = new URLSearchParams(raw.replace(/^[?#]/, '')), sign = q.get('sign'); if (!sign) return null;
+  const o = {}; for (const [k, v] of q) if (k.startsWith('vk_')) o[k] = v;
+  const str = require('querystring').stringify(Object.fromEntries(Object.keys(o).sort().map(k => [k, o[k]])));
+  if (!safeEq(sign, b64url(hmac(secret, str)))) return null;
+  if (env('VK_APP_ID') && o.vk_app_id && o.vk_app_id !== env('VK_APP_ID')) return null;
+  return { uid: String(o.vk_user_id || '') };
+}
+function vkCallback(req, res, raw) {
+  const out = o => J(res, 200, o), err = (code, msg, critical) => out({ error: { error_code: code, error_msg: msg, critical: !!critical } });
+  const secret = env('VK_APP_SECRET');
+  if (!secret) return J(res, 503, { error: 'off' });
+  const o = Object.create(null);
+  for (const [k, v] of new URLSearchParams(raw.toString('utf8'))) o[k] = v;
+  if (!o.sig || !safeEq(String(o.sig).toLowerCase(), vkSig(o, secret))) { stat.vkBadSig++; return err(10, 'signature mismatch', true); }
+  if (env('VK_APP_ID') && o.app_id !== env('VK_APP_ID')) return err(11, 'app mismatch', true);
+  const type = String(o.notification_type || ''), test = type.endsWith('_test'), it = vkItem(o.item), lang = /^ru|^0$/.test(String(o.lang || '')) ? 'ru' : 'en';
+  if (type === 'get_item' || type === 'get_item_test') {
+    if (!it) return err(20, 'no such item', true);
+    if (!PAY_ON()) return err(21, 'store closed', true);
+    if (SKUS[it.sku].once && it.v && owned(it.v, it.sku)) return err(21, 'already owned', true);
+    return out({ response: { item_id: it.sku, title: SKUS[it.sku][lang], price: priceOf(it.sku).votes, photo_url: ORIGIN + '/assets/icon-192.png', expiration: 3600 } });
+  }
+  if (type === 'order_status_change' || type === 'order_status_change_test') {
+    if (o.status !== 'chargeable') return err(100, 'unsupported status', true);
+    const oid = String(o.order_id || '');
+    if (!/^\d{1,18}$/.test(oid)) return err(11, 'bad order id', true);
+    if (!it) { try { if (!ledger.byKey.has('vk:' + oid)) orphan('vk', oid, +o.item_price || 0, 'VOTES', 'item'); } catch (e) { return err(2, 'temporary error', false); } return err(20, 'no such item', true); }
+    const v = it.v || 'vk:' + String(o.receiver_id || o.user_id || '').replace(/\D/g, '').slice(0, 12);
+    if (!VID_RE.test(v) && !VKV_RE.test(v)) return err(11, 'no receiver', true);
+    const price = +o.item_price || 0, short = price < priceOf(it.sku).votes;
+    let r; try { r = grant('vk', oid, it.sku, v, price, 'VOTES', Object.assign({}, test ? { test: 1 } : {}, short ? { flag: 'amount', hold: 1 } : {})); } catch (e) { return err(2, 'temporary error', false); }
+    return out({ response: { order_id: Number(oid), app_order_id: parseInt(r.g.id.slice(2, 14), 16) } });
+  }
+  return err(100, 'unknown notification', true);
+}
+
+// --- claim and ack: the client takes its grants (at least once) and acks them (then never again) ---
+// a 'vk:<user id>' key is claimed only with that user's signed launch params (header x-vk-params)
+function vOk(req, v) {
+  if (typeof v !== 'string') return false;
+  if (VID_RE.test(v)) return true;
+  if (VKV_RE.test(v)) { const L = vkLaunch(String(req.headers['x-vk-params'] || '')); return !!L && L.uid === v.slice(3); }
+  return false;
+}
+async function claim(req, res, v) {
+  if (!vOk(req, v)) return J(res, VKV_RE.test(String(v)) ? 401 : 400, { error: 'v' });
+  // back from the YooKassa page before its webhook landed (or no webhook set up at all): ask YooKassa directly
+  if (PROV.yookassa()) {
+    const now = Date.now(), mine = (ledger.ordersByV.get(v) || []).map(k => ledger.orders.get(k)).filter(o => o.prov === 'yookassa' && o.state === 'pending' && now - o.at < 864e5 && now - o.checked > 10e3).slice(-3);
+    if (mine.length) await Promise.race([Promise.all(mine.map(o => ykSettle(o.pid).catch(e => log('store: yookassa check failed:', e.message)))), new Promise(r => setTimeout(r, 6000))]);
+  }
+  return J(res, 200, { grants: claimable(v).map(view) });
+}
+function ack(req, res, b) {
+  if (!vOk(req, b.v)) return J(res, VKV_RE.test(String(b.v)) ? 401 : 400, { error: 'v' });
+  if (!Array.isArray(b.ids) || b.ids.length > 100) return J(res, 400, { error: 'ids' });
+  const now = Date.now(), lines = [];
+  for (const id of new Set(b.ids)) { const g = typeof id === 'string' && ledger.grants.get(id); if (g && g.v === b.v && !g.acked) lines.push({ t: 'ack', id, at: now }); }
+  try { if (lines.length) ledgerWrite(lines); } catch (e) { log('store: ack failed:', e.message); return J(res, 500, { error: 'ledger' }); }
+  return J(res, 200, { ok: true, acked: lines.length });
+}
+
+// --- /admin: what was sold, through which rail, and what is still waiting to be delivered ---
+function storeStats() {
+  const now = Date.now(), G = [...ledger.grants.values()], real = G.filter(g => !g.test && g.prov !== 'admin');
+  const rev = {}, bySku = {}, days = {};
+  for (const g of real) {
+    bump(bySku, g.sku);
+    if (g.refunded) continue;
+    const k = g.prov + ' · ' + g.cur, o = rev[k] || (rev[k] = { prov: g.prov, cur: g.cur, n: 0, sum: 0 }); o.n++; o.sum = Math.round((o.sum + g.amt) * 100) / 100;
+    if (now - g.at < 30 * 864e5) bump(days, dayKey(g.at));
+  }
+  const pend = G.filter(g => !g.acked && !g.refunded && !g.hold);
+  const orders = [...ledger.orders.values()];
+  return {
+    on: PAY_ON(), selling: storeProviders(), providers: Object.keys(PROV).map(k => ({ k, on: PROV[k](), missing: PROV_ENV[k].filter(e => !env(e)) })),
+    purchases: real.length, refunds: real.filter(g => g.refunded).length, tests: G.length - real.length,
+    revenue: Object.values(rev).sort((a, b) => b.n - a.n), bySku: top(bySku, 20), byDay: Object.entries(days).sort(),
+    pending: { n: pend.length, oldest: pend.length ? Math.round((now - Math.min(...pend.map(g => g.at))) / 60e3) : 0 },
+    held: G.filter(g => g.hold && !g.refunded).length, orphans: ledger.orphans.slice(-20).reverse(),
+    orders: { pending: orders.filter(o => o.state === 'pending' && now - o.at < 864e5).length, canceled: orders.filter(o => o.state === 'canceled').length, total: orders.length },
+    recent: G.slice().sort((a, b) => b.at - a.at).slice(0, 40).map(g => ({ id: g.id, at: g.at, prov: g.prov, sku: g.sku, v: g.v, amt: g.amt, cur: g.cur, acked: !!g.acked, refunded: !!g.refunded, test: !!g.test, flag: g.flag, hold: !!g.hold })),
+    counters: stat, csp: top(Object.fromEntries(cspSeen), 15), skus: Object.keys(SKUS),
+    telegramHook: ORIGIN + '/api/store/telegram/webhook', yookassaHook: ORIGIN + '/api/store/yookassa/webhook', vkHook: ORIGIN + '/api/store/vk/callback',
+  };
+}
+
+// ======================================================================================================
+// ---------- 4.0: the public Daily Siege board (ADDENDUM 11; DESIGN §6.5) ----------
+// One file per UTC day ($DATA_DIR/daily-YYYY-MM-DD.json), held in memory while in use and written atomically.
+// The first attempt per visitor per day is the ranked one; ranks: zones cleared, then time, then who was first.
+const DAILY_MAX = 20000, DAILY_GRACE = 60 * 60e3; // a run that started before midnight UTC may still post for 1 h
+const dailyDays = new Map();
+const dayFile = d => path.join(DATA, 'daily-' + d + '.json');
+const cmpRow = (a, b) => b.zones - a.zones || a.secs - b.secs || a.at - b.at;
+const vHash = v => crypto.createHash('sha256').update(SALT + '|daily|' + v).digest('hex').slice(0, 16);
+const validDay = d => typeof d === 'string' && /^\d{4}-\d\d-\d\d$/.test(d) && !isNaN(Date.parse(d + 'T00:00:00Z')) && new Date(d + 'T00:00:00Z').toISOString().slice(0, 10) === d;
+function dayLoad(d) {
+  let D = dailyDays.get(d);
+  if (D) { D.used = Date.now(); return D; }
+  D = { day: d, rows: [], byV: new Map(), dirty: false, writing: false, used: Date.now() };
+  try { const j = JSON.parse(fs.readFileSync(dayFile(d), 'utf8')); for (const r of Array.isArray(j.rows) ? j.rows : []) if (r && typeof r.vh === 'string' && !D.byV.has(r.vh)) { D.rows.push(r); D.byV.set(r.vh, r); } } catch (e) {}
+  D.rows.sort(cmpRow);
+  dailyDays.set(d, D);
+  if (dailyDays.size > 8) { const old = [...dailyDays.values()].filter(x => x !== D && !x.dirty && !x.writing).sort((a, b) => a.used - b.used)[0]; if (old) dailyDays.delete(old.day); }
+  return D;
+}
+function daySave(D) {
+  if (D.writing) { D.dirty = true; return; }
+  D.writing = true; D.dirty = false;
+  const tmp = dayFile(D.day) + '.tmp';
+  fs.writeFile(tmp, JSON.stringify({ day: D.day, v: 1, rows: D.rows }), e => {
+    if (e) { D.writing = false; D.dirty = true; return log('daily: write failed:', e.message); }
+    fs.rename(tmp, dayFile(D.day), e2 => { D.writing = false; if (e2) { D.dirty = true; log('daily: rename failed:', e2.message); } else if (D.dirty) daySave(D); });
+  });
+}
+const visible = D => D.rows.filter(r => !r.hid);
+const pubRow = (r, rank) => ({ rank, name: r.name, zones: r.zones, secs: r.secs, btn: r.btn, cls: r.cls, heat: r.heat });
+// a name: 16 letters/digits/spaces/_- (any script), NFKC-folded, so no markup, no bidi tricks, no zalgo
+const cleanName = s => [...(typeof s === 'string' ? s.normalize('NFKC') : '').replace(/[^\p{L}\p{N} _-]/gu, '').replace(/\s+/g, ' ').trim()].slice(0, 16).join('').trim() || 'Hand';
+const idOf = x => (typeof x === 'string' && /^[a-z0-9_-]{1,24}$/i.test(x) ? x.toLowerCase() : null);
+function dailyGet(req, res, u) {
+  const now = Date.now(), today = dayKey(now), day = u.searchParams.get('day') || today, v = u.searchParams.get('v') || '';
+  if (!validDay(day) || day > today || day < dayKey(now - KEEP_DAYS * 864e5)) return J(res, 400, { error: 'day' });
+  if (day !== today && !dailyDays.has(day) && !fs.existsSync(dayFile(day))) return J(res, 200, { day, top: [], you: null, n: 0 });
+  const D = dayLoad(day), vis = visible(D);
+  let you = null;
+  if (VID_RE.test(v)) { const vh = vHash(v), i = vis.findIndex(r => r.vh === vh); if (i >= 0) you = pubRow(vis[i], i + 1); }
+  return J(res, 200, { day, top: vis.slice(0, 50).map((r, i) => pubRow(r, i + 1)), you, n: vis.length });
+}
+function dailyPost(req, res, b, ih) {
+  const now = Date.now(), today = dayKey(now), { day, zones, secs, heat, v } = b;
+  if (typeof v !== 'string' || !VID_RE.test(v)) return J(res, 400, { error: 'v' });
+  // today (UTC); yesterday only within the first hour of today, for a run that crossed midnight
+  if (day !== today && !(day === dayKey(now - 864e5) && now - Date.parse(today + 'T00:00:00Z') < DAILY_GRACE)) return J(res, 400, { error: 'day' });
+  if (!Number.isInteger(zones) || zones < 0 || zones > 18) return J(res, 400, { error: 'zones' });
+  // 20 s a zone at the very least, and no longer than the day has lasted
+  if (typeof secs !== 'number' || !isFinite(secs) || secs < 1 || secs < 20 * zones || secs > 6 * 3600 || secs > (now - Date.parse(day + 'T00:00:00Z')) / 1000 + 60) return J(res, 400, { error: 'secs' });
+  if (heat != null && (!Number.isInteger(heat) || heat < 0 || heat > 10)) return J(res, 400, { error: 'heat' });
+  const btn = idOf(b.btn), cls = idOf(b.cls);
+  if (!btn || !cls) return J(res, 400, { error: 'btn' });
+  const D = dayLoad(day), vh = vHash(v), had = D.byV.get(vh);
+  if (had) { const i = visible(D).indexOf(had); return J(res, 409, { error: 'already', rank: i >= 0 ? i + 1 : null }); }
+  if (limitedDay('daily:' + ih, 8)) return J(res, 429, { error: 'too many today' });
+  if (D.rows.length >= DAILY_MAX) return J(res, 503, { error: 'full' });
+  const r = { vh, ih, name: cleanName(b.name), zones, secs: Math.round(secs * 10) / 10, btn, cls, heat: heat | 0, seed: b.seed == null ? '' : String(b.seed).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40), at: now };
+  let lo = 0, hi = D.rows.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (cmpRow(D.rows[mid], r) <= 0) lo = mid + 1; else hi = mid; }
+  D.rows.splice(lo, 0, r); D.byV.set(vh, r); daySave(D);
+  return J(res, 200, { ok: true, rank: visible(D).indexOf(r) + 1 });
+}
+// the boards older than KEEP_DAYS go, like the events
+try { const cut = dayKey(Date.now() - KEEP_DAYS * 864e5); for (const f of fs.readdirSync(DATA)) { const m = /^daily-(\d{4}-\d\d-\d\d)\.json$/.exec(f); if (m && m[1] < cut) fs.unlinkSync(path.join(DATA, f)); } } catch (e) {}
+
+// ---------- CSP violation reports (report-uri /api/csp): counted in memory, shown in /admin ----------
+const cspSeen = new Map();
+function cspReport(buf) {
+  let j; try { j = JSON.parse(buf.toString('utf8')); } catch (e) { return; }
+  const list = Array.isArray(j) ? j.filter(x => x && x.type === 'csp-violation').map(x => x.body || {}) : [(j && j['csp-report']) || {}];
+  for (const r of list.slice(0, 20)) {
+    const dir = String(r['effective-directive'] || r.effectiveDirective || r['violated-directive'] || '').split(' ')[0].slice(0, 40);
+    let blocked = String(r['blocked-uri'] || r.blockedURL || '').slice(0, 200), doc = '';
+    try { if (/^[a-z][a-z0-9+.-]*:\/\//i.test(blocked)) blocked = new URL(blocked).origin; } catch (e) {}
+    try { doc = new URL(String(r['document-uri'] || r.documentURL || '')).pathname.slice(0, 40); } catch (e) {}
+    const k = (doc || '?') + ' · ' + (dir || '?') + ' · ' + (blocked || '?');
+    if (cspSeen.size < 300 || cspSeen.has(k)) cspSeen.set(k, (cspSeen.get(k) || 0) + 1);
+  }
+}
+
+// ---------- CORS: portal builds hosted elsewhere (Yandex Games' own CDN) call the public APIs; no cookies anywhere ----------
+const ORIGINS = ['https://*.games.s3.yandex.net', 'https://yandex.ru', 'https://*.yandex.ru', 'https://*.yandex.com', 'https://*.yandex.net', 'https://vk.com', 'https://*.vk.com', 'https://*.vk-apps.com', 'https://web.telegram.org', ...env('ALLOWED_ORIGINS').split(',')].map(s => s.trim()).filter(Boolean);
+const ORIGIN_RE = ORIGINS.map(s => (s === '*' ? /^https?:\/\/[^/]+$/i : new RegExp('^' + s.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[a-z0-9-]+(?:\\.[a-z0-9-]+)*') + '$', 'i')));
+const corsOf = req => { const o = String(req.headers.origin || ''); return o && o !== ORIGIN && ORIGIN_RE.some(r => r.test(o)) ? { 'access-control-allow-origin': o, vary: 'origin' } : null; };
 
 // ---------- the numbers ----------
 const pct = (a, b) => (b ? Math.round(1000 * a / b) / 10 : 0);
@@ -299,6 +969,9 @@ function stats(qs) {
   for (const s of S) bump(dev.scr, s.scr);
   // the game itself
   const game = { cls: {}, bless: {}, champ: {}, land: {}, build: {}, recruit: {}, runOver: [], conts: { gems: 0, ad: 0 }, runEnd: 0, gems: 0, bossWin: 0, bossFail: 0, od: 0, relic: 0, jackpot: 0, ascend: 0 };
+  // 4.0 runs (runEnd {kind, depth, mins, cause, heat, btn}; card/deed/door {id}; loot {r}; camp {a}) and the store funnel
+  const runs = { start: 0, end: 0, win: 0, extract: 0, kind: {}, cause: {}, heat: {}, btn: {}, card: {}, deed: {}, door: {}, loot: {}, camp: {}, mins: [], depth: [] };
+  const shop = { open: 0, start: 0, ok: 0, fail: 0, from: {}, prov: {}, sku: {}, why: {}, okProv: {}, ads: 0, adsOk: 0 };
   const errors = {};
   const hours = new Array(24).fill(0);
   for (const s of S) {
@@ -312,7 +985,26 @@ function stats(qs) {
       else if (t === 'recruit') bump(game.recruit, d.c);
       else if (t === 'run_over') game.runOver.push(+d.d || 0);
       else if (t === 'run_cont') game.conts[d.h === 'ad' ? 'ad' : 'gems']++;
-      else if (t === 'run_end') game.runEnd++;
+      else if (t === 'run_end') {
+        game.runEnd++;
+        if (d.kind) {
+          runs.end++; bump(runs.kind, clip(String(d.kind), 16)); if (/^win/.test(d.kind)) runs.win++;
+          if (+d.mins > 0) runs.mins.push(Math.min(600, +d.mins)); if (d.depth != null) runs.depth.push(+d.depth || 0);
+          if (!/^win|^extract/.test(d.kind)) bump(runs.cause, clip(String(d.cause || '?'), 32));
+          bump(runs.heat, 'Heat ' + (d.heat | 0)); bump(runs.btn, clip(String(d.btn || '?'), 16));
+        }
+      }
+      else if (t === 'run_start') runs.start++;
+      else if (t === 'extract') runs.extract++;
+      else if (t === 'card' || t === 'deed' || t === 'door') bump(runs[t], clip(String(d.id || d.land || d.c || '?'), 24));
+      else if (t === 'loot') bump(runs.loot, clip(String(d.r || d.rar || '?'), 12));
+      else if (t === 'camp') bump(runs.camp, clip(String(d.a || d.act || '?'), 16));
+      else if (t === 'store_open') { shop.open++; bump(shop.from, clip(String(d.from || d.tab || d.at || '?'), 16)); }
+      else if (t === 'buy_start') { shop.start++; bump(shop.prov, clip(String(d.p || d.prov || '?'), 12)); bump(shop.sku, clip(String(d.sku || '?'), 32)); }
+      else if (t === 'buy_ok') { shop.ok++; bump(shop.okProv, clip(String(d.p || d.prov || '?'), 12)); }
+      else if (t === 'buy_fail') { shop.fail++; bump(shop.why, clip(String(d.why || d.w || '?'), 24)); }
+      else if (t === 'ad_show') shop.ads++;
+      else if (t === 'ad_ok') shop.adsOk++;
       else if (t === 'gems') game.gems += +d.n || 0;
       else if (t === 'boss_win') game.bossWin++;
       else if (t === 'boss_fail') game.bossFail++;
@@ -342,6 +1034,8 @@ function stats(qs) {
     dev: { type: top(dev.type), os: top(dev.os), br: top(dev.br), scr: top(dev.scr, 8) },
     geo: { cc: top(geo.cc, 15), lang: top(geo.lang, 12) },
     game: { cls: top(game.cls), bless: top(game.bless), champ: Object.entries(game.champ).map(([m, o]) => [m, o.ok, o.fail]), land: Object.entries(game.land).sort((a, b) => +a[0].slice(5) - +b[0].slice(5)), build: top(game.build), recruit: top(game.recruit), runOvers: game.runOver.length, runOverMedDepth: med(game.runOver) + 1, bossWin: game.bossWin, bossFail: game.bossFail, od: game.od, relic: game.relic, jackpot: game.jackpot, ascend: game.ascend, conts: game.conts, runEnd: game.runEnd, gems: game.gems },
+    runs: { start: runs.start, end: runs.end, win: runs.win, winPct: pct(runs.win, runs.end), extract: runs.extract, medMin: Math.round(med(runs.mins) * 10) / 10, medDepth: med(runs.depth), kind: top(runs.kind), cause: top(runs.cause), heat: top(runs.heat, 11), btn: top(runs.btn, 10), card: top(runs.card, 15), deed: top(runs.deed, 15), door: top(runs.door, 12), loot: top(runs.loot, 10), camp: top(runs.camp, 8) },
+    shop: { open: shop.open, start: shop.start, ok: shop.ok, fail: shop.fail, from: top(shop.from, 8), prov: top(shop.prov, 8), okProv: top(shop.okProv, 8), sku: top(shop.sku, 12), why: top(shop.why, 8), ads: shop.ads, adsOk: shop.adsOk },
     errors: top(errors, 15), live,
     filters: { sources: [...new Set([...visitors.values()].filter(v => !v.bot).map(v => srcKey(v.touch)))].sort().slice(0, 100), cc: [...new Set([...visitors.values()].map(v => v.cc))].sort() },
     totals: { visitors: visitors.size, sessions: sessions.size, landingViews: lands.size },
@@ -364,38 +1058,45 @@ const authed = req => {
 };
 
 // ---------- the public config: which providers are set up (never the secrets themselves) ----------
-const env = k => String(process.env[k] || '').trim();
-const okLink = u => (/^https:\/\/[^\s"'<>]+$/i.test(u) ? u : '');
-let cfgCache = null, cfgAt = 0;
-function config() {
-  if (cfgCache && Date.now() - cfgAt < 60e3) return cfgCache;
+// ?pf=yandex|vk|telegram|web|steam tailors store.provider and ads.provider to the platform asking (optional)
+const ADS_REWARDED = env('ADS_REWARDED').toLowerCase().split(',').map(s => s.trim()).filter(k => (k === 'yandex' || k === 'vk' || (k === 'telegram' && env('ADSGRAM_BLOCK_ID'))));
+const STORE_OF = { yandex: 'yandex', vk: 'vk', telegram: 'telegram', web: 'yookassa' };
+const cfgCache = new Map();
+let players7d = null, playersAt = 0;
+function config(pf) {
+  pf = /^(yandex|vk|telegram|web|steam)$/.test(pf || '') ? pf : '';
+  const now = Date.now(), hit = cfgCache.get(pf);
+  if (hit && now - hit.at < 60e3) return hit.body;
   const providers = {
-    yookassa: !!(env('YOOKASSA_SHOP_ID') && env('YOOKASSA_SECRET_KEY')), robokassa: !!(env('ROBOKASSA_LOGIN') && env('ROBOKASSA_PASS1')),
-    stripe: !!env('STRIPE_SECRET_KEY'), stars: !!env('TELEGRAM_BOT_TOKEN'),
+    yookassa: PROV.yookassa(), robokassa: !!(env('ROBOKASSA_LOGIN') && env('ROBOKASSA_PASS1')),
+    stripe: !!env('STRIPE_SECRET_KEY'), stars: PROV.telegram(), telegram: PROV.telegram(), vk: PROV.vk(), yandex: PROV.yandex(),
   };
-  const ads = { adsgram: !!env('ADSGRAM_BLOCK_ID'), yandex: !!env('YANDEX_RTB_ID'), adsense: !!env('ADSENSE_CLIENT') };
-  const mail = env('CONTACT_EMAIL');
-  const links = {
-    telegram: okLink(env('LINK_TELEGRAM')), discord: okLink(env('LINK_DISCORD')), vk: okLink(env('LINK_VK')), youtube: okLink(env('LINK_YOUTUBE')), reddit: okLink(env('LINK_REDDIT')),
-    contact: /^[^\s@<>"]+@[^\s@<>"]+\.[a-z]{2,}$/i.test(mail) ? 'mailto:' + mail : okLink(env('LINK_CONTACT')),
-    tg_app: okLink(env('LINK_TG_APP')), yandex: okLink(env('LINK_YANDEX_GAMES')), crazygames: okLink(env('LINK_CRAZYGAMES')), steam: okLink(env('LINK_STEAM')),
-  };
-  for (const k in links) if (!links[k]) delete links[k];
   // social proof for the landing: real people who played this week, rounded down to the hundred, only past 500
-  const wk = Date.now() - 7 * 864e5, seen = new Set();
-  for (const S of sessions.values()) if (S.last >= wk && !S.bot) seen.add(S.vid);
-  const players7d = seen.size >= 500 ? Math.floor(seen.size / 100) * 100 : null;
-  cfgCache = { v: 1, payments: env('PAYMENTS') === '1' && Object.values(providers).some(Boolean), providers, ads, links, players7d };
-  cfgAt = Date.now();
-  return cfgCache;
+  if (now - playersAt > 60e3) {
+    const wk = now - 7 * 864e5, seen = new Set();
+    for (const S of sessions.values()) if (S.last >= wk && !S.bot) seen.add(S.vid);
+    players7d = seen.size >= 500 ? Math.floor(seen.size / 100) * 100 : null; playersAt = now;
+  }
+  // 4.0: the store and its prices (Steam: Gems are earn-only, so the store is off there)
+  const sell = pf === 'steam' ? [] : storeProviders();
+  const prices = {}, skus = {};
+  for (const k of Object.keys(SKUS)) { const P = priceOf(k); prices[k] = { rub: P.rub, usd: P.usd, stars: P.stars, votes: P.votes }; skus[k] = { gems: SKUS[k].gems, cos: SKUS[k].cos || null }; }
+  const store = { on: sell.length > 0, providers: sell, provider: pf && sell.includes(STORE_OF[pf]) ? STORE_OF[pf] : null };
+  const adsOn = pf === 'steam' || pf === 'web' ? [] : ADS_REWARDED;
+  const adProv = pf ? (adsOn.includes(pf) ? pf : null) : adsOn[0] || null;
+  const ads = { adsgram: !!env('ADSGRAM_BLOCK_ID'), yandex: !!env('YANDEX_RTB_ID'), adsense: !!env('ADSENSE_CLIENT'), rewarded: !!adProv, provider: adProv, providers: adsOn };
+  if (adProv === 'telegram') ads.block = env('ADSGRAM_BLOCK_ID');
+  const body = JSON.stringify({ v: 2, payments: PAY_ON() && Object.values(providers).some(Boolean), providers, ads, links: LINKS, players7d, store, prices, skus });
+  cfgCache.set(pf, { at: now, body });
+  return body;
 }
 
 // ---------- the server ----------
-const SEC = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin' };
+const SEC = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin', 'permissions-policy': 'camera=(), microphone=(), geolocation=()' };
 function send(res, code, type, body, extra) { res.writeHead(code, Object.assign({ 'content-type': type, 'cache-control': 'no-store' }, SEC, extra || {})); res.end(body); }
 // a packed file: 304 on a matching ETag, brotli or gzip when the browser takes it, byte ranges for video (Safari needs them)
 function serve(req, res, o, extra) {
-  const h = Object.assign({ 'content-type': o.type, 'cache-control': o.cache, etag: o.etag }, SEC, extra || {});
+  const h = Object.assign({ 'content-type': o.type, 'cache-control': o.cache, etag: o.etag }, SEC, o.csp ? { [CSP_HDR]: o.csp } : {}, extra || {});
   if (o.br) h.vary = 'accept-encoding';
   const inm = req.headers['if-none-match'];
   if (inm && inm.split(/\s*,\s*/).includes(o.etag)) { res.writeHead(304, h); return res.end(); }
@@ -416,16 +1117,52 @@ function serve(req, res, o, extra) {
   res.writeHead(200, h); res.end(req.method === 'HEAD' ? undefined : body);
 }
 const redirect = (res, to, code) => { res.writeHead(code || 302, Object.assign({ location: to, 'cache-control': 'no-cache' }, SEC)); res.end(); };
-http.createServer((req, res) => {
-  const u = new URL(req.url || '/', 'http://x'), p = u.pathname;
+const dec = s => { try { return decodeURIComponent(s); } catch (e) { return null; } };
+// an async handler's failure answers 500 instead of taking the process down
+const run = (res, pr) => Promise.resolve(pr).catch(e => { log('error:', e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e); if (!res.headersSent) J(res, 500, { error: 'server' }); });
+// POST routes: path → [body cap, per-IP per-minute limit, handler(req, res, body, ih)]
+const POSTS = {
+  '/api/store/telegram/invoice': [4e3, 10, (req, res, b) => run(res, tgInvoice(req, res, b))],
+  '/api/store/telegram/webhook': [256e3, 600, (req, res, b) => tgWebhook(req, res, b)],
+  '/api/store/yookassa/create': [4e3, 10, (req, res, b) => run(res, ykCreate(req, res, b))],
+  '/api/store/yookassa/webhook': [64e3, 600, (req, res, b) => run(res, ykWebhook(req, res, b))],
+  '/api/store/yandex/verify': [64e3, 20, (req, res, b) => yaVerify(req, res, b)],
+  '/api/store/ack': [8e3, 30, (req, res, b) => ack(req, res, b)],
+  '/api/daily': [2e3, 3, (req, res, b, ih) => dailyPost(req, res, b, ih)],
+};
+const ADMIN_POSTS = {
+  '/api/admin/store/grant': b => {
+    if (!okSku(b.sku) || typeof b.v !== 'string' || !(VID_RE.test(b.v) || VKV_RE.test(b.v))) return [400, { error: 'sku or v' }];
+    const r = grant('admin', 'a' + Date.now().toString(36) + rid(6), b.sku, b.v, 0, '', { test: 1, note: String(b.note || '').slice(0, 120) });
+    return [200, { ok: true, grant: view(r.g) }];
+  },
+  '/api/admin/daily/hide': b => {
+    const D = validDay(b.day) && (dailyDays.has(b.day) || fs.existsSync(dayFile(b.day))) ? dayLoad(b.day) : null, r = D && typeof b.vh === 'string' && D.byV.get(b.vh);
+    if (!r) return [404, { error: 'no such row' }];
+    if (b.hid === false) delete r.hid; else r.hid = 1;
+    daySave(D); return [200, { ok: true, hid: !!r.hid }];
+  },
+};
+const server = http.createServer((req, res) => {
+  try { handle(req, res); } catch (e) { log('error:', e && e.stack ? e.stack.split('\n').slice(0, 3).join(' | ') : e); if (!res.headersSent) J(res, 500, { error: 'server' }); }
+});
+function handle(req, res) {
+  let u; try { u = new URL(req.url || '/', 'http://x'); } catch (e) { return send(res, 400, 'text/plain', 'bad url'); }
+  const p = u.pathname;
   if (p === '/health') return send(res, 200, 'text/plain', 'ok');
+  if (req.headers['x-forwarded-proto'] === 'https' && /^https:/.test(ORIGIN)) res.setHeader('strict-transport-security', 'max-age=15552000');
+  // the public APIs answer portal builds hosted elsewhere (CORS without credentials)
+  const api = p.startsWith('/api/') && !p.startsWith('/api/admin/'), C = api ? corsOf(req) : null;
+  if (C) for (const k in C) res.setHeader(k, C[k]);
+  if (req.method === 'OPTIONS') {
+    if (!C) return send(res, 405, 'text/plain', '');
+    res.writeHead(204, Object.assign({ 'access-control-allow-methods': 'GET, POST', 'access-control-allow-headers': 'content-type, x-vk-params, x-tg-init-data', 'access-control-max-age': '600' }, SEC)); return res.end();
+  }
   if (p === '/api/ev' && req.method === 'POST') {
     const ip = ipOf(req), ih = hashIp(ip);
     if (limited('ev:' + ih, 90)) return send(res, 429, 'text/plain', 'slow down');
-    let size = 0; const chunks = [];
-    req.on('data', c => { size += c.length; if (size > 64e3) { req.destroy(); return; } chunks.push(c); });
-    req.on('end', () => {
-      let b; try { b = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch (e) { return send(res, 400, 'text/plain', 'bad'); }
+    return readBody(req, res, 64e3, buf => {
+      let b; try { b = JSON.parse(buf.toString('utf8')); } catch (e) { return send(res, 400, 'text/plain', 'bad'); }
       if (!b || typeof b.v !== 'string' || typeof b.s !== 'string' || !/^[a-z0-9]{6,24}$/.test(b.v) || !/^[a-z0-9]{6,24}$/.test(b.s) || !Array.isArray(b.e)) return send(res, 400, 'text/plain', 'bad');
       const ses = sessions.get(b.s);
       if (ses && ses.n > 6000) return send(res, 204, 'text/plain', '');
@@ -433,25 +1170,73 @@ http.createServer((req, res) => {
       ingest(rec); append(rec);
       send(res, 204, 'text/plain', '');
     });
-    return;
+  }
+  if (p === '/api/csp') {
+    if (req.method !== 'POST') return send(res, 405, 'text/plain', '');
+    if (limited('csp:' + hashIp(ipOf(req)), 20)) return send(res, 429, 'text/plain', 'slow down');
+    return readBody(req, res, 16e3, buf => { cspReport(buf); send(res, 204, 'text/plain', ''); });
+  }
+  // the store and the Daily board
+  if (p.startsWith('/api/store/') || p === '/api/daily') {
+    const ih = hashIp(ipOf(req));
+    if (p === '/api/store/claim' || (p === '/api/daily' && req.method !== 'POST')) {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return J(res, 405, { error: 'method' });
+      if (limited((p === '/api/daily' ? 'dg:' : 'cl:') + ih, p === '/api/daily' ? 60 : 30)) return J(res, 429, { error: 'slow down' });
+      return p === '/api/daily' ? dailyGet(req, res, u) : run(res, claim(req, res, u.searchParams.get('v') || ''));
+    }
+    if (p === '/api/store/vk/callback') {
+      if (req.method !== 'POST') return J(res, 405, { error: 'method' });
+      if (limited('vk:' + ih, 600)) return J(res, 429, { error: 'slow down' });
+      return readBody(req, res, 16e3, buf => { try { vkCallback(req, res, buf); } catch (e) { log('store: vk callback failed:', e.message); if (!res.headersSent) J(res, 200, { error: { error_code: 2, error_msg: 'temporary error', critical: false } }); } });
+    }
+    const R = own(POSTS, p) && POSTS[p];
+    if (!R) return J(res, 404, { error: 'not found' });
+    if (req.method !== 'POST') return J(res, 405, { error: 'method' });
+    if (limited('st:' + p + ':' + ih, R[1])) return J(res, 429, { error: 'slow down' });
+    return readJson(req, res, R[0], b => { try { R[2](req, res, b, ih); } catch (e) { log('error:', p, e.message); if (!res.headersSent) J(res, 500, { error: 'server' }); } });
   }
   if (p.startsWith('/api/admin/')) {
-    if (!authed(req)) return send(res, TOKEN ? 401 : 503, 'application/json', JSON.stringify({ error: TOKEN ? 'bad token' : 'ADMIN_TOKEN is not set on the server' }));
+    if (!authed(req)) return J(res, TOKEN ? 401 : 503, { error: TOKEN ? 'bad token' : 'ADMIN_TOKEN is not set on the server' });
     const qs = Object.fromEntries(u.searchParams);
-    if (p === '/api/admin/stats') return send(res, 200, 'application/json', JSON.stringify(stats(qs)));
-    if (p === '/api/admin/live') return send(res, 200, 'application/json', JSON.stringify(stats(Object.assign({}, qs, { from: dayKey(Date.now()), to: dayKey(Date.now()) })).live));
+    if (req.method === 'POST') {
+      if (p === '/api/admin/store/telegram-setup') return run(res, (async () => {
+        if (!PROV.telegram()) return J(res, 400, { error: 'Set TELEGRAM_BOT_TOKEN and TELEGRAM_WEBHOOK_SECRET first.' });
+        if (!/^[A-Za-z0-9_-]{1,256}$/.test(env('TELEGRAM_WEBHOOK_SECRET'))) return J(res, 400, { error: 'TELEGRAM_WEBHOOK_SECRET may use only A-Z, a-z, 0-9, _ and -.' });
+        if (!/^https:\/\//.test(ORIGIN)) return J(res, 400, { error: 'PUBLIC_URL must be https.' });
+        try {
+          await tgCall('setWebhook', { url: ORIGIN + '/api/store/telegram/webhook', secret_token: env('TELEGRAM_WEBHOOK_SECRET'), allowed_updates: ['message', 'pre_checkout_query'] });
+          const w = await tgCall('getWebhookInfo', {});
+          return J(res, 200, { ok: true, url: w.url, pending: w.pending_update_count || 0, lastError: w.last_error_message || '' });
+        } catch (e) { return J(res, 502, { error: redact(e.message) }); }
+      })());
+      const A = own(ADMIN_POSTS, p) && ADMIN_POSTS[p];
+      if (!A) return J(res, 404, { error: 'no' });
+      return readJson(req, res, 4e3, b => { try { const [code, o] = A(b); J(res, code, o); } catch (e) { log('admin:', e.message); J(res, 500, { error: 'server' }); } });
+    }
+    if (p === '/api/admin/stats') return J(res, 200, stats(qs));
+    if (p === '/api/admin/live') return J(res, 200, stats(Object.assign({}, qs, { from: dayKey(Date.now()), to: dayKey(Date.now()) })).live);
     if (p === '/api/admin/export') return send(res, 200, 'text/csv; charset=utf-8', exportCsv(qs), { 'content-disposition': 'attachment; filename="bttn-sessions.csv"' });
-    return send(res, 404, 'text/plain', 'no');
+    if (p === '/api/admin/store') return J(res, 200, storeStats());
+    if (p === '/api/admin/daily') {
+      const day = qs.day || dayKey(Date.now());
+      if (!validDay(day)) return J(res, 400, { error: 'day' });
+      const D = dailyDays.has(day) || fs.existsSync(dayFile(day)) ? dayLoad(day) : { rows: [] };
+      return J(res, 200, { day, n: D.rows.length, rows: D.rows.slice(0, 300).map(r => ({ vh: r.vh, name: r.name, zones: r.zones, secs: r.secs, btn: r.btn, cls: r.cls, heat: r.heat, seed: r.seed, at: r.at, hid: !!r.hid })) });
+    }
+    return J(res, 404, { error: 'no' });
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'text/plain', '');
-  if (p === '/api/config') return send(res, 200, 'application/json', JSON.stringify(config()), { 'cache-control': 'public, max-age=60' });
+  if (p === '/api/config') return send(res, 200, 'application/json', config(u.searchParams.get('pf')), { 'cache-control': 'public, max-age=60' });
+  if (p.startsWith('/api/')) return J(res, 404, { error: 'not found' });
   // the landing; old links to the game (/?play=1, /index.html) go to /play with the rest of their query
   if (p === '/' || p === '/index.html') {
     if (p === '/index.html' || u.searchParams.has('play')) { u.searchParams.delete('play'); const qs = u.searchParams.toString(); return redirect(res, '/play' + (qs ? '?' + qs : '')); }
     return serve(req, res, u.searchParams.get('lang') === 'ru' ? landing.ru : landing.en);
   }
   if (p === '/play' || p === '/play/' || p.startsWith('/play/')) return serve(req, res, page);
-  if (p.startsWith('/assets/')) { const a = assets.get(decodeURIComponent(p.slice(8))); return a ? serve(req, res, a) : send(res, 404, 'text/plain', 'not found'); }
+  if (p === '/press' || p === '/press/') return serve(req, res, u.searchParams.get('lang') === 'ru' ? press.ru : press.en);
+  if (p.startsWith('/press/')) { const n = dec(p.slice(7)), F = n != null && pressFiles.get(n); return F ? serveFile(req, res, F, u.searchParams.get('dl') === '1') : send(res, 404, 'text/plain', 'not found'); }
+  if (p.startsWith('/assets/')) { const n = dec(p.slice(8)), a = n != null && assets.get(n); return a ? serve(req, res, a) : send(res, 404, 'text/plain', 'not found'); }
   if (p === '/privacy' || p === '/privacy/' || p === '/privacy.html') return serve(req, res, privacy);
   if (p === '/admin' || p === '/admin/') return serve(req, res, admin, { 'x-robots-tag': 'noindex', 'x-frame-options': 'DENY', 'cache-control': 'no-store' });
   if (p === '/og.png' && og) return serve(req, res, og);
@@ -461,4 +1246,8 @@ http.createServer((req, res) => {
   if (p === '/manifest.webmanifest' || p === '/site.webmanifest') return serve(req, res, manifest);
   // anything else: the landing, keeping the query (tags on a mistyped link still count)
   return redirect(res, '/' + (u.search || ''));
-}).listen(PORT, () => console.log('BTTN on port ' + PORT + (TOKEN ? '' : ' (admin off: set ADMIN_TOKEN)') + ' · ' + ORIGIN));
+}
+// slow clients don't get to hold a socket open forever
+server.headersTimeout = 20e3; server.requestTimeout = 30e3;
+server.listen(PORT, () => log('BTTN on port ' + PORT + (TOKEN ? '' : ' (admin off: set ADMIN_TOKEN)') + ' · ' + ORIGIN + ' · store ' + (storeProviders().join(', ') || 'off') + ' · CSP ' + CSP_MODE));
+process.on('unhandledRejection', e => log('unhandled:', e && e.message));

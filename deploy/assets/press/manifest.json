@@ -1,0 +1,117 @@
+{
+ "note": "The press kit's media list for /press (deploy/serve.js shows only files that exist). refresh: true marks 3.6 captures to redo once the 4.0 UI lands (the capture script: /tmp/claude-0/v40/tests/server/presskit.js, to move into tools/).",
+ "items": [
+  {
+   "file": "shot-horde-1920x1080.png",
+   "thumb": "shot-horde-1920x1080.thumb.webp",
+   "kind": "shot",
+   "w": 1920,
+   "h": 1080,
+   "refresh": true,
+   "en": "The Horde closes in on the Button: hundreds on screen, a meteor storm overhead",
+   "ru": "Орда сжимается вокруг Кнопки: сотни монстров и метеоритный шторм"
+  },
+  {
+   "file": "shot-loot-1920x1080.png",
+   "thumb": "shot-loot-1920x1080.thumb.webp",
+   "kind": "shot",
+   "w": 1920,
+   "h": 1080,
+   "refresh": true,
+   "en": "Loot bursts out with a beam of light for every rarity",
+   "ru": "Лут вылетает со столбом света своего цвета для каждой редкости"
+  },
+  {
+   "file": "shot-boss-1920x1080.png",
+   "thumb": "shot-boss-1920x1080.thumb.webp",
+   "kind": "shot",
+   "w": 1920,
+   "h": 1080,
+   "refresh": true,
+   "en": "A lord with affixes: the party holds the line, the Hand strikes",
+   "ru": "Лорд с особыми свойствами: отряд держит строй, Рука бьёт"
+  },
+  {
+   "file": "shot-town-1920x1080.png",
+   "thumb": "shot-town-1920x1080.thumb.webp",
+   "kind": "shot",
+   "w": 1920,
+   "h": 1080,
+   "refresh": true,
+   "en": "The town, rebuilt between Sieges from the Embers of burned gear",
+   "ru": "Город, который отстраивается между осадами из углей сожжённого снаряжения"
+  },
+  {
+   "file": "phone-horde-1080x1920.png",
+   "thumb": "phone-horde-1080x1920.thumb.webp",
+   "kind": "phone",
+   "w": 1080,
+   "h": 1920,
+   "refresh": true,
+   "en": "On a phone: one thumb on the Button",
+   "ru": "На телефоне: один палец на Кнопке"
+  },
+  {
+   "file": "phone-loot-1080x1920.png",
+   "thumb": "phone-loot-1080x1920.thumb.webp",
+   "kind": "phone",
+   "w": 1080,
+   "h": 1920,
+   "refresh": true,
+   "en": "A boss's loot on a phone",
+   "ru": "Лут с босса на телефоне"
+  },
+  {
+   "file": "clip-siege-1280x720.webm",
+   "poster": "clip-siege-poster.thumb.webp",
+   "kind": "clip",
+   "w": 1280,
+   "h": 720,
+   "refresh": true,
+   "en": "10 seconds of a Siege: the Horde, a meteor storm, a loot burst, a lord",
+   "ru": "10 секунд осады: орда, метеоритный шторм, взрыв лута, лорд"
+  },
+  {
+   "file": "clip-siege-640x360.gif",
+   "kind": "clip",
+   "w": 640,
+   "h": 360,
+   "refresh": true,
+   "en": "The same moment as a looping GIF (6 s): click to open it",
+   "ru": "Тот же момент зацикленной GIF-анимацией (6 с): нажмите, чтобы открыть",
+   "thumb": "clip-siege-poster.thumb.webp"
+  },
+  {
+   "file": "logo-transparent.png",
+   "kind": "brand",
+   "w": 1868,
+   "h": 532,
+   "en": "Logo, transparent",
+   "ru": "Логотип, прозрачный фон"
+  },
+  {
+   "file": "logo-on-dark.png",
+   "kind": "brand",
+   "w": 2348,
+   "h": 964,
+   "en": "Logo on the game's dark",
+   "ru": "Логотип на тёмном фоне игры"
+  },
+  {
+   "file": "icon-512.png",
+   "kind": "brand",
+   "w": 512,
+   "h": 512,
+   "en": "App icon",
+   "ru": "Иконка"
+  },
+  {
+   "file": "social-card-1200x630.png",
+   "kind": "brand",
+   "w": 1200,
+   "h": 630,
+   "en": "Social card",
+   "ru": "Карточка для соцсетей"
+  }
+ ]
+}

@@ -130,7 +130,7 @@ function tipOn(el, build) {
 const tipRow = (col, val, label) => h('div', null, col ? h('span', { cls: 'k', style: { background: col } }) : null, h('b', null, val), ' ', h('span', { cls: 'muted' }, label));
 
 // ---------- state ----------
-const st = { range: store.get('bttn_admin_range') || '7', from: '', to: '', src: '', dev: '', cc: '', bots: false, data: null, sort: { k: 'visitors', dir: -1 } };
+const st = { range: store.get('bttn_admin_range') || '7', from: '', to: '', src: '', dev: '', cc: '', bots: false, data: null, sort: { k: 'visitors', dir: -1 }, store: null, daily: null, dailyDay: '', msg: {} };
 const token = () => store.get('bttn_admin_token');
 const dayStr = t => new Date(t).toISOString().slice(0, 10);
 function rangeDates() {
@@ -149,9 +149,18 @@ async function load() {
   document.body.classList.add('loading');
   try {
     const r = await api('/api/admin/stats', Object.assign(rangeDates(), { src: st.src, dev: st.dev, cc: st.cc, bots: st.bots ? 1 : '' }));
-    st.data = await r.json(); render();
+    // 4.0: the store ledger and the Daily Siege board (an older server without them: those cards just say so)
+    const [sr, dr] = await Promise.all([api('/api/admin/store').then(x => x.json()).catch(() => null), api('/api/admin/daily', { day: st.dailyDay }).then(x => x.json()).catch(() => null)]);
+    st.data = await r.json(); st.store = sr; st.daily = dr; render();
   } catch (e) { if (!token()) loginView(e.message); else { const m = $('#msg'); if (m) m.textContent = e.message; } }
   document.body.classList.remove('loading');
+}
+
+async function apiPost(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'x-admin-token': token() || '', 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+  return j;
 }
 
 // ---------- login ----------
@@ -238,6 +247,75 @@ function heat(cohorts) {
     h('tbody', null, cohorts.filter(c => c.n).reverse().map(c => h('tr', null, h('td', null, c.day), h('td', null, fmt(c.n)), cell(c.d1), cell(c.d3), cell(c.d7))))), cohorts.some(c => c.n) ? null : h('p', { cls: 'muted' }, 'No new visitors in this range yet.'));
 }
 
+// ---------- 4.0: the store, the runs, the Daily Siege board, CSP reports ----------
+const money = (n, cur) => cur === 'RUB' ? n.toLocaleString('ru-RU') + ' ₽' : cur === 'XTR' ? fmt(n) + ' ⭐' : cur === 'USD' ? '$' + n.toFixed(2) : cur === 'VOTES' ? fmt(n) + ' votes' : fmt(n) + ' ' + String(cur || '').toLowerCase();
+const ago = t => { const m = Math.round((Date.now() - t) / 60e3); return m < 60 ? m + ' min ago' : m < 2880 ? Math.round(m / 60) + ' h ago' : new Date(t).toISOString().slice(0, 10); };
+function storeCards() {
+  const S = st.store;
+  if (!S) return [card('Store', 'This server has no store endpoints yet.', h('p', { cls: 'muted' }, 'No data.'))];
+  const status = g => g.refunded ? 'refunded' : g.hold ? 'held: ' + g.flag : g.acked ? 'delivered' : 'waiting for the game';
+  const provs = h('div', { cls: 'legend', style: { flexWrap: 'wrap' } }, h('span', { cls: 'pill', style: { color: S.on ? 'var(--good)' : 'var(--bad)' } }, S.on ? 'PAYMENTS=1: selling' : 'PAYMENTS is off: nothing is sold'),
+    S.providers.map(p => h('span', { cls: 'pill', title: p.on ? 'configured' : 'set ' + p.missing.join(' and '), style: { color: p.on ? 'var(--ink)' : 'var(--muted)' } }, (p.on ? '● ' : '○ ') + p.k + (p.on ? '' : ' (needs ' + p.missing.join(', ') + ')'))));
+  const tgMsg = h('span', { cls: 'note' }, st.msg.tg || '');
+  const tgBtn = h('button', { onclick: async () => { tgMsg.textContent = 'Connecting…'; try { const j = await apiPost('/api/admin/store/telegram-setup'); st.msg.tg = 'Connected: ' + j.url + (j.lastError ? ' · last error: ' + j.lastError : '') + ' · ' + j.pending + ' pending'; } catch (e) { st.msg.tg = e.message; } tgMsg.textContent = st.msg.tg; } }, 'Connect the Telegram webhook');
+  const gv = h('input', { placeholder: 'visitor id (bttn_vid) or vk:<id>', style: { minWidth: '220px' } }), gs = h('select', null, (S.skus || []).map(k => h('option', { value: k }, k))), gn = h('input', { placeholder: 'note (why)' }), gMsg = h('span', { cls: 'note' }, st.msg.grant || '');
+  const gBtn = h('button', { onclick: async () => { try { const j = await apiPost('/api/admin/store/grant', { v: gv.value.trim(), sku: gs.value, note: gn.value }); st.msg.grant = 'Granted ' + j.grant.sku + ' (' + j.grant.id + '): the game picks it up on its next claim.'; load(); } catch (e) { gMsg.textContent = e.message; } } }, 'Grant');
+  const main = card('Store', 'Every paid order from the ledger ($DATA_DIR/store-ledger.ndjson). Revenue leaves out test and refunded orders. “Waiting for the game” = paid, not yet collected by the player\'s game (it collects on its next visit). Held = the amount looked short: check it, then grant by hand if it was fine.',
+    h('div', null, provs,
+      h('div', { cls: 'kpis' },
+        kpi('Purchases', fmt(S.purchases), fmt(S.tests) + ' test or manual'),
+        kpi('Waiting for the game', fmt(S.pending.n), S.pending.n ? 'oldest ' + S.pending.oldest + ' min' : 'all delivered'),
+        kpi('Held for review', fmt(S.held), 'short payments'), kpi('Refunds', fmt(S.refunds)),
+        kpi('Open YooKassa orders', fmt(S.orders.pending), fmt(S.orders.canceled) + ' canceled · ' + fmt(S.orders.total) + ' created')),
+      h('div', { style: { height: '14px' } }),
+      h('div', { cls: 'grid' },
+        h('div', { cls: 'c6', style: { minWidth: 0 } }, h('p', { cls: 'note' }, 'Revenue by provider'), table([{ k: 'prov', t: 'Provider', l: 1 }, { k: 'n', t: 'Orders' }, { k: 'sum', t: 'Total', f: r => money(r.sum, r.cur) }], S.revenue)),
+        h('div', { cls: 'c6', style: { minWidth: 0 } }, h('p', { cls: 'note' }, 'What sells'), bars(S.bySku))),
+      h('div', { style: { height: '14px' } }), h('p', { cls: 'note' }, 'Latest orders'),
+      table([{ k: 'at', t: 'When', l: 1, f: r => ago(r.at) }, { k: 'prov', t: 'Provider', l: 1 }, { k: 'sku', t: 'SKU', l: 1 }, { k: 'amt', t: 'Amount', f: r => money(r.amt, r.cur) }, { k: 'v', t: 'Visitor', l: 1, f: r => h('span', { title: r.v }, String(r.v).slice(0, 10)) }, { k: 's', t: 'Status', l: 1, f: r => h('span', { cls: r.hold || r.refunded ? 'err' : r.acked ? '' : 'muted' }, status(r) + (r.test ? ' · test' : '') + (r.flag && !r.hold ? ' · ' + r.flag : '')) }], S.recent),
+      S.orphans.length ? [h('div', { style: { height: '14px' } }), h('p', { cls: 'err' }, 'Paid but unreadable (grant these by hand once you know who paid)'), table([{ k: 'at', t: 'When', l: 1, f: r => ago(r.at) }, { k: 'prov', t: 'Provider', l: 1 }, { k: 'pid', t: 'Payment id', l: 1 }, { k: 'amt', t: 'Amount', f: r => money(r.amt, r.cur) }, { k: 'why', t: 'Why', l: 1 }], S.orphans)] : null,
+      h('div', { style: { height: '14px' } }),
+      h('p', { cls: 'note' }, 'Webhooks to give the providers: Telegram ' + S.telegramHook + ' (set by the button) · YooKassa ' + S.yookassaHook + ' (events payment.succeeded, payment.canceled, refund.succeeded) · VK ' + S.vkHook),
+      h('div', { cls: 'out' }, tgBtn, tgMsg),
+      h('div', { cls: 'out', style: { flexWrap: 'wrap' } }, gv, gs, gn, gBtn, gMsg)));
+  return [main];
+}
+function shopFunnel(sh) {
+  if (!sh) return null;
+  const steps = [['Opened the store', sh.open], ['Started a purchase', sh.start], ['Paid', sh.ok]];
+  return card('Store funnel', 'From the game\'s events in this range (store_open → buy_start → buy_ok). Failures by reason below.',
+    h('div', null, bars(steps), sh.prov.length ? [h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'Purchases started, by provider'), bars(sh.prov)] : null,
+      sh.why.length ? [h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'Why purchases failed'), bars(sh.why)] : null,
+      h('p', { cls: 'note' }, 'Rewarded videos: ' + fmt(sh.ads) + ' shown, ' + fmt(sh.adsOk) + ' rewarded')), 'c4');
+}
+function runsCard(R) {
+  if (!R || !(R.start || R.end)) return card('Runs (4.0 Sieges)', 'Appears once the 4.0 game reports runStart / runEnd {kind, depth, mins, cause, heat, btn}, card, door, deed and loot events.', h('p', { cls: 'muted' }, 'No 4.0 runs in this range yet.'));
+  return card('Runs (4.0 Sieges)', 'Sieges in this range: how they ended, how long they took, what ended them, and what players picked.',
+    h('div', null,
+      h('div', { cls: 'kpis' }, kpi('Runs started', fmt(R.start)), kpi('Runs ended', fmt(R.end), fmt(R.extract) + ' extracts'), kpi('Win rate', pc(R.winPct), fmt(R.win) + ' wins'), kpi('Median run', R.medMin + ' min'), kpi('Median depth', String(R.medDepth))),
+      h('div', { style: { height: '14px' } }),
+      h('div', { cls: 'grid' },
+        h('div', { cls: 'c4', style: { minWidth: 0 } }, h('p', { cls: 'note' }, 'How runs ended'), bars(R.kind, { pct: true }), h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'What ended them'), bars(R.cause)),
+        h('div', { cls: 'c4', style: { minWidth: 0 } }, h('p', { cls: 'note' }, 'Top cards'), bars(R.card), h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'Doors taken'), bars(R.door)),
+        h('div', { cls: 'c4', style: { minWidth: 0 } }, h('p', { cls: 'note' }, 'Deeds done'), bars(R.deed), h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'Buttons'), bars(R.btn), h('div', { style: { height: '10px' } }), h('p', { cls: 'note' }, 'Heat'), bars(R.heat)))));
+}
+function dailyCard() {
+  const D = st.daily;
+  if (!D) return card('Daily Siege board', null, h('p', { cls: 'muted' }, 'No data.'), 'c6');
+  const day = h('input', { type: 'date', value: D.day, onchange: e => { st.dailyDay = e.target.value; load(); } });
+  const rows = D.rows.map((r, i) => Object.assign({ i }, r));
+  let rank = 0;
+  for (const r of rows) r.rank = r.hid ? '—' : ++rank;
+  return card('Daily Siege board', 'The public board at /api/daily: the first attempt per visitor per UTC day, by zones then time. Hide a row to take an offensive name off the board (the row stays, so that visitor still can\'t post again today).',
+    h('div', null, h('div', { cls: 'filters' }, day, h('span', { cls: 'muted' }, fmt(D.n) + ' entries')),
+      table([{ k: 'rank', t: '#' }, { k: 'name', t: 'Name', l: 1, f: r => h('span', { style: { textDecoration: r.hid ? 'line-through' : '' } }, r.name) }, { k: 'zones', t: 'Zones' }, { k: 'secs', t: 'Time', f: r => Math.floor(r.secs / 60) + ':' + String(Math.round(r.secs % 60)).padStart(2, '0') }, { k: 'btn', t: 'Button', l: 1 }, { k: 'cls', t: 'Class', l: 1 }, { k: 'heat', t: 'Heat' },
+        { k: 'hid', t: '', f: r => h('button', { cls: 'ghost', onclick: async () => { try { await apiPost('/api/admin/daily/hide', { day: D.day, vh: r.vh, hid: !r.hid }); load(); } catch (e) { alert(e.message); } } }, r.hid ? 'Show' : 'Hide') }], rows.slice(0, 100))), 'c6');
+}
+function cspCard() {
+  const c = (st.store && st.store.csp) || [];
+  return card('Blocked by the Content-Security-Policy', 'Page · directive · blocked source, since the server started. Something legitimate here (a new SDK host) means the policy in deploy/serve.js needs that host; CSP=report turns blocking off while you look.', bars(c), 'c6');
+}
+
 // ---------- the page ----------
 function render() {
   const d = st.data; if (!d) return;
@@ -301,6 +379,7 @@ function render() {
     card('Land Champions', 'Slain vs got away, by rule.', table([{ k: 0, t: 'Rule', l: 1 }, { k: 1, t: 'Slain' }, { k: 2, t: 'Got away' }, { k: 'r', t: 'Kill rate', f: r => pc(r[1] + r[2] ? Math.round(100 * r[1] / (r[1] + r[2])) : null) }], d.game.champ), 'c4'),
     card('Town', 'Building upgrades and recruits.', h('div', null, bars(d.game.build), h('div', { style: { height: '10px' } }), bars(d.game.recruit)), 'c4'),
     card('Runs', null, h('div', { cls: 'kpis' }, kpi('Boss win rate', pc(winRate), fmt(game.bossWin) + ' won · ' + fmt(game.bossFail) + ' lost'), kpi('Runs lost', fmt(game.runOvers), 'median depth ' + game.runOverMedDepth), kpi('Continued', fmt((game.conts || {}).gems + (game.conts || {}).ad || 0), fmt((game.conts || {}).gems || 0) + ' gems · ' + fmt((game.conts || {}).ad || 0) + ' ads · ' + fmt(game.runEnd || 0) + ' new runs'), kpi('Gems earned', fmt(game.gems || 0)), kpi('Ascensions', fmt(game.ascend)), kpi('Overdrives', fmt(game.od)), kpi('Relics', fmt(game.relic)), kpi('Jackpots', fmt(game.jackpot))), 'c4'),
+    ...storeCards(), shopFunnel(d.shop), runsCard(d.runs), dailyCard(), cspCard(),
     card('Playing now', 'Refreshes every 15 seconds.', table([{ k: 'src', t: 'Source', l: 1 }, { k: 'dev', t: 'Device', l: 1 }, { k: 'cc', t: 'Country' }, { k: 'd', t: 'Depth', f: r => r.d + 1 }, { k: 'pt', t: 'Total play (min)' }, { k: 'secs', t: 'This session', f: r => Math.round(r.secs / 60) + ' min' }, { k: 'ago', t: 'Last seen', f: r => r.ago + ' s ago' }], d.live), 'c6'),
     card('Errors players hit', 'JavaScript errors from real sessions (fix the top ones).', table([{ k: 0, t: 'Error', l: 1 }, { k: 1, t: 'Count' }], d.errors), 'c6'),
     card('Tracking links', 'Tag every ad and post, so it shows up as its own source above. Use the same source name each time (tiktok, youtube, telegram, reddit…).', utmBuilder()),
