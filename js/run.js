@@ -466,13 +466,17 @@
       tier: tier | 0, tierName: TIER_NAME[tier | 0] || 'normal', add: add || 1, own: o, gear: gp, rank: eff(o), max, cap: max + over, to, toEff: eff(to),
       isNew: o === 0, maxed: to >= max, evoWith, banishable: !!(r && (r.banish | 0) > 0) };
   };
+  // 4.0 (cardsloot): the run's own auto clock: S.run.autoAfter s (the Clockwork Button's 4 s, DESIGN §6.1: the Buttons
+  // stream sets r.autoCards = 1 and r.autoAfter = 4 at 'runSetup'); unset, TUNE.cardAuto (10 s)
+  const cardAfter = r => (r && r.autoAfter > 0 ? +r.autoAfter : TUNE.cardAuto);
+  G.cardAfter = () => cardAfter(runOf());
   G.cardView = function () {
     const r = runOf(), o = r && r.on && r.offer, h = S_().hero;
     if (!o) return null;
-    const auto = !!((h && h.autoPerk) || r.autoCards || !G.runUI);
+    const auto = !!((h && h.autoPerk) || r.autoCards || !G.runUI), after = cardAfter(r);
     const title = o.ids.every(id => String(id).startsWith('boon_')) ? 'card_boons' : { level: 'card_level', boss: 'card_boss', train: 'card_train', hexed: 'card_hexed' }[o.why] || 'card_bonus';
     return { why: o.why, title, lvl: h ? h.lvl : 1, cards: o.ids.map((id, i) => G.cardInfo(id, o.add[i], o.tier[i], i)), rerolls: r.rerolls | 0, banish: r.banish | 0,
-      slots: { used: G.cardSlotsUsed().length, max: TUNE.cardSlots, ids: G.cardSlotsUsed() }, auto: { on: auto, after: TUNE.cardAuto, left: auto && !o.touch ? Math.max(0, TUNE.cardAuto - o.t) : null }, t: o.t, queued: (r.cardQ || []).length };
+      slots: { used: G.cardSlotsUsed().length, max: TUNE.cardSlots, ids: G.cardSlotsUsed() }, auto: { on: auto, after, left: auto && !o.touch ? Math.max(0, after - o.t) : null }, t: o.t, queued: (r.cardQ || []).length };
   };
   // the next card owed, if any: true when one is on screen
   function cardNext() {
@@ -600,7 +604,7 @@
     if (!o.touch && !(G.uiBusy && G.uiBusy())) o.t += dt;
     if (h) h.offerT = o.t;
     // auto-pick: the player's toggle, the run's (Clockwork, Auto-Run), or no run UI to show the card (the 3.x page, a bot)
-    if (o.t >= TUNE.cardAuto && ((h && h.autoPerk) || r.autoCards || !G.runUI)) G.cardAuto();
+    if (o.t >= cardAfter(r) && ((h && h.autoPerk) || r.autoCards || !G.runUI)) G.cardAuto();
   }
   // the card after every boss (and the extras owed: a level-up during the fight, the Hexed lord's, a Golden Click's)
   G.runBeat({ id: 'card', order: 20, fallback: 1, selfAuto: 1,
@@ -892,7 +896,8 @@
     if (w === 'bag') { h.bag.push(g); if (G.bagTrim) G.bagTrim(); G.dirty(); G.recalc(); }
     c.taken = 1; c.who = w; L.taken++;
     if (G.questProgress) G.questProgress('rarity', g.r);
-    emit('loot', { it, v: 0, g, isNew: before === 0, star: false, first }, 'moment');
+    // (li.it: a unique's carries uq / relic, as the ground's: G.lootEventItem)
+    emit('loot', { it: G.lootEventItem ? G.lootEventItem(g, it) : it, v: 0, g, isNew: before === 0, star: false, first }, 'moment');
     emit('lootTake', i, c, w, info, view);
     if (L.taken >= L.pick || L.cards.every(x => x.taken || x.burned)) lootFinish();
     else { prep(L); L.t = 0; emit('lootUpdate', L, G.lootView()); }

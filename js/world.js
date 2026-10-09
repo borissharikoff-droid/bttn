@@ -262,6 +262,15 @@
   };
 
   // ---------- Picking up ----------
+  // 4.0 (cardsloot): the item a 'loot'(li, src) event carries as li.it: the base item, or for a unique (or a relic) a copy
+  // of its base with uq (the unique's id) and relic (1/0) set, so a listener that reads it.uq / it.relic (analytics.js)
+  // sees it; li.g is the piece itself either way. Used by the ground's unique and the loot moment's take
+  G.lootEventItem = function (g, it) {
+    it = it || (g && G.ITEM_BY_ID[g.id]);
+    if (!it || !g || !g.q) return it;
+    const U = G.UNIQUES[g.q];
+    return Object.assign({}, it, { uq: g.q, relic: U && U.relic ? 1 : 0 });
+  };
   function pickup(e, how) {
     const S = S_(), h = S.hero;
     const i = R.ground.indexOf(e);
@@ -274,7 +283,8 @@
       const U = G.UNIQUES[e.q], it = G.ITEM_BY_ID[U.base];
       const first = !S.uq[e.q];
       S.uq[e.q] = (S.uq[e.q] || 0) + 1;
-      res = G.lootItem(it, 'unique', e.g || G.makeUnique(e.q, e.il));
+      const g = e.g || G.makeUnique(e.q, e.il);
+      res = G.lootItem(G.lootEventItem(g, it), 'unique', g);
       res.first = first;
       if (first) G.feed('uq', U.name);
     }
