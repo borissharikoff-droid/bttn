@@ -27,6 +27,9 @@
     // little chests are off; chests come from holding the Button, Hoarders, Golden Clicks...). Plunder: a rare, champion
     // or Hoarder kill drops a chest, plunder a rank
     killChest: 0, plunder: 0.2, biteFloor: 0.042,
+    // a boss's own blow, every bossHitEvery s (faster in later phases): its depth's bite x bossHit (a lord x lordHit), or
+    // this share of what it hits, whichever is more
+    bossHitEvery: 2, bossHit: 2.5, lordHit: 4, bossHitPct: 0.09, lordHitPct: 0.12,
     // 3.0: the bigger mobs (not the small fry) take this many times longer to bring down
     bigHp: 2.4,
     // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
@@ -38,6 +41,8 @@
     hsSiegeMax: 3, hsSiegeK: 2, hsLast: 4.5,
     // 4.0: the bite shelter: half bites for the first shelterSecs of each run, for the first shelterRuns runs
     shelterSecs: 60, shelterRuns: 3, levelHeal: 0.05,
+    // 4.0: a wipe with pips left: the Button and the party come back at wipeBack of their health (wipeBackMuster in land 1)
+    wipeBack: 0.5, wipeBackMuster: 0.5,
     // 2.5: the new kinds: a pack's chance to be led by one (base + per depth, capped); Warded takes this share
     // of the Hand's damage; menders heal this share of health round them every few seconds; callers call
     // callN small fry every callEvery s; chargers run chargeSpd times faster for the last stretch
@@ -377,7 +382,7 @@
   function hitParty(v, dmg, src) {
     // the Hand's Ward: nothing gets through for a moment
     if (R.ward > 0 && v != null) { emit('warded', v); return; }
-    if (v === 'button') hurtButton(dmg); else if (v != null) hurtUnit(v, dmg, src); else checkWipe();
+    if (v === 'button') hurtButton(dmg, src); else if (v != null) hurtUnit(v, dmg, src); else checkWipe();
   }
   G.hurtParty = hitParty;
   // a boss's blow: its depth's damage, or a share of what it hits, whichever is more
@@ -450,8 +455,9 @@
     } else if (!inRift) { S.bossMeter = 0; if (hadBoss && S.depth > 0) S.depth--; R.bossReady = false; }
     if (R.ground) R.ground.length = 0;
     R.btnDown = 0;
-    // (4.0: with pips left the Button comes back at half and everyone gets up at half: no free full heal)
-    const back = siege ? 0.5 : 1;
+    // (4.0: with pips left the Button comes back at half and everyone gets up at half: no free full heal; in land 1, the
+    // muster, at wipeBackMuster: a party still finding its feet isn't sent back in at half to break again)
+    const back = siege ? (from < G.REALM_SIZE ? TUNE.wipeBackMuster : TUNE.wipeBack) : 1;
     h.hp = G.D.heroHp * back;
     for (const u of G.partyUnits()) reviveUnit(u.who, back);
     R.stun = 4; // the party regroups
@@ -1539,7 +1545,7 @@
   }
   G.heroVolley = attack;
 
-  G.hurtButton = d => hurtButton(d);
+  G.hurtButton = (d, src) => hurtButton(d, src);
   // The party's clock: the fallen get up, the cleric mends, companions fight, the Button pulses
   function partyTick(dt, regen) {
     const S = G.S, D = G.D, h = S.hero;
@@ -1599,12 +1605,13 @@
     for (const m of splash) dealHit(m, dmg * wt.sp, 'ally', crit);
     return true;
   }
-  function hurtButton(dmg) {
+  // (src: what hit it, as hurtUnit's: 'bite', 'spit', 'bomb', 'boss', 'slam', 'barrage', 'doom', 'phase'...)
+  function hurtButton(dmg, src) {
     const h = G.S.hero;
     if (R.stun > 0 || R.btnDown > 0) return;
     if (R.ward > 0) { emit('warded', 'button'); return; }
     h.hp -= dmg;
-    emit('buttonHurt', dmg);
+    emit('buttonHurt', dmg, src);
     if (h.hp <= 0) breakButton();
   }
   // A broken Button is out for a while: no gold, no lightning. The party fights on around it;
@@ -1796,11 +1803,11 @@
         // enraged: twice as often, and harder with every second of it (1.5 to 3 times; no blow takes more than
         // 35% of what it hits, so it hurries the fight rather than ending it at once)
         const enr = b.enr > 0 ? 1.5 + 1.5 * (1 - b.enr / (b.enrT || 1)) : 1;
-        R.bossAtkT = 2 / (1 + 0.25 * ((b.phase || 1) - 1)) / (b.enr > 0 ? 2 : 1) / (G.bossHas(b, 'hasted') ? 1.4 : 1);
+        R.bossAtkT = TUNE.bossHitEvery / (1 + 0.25 * ((b.phase || 1) - 1)) / (b.enr > 0 ? 2 : 1) / (G.bossHas(b, 'hasted') ? 1.4 : 1);
         emit('bossHit', b, v);
         // (3.0: the first two lords, the walls most players meet first, hit a third softer)
         const fr = (G.bossHas(b, 'frenzied') ? 1.5 : 1) * (b.lord && b.d < 10 && !R.rift ? 0.65 : 1);
-        G.blowParty(v, atk * (b.lord ? 4 : 2.5) * (b.rage ? 1.5 : 1) * enr * fr, Math.min(0.35, (b.lord ? 0.12 : 0.09) * (b.rage ? 1.5 : 1) * enr * fr), 'boss');
+        G.blowParty(v, atk * (b.lord ? TUNE.lordHit : TUNE.bossHit) * (b.rage ? 1.5 : 1) * enr * fr, Math.min(0.35, (b.lord ? TUNE.lordHitPct : TUNE.bossHitPct) * (b.rage ? 1.5 : 1) * enr * fr), 'boss');
         // Vampiric: every blow that lands feeds it
         if (G.bossHas(b, 'vampiric') && R.boss === b && !(R.ward > 0)) { b.hp = Math.min(b.max, b.hp + b.max * (b.lord ? 0.012 : 0.02)); emit('bossLeech', b); }
       }

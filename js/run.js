@@ -1279,7 +1279,7 @@
     if (R.ground) R.ground.length = 0;
     for (const m of R.mobs || []) m.dead = true;
     R.boss = null; R.bossReady = false; R.bossIn = null; R.bossHold = 0; R.march = null; R.combo = 0; R.wisp = null; R.wave = null;
-    R.lastStand = null; R.doomAt = null; R.ward = 0; R.cine = 0; R.zoneT = 0; R.runRng = null;
+    R.lastStand = null; R.doomAt = null; R.ward = 0; R.cine = 0; R.zoneT = 0; R.runRng = null; R.dpsAvg = null;
     if (R.pw) for (const k in R.pw) R.pw[k] = 0;
     if (R.town) { R.town = false; emit('town', false); }
     if (G.worldClear) G.worldClear();

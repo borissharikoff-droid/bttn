@@ -49,6 +49,9 @@
     // 4.0 attrition: a boss kill heals the Button and the party this share, a lord this share; Mend is charges (per land,
     // each heals mendHeal, mendLock s apart); DOOM takes this share of what it would (by Heat: 0-2, 3-5, 6+)
     healBoss: 0.1, healLord: 0.25, mendCharges: 2, mendHeal: 0.35, mendLock: 8, doomK: [0.64, 0.8, 1],
+    // 4.0: a Siege boss's least fight length is measured by the party's damage averaged over this many s of field time
+    // (0: by the steady damage only, as before)
+    bossFloorAvg: 15,
     // 4.0: the Barracks pays this share of the best run's Embers an hour away
     barracksRate: 0.03,
     // 4.0: Auto-invest (DESIGN §5.5): every autoEvery s of field time, the run's gold into the Hand upgrades and the
@@ -907,7 +910,8 @@
     const rally = (S.scar && S.scar.d === d ? TUNE.rally * Math.min(TUNE.rallyMax, S.scar.n || 0) : 0) + (S.rested ? 0.4 : 0);
     const hp = max * scar;
     if (G.heroBossStart) G.heroBossStart();
-    const time = (D.bossTime + (lord ? 15 : 0)) * torment().bossTime;
+    // (4.0: an act boss and the Mad Button get as much more time as their least fight is longer than a lord's)
+    const time = (D.bossTime + (lord ? 15 : 0) + (kind === 'act' ? TUNE.bossMinAct - TUNE.bossMinLord : kind === 'final' ? TUNE.bossMinFinal - TUNE.bossMinLord : 0)) * torment().bossTime;
     // (4.0: kind 'boss' | 'lord' | 'act' | 'final'; phases: a boss 2, a lord and the Mad Button 3, an act boss 4)
     R.boss = { d, lord, kind, act: kind === 'act', final: kind === 'final', phases: kind === 'act' ? 4 : lord ? 3 : 2,
       hp, max, scar, rally, phase: 1, inv: 0, t: time, T: time, moveT: lord ? 4 : 6, stagger: 0,
@@ -949,7 +953,11 @@
     const fresh = d >= (G.S.maxDepth || 0) ? 1 : TUNE.bossMinOld;
     // the least a fight lasts: a boss 9 s, a lord 20, an act boss 24, the Mad Button 30 (s of the party's damage)
     const secs = kind === 'final' ? TUNE.bossMinFinal : kind === 'act' ? TUNE.bossMinAct : kind === 'lord' ? TUNE.bossMinLord : TUNE.bossMin;
-    const floor = ((D.heroDpsBase || D.heroDps || 0) + clickDps) * (D.bossMult || 1) * secs * fresh * T.bossTime;
+    // (4.0: inside a Siege, the party's damage as it has been lately (R.dpsAvg: momentum, a Headhunter's or a Reaper's
+    // stacks count as often as they were up), never less than the steady one: else a strong build melted a 20-s lord in
+    // two seconds and Smite one-shot it; the least fight length is the lord's check, DESIGN §14)
+    const dps = Math.max(D.heroDpsBase || D.heroDps || 0, inSiege() && TUNE.bossFloorAvg > 0 ? R.dpsAvg || 0 : 0);
+    const floor = (dps + clickDps) * (D.bossMult || 1) * secs * fresh * T.bossTime;
     return Math.max(curve * T.bossHp, floor) * (kind === 'final' ? T.madX : 1);
   }
   G.bossMax = bossMax;
@@ -1594,6 +1602,9 @@
     powersTick(dt);
     // how fast you've been clicking lately (a 10-second average)
     R.cps = (R.cps || 0) + ((R.clickN || 0) / Math.max(dt, 1e-3) - (R.cps || 0)) * Math.min(1, dt / 10); R.clickN = 0;
+    // 4.0: the party's damage as it has been in the field lately (a bossFloorAvg-second average, buffs and stacks in it as
+    // often as they were up): what a Siege boss's least fight length is measured by (bossMax)
+    if (!R.boss && !R.march && TUNE.bossFloorAvg > 0) R.dpsAvg = R.dpsAvg == null ? D.heroDps || 0 : R.dpsAvg + ((D.heroDps || 0) - R.dpsAvg) * Math.min(1, dt / TUNE.bossFloorAvg);
     if (D.petOpen) {
       R.petOpenAcc += D.petOpen * dt;
       while (R.petOpenAcc >= 1) { R.petOpenAcc -= 1; if (!golemAct()) { R.petOpenAcc = 0; break; } }
