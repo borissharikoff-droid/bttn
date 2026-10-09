@@ -114,7 +114,7 @@
     cxHint: 'Every unique and relic a Siege touches is kept here, even on a fall. A duplicate ranks it up (cap {0}): +12% to its fixed affixes; ranks 2 and 4 add a rank of its perk.',
     cxLocked: 'Locked: a Deed opens it', cxDropsBoss: 'Drops from {0}', cxDrops: 'Not found yet', cxRank: 'Rank {0}/{1}', cxTheme: '+{0} {1}',
     evoBookHint: 'An evolution: a perk at its max with two ranks you picked, and the right item worn.', evoHint4: '{0} at max (2 picked ranks) + {1}',
-    bevoBook: 'Button evolutions', bevoHint: 'Secret recipes. One mid-Siege, the Button changes for good.', bevoFrom: 'From the {0} Button', bevoNoHint: 'Hint: a Daily Siege may tell you one.',
+    bevoBook: 'Button evolutions', bevoHint: 'Secret recipes. One mid-Siege, the Button changes for good.', bevoFrom: 'From the {0} Button', bevoNoHint: 'No hint yet: each ranked Daily Siege finished gives a token that reads one.',
     bstHint: 'Every land you have fought in, its Horde and its lord.', bstUnseen: 'Not reached yet', bstKills: '{0} slain', bstKinds: 'New kinds', bstLands: 'Lands',
     kind_warded: 'Warded', kind_charger: 'Charger', kind_healer: 'Healer', kind_summoner: 'Summoner',
     unl_button: '{0} Button', unl_class: 'Class: {0}', unl_perk: 'Card: {0}', unl_land: 'Land: {0}', unl_unique: 'Unique: {0}', unl_relic: 'Relic: {0}', unl_shrine: 'Shrine: {0}', unl_system: '{0}',
@@ -543,7 +543,7 @@
       if (!d) return;
       dirtyTab('deeds');
       const opens = un && un.length ? ` · <span class="unl">${esc(t('unlOpens', ''))}${unlLine(un)} <small>(${esc(unlWhen())})</small></span>` : '';
-      if (d.ach) { if (opens) UI.toast(`<span><b>${esc(t('unlTitle'))}</b>${opens}</span>`, 'ach', 'ic_key', { k: 'unl' }); return; }
+      if (d.ach) { if (un && un.length) UI.toast(`<span><b>${esc(t('unlTitle'))}</b> · <span class="unl">${unlLine(un)} <small>(${esc(unlWhen())})</small></span></span>`, 'ach', 'ic_key', { k: 'unl' }); return; }
       UI.toast(`<span>${esc(t('deedDone'))}: <b>${esc(L(d.name))}</b>${opens}</span>`, 'ach', 'ic_trophy', { k: 'deed' });
     });
     G.on('unlock', (kind, id, deed) => { if (deed) return; UI.toast(`<span><b>${esc(t('unlTitle'))}</b> · ${esc(G.unlockName ? G.unlockName(kind, id) : id)}</span>`, 'ach', 'ic_key', { k: 'unl' }); dirtyTab('buttons'); });
@@ -1865,7 +1865,7 @@
         const ev = G.BUTTON_EVOS && G.BUTTON_EVOS[b.evo], hintTxt = hasStr('bevo_' + b.evo + '_h') ? t('bevo_' + b.evo + '_h') : ev && ev.hint ? ev.hint : t('bevoNoHint');
         const buy = !known && !hinted && G.btnHintBuy ? `<button class="btn small ${(S.hintTok | 0) > 0 ? 'gold' : ''}" data-hintbuy="${esc(b.id)}" ${(S.hintTok | 0) > 0 ? '' : 'disabled'}>${esc(t('bevoBuy'))}</button>` : '';
         return `<div class="evoRow ${known ? '' : 'off'}"><img src="${btnSpr(b.base)}" alt="" class="${known ? '' : 'dk'}"><div><b class="${known ? 'rbw' : ''}">${esc(known ? nm : '???')}</b>
-          <small>${esc(t('bevoFrom', b.secret && !b.open ? '???' : b.name))}</small>
+          <small>${esc(t('bevoFrom', b.secret && !b.open ? '???' : String(b.name).replace(/\s+Button$/i, '')))}</small>
           <small class="d">${esc(known ? (hasStr('bevo_' + b.evo + '_r') ? t('bevo_' + b.evo + '_r') : '') : hinted ? hintTxt : t('bevoNoHint'))}</small>${buy}</div></div>`;
       }).join('')}</div>`;
     body.addEventListener('click', e => {

@@ -1977,7 +1977,8 @@
   // a lost Mad Button fight costs a pip and the retry is lastStandRetry s of Horde, then the Mad Button again.
   // R.lastStand = { t (s left), T, acc, retry, cap, every, packs }. Events: 'lastStand'(L), 'lastStandEnd'(L | null: a
   // wipe), 'madButton'(boss) when it enters after the Last Stand
-  Object.assign(TUNE, { lastStand: 75, lastStandRetry: 30, lsEvery: 0.45, lsCaps: [850, 600, 400] });
+  // (lsKeep: the Mad Button enters into the Horde still standing, DESIGN §2.3; 0: the field is swept as for any boss)
+  Object.assign(TUNE, { lastStand: 75, lastStandRetry: 30, lsEvery: 0.45, lsCaps: [850, 600, 400], lsKeep: 1 });
   G.lastStandCap = function () {
     const Q = G.Quality, t = Q && Q.tier != null ? Q.tier | 0 : 0, k = t <= 0 ? 0 : t >= 3 ? 2 : 1;
     return Math.max(40, Math.min(TUNE.lsCaps[k] || TUNE.lsCaps[0], TUNE.mobMax || 850));
@@ -2018,7 +2019,7 @@
   // (hero.js's heroBossStart sweeps the field for a boss: not for the Mad Button after its Last Stand)
   { const hb0 = G.heroBossStart; if (hb0) G.heroBossStart = function () {
     const r = runOf();
-    if (!(r && r.on && r.lsReady && !r.push && S_().depth === SG().final)) return hb0.apply(this, arguments);
+    if (!(TUNE.lsKeep && r && r.on && r.lsReady && !r.push && S_().depth === SG().final)) return hb0.apply(this, arguments);
     const keep = R.mobs.slice(); R.mobs.length = 0;
     try { return hb0.apply(this, arguments); } finally { for (const m of keep) if (!m.dead) R.mobs.push(m); }
   }; }
