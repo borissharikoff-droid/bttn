@@ -89,7 +89,9 @@ const log = (...a) => console.log(redact(a.join(' ')));
 // The game is one file with one inline script; hashes are taken from the very bytes served, at boot, so a rebuilt
 // docs/index.html needs no change here. The game also gets: Twitch chat for streamer mode (4.0, ADDENDUM 6), and the
 // platform SDKs the store loads (Yandex Games, VK Bridge from a CDN, Telegram WebApp, Adsgram).
-const CSP_MODE = (env('CSP') || 'on').toLowerCase();
+// (report-only by default until every browser is confirmed clean: Firefox visitors sent violation reports and no game events;
+// CSP=on enforces it)
+const CSP_MODE = (env('CSP') || 'report').toLowerCase();
 const CSP_HDR = CSP_MODE === 'report' ? 'content-security-policy-report-only' : 'content-security-policy';
 const CSP_EXTRA = env('CSP_CONNECT').split(/[\s,]+/).filter(s => /^(https|wss):\/\/[a-z0-9.*:-]+(\/[^\s;,'"]*)?$/i.test(s)).join(' ');
 // (exact files, not whole hosts: a host-only source would let any file on a public CDN run here. These are the files
@@ -1103,7 +1105,8 @@ try { const cut = dayKey(Date.now() - KEEP_DAYS * 864e5); for (const f of fs.rea
 
 // ---------- CSP violation reports (report-uri /api/csp): counted in memory, shown in /admin ----------
 const cspSeen = new Map();
-function cspReport(buf) {
+const uaFamily = ua => (/firefox\//i.test(ua) ? 'firefox' : /edg\//i.test(ua) ? 'edge' : /chrome\//i.test(ua) ? 'chrome' : /safari\//i.test(ua) ? 'safari' : 'other');
+function cspReport(buf, req) {
   let j; try { j = JSON.parse(buf.toString('utf8')); } catch (e) { return; }
   const list = Array.isArray(j) ? j.filter(x => x && x.type === 'csp-violation').map(x => x.body || {}) : [(j && j['csp-report']) || {}];
   for (const r of list.slice(0, 20)) {
@@ -1112,6 +1115,8 @@ function cspReport(buf) {
     try { if (/^[a-z][a-z0-9+.-]*:\/\//i.test(blocked)) blocked = new URL(blocked).origin; } catch (e) {}
     try { doc = new URL(String(r['document-uri'] || r.documentURL || '')).pathname.slice(0, 40); } catch (e) {}
     const k = (doc || '?') + ' · ' + (dir || '?') + ' · ' + (blocked || '?');
+    // (each new kind also goes to the log once, with the browser family, so it can be read without the dashboard)
+    if (!cspSeen.has(k) && cspSeen.size < 300) log('csp report:', k, '·', uaFamily(String((req && req.headers['user-agent']) || '')), '·', String(r['script-sample'] || r.sample || '').slice(0, 60));
     if (cspSeen.size < 300 || cspSeen.has(k)) cspSeen.set(k, (cspSeen.get(k) || 0) + 1);
   }
 }
@@ -1438,7 +1443,7 @@ function handle(req, res) {
   if (p === '/api/csp') {
     if (req.method !== 'POST') return send(res, 405, 'text/plain', '');
     if (limited('csp:' + ipKey(req), 20)) return send(res, 429, 'text/plain', 'slow down');
-    return readBody(req, res, 16e3, buf => { cspReport(buf); send(res, 204, 'text/plain', ''); });
+    return readBody(req, res, 16e3, buf => { cspReport(buf, req); send(res, 204, 'text/plain', ''); });
   }
   // the store and the Daily board
   if (p.startsWith('/api/store/') || p === '/api/daily' || p === '/api/daily/start') {
