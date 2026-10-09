@@ -71,7 +71,8 @@
     // ~3; the sudden events (stampede 6-10, ambush 4-6, portals 5-8, warlord 5-7, chest rain 22), the Land Champions (1-2)
     // and the rare visitors' rains added ~4 more (measured 7-8 a minute). Past the budget a chest comes as coin
     // (siegeChestGold of its worth, 'chestCoin'): the event keeps its moment, a few chests and a shower of gold
-    siegeChestRate: 0.5, siegeChestCap: 3, siegeChestGold: 0.3,
+    // (measured, 10 seeds x 90 min, Heat 0: 0.5 / 3 gave the active bot 4.1 a field minute; 0.4 / 2 keeps it under 4)
+    siegeChestRate: 0.4, siegeChestCap: 2, siegeChestGold: 0.3,
   };
 
   // ---------- State ----------

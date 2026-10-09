@@ -18,7 +18,8 @@
     // (4.0, continuation 2: 0.02/0.2/0.0002 -> 0.014/0.14/0.00014, and a rare mob drops 1 piece in a Siege, not 1-2: rare+
     // labels were ~6 a minute with the sudden events on (kills ~2.5, rares' showers ~1.8, champions ~1, Hoarders ~0.4);
     // DESIGN §14 wants 5 at most)
-    dropBrute: 0.014, dropMagic: 0.14, dropFodder: 0.00014, orbShare: 0.033,
+    // (continuation 3: 0.014 / 0.14 -> 0.012 / 0.12: with the Heat-0 champion share the active bot still read 5.0-5.3)
+    dropBrute: 0.012, dropMagic: 0.12, dropFodder: 0.00014, orbShare: 0.033,
     hoardEvery: 150, hoardFirst: 40, hoardLife: 16, hoardSiege: [2, 3], hoardUqSiege: 0.03, rareSiege: [1, 1],
     // 4.0 (DESIGN §5.8): a shrine every 110 s (the first at 60 s), charged by holding the Hand on it for shrineCharge s
     shrineEvery: 110, shrineFirst: 60, shrineLife: 12, shrineDur: 15, shrineCharge: 2,
