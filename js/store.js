@@ -8,6 +8,8 @@
 // them (GET /api/store/claim), applies each grant once (G.addGems(n, 'store'), G.S.cos.owned) and acks them.
 // Looks live in G.S.cos = {owned:{id:1}, on:{skin, trail, beam}, got:[grant ids], starter}; G.cosmetic(kind) is what the
 // stage reads. A per-device mirror (localStorage 'bttn_store') keeps paid looks and applied grant ids through a reset.
+// 4.0 (platform-fix): looks are offered (Gems or money, the Starter Kit too) only once the stage draws them: it sets
+// G.Stage.cosmetics = true when it reads G.cosmetic. Until then the store sells Gem packs only.
 (function (G) {
   'use strict';
 
@@ -41,6 +43,8 @@
     const c = G.S && G.S.cos, id = c && c.on && c.on[kind], d = id && G.COS_BY_ID[id];
     return d && d.kind === kind && c.owned && c.owned[id] ? d : null;
   };
+  // the stage draws looks (it says so by setting G.Stage.cosmetics = true): only then are they shown, unlocked or sold
+  const looksOn = () => !!(G.Stage && G.Stage.cosmetics === true);
 
   // ---------- what each SKU gives (the server's grant may say it itself; this is the fallback) ----------
   const PACKS = ['gems_100', 'gems_300', 'gems_1000'];
@@ -323,8 +327,14 @@
         const u = new URL(location.href);
         ['paid', 'open', 'sku'].forEach(k => u.searchParams.delete(k));
         u.searchParams.set('paid', 'yk'); u.hash = '';
+        // a host that sends 54-FZ receipts needs the buyer's email (kept on this device, sent to YooKassa only)
+        const mail = cfg.store && cfg.store.email ? mailNow() : '';
+        if (cfg.store && cfg.store.email && !mail) { askMail = sku; return bad('email'); }
         let r;
-        try { r = await api('/api/store/yookassa/create', { sku, v: G.visitorId(), return_url: u.toString() }); } catch (e) { return bad('create'); }
+        try { r = await api('/api/store/yookassa/create', Object.assign({ sku, v: G.visitorId(), return_url: u.toString() }, mail ? { email: mail } : {})); } catch (e) {
+          if (e.status === 400 && e.body && e.body.error === 'email') { ls.del(MAIL); askMail = sku; return bad('email'); }
+          return bad('create');
+        }
         if (!/^https:\/\/([a-z0-9-]+\.)*(yookassa\.ru|yoomoney\.ru)\//i.test(String(r.confirmation_url || ''))) return bad('create');
         ls.set('bttn_pay', JSON.stringify({ id: String(r.id || '').slice(0, 64), sku, at: Date.now() }));
         try { G.save && G.save(); } catch (e) {}
@@ -333,6 +343,10 @@
       },
     },
   };
+  // the receipt email (only where the host asks for it: cfg.store.email)
+  const MAIL = 'bttn_mail', MAIL_RE = /^[^\s@<>"(),;:\\]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,24}$/i;
+  let askMail = '';
+  const mailNow = () => { const m = String(ls.get(MAIL) || '').trim(); return MAIL_RE.test(m) && m.length <= 254 ? m : ''; };
   // rewarded ads (only where a provider has them; never on Steam)
   const ADS = {
     yandex: {
@@ -397,7 +411,7 @@
     if (!(per > 0)) return '';
     return money(cur === 'USD' ? Math.max(0.01, per * gems) : Math.max(1, Math.round(per * gems)), cur);
   }
-  const sellable = sku => !!(G.Store.ready() && (!cfg.skus || typeof cfg.skus !== 'object' || cfg.skus[sku]) && (!prov.sells || prov.sells(sku)) && priceText(sku));
+  const sellable = sku => !!(G.Store.ready() && (looksOn() || !/^(cos_|starter$)/.test(sku)) && (!cfg.skus || typeof cfg.skus !== 'object' || cfg.skus[sku]) && (!prov.sells || prov.sells(sku)) && priceText(sku));
 
   // ---------- the ledger: claim and ack ----------
   // a 'vk:<user id>' key is the VK player's own only with VK's signed launch params (the host checks them)
@@ -427,6 +441,9 @@
     const UI = G.UI;
     if (UI && UI.toast) UI.toast(`<b>${esc(t('stThanks'))}</b>&nbsp;${gems ? '+' + esc(fmtN(gems)) + ' ' + esc(t('stGemsWord')) : ''}${looks.length ? (gems ? ' · ' : '') + esc(looks.join(', ')) : ''}`, 'ach', 'ic_gem', { p: 2 });
     if (UI && UI.update) UI.update(true);
+    // the fall card counts Gems and enables Continue when it is drawn: Gems that land while it is up redraw it
+    const fm = document.getElementById('modal');
+    if (G.S && G.S.fallen && UI && UI.fallCard && fm && !fm.hidden && fm.classList.contains('fallM')) { try { UI.fallCard(); } catch (e) {} }
     if (openEl) render();
   }
 
@@ -437,6 +454,7 @@
   Store.state = () => ({ booted, provider: provId, ready: Store.ready(), ads: adOk ? adId : '', earnOnly: earnOnly(), currency: prov ? curOf() : '' });
   Store.price = priceText;
   Store.worth = worth;
+  Store.looksOn = looksOn;
   Store.skus = () => PACKS.concat(['starter'], G.COSMETICS.filter(c => !c.only).map(c => 'cos_' + c.id)).filter(sellable);
   Store.claim = async function () {
     let got = await claimAll(true);
@@ -452,6 +470,8 @@
     if (sku === 'starter' && cos().starter) return bad('owned');
     const info = skuInfo(sku);
     if (info.cos && !info.gems && cos().owned[info.cos]) return bad('owned');
+    // (the receipt email comes first: asking for it is not a purchase started, nor a failed one)
+    if (provId === 'yookassa' && cfg.store && cfg.store.email && !mailNow()) { askMail = sku; return bad('email'); }
     busy = true; emit('buy_start', { sku, p: provId });
     let r;
     try { r = await prov.buy(sku); } catch (e) { r = bad(String((e && e.message) || e).slice(0, 40)); } finally { busy = false; }
@@ -461,7 +481,7 @@
   // looks bought with Gems (earned or bought): a fixed Gem price, the money worth shown beside it where Gems are sold
   Store.unlock = function (id) {
     const d = G.COS_BY_ID[id], S = G.S;
-    if (!d || d.only || !S || cos().owned[id]) return false;
+    if (!d || d.only || !S || !looksOn() || cos().owned[id]) return false;
     if ((S.gems || 0) < d.gems) return false;
     S.gems -= d.gems;
     cos().owned[id] = 1; cos().on[d.kind] = id;
@@ -485,6 +505,7 @@
 
   // ---------- G.Ads ----------
   const Ads = G.Ads = {};
+  Ads.TIMEOUT = 120e3;
   let hushVol = null;
   function hush(on) {
     if (G.Audio && G.Audio.duck) { try { G.Audio.duck(on); } catch (e) {} return; }
@@ -506,7 +527,8 @@
     emit('ad_show', { pl: pl || '', p: adId });
     G.adShowing = true; hush(true);
     let ok = false;
-    try { ok = !!(await adProv.show(pl)); } catch (e) { ok = false; } finally { G.adShowing = false; hush(false); }
+    // (an SDK that never calls back must not leave the game muted with a dead button: no answer in time = no reward)
+    try { ok = !!(await Promise.race([Promise.resolve().then(() => adProv.show(pl)), sleep(Ads.TIMEOUT).then(() => false)])); } catch (e) { ok = false; } finally { G.adShowing = false; hush(false); }
     if (ok) {
       emit('ad_ok', { pl: pl || '', p: adId });
       if (pl === 'continue') { ls.set('bttn_adc', today()); if (G.S) cos().adDay = today(); }
@@ -528,7 +550,38 @@
     stLooksNote: 'Looks change how things look, nothing else. Beams keep their rarity colour at the edge.',
     stEarnOnly: 'Gems are earned in play here: achievements, land stars, lords, relics and the daily gift.',
     stVotes: '{0} votes', stBuyFor: 'Buy · {0}',
+    stMail: 'Your email for the receipt', stMailHint: 'The payment service sends your receipt there. It stays on this device and is used for receipts only.',
+    stMailGo: 'Continue to payment', stMailBad: 'That email does not look right.',
   });
+  // Russian, for the i18n stream's tables (G.addStrings / G.addContent, ADDENDUM 10): registered when they exist, and kept
+  // readable in G.STR_RU / G.CONTENT_RU either way. (stVotes: the votes prices 8/17/26/86 all take «голосов»)
+  const RU_STR = {
+    stTitle: 'Самоцветы и облики', stTabGems: 'Самоцветы', stTabLooks: 'Облики', stClose: 'Закрыть', stHave: 'У тебя',
+    stGemsWord: 'самоцветов', stPack: '{0} самоцветов', stConts: 'Продолжений: {0}', stStarter: 'Набор новичка',
+    stStarterD: '100 самоцветов и «Пламя основателя» (след Руки). Один раз.', stOnce: 'Один раз',
+    stFair: 'Самоцветы оплачивают продолжение (одно за забег) и облики. Ничто здесь не делает тебя сильнее и ничего не открывает.',
+    stRestore: 'Восстановить покупки', stRestored: 'Восстановлено: {0}', stNothing: 'Восстанавливать нечего.',
+    stWait: 'Ждём оплату…', stThanks: 'Спасибо!', stFail: 'Оплата не прошла.', stCancel: 'Отменено.',
+    stPending: 'Оплатил? Зачисление может занять минуту: нажми «Восстановить покупки».', stBusy: 'Секунду…',
+    stSkin: 'Облик Кнопки', stTrail: 'След Руки', stBeam: 'Столб лута', stWear: 'Надеть', stOff: 'Снять', stWorn: 'Надето',
+    stUnlock: 'Открыть', stStarterOnly: 'Только в наборе новичка', stNeed: 'Не хватает самоцветов: {0}', stWorth: '≈ {0}',
+    stLooksNote: 'Облики меняют только внешний вид. Край столба лута сохраняет цвет редкости.',
+    stEarnOnly: 'Здесь самоцветы зарабатываются игрой: достижения, звёзды земель, лорды, реликвии и ежедневный подарок.',
+    stVotes: '{0} голосов', stBuyFor: 'Купить · {0}',
+    stMail: 'Email для чека', stMailHint: 'Платёжный сервис пришлёт туда чек. Адрес хранится на этом устройстве и нужен только для чеков.',
+    stMailGo: 'К оплате', stMailBad: 'Похоже, в адресе ошибка.',
+  };
+  const RU_COS = {
+    skin_void: ['Пустотное стекло', 'Купол из полированной ночи.'], skin_frost: ['Иней', 'Холодная на ощупь, громкая при нажатии.'],
+    skin_ember: ['Литьё углей', 'Выкована в жару и так и не остыла.'], skin_candy: ['Карамельная скорлупа', 'Сладкая, глянцевая и всё так же нажимается.'],
+    founder_flame: ['Пламя основателя', 'Пламя из набора новичка: твоя Рука горит ярко.'], trail_azure: ['Лазурная пыль', 'Каждый клик оставляет кусочек неба.'],
+    trail_crimson: ['Багровый след', 'Красная полоса там, куда ты указал.'], trail_verdant: ['Зелёные листья', 'Мягкая зелень, совершенно безобидная.'],
+    trail_prism: ['Призма', 'Бледный свет, расколотый натрое.'], beam_rose: ['Розовые столбы', 'Столбы лута с розовой сердцевиной и розовыми искрами.'],
+    beam_ice: ['Ледяные столбы', 'Столбы лута с бело-голубой сердцевиной и морозными искрами.'],
+  };
+  G.STR_RU = Object.assign(G.STR_RU || {}, RU_STR);
+  G.CONTENT_RU = G.CONTENT_RU || {}; G.CONTENT_RU.COSMETICS = RU_COS;
+  try { if (G.addStrings) G.addStrings('ru', RU_STR); if (G.addContent) G.addContent('ru', { COSMETICS: RU_COS }); } catch (e) {}
   const CSS = `
 #bStore{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:12px;background:rgba(6,5,10,.78);font:15px/1.35 var(--font-body,sans-serif);color:var(--text,#f1ece0)}
 #bStore .bsBox{width:min(520px,100%);max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);display:flex;flex-direction:column;background:var(--panel,#1d1b26);border:3px solid var(--ink,#0a0910);box-shadow:inset 0 0 0 2px var(--line-hi,#6d6784),0 6px 0 var(--ink,#0a0910);animation:toastIn .2s ease-out}
@@ -540,7 +593,8 @@
 #bStore .bsTabs{display:flex;gap:6px;padding:8px 12px 0}
 #bStore .bsTabs button{flex:1;padding:8px 6px;font:9px/1.2 var(--font-display,monospace);background:var(--slot,#332f40);border:0;box-shadow:inset 0 0 0 2px var(--line,#474258);cursor:pointer;color:var(--dim,#a9a2b9)}
 #bStore .bsTabs button.on{color:var(--gold,#ffd84a);box-shadow:inset 0 0 0 2px var(--gold,#ffd84a)}
-#bStore .bsBody{overflow-y:auto;padding:12px;display:grid;gap:12px;-webkit-overflow-scrolling:touch}
+#bStore .bsHead,#bStore .bsTabs{flex:none}
+#bStore .bsBody{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:12px;display:grid;align-content:start;gap:12px;-webkit-overflow-scrolling:touch}
 #bStore .bsNote{margin:0;color:var(--dim,#a9a2b9);font-size:13px;text-align:center}
 #bStore .bsMsg{min-height:18px;margin:0;text-align:center;color:#ffe0a0;font-size:14px}
 #bStore .bsMsg.ok{color:var(--good,#56d45a)}#bStore .bsMsg.bad{color:var(--bad,#ff5a5a)}
@@ -571,7 +625,12 @@
 #bStore .beam{position:absolute;bottom:4px;left:50%;width:14px;height:46px;transform:translateX(-50%);background:linear-gradient(90deg,var(--r4,#ffa033) 0 3px,var(--c) 3px 11px,var(--r4,#ffa033) 11px)}
 #bStore .beam::after{content:'';position:absolute;left:-6px;top:6px;width:3px;height:3px;background:var(--s);box-shadow:20px 10px 0 var(--s),4px 22px 0 var(--s),18px 30px 0 var(--s)}
 #bStore .bsFoot{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
-@media (max-width:420px){#bStore{padding:0}#bStore .bsBox{width:100%;height:100%;max-height:none;border:0}#bStore .bsPacks{grid-template-columns:1fr}#bStore .bsCard{flex-direction:row;justify-content:space-between;text-align:left;padding:8px 10px}#bStore .bsCard .bsBuy{width:auto;min-width:110px}#bStore .bsGems{min-height:0}}
+#bStore .bsMail{display:grid;gap:6px;padding:10px;background:var(--panel2,#262331);box-shadow:inset 0 0 0 2px var(--gold,#ffd84a)}
+#bStore .bsMail label{font:8px/1.4 var(--font-display,monospace);color:var(--dim,#a9a2b9)}
+#bStore .bsMail .in{display:flex;gap:6px;flex-wrap:wrap}
+#bStore .bsMail input{flex:1;min-width:0;padding:8px;font:16px/1.2 var(--font-body,sans-serif);color:var(--text,#f1ece0);background:var(--ink,#0a0910);border:0;box-shadow:inset 0 0 0 2px var(--line-hi,#6d6784);-webkit-user-select:text;user-select:text}
+#bStore .bsMail small{color:var(--faint,#6f6883);font-size:12px}
+@media (max-width:420px){#bStore{padding:0}#bStore .bsBox{width:100%;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;border:0}#bStore .bsPacks{grid-template-columns:1fr}#bStore .bsCard{flex-direction:row;justify-content:space-between;text-align:left;padding:8px 10px}#bStore .bsCard .bsBuy{width:auto;min-width:110px}#bStore .bsGems{min-height:0}}
 `;
   let openEl = null, openCb = null, tab = 'gems', hl = '', msg = { t: '', k: '' }, lastFocus = null;
   const pvCache = {};
@@ -613,13 +672,15 @@
   }
   function render() {
     if (!openEl || !G.S) return;
-    const sell = Store.ready();
+    const sell = Store.ready(), looks = looksOn();
     if (!sell) tab = 'looks';
+    if (!looks) tab = 'gems';
     const box = openEl.querySelector('.bsBox'), keepY = box && box.querySelector('.bsBody') ? box.querySelector('.bsBody').scrollTop : 0;
     openEl.innerHTML = `<div class="bsBox" role="dialog" aria-modal="true" aria-label="${esc(t('stTitle'))}">
       <div class="bsHead"><h2>${esc(t('stTitle'))}</h2><span class="bsBal" title="${esc(t('stHave'))}">${gemImg()}<b>${esc(fmtN(G.S.gems || 0))}</b></span><button class="btn bsX" data-close aria-label="${esc(t('stClose'))}">✕</button></div>
-      ${sell ? `<div class="bsTabs" role="tablist"><button role="tab" data-tab="gems" class="${tab === 'gems' ? 'on' : ''}" aria-selected="${tab === 'gems'}">${esc(t('stTabGems'))}</button><button role="tab" data-tab="looks" class="${tab === 'looks' ? 'on' : ''}" aria-selected="${tab === 'looks'}">${esc(t('stTabLooks'))}</button></div>` : ''}
+      ${sell && looks ? `<div class="bsTabs" role="tablist"><button role="tab" data-tab="gems" class="${tab === 'gems' ? 'on' : ''}" aria-selected="${tab === 'gems'}">${esc(t('stTabGems'))}</button><button role="tab" data-tab="looks" class="${tab === 'looks' ? 'on' : ''}" aria-selected="${tab === 'looks'}">${esc(t('stTabLooks'))}</button></div>` : ''}
       <div class="bsBody">
+        ${askMail ? `<div class="bsMail"><label for="bsMailIn">${esc(t('stMail'))}</label><div class="in"><input id="bsMailIn" type="email" inputmode="email" autocomplete="email" maxlength="254" spellcheck="false" value="${esc(ls.get(MAIL) || '')}"><button class="btn gold" data-mailgo>${esc(t('stMailGo'))}</button></div><small>${esc(t('stMailHint'))}</small></div>` : ''}
         ${tab === 'gems' ? gemsTab() : looksTab()}
         <p class="bsMsg ${msg.k}" aria-live="polite">${esc(msg.t)}</p>
         ${sell ? `<div class="bsFoot"><button class="btn" data-claim>${esc(t('stRestore'))}</button></div>` : `<p class="bsNote">${esc(t('stEarnOnly'))}</p>`}
@@ -640,33 +701,54 @@
       if (Store.unlock(el.dataset.unlock)) { if (G.Audio && G.Audio.buy) G.Audio.buy(); if (G.UI && G.UI.update) G.UI.update(true); }
       render(); return;
     }
-    if (el.dataset.buy) {
-      const sku = el.dataset.buy;
-      say('', t('stWait'));
-      openEl.querySelectorAll('[data-buy],[data-claim]').forEach(b => { b.disabled = true; });
-      Store.buy(sku).then(r => {
-        if (!openEl) return;
-        render();
-        if (r.ok) say('ok', t('stThanks'));
-        else if (r.why === 'redirect') say('', t('stWait'));
-        else say(r.why === 'cancel' ? '' : 'bad', t(r.why === 'cancel' ? 'stCancel' : r.why === 'pending' ? 'stPending' : r.why === 'busy' ? 'stBusy' : 'stFail'));
-      });
-      return;
+    if (el.hasAttribute('data-mailgo')) {
+      const i = openEl.querySelector('#bsMailIn'), m = i ? i.value.trim() : '';
+      if (!MAIL_RE.test(m) || m.length > 254) { say('bad', t('stMailBad')); if (i) i.focus(); return; }
+      ls.set(MAIL, m);
+      const sku = askMail; askMail = '';
+      return buyFrom(sku);
     }
+    if (el.dataset.buy) return buyFrom(el.dataset.buy);
     if (el.hasAttribute('data-claim')) {
       el.disabled = true; say('', t('stBusy'));
       Store.claim().then(got => { if (!openEl) return; render(); say(got.length ? 'ok' : '', got.length ? t('stRestored', got.length) : t('stNothing')); });
     }
   }
+  function buyFrom(sku) {
+    say('', t('stWait'));
+    openEl.querySelectorAll('[data-buy],[data-claim],[data-mailgo]').forEach(b => { b.disabled = true; });
+    Store.buy(sku).then(r => {
+      if (!openEl) return;
+      render();
+      if (r.ok) say('ok', t('stThanks'));
+      else if (r.why === 'redirect') say('', t('stWait'));
+      // (the receipt needs an email first: the box is up at the top)
+      else if (r.why === 'email') { say('', ''); const i = openEl.querySelector('#bsMailIn'); if (i) i.focus(); }
+      else say(r.why === 'cancel' ? '' : 'bad', t(r.why === 'cancel' ? 'stCancel' : r.why === 'pending' ? 'stPending' : r.why === 'busy' ? 'stBusy' : 'stFail'));
+    });
+  }
   // while the store is up the game hears no keys (Space must not hold the Button under it); buttons still work
-  function onKey(e) { if (!openEl) return; e.stopPropagation(); if (e.key === 'Escape') Store.close(); }
+  function onKey(e) {
+    if (!openEl) return;
+    e.stopPropagation();
+    if (e.type !== 'keydown') return;
+    if (e.key === 'Escape') Store.close();
+    else if (e.key === 'Enter' && e.target && e.target.id === 'bsMailIn') { const b = openEl.querySelector('[data-mailgo]'); if (b) b.click(); }
+  }
+  // while it is up the field holds still, like under the game's own windows (G.uiBusy: game.js holds the tick)
+  function wrapBusy() { if (G.uiBusy && !G.uiBusy._store) { const prev = G.uiBusy; const f = () => !!openEl || prev(); f._store = 1; G.uiBusy = f; } }
+  wrapBusy();
   Store.open = function (which, cb) {
     if (typeof which === 'function') { cb = which; which = ''; }
     if (!G.S) return false;
+    // nothing to show here: no Gems for sale and looks not drawn yet
+    if (!Store.ready() && !looksOn()) return false;
+    wrapBusy();
     if (!document.getElementById('bStoreCss')) { const st = document.createElement('style'); st.id = 'bStoreCss'; st.textContent = CSS; document.head.appendChild(st); }
     hl = /^(gems_\d+|starter|cos_[a-z0-9_]+)$/.test(which || '') ? which : '';
-    tab = which === 'looks' || /^cos_/.test(hl) ? 'looks' : 'gems';
-    msg = { t: '', k: '' };
+    if (!looksOn() && /^(cos_|starter$)/.test(hl)) hl = '';
+    tab = looksOn() && (which === 'looks' || /^cos_/.test(hl)) ? 'looks' : 'gems';
+    msg = { t: '', k: '' }; askMail = '';
     if (openEl) Store.close(true);
     lastFocus = document.activeElement;
     openEl = document.createElement('div');
@@ -674,6 +756,7 @@
     openEl.addEventListener('click', onClick);
     document.body.appendChild(openEl);
     document.addEventListener('keydown', onKey, true);
+    document.addEventListener('keyup', onKey, true);
     openCb = typeof cb === 'function' ? cb : null;
     render();
     emit('store_open', { tab, p: provId, sell: Store.ready() ? 1 : 0 });
@@ -688,6 +771,7 @@
     if (!openEl) return;
     openEl.remove(); openEl = null;
     document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('keyup', onKey, true);
     const cb = openCb; openCb = null;
     if (lastFocus && lastFocus.focus && lastFocus.isConnected) { try { lastFocus.focus(); } catch (e) {} }
     if (G.UI && G.UI.update) G.UI.update(true);
@@ -724,28 +808,39 @@
     } else if ((vidNow() || extraKeys.length) && (Store.ready() || mirOk().got.length)) claimAll(false);
     if (prov && prov.restore && provOk) { try { const got = await prov.restore(); if (got.length) announce(got); } catch (e) {} }
     // the landing's support links: /play?open=shop&sku=<sku>#store
-    if ((q.get('open') === 'shop' || location.hash === '#store') && Store.ready()) {
-      const sku = String(q.get('sku') || '');
-      setTimeout(() => Store.open(skuInfo(sku) ? sku : 'gems'), 600);
-      const u = new URL(location.href); u.searchParams.delete('open'); u.searchParams.delete('sku'); if (u.hash === '#store') u.hash = '';
+    if ((q.get('open') === 'shop' || /^#(store|looks)$/.test(location.hash)) && Store.ready()) {
+      const sku = String(q.get('sku') || ''), looks = location.hash === '#looks';
+      setTimeout(() => Store.open(skuInfo(sku) ? sku : looks ? 'looks' : 'gems'), 600);
+      const u = new URL(location.href); u.searchParams.delete('open'); u.searchParams.delete('sku'); if (/^#(store|looks)$/.test(u.hash)) u.hash = '';
       try { history.replaceState(history.state, '', u.toString()); } catch (e) {}
     }
     try { G.emit && G.emit('storeReady', Store.state()); } catch (e) {}
+    chipRole();
     if (G.UI && G.UI.update) G.UI.update(true);
   }
   // the Gems chip in the HUD opens the store (the looks where nothing is sold)
   function wireChip() {
     const chip = document.getElementById('gemChip');
     if (!chip || chip.dataset.store) return;
-    chip.dataset.store = '1'; chip.style.cursor = 'pointer'; chip.setAttribute('role', 'button'); chip.tabIndex = 0;
-    chip.setAttribute('aria-label', t('stTitle'));
-    const go = () => Store.open(Store.ready() ? 'gems' : 'looks');
+    chip.dataset.store = '1';
+    const go = () => { if (Store.ready() || looksOn()) Store.open(Store.ready() ? 'gems' : 'looks'); };
     chip.addEventListener('click', go);
-    chip.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    chip.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && (Store.ready() || looksOn())) { e.preventDefault(); go(); } });
+    chipRole();
+  }
+  // (a button only while there is something behind it)
+  function chipRole() {
+    const chip = document.getElementById('gemChip'), on = Store.ready() || looksOn();
+    if (!chip || !chip.dataset.store || (chip.dataset.on === '1') === on) return;
+    chip.dataset.on = on ? '1' : '';
+    chip.style.cursor = on ? 'pointer' : '';
+    if (on) { chip.setAttribute('role', 'button'); chip.tabIndex = 0; chip.setAttribute('aria-label', t('stTitle')); } else { chip.removeAttribute('role'); chip.removeAttribute('tabindex'); chip.removeAttribute('aria-label'); }
   }
   // a new save (an import, a reset) brings its own looks state; the mirror goes back onto it
   if (G.on) G.on('ascend', () => { if (G.S) cos(); });
-  const start = () => setTimeout(() => { wireChip(); boot().catch(() => { booted = true; }); }, 0);
+  const start = () => setTimeout(() => { wrapBusy(); wireChip(); boot().catch(() => { booted = true; }).then(chipRole); }, 0);
+  // (the stage may switch looks on after boot)
+  setInterval(chipRole, 3000);
   if (document.readyState === 'complete') start(); else window.addEventListener('load', start);
   // (tests and the console)
   Store._grant = applyGrant;

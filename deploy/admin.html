@@ -88,6 +88,7 @@ svg text { fill: var(--muted); font-size: 11px; }
 .out { margin-top: 10px; display: flex; gap: 8px; }
 .out input { flex: 1; font-family: ui-monospace, monospace; font-size: 12.5px; }
 .err { color: var(--bad); }
+.warn { border: 1px solid var(--bad); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; overflow-x: auto; }
 @media (max-width: 640px) { header { flex-wrap: wrap; padding: 10px 12px; } header > .muted { display: none; } main { padding: 12px 12px 40px; } .kpi .v { font-size: 22px; } }
 .pill { display: inline-block; padding: 1px 7px; border-radius: 999px; box-shadow: 0 0 0 1px var(--ring); font-size: 12px; color: var(--ink2); }
 </style>
@@ -152,7 +153,7 @@ async function load() {
     // 4.0: the store ledger and the Daily Siege board (an older server without them: those cards just say so)
     const [sr, dr] = await Promise.all([api('/api/admin/store').then(x => x.json()).catch(() => null), api('/api/admin/daily', { day: st.dailyDay }).then(x => x.json()).catch(() => null)]);
     st.data = await r.json(); st.store = sr; st.daily = dr; render();
-  } catch (e) { if (!token()) loginView(e.message); else { const m = $('#msg'); if (m) m.textContent = e.message; } }
+  } catch (e) { if (!token() || !st.data) loginView(e.message); else { const m = $('#msg'); if (m) m.textContent = e.message; } }
   document.body.classList.remove('loading');
 }
 
@@ -260,13 +261,20 @@ function storeCards() {
   const tgBtn = h('button', { onclick: async () => { tgMsg.textContent = 'Connecting…'; try { const j = await apiPost('/api/admin/store/telegram-setup'); st.msg.tg = 'Connected: ' + j.url + (j.lastError ? ' · last error: ' + j.lastError : '') + ' · ' + j.pending + ' pending'; } catch (e) { st.msg.tg = e.message; } tgMsg.textContent = st.msg.tg; } }, 'Connect the Telegram webhook');
   const gv = h('input', { placeholder: 'visitor id (bttn_vid) or vk:<id>', style: { minWidth: '220px' } }), gs = h('select', null, (S.skus || []).map(k => h('option', { value: k }, k))), gn = h('input', { placeholder: 'note (why)' }), gMsg = h('span', { cls: 'note' }, st.msg.grant || '');
   const gBtn = h('button', { onclick: async () => { try { const j = await apiPost('/api/admin/store/grant', { v: gv.value.trim(), sku: gs.value, note: gn.value }); st.msg.grant = 'Granted ' + j.grant.sku + ' (' + j.grant.id + '): the game picks it up on its next claim.'; load(); } catch (e) { gMsg.textContent = e.message; } } }, 'Grant');
+  // the ledger's health: unreadable lines (money someone may have paid), a failed write, a disk running out
+  const H = S.health || {}, mb = n => (n / 1048576).toFixed(n < 1048576 * 10 ? 1 : 0) + ' MB';
+  const warn = [];
+  if (H.bad) warn.push(h('p', { cls: 'err' }, H.bad + ' ledger line(s) could not be read. Each may be a payment: find who paid (provider dashboard), grant it below, and keep a copy of the file.'), table([{ k: 'line', t: 'Line' }, { k: 'text', t: 'What the line says', l: 1, f: r => h('code', { style: { wordBreak: 'break-all' } }, r.text) }], H.badLines || []));
+  if (H.writeFail) warn.push(h('p', { cls: 'err' }, 'The ledger could not be written ' + ago(H.writeFail.at) + ' (' + H.writeFail.why + ')' + (H.writeFail.undone ? ': nothing half-written, the provider retries.' : ': check the file by hand.')));
+  if (H.disk && H.disk.low) warn.push(h('p', { cls: 'err' }, 'The data volume is nearly full: ' + mb(H.disk.free) + ' free of ' + mb(H.disk.total) + '. Payments fail when it is full: lower KEEP_DAYS or grow the volume.'));
   const main = card('Store', 'Every paid order from the ledger ($DATA_DIR/store-ledger.ndjson). Revenue leaves out test and refunded orders. “Waiting for the game” = paid, not yet collected by the player\'s game (it collects on its next visit). Held = the amount looked short: check it, then grant by hand if it was fine.',
-    h('div', null, provs,
+    h('div', null, warn.length ? h('div', { cls: 'warn' }, warn) : null, provs,
       h('div', { cls: 'kpis' },
         kpi('Purchases', fmt(S.purchases), fmt(S.tests) + ' test or manual'),
         kpi('Waiting for the game', fmt(S.pending.n), S.pending.n ? 'oldest ' + S.pending.oldest + ' min' : 'all delivered'),
         kpi('Held for review', fmt(S.held), 'short payments'), kpi('Refunds', fmt(S.refunds)),
-        kpi('Open YooKassa orders', fmt(S.orders.pending), fmt(S.orders.canceled) + ' canceled · ' + fmt(S.orders.total) + ' created')),
+        kpi('Open YooKassa orders', fmt(S.orders.pending), fmt(S.orders.canceled) + ' canceled · ' + fmt(S.orders.total) + ' created'),
+        H.disk ? kpi('Disk free', mb(H.disk.free), 'of ' + mb(H.disk.total) + ' · ' + fmt(H.lines || 0) + ' ledger lines') : null),
       h('div', { style: { height: '14px' } }),
       h('div', { cls: 'grid' },
         h('div', { cls: 'c6', style: { minWidth: 0 } }, h('p', { cls: 'note' }, 'Revenue by provider'), table([{ k: 'prov', t: 'Provider', l: 1 }, { k: 'n', t: 'Orders' }, { k: 'sum', t: 'Total', f: r => money(r.sum, r.cur) }], S.revenue)),
@@ -306,10 +314,18 @@ function dailyCard() {
   const rows = D.rows.map((r, i) => Object.assign({ i }, r));
   let rank = 0;
   for (const r of rows) r.rank = r.hid ? '—' : ++rank;
-  return card('Daily Siege board', 'The public board at /api/daily: the first attempt per visitor per UTC day, by zones then time. Hide a row to take an offensive name off the board (the row stays, so that visitor still can\'t post again today).',
-    h('div', null, h('div', { cls: 'filters' }, day, h('span', { cls: 'muted' }, fmt(D.n) + ' entries')),
-      table([{ k: 'rank', t: '#' }, { k: 'name', t: 'Name', l: 1, f: r => h('span', { style: { textDecoration: r.hid ? 'line-through' : '' } }, r.name) }, { k: 'zones', t: 'Zones' }, { k: 'secs', t: 'Time', f: r => Math.floor(r.secs / 60) + ':' + String(Math.round(r.secs % 60)).padStart(2, '0') }, { k: 'btn', t: 'Button', l: 1 }, { k: 'cls', t: 'Class', l: 1 }, { k: 'heat', t: 'Heat' },
-        { k: 'hid', t: '', f: r => h('button', { cls: 'ghost', onclick: async () => { try { await apiPost('/api/admin/daily/hide', { day: D.day, vh: r.vh, hid: !r.hid }); load(); } catch (e) { alert(e.message); } } }, r.hid ? 'Show' : 'Hide') }], rows.slice(0, 100))), 'c6');
+  const hide = async o => { try { await apiPost('/api/admin/daily/hide', Object.assign({ day: D.day }, o)); load(); } catch (e) { alert(e.message); } };
+  // (an address with many posts today is the first place to look for a flood; one click hides all of its rows)
+  const nets = (D.nets || []).filter(([, n]) => n > 3);
+  return card('Daily Siege board', 'The public board at /api/daily: the first attempt per visitor per UTC day, by zones then time. Hide a row to take an offensive name off the board (the row stays, so that visitor still can\'t post again today). “Address” is a salted hash of the poster\'s IPv4 address or IPv6 /64; “no token” = posted without the run token from the run\'s start.',
+    h('div', null,
+      D.ro ? h('p', { cls: 'err' }, 'This day\'s file was damaged and had no good copy: the board is read-only. ', h('button', { onclick: async () => { try { await apiPost('/api/admin/daily/reset', { day: D.day }); load(); } catch (e) { alert(e.message); } } }, 'Start this day\'s board again')) : null,
+      D.restored ? h('p', { cls: 'err' }, 'This day\'s file was damaged; the copy from before its last write was used (a few of the latest rows may be missing). The damaged file is kept next to it as .bad-…') : null,
+      h('div', { cls: 'filters' }, day, h('span', { cls: 'muted' }, fmt(D.n) + ' entries' + (D.gone ? ' · ' + fmt(D.gone) + ' made room on a full board' : '') + (D.max ? ' · cap ' + fmt(D.max) : '') + (D.strict === false ? ' · setup check OFF' : '') + (D.token ? ' · token required' : ''))),
+      nets.length ? [h('p', { cls: 'note' }, 'Addresses with the most posts today'), table([{ k: 0, t: 'Address', l: 1, f: r => h('code', null, String(r[0]).slice(0, 8)) }, { k: 1, t: 'Posts' }, { k: 'x', t: '', f: r => h('button', { cls: 'ghost', onclick: () => hide({ ih: r[0], hid: true }) }, 'Hide all') }], nets)] : null,
+      table([{ k: 'rank', t: '#' }, { k: 'name', t: 'Name', l: 1, f: r => h('span', { style: { textDecoration: r.hid ? 'line-through' : '' } }, r.name, r.nt ? h('span', { cls: 'pill', style: { marginLeft: '6px' }, title: 'posted without the run token' }, 'no token') : null) }, { k: 'zones', t: 'Zones' }, { k: 'secs', t: 'Time', f: r => Math.floor(r.secs / 60) + ':' + String(Math.round(r.secs % 60)).padStart(2, '0') }, { k: 'btn', t: 'Setup', l: 1, f: r => h('span', { cls: 'muted' }, r.btn + ' · ' + r.cls + ' · H' + r.heat) },
+        { k: 'ih', t: 'Address', l: 1, f: r => h('span', { title: r.n + ' posts from this address today' }, h('code', null, String(r.ih || '').slice(0, 8)), r.n > 1 ? ' ×' + r.n : '') },
+        { k: 'hid', t: '', f: r => h('span', null, h('button', { cls: 'ghost', onclick: () => hide({ vh: r.vh, hid: !r.hid }) }, r.hid ? 'Show' : 'Hide'), r.ih && r.n > 1 ? h('button', { cls: 'ghost', title: 'Hide every row from this address today', onclick: () => hide({ ih: r.ih, hid: true }) }, 'Hide address') : null) }], rows.slice(0, 100))), 'c6');
 }
 function cspCard() {
   const c = (st.store && st.store.csp) || [];

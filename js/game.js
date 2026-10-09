@@ -18,7 +18,8 @@
     // 2.5: the game is balanced for the Button held down (10 clicks a second); faster clicking, or an
     // autoclicker, counts no more than that
     maxManualCps: 10,
-    wispMin: 50, wispMax: 120, wispLife: 13, wispRain: 2,
+    // (4.0: Golden Clicks every 100-160 s, DESIGN §5.8)
+    wispMin: 100, wispMax: 160, wispLife: 13, wispRain: 2,
     mimicClicks: 15, mimicLife: 8, mimicIdle: 30,
     blazeLife: 6,
     // 2.2: every boss fight lasts at least this long however strong the party is (s of its damage)
@@ -45,6 +46,12 @@
     // 4.0 attrition: a boss kill heals the Button and the party this share, a lord this share; Mend is charges (per land,
     // each heals mendHeal, mendLock s apart); DOOM takes this share of what it would (by Heat: 0-2, 3-5, 6+)
     healBoss: 0.1, healLord: 0.25, mendCharges: 2, mendHeal: 0.35, mendLock: 8, doomK: [0.64, 0.8, 1],
+    // 4.0: the Barracks pays this share of the best run's Embers an hour away
+    barracksRate: 0.03,
+    // 4.0: Auto-invest (DESIGN §5.5): every autoEvery s of field time, the run's gold into the Hand upgrades and the
+    // Garrison by payback, keeping autoKeep of it back for the camp's market; autoBuys purchases a go (each one tries
+    // every candidate with a recalc, ~2 ms: one at a time, often, keeps a phone's frames smooth)
+    autoEvery: 0.5, autoKeep: 0.5, autoBuys: 1,
   };
 
   // ---------- State ----------
@@ -77,7 +84,8 @@
       daily: { last: '', streak: 0 },
       st: { crits: 0, bossKills: 0, lordKills: 0, wisps: 0, mimics: 0, merges: 0, divine: 0, maxCombo: 0,
         playTime: 0, chests: 0, modded: 0, megas: 0, hoards: 0, shrines: 0, breaches: 0, drops: 0, orbs: 0, rifts: 0 },
-      set: { sound: 1, music: 1, vol: 0.6, hold: 1, shake: 1, autoBoss: 1, filter: 1, stats: 1 },
+      // (4.0: autoInvest: the Shop tab's toggle, on by default)
+      set: { sound: 1, music: 1, vol: 0.6, hold: 1, shake: 1, autoBoss: 1, filter: 1, stats: 1, autoInvest: 1 },
       seen: {}, tut: 0,
       journey: 0, scar: null, bounty: { day: '', n: 0, done: false },
       uq: {}, feed: [], rift: newRift(), lands: {}, party: [],
@@ -653,19 +661,29 @@
   };
   // 3.0: the town grows. Each building can be built up five times with gold for a lasting bonus that
   // outlives ascension; a building stands as scaffolding until what it holds is open (G.bldOpen, set by the UI)
+  // 4.0 (DESIGN §4.5): each level is mostly an unlock now, not a percentage (no hidden power). What each sets on D, and who
+  // reads it: forge I enchantAll (G.enchantAll at camp and in the menu), II reforge (camp), III salvOrbs (an orb a 40
+  // shards salvaged), IV lordCard (+1 card at a lord's loot moment), V legendPk (a run's first legendary rolls a perk
+  // rank). tavern I recruitN 4 (camp candidates), II recruitArmor, III allyDmgK 1.15, IV allyHpK 1.15, V startAlly (a
+  // companion from the start). enchant I gambleWare (camp market), II enchantK 0.8, III whet2 (lords' whetstones x2), IV
+  // ruinSafe, V crit power +0.1. alch I-V startPots 1/1/2/2/3 (II: mendBonus +1 Mend charge a run; IV: potion caps +2).
+  // barracks: offline Embers cap (offHours 4-12 h; G.barracksRate). museum I keepSlots 1, II/IV the Codex rank cap 3/4
+  // (G.codexCap), III uqK 1.2 (unique chances), V itemEmb 1.1 (item Embers). quests: the run deeds board (the meta's).
+  // stars (Observatory): Star Chart nodes visible 8/16/24/32/37 (G.nodeVisible). pets (Hatchery): II/IV eggMult 1.5/2,
+  // III +1 pet seat, V golden chance +2%. temple: the Heat dial and the Hall of Fame; II-V Fame +5% each. rift (Rift
+  // Gate): I the Daily Siege, II Push On, III vaultKinds +1, IV pushLoot 1.25.
   G.BLD = [
-    { id: 'forge', v: 0.06, fx: (L, d) => { d.heroMult *= 1 + 0.06 * L; } },
-    { id: 'tavern', v: 0.06, fx: (L, d) => { d.hpMult *= 1 + 0.06 * L; } },
-    { id: 'enchant', v: 0.15, fx: (L, d) => { d.critMult += 0.15 * L; } },
-    { id: 'alch', v: 1, fx: (L, d) => { d.potCap += L; } },
-    { id: 'barracks', v: 0.1, fx: (L, d) => { d.gpsMult *= 1 + 0.1 * L; } },
-    { id: 'museum', v: 0.06, fx: (L, d) => { d.itemMult *= 1 + 0.06 * L; } },
-    { id: 'quests', v: 0.1, fx: (L, d) => { d.questMult *= 1 + 0.1 * L; } },
-    { id: 'stars', v: 0.06, fx: (L, d) => { d.essMult *= 1 + 0.06 * L; } },
-    { id: 'pets', v: 0.06, fx: (L, d) => { d.petMult *= 1 + 0.06 * L; } },
-    // (4.0: the Temple opens the Heat dial and the Hall of Fame; levels II-V: Fame +5% each)
+    { id: 'forge', v: 1, fx: (L, d) => { d.enchantAll = 1; if (L >= 2) d.reforge = 1; if (L >= 3) d.salvOrbs = 1; if (L >= 4) d.lordCard = 1; if (L >= 5) d.legendPk = 1; } },
+    { id: 'tavern', v: 1, fx: (L, d) => { d.recruitN = 4; if (L >= 2) d.recruitArmor = 1; if (L >= 3) d.allyDmgK = 1.15; if (L >= 4) d.allyHpK = 1.15; if (L >= 5) d.startAlly = 1; } },
+    { id: 'enchant', v: 1, fx: (L, d) => { d.gambleWare = 1; if (L >= 2) d.enchantK = 0.8; if (L >= 3) d.whet2 = 1; if (L >= 4) d.ruinSafe = 1; if (L >= 5) d.critMult += 0.1; } },
+    { id: 'alch', v: 1, fx: (L, d) => { d.startPots = [0, 1, 1, 2, 2, 3][L]; if (L >= 2) d.mendBonus = 1; if (L >= 4) d.potCap += 2; } },
+    { id: 'barracks', v: 1, fx: (L, d) => { d.offHours = [0, 4, 6, 8, 10, 12][L]; } },
+    { id: 'museum', v: 1, fx: (L, d) => { d.keepSlots = 1; d.codexCap = L >= 4 ? 4 : L >= 2 ? 3 : 2; if (L >= 3) d.uqK = 1.2; if (L >= 5) d.itemEmb = 1.1; } },
+    { id: 'quests', v: 1, fx: (L, d) => { d.deedBoard = 2 + Math.min(3, L); } },
+    { id: 'stars', v: 1, fx: (L, d) => { d.nodesOpen = [0, 8, 16, 24, 32, 99][L]; } },
+    { id: 'pets', v: 1, fx: (L, d) => { if (L >= 2) d.eggMult *= L >= 4 ? 2 : 1.5; if (L >= 3) d.petSlots += 1; if (L >= 5) d.goldenChance += 0.02; } },
     { id: 'temple', v: 0.05, fx: (L, d) => { d.fameMult *= 1 + 0.05 * Math.max(0, L - 1); } },
-    { id: 'rift', v: 0.06, fx: (L, d) => { d.chestProg += 0.06 * L; } },
+    { id: 'rift', v: 1, fx: (L, d) => { d.daily = 1; if (L >= 2) d.pushOn = 1; if (L >= 3) d.vaultKinds = 1; if (L >= 4) d.pushLoot = 1.25; } },
   ];
   G.BLD_BY_ID = {}; G.BLD.forEach(b => { G.BLD_BY_ID[b.id] = b; });
   G.BLD_MAX = 5;
@@ -874,7 +892,8 @@
   function startBoss() {
     const S = G.S;
     // an invasion is fought out first
-    if (R.boss || R.rift || !R.bossReady || R.inv || R.town || S.fallen) return false;
+    // (4.0: not while the Siege holds the field: a card, the loot moment, camp...; nor during the Last Stand)
+    if (R.boss || R.rift || !R.bossReady || R.inv || R.town || S.fallen || (inSiege() && G.runHeld && G.runHeld()) || R.lastStand) return false;
     const d = S.depth;
     const lord = isLord(d), kind = bossKind(d);
     const max = bossMax(d);
@@ -1010,8 +1029,10 @@
     recalc();
     // 4.0 attrition: a boss kill heals the Button and the party standing +10%, a lord's +25% (no more full heals)
     if (inSiege() && G.healParty) G.healParty(b.lord ? TUNE.healLord : TUNE.healBoss);
-    // the loot bursts out of it onto the ground; without js/world.js, chests open as before
-    if (G.bossLoot) G.bossLoot(b, tier, count);
+    // the loot bursts out of it onto the ground; without js/world.js, chests open as before. 4.0: inside a Siege the boss's
+    // items are the loot moment's cards (js/run.js), banked in the save now, before anything else can happen
+    if (inSiege() && G.lootMoment) G.lootMoment(b);
+    else if (G.bossLoot) G.bossLoot(b, tier, count);
     else for (let i = 0; i < count; i++) rew.chests.push(openChest(makeChest(tier, null), 'boss'));
     questProgress('boss', 1);
     // 4.0: the run's books (js/run.js): Fame, the pouch, Integrity, a land's Mend charges
@@ -1070,6 +1091,9 @@
       S.buffs = S.buffs.filter(b => b.id !== e.id);
       S.buffs.push({ id: e.id, t: e.dur * D.buffDur, T: e.dur * D.buffDur });
       R.dirty = true;
+    } else if (e.id === 'lootstorm') {
+      // (4.0: a Loot Storm: +1 card at the next loot moment, a rare floor (js/run.js); outside a Siege, a chest)
+      if (inSiege()) S.run.lootStorm = (S.run.lootStorm | 0) + 1; else spawnChest();
     } else if (e.id === 'rain') {
       // (4.0: 2 chests, not 8: chests are few and each one an event)
       for (let i = 0; i < TUNE.wispRain; i++) spawnChest();
@@ -1120,6 +1144,53 @@
   }
   G.buyHero = buyHero;
 
+  // ---------- 4.0: Auto-invest (DESIGN §5.5; the playtest bots' payback rule, moved into the game) ----------
+  // Which purchase adds the most income per gold: the Hand upgrades on sale and one more of each Garrison class, measured
+  // by trying each (an income estimate: the Garrison, clicks at the recent pace, chests); the best is bought while it
+  // leaves autoKeep of the gold for the camp. Returns the number bought. Not a decision: the camp is where gold choices are.
+  function incomeEst(cps) {
+    const critEV = 1 + D.crit * (D.critMult - 1), combo = 1 + Math.min(D.comboCap, 40) * D.comboPer, clickRate = cps * 0.7;
+    const clicksGold = D.click * clickRate * critEV * combo + D.click * (D.autoCps + D.petCps) * critEV;
+    const chestRate = (clickRate * D.chestProg + (D.autoCps + D.petCps) * D.chestProg * TUNE.autoChestFactor) / D.chestNeed + (D.scout || 0);
+    return D.gps + clicksGold + chestRate * D.incomeRef * 2.5 * D.itemMult;
+  }
+  G.autoInvest = function (maxBuys, keep) {
+    const S = G.S;
+    if (!S.hero || !S.hero.cls) return 0;
+    const cps = Math.max(1, R.cps || 0), reserve = (keep == null ? TUNE.autoKeep : keep);
+    let n = 0;
+    // (the trials measure income only: the heroes' combat numbers (G.heroFinish, most of a recalc) are left out until the end)
+    const hf = G.heroFinish;
+    G.heroFinish = null;
+    try {
+    for (let guard = 0; guard < (maxBuys || TUNE.autoBuys); guard++) {
+      const spend = S.gold * (1 - reserve), base = incomeEst(cps);
+      let best = null;
+      const consider = (kind, id, cost, apply, undo) => {
+        if (!(cost <= spend)) return;
+        apply(); recalc();
+        const score = (incomeEst(cps) - base) / cost;
+        undo(); recalc();
+        if (!best || score > best.score) best = { kind, id, score };
+      };
+      for (const u of G.UPGRADES) {
+        const L = S.upg[u.id] || 0;
+        if (u.off || (u.max && L >= u.max) || (u.req && !(S.upg[u.req] > 0))) continue;
+        consider('upg', u.id, upgCost(u, L), () => { S.upg[u.id] = L + 1; }, () => { if (L) S.upg[u.id] = L; else delete S.upg[u.id]; });
+      }
+      for (const h of G.HEROES) {
+        const c = S.heroes[h.id] || 0;
+        consider('hero', h.id, heroCost(h, c, 1), () => { S.heroes[h.id] = c + 1; }, () => { if (c) S.heroes[h.id] = c; else delete S.heroes[h.id]; });
+      }
+      if (!best || !(best.score > 0)) break;
+      if (!(best.kind === 'upg' ? buyUpgrade(best.id) : buyHero(best.id, 1))) break;
+      n++;
+    }
+    } finally { G.heroFinish = hf; R.dirty = true; recalc(); }
+    if (n) emit('autoInvest', n);
+    return n;
+  };
+
   // 4.0: the Star Chart (the Constellation) is permanent and priced in Embers: 2.5 a point of its 3.x essence cost
   G.NODE_EMBERS = 2.5;
   function nodeCost(nd, L) { return Math.ceil(G.NODE_EMBERS * Math.ceil(nd.cost * Math.pow(nd.growth, L))); }
@@ -1129,10 +1200,12 @@
     return nd.req.some(r => (G.S.nodes[r] || 0) > 0);
   }
   G.nodeAvailable = nodeAvailable;
+  // 4.0: the Observatory shows the Star Chart: 8 nodes at level I, 16, 24, 32, all 37 at V (in the order of G.NODES)
+  G.nodeVisible = nd => G.NODES.indexOf(nd) < (D.nodesOpen || 0);
   function buyNode(id) {
     const S = G.S, nd = G.NODE_BY_ID[id];
     const L = S.nodes[id] || 0;
-    if (L >= nd.max || !nodeAvailable(nd)) return false;
+    if (!nd || L >= nd.max || !nodeAvailable(nd) || !G.nodeVisible(nd)) return false;
     const c = nodeCost(nd, L);
     if ((S.embers || 0) < c) return false;
     S.embers -= c; S.nodes[id] = L + 1;
@@ -1413,6 +1486,8 @@
     // 4.0: time away never advances a Siege: no gold, chests, XP or levels (the run waits where it was) and nothing in the
     // run's currencies. The Barracks pays Embers for it (the meta's 'offline' hooks: f(sec, out) adds out.embers)
     const out = { sec, t, gold: 0, chests: 0, items: 0, ess: 0, warden: null, rested: false, siege: inSiege(), embers: 0 };
+    // the Barracks (4.0, DESIGN §4.5): Embers while away, 3% an hour of the best run's payout, up to its level's hours
+    if (D.offHours > 0 && G.S.rec && G.S.rec.bestPay > 0) out.embers += Math.floor(G.S.rec.bestPay * TUNE.barracksRate * Math.min(sec, D.offHours * 3600) / 3600);
     if (G.HOOKS && G.HOOKS.offline) for (const f of G.HOOKS.offline) f(sec, out);
     if (out.embers > 0 && G.addEmbers) G.addEmbers(out.embers, 'offline');
     emit('away', out);
@@ -1469,6 +1544,8 @@
     spawnFromMeter();
     // 4.0: the run's own clocks (par, the Reaper, Mend's land refill...): js/run.js
     if (G.runTick) G.runTick(dt);
+    // 4.0: Auto-invest, now and then (the Shop tab's toggle)
+    if ((R.aiT = (R.aiT == null ? TUNE.autoEvery : R.aiT) - dt) <= 0) { R.aiT = TUNE.autoEvery; if (inSiege() && S.set.autoInvest !== 0) G.autoInvest(); }
     if (G.heroTick) G.heroTick(dt);
     if (G.worldTick) G.worldTick(dt);
     if (G.eventsTick) G.eventsTick(dt);
@@ -1488,6 +1565,10 @@
         if (b.enr > 0 && !(b.inv > 0) && (b.enr -= dt) <= 0) bossFail();
         else bossMoves(b, dt);
       }
+    } else if (R.lastStand) {
+      // 4.0: the finale's Last Stand: no boss until its clock runs out (js/run.js)
+    } else if (S.bossMeter >= D.bossNeed && G.lastStandDue && G.lastStandDue()) {
+      G.lastStandStart();
     } else if (S.bossMeter >= D.bossNeed) {
       if (!R.bossReady) { R.bossReady = true; R.bossIn = TUNE.bossCall; emit('bossReady'); }
       // Bosses come on their own: after a short countdown when the Warden can take it, or after a

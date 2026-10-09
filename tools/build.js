@@ -4,8 +4,14 @@
 //   docs/index.html    — the standalone page again, for the public site on GitHub Pages
 //   dist/steam.html    — only with --target steam: the page for the Steam wrapper (steam/), with
 //                        window.BTTN_PLATFORM = 'steam' and steam/bridge.js (save file, carry-over, achievements)
+//   dist/<portal>/index.html — only with --target yandex|vk|telegram: the page a portal hosts itself (a Yandex Games
+//                        zip, VK Mini Apps hosting, a static Telegram Mini App), with window.BTTN_PLATFORM = '<portal>'
+//                        and window.BTTN_API = the public host (--api https://… or BTTN_API), where the store, the
+//                        Daily board and the anonymous stats live; without it those stay off. Yandex gets its
+//                        '/sdk.js' tag (its moderation looks for it); VK and Telegram load their SDKs from js/store.js.
 // Usage: node tools/build.js            (the web build: dist/bttn.html, dist/artifact.html, docs/, server/src/game.js)
 //        node tools/build.js --target steam   (writes dist/steam.html and nothing else)
+//        node tools/build.js --target yandex --api https://bttn.example   (writes dist/yandex/index.html and nothing else)
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -80,7 +86,27 @@ ${bridge}
   console.log('dist/steam.html', (Buffer.byteLength(steam) / 1024).toFixed(1) + ' KB', Object.keys(achMap).length + ' Steam achievements');
   process.exit(0);
 }
-if (target !== 'web') { console.error('unknown --target ' + target + ' (web, steam)'); process.exit(1); }
+// 4.0 (platform-fix): the portal builds. Same page as the web build, plus the platform flag and where the host is.
+const PORTALS = { yandex: '<script src="/sdk.js"></script>', vk: '', telegram: '' };
+if (Object.prototype.hasOwnProperty.call(PORTALS, target)) {
+  const apiArg = (argv.find(a => a.startsWith('--api=')) || '').slice(6) || (argv.includes('--api') ? argv[argv.indexOf('--api') + 1] : '') || process.env.BTTN_API || '';
+  let api = '';
+  if (apiArg) {
+    let u = null; try { u = new URL(apiArg); } catch (e) {}
+    if (!u || u.protocol !== 'https:' || u.username || u.password || (u.pathname !== '/' && u.pathname !== '')) { console.error('--api must be an https origin (https://host), got ' + apiArg); process.exit(1); }
+    api = u.origin;
+  } else console.warn('no --api: the store, the Daily board and the stats stay off in this build');
+  const flags = { BTTN_PLATFORM: target };
+  if (api) { flags.BTTN_API = api; flags.BTTN_AN = api + '/api/ev'; }
+  const head = `<script>${Object.keys(flags).map(k => `window.${k} = ${JSON.stringify(flags[k]).replace(/</g, '\\u003c')};`).join(' ')}</script>${PORTALS[target] ? '\n' + PORTALS[target] : ''}`;
+  if (!standalone.includes('</head>')) throw new Error('no </head> in the page');
+  const page = standalone.replace('</head>', () => head + '\n</head>');
+  fs.mkdirSync(path.join(root, 'dist', target), { recursive: true });
+  fs.writeFileSync(path.join(root, 'dist', target, 'index.html'), page);
+  console.log('dist/' + target + '/index.html', (Buffer.byteLength(page) / 1024).toFixed(1) + ' KB', api ? 'host ' + api : 'no host');
+  process.exit(0);
+}
+if (target !== 'web') { console.error('unknown --target ' + target + ' (web, steam, yandex, vk, telegram)'); process.exit(1); }
 
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist', 'bttn.html'), standalone);

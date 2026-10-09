@@ -209,6 +209,8 @@ h2{font:clamp(17px,2.6vw,26px)/1.4 var(--px);color:#fff4d8;text-wrap:balance;tex
 .btn2:hover{filter:brightness(1.2)}
 .btn2:active{transform:translateY(2px)}
 .offer.star .btn2{color:#16090b;background:var(--gold);box-shadow:inset 0 -4px 0 var(--gold-lo),0 -3px 0 #0e0a13,0 3px 0 #0e0a13,-3px 0 0 #0e0a13,3px 0 0 #0e0a13}
+/* a Gem (the game's own: a pink cut stone), three sizes for the three packs */
+.gem{display:inline-block;width:var(--g);height:var(--g);margin:0 4px;align-self:flex-end;background:linear-gradient(135deg,#fff0fa 0 22%,#ff8ad0 22% 55%,#c2408f 55%);clip-path:polygon(25% 0,75% 0,100% 35%,50% 100%,0 35%);image-rendering:pixelated}
 .pie{width:1px;height:1px;--z:5;transform:scale(var(--z));transform-origin:0 0;margin:0 calc(10px*var(--z) - 1px) calc(7px*var(--z) - 1px) 0;image-rendering:pixelated;
   box-shadow:3px 0 #8a4a1c,4px 0 #8a4a1c,5px 0 #8a4a1c,6px 0 #8a4a1c,
   2px 1px #8a4a1c,3px 1px #e7a955,4px 1px #f2c27a,5px 1px #e7a955,6px 1px #e7a955,7px 1px #8a4a1c,
@@ -421,33 +423,36 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
     <h2 id="sup-h" data-t="h_sup">Free forever. Support it if you like it.</h2>
     <p class="lead" data-t="sup">Made by one developer. Nothing for sale is random, and nothing for sale is power you can't earn by playing.</p>
     <div class="support">
+      <!-- 4.0: the game's own store (Gems packs, the Starter Kit, looks); prices come from /api/config (RUB in Russian,
+           USD otherwise). A card is 'soon' until the host sells it: Gems need PAYMENTS on, the Starter Kit and looks
+           also need store.looks (STORE_LOOKS=1, set once the game draws looks) -->
       <article class="offer panel star">
-        <div class="art"><i class="sp s-btn-gold big" aria-hidden="true"></i><i class="sp s-ic-bolt" aria-hidden="true" style="--z:3"></i><i class="sp s-it-king-crown" aria-hidden="true" style="--z:3"></i></div>
-        <h3><span data-t="o1">Supporter Pack</span><span class="tag" data-t="o1t">FOUNDER</span></h3>
-        <p data-t="o1p">A Founder Button, gold lightning, a gold name on the ladder, +4 h offline, and the 4 ad bonuses without watching. Same caps as everyone.</p>
-        <div class="buy"><span class="price" data-price="supporter">$9.99</span><a class="btn2 shop" data-sku="supporter" href="/play"><span data-t="get">Play free</span></a></div>
+        <div class="art"><i class="sp s-btn-gold big" aria-hidden="true"></i><i class="sp s-ic-star" aria-hidden="true" style="--z:3"></i><i class="sp s-ic-bolt" aria-hidden="true" style="--z:3"></i></div>
+        <h3><span data-t="o1">Starter Kit</span><span class="tag" data-t="o1t">ONCE</span></h3>
+        <p data-t="o1p">100 Gems and the Founder's Flame, a Hand trail. One per player, looks only.</p>
+        <div class="buy"><span class="price" data-price="starter" data-need="looks">$1.99</span><a class="btn2 shop" data-sku="starter" data-need="looks" href="/play"><span data-t="get">Play free</span></a></div>
+      </article>
+      <article class="offer panel">
+        <div class="art"><i class="gem" aria-hidden="true" style="--g:20px"></i><i class="gem" aria-hidden="true" style="--g:28px"></i><i class="gem" aria-hidden="true" style="--g:38px"></i></div>
+        <h3 data-t="o2">Gems</h3>
+        <p data-t="o2p">Fixed packs of 100, 300 and 1,000. Gems pay for a Continue (one a run) and for looks, and the game shows what they are worth. You earn them by playing too.</p>
+        <div class="buy"><span class="price" data-price="gems">from $0.99</span><a class="btn2 shop" data-sku="gems_100" href="/play"><span data-t="get">Play free</span></a></div>
       </article>
       <article class="offer panel">
         <div class="art"><i class="sp s-btn-obsidian" aria-hidden="true"></i><i class="sp s-btn-candy" aria-hidden="true"></i><i class="sp s-btn-frost" aria-hidden="true"></i></div>
-        <h3 data-t="o2">Looks</h3>
-        <p data-t="o2p">Button skins, Hand trails and party outfits. Looks only, never stats.</p>
-        <div class="buy"><span class="price" data-price="looks">from $0.99</span><a class="btn2 shop" data-sku="skin_btn_obsidian" href="/play"><span data-t="get">Play free</span></a></div>
-      </article>
-      <article class="offer panel">
-        <div class="art"><i class="sp s-h-knight" aria-hidden="true" style="--z:4"></i><i class="pie" aria-hidden="true"></i></div>
-        <h3 data-t="o3">A pie for the Warden</h3>
-        <p data-t="o3p">A pie hat for the Warden and your name on the Patron Wall. A thank-you, nothing more.</p>
-        <div class="buy"><span class="price" data-price="tip_pie">$2.99</span><a class="btn2 shop" data-sku="tip_pie" href="/play"><span data-t="get">Play free</span></a></div>
+        <h3 data-t="o3">Looks</h3>
+        <p data-t="o3p">Button finishes, Hand trails and loot beams. Looks only, never stats: unlock them with Gems you earn, or buy one outright.</p>
+        <div class="buy"><span class="price" data-price="looks" data-need="looks">from $0.99</span><a class="btn2 shop" data-sku="looks" data-need="looks" href="/play"><span data-t="get">Play free</span></a></div>
       </article>
     </div>
     <details class="pact panel" id="pact">
       <summary data-t="pact">Our fair-play pact: 7 promises</summary>
       <ol>
         <li data-t="p1">Money never buys a random outcome. Eggs, chests, orbs, relics and gear are earned only.</li>
-        <li data-t="p2">Money buys looks, time and convenience, never power a free player can't get.</li>
+        <li data-t="p2">Money buys looks and Gems for a Continue. Never power, Fame, Embers or unlocks.</li>
         <li data-t="p3">The Rift and the ladders stay pure. No paid boosts there.</li>
         <li data-t="p4">No forced ads on this site.</li>
-        <li data-t="p5">Plain prices. No premium currency, no countdowns.</li>
+        <li data-t="p5">Plain prices: fixed Gem packs, their real-money worth shown in the game, no countdowns.</li>
         <li data-t="p6">A low ceiling: $19.99 at most per item.</li>
         <li data-t="p7">Yours forever: restorable purchases, 14-day refund on unused items.</li>
       </ol>
@@ -461,12 +466,12 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
     <p class="kick" data-t="k4">Questions</p>
     <h2 id="faq-h" data-t="h_faq">Before you press it</h2>
     <div class="faq">
-      <details data-q="free"><summary data-t="q1">Is it really free?</summary><p data-t="a1x">Yes, the whole game. Optional looks and a Supporter Pack fund development. No energy, no timers on offers, no paid loot boxes.</p></details>
+      <details data-q="free"><summary data-t="q1">Is it really free?</summary><p data-t="a1x">Yes, the whole game. Optional Gems and looks fund development. No energy, no timers on offers, no paid loot boxes.</p></details>
       <details data-q="install"><summary data-t="q2">Do I need to download or sign up?</summary><p data-t="a2x">No. Press Play. It runs in any modern browser, on phone or desktop.</p></details>
       <details data-q="save"><summary data-t="q3">Is my progress saved?</summary><p data-t="a3x">Yes, automatically in this browser. Settings → Export gives you a save code to move it to another device.</p></details>
       <details data-q="length"><summary data-t="q4">How long is it?</summary><p data-t="a4x">Weeks. 15 lands of 3 zones, a town to build, 19 uniques, 8 relics, and runs that make you stronger each time the Button falls. A session is 3–30 minutes.</p></details>
       <details data-q="idle"><summary data-t="q5">Can I play idle?</summary><p data-t="a5x">Yes. Hold the Button (or Space) and the party fights on. While you're away, your garrison and Warden keep earning for up to 4 hours.</p></details>
-      <details data-q="gamble"><summary data-t="q6">Is there gambling?</summary><p data-t="a6x">No real-money gambling: no paid loot boxes, no premium currency, nothing random for sale. Rare drops are earned by playing.</p></details>
+      <details data-q="gamble"><summary data-t="q6">Is there gambling?</summary><p data-t="a6x">No real-money gambling: no paid loot boxes, nothing random for sale. Gems buy a Continue or a look, never a roll. Rare drops are earned by playing.</p></details>
       <details data-q="lang" class="ru-only" hidden><summary data-t="q7">На каком языке игра?</summary><p data-t="a7x">Пока на английском: текста мало, всё понятно по картинкам. Русский перевод уже в работе.</p></details>
     </div>
   </section>
@@ -530,33 +535,44 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
     a1: 'Отряд у Кнопки, кольцо монстров сжимается, Рука бьёт молнией', a2: 'Лут на земле под цветными столбами света', a3: 'Три забега, каждый глубже прошлого, рядом таверна и кузница',
     k3: 'Честная игра', h_sup: 'Бесплатно навсегда. Поддержи, если нравится.',
     sup: 'Игру делает один человек. Ничего случайного за деньги и никакой силы, которую нельзя заработать игрой.',
-    o1: 'Набор поддержки', o1t: 'ОСНОВАТЕЛЬ', o1p: 'Кнопка основателя, золотая молния, золотое имя в рейтинге, +4 ч офлайна и 4 бонуса за рекламу без просмотра. Лимиты те же, что у всех.',
-    o2: 'Облики', o2p: 'Скины Кнопки, следы Руки и наряды отряда. Только внешний вид, никаких характеристик.',
-    o3: 'Пирог для Стража', o3p: 'Шапка-пирог для Стража и твоё имя на Стене меценатов. Просто спасибо.',
-    get: 'Играть', getOn: 'Взять в игре', soon: 'скоро',
+    o1: 'Набор новичка', o1t: 'ОДИН РАЗ', o1p: '100 самоцветов и «Пламя основателя» — след Руки. Один на игрока, только внешний вид.',
+    o2: 'Самоцветы', o2p: 'Готовые наборы: 100, 300 и 1000. Самоцветы оплачивают продолжение забега (одно за забег) и облики, а игра показывает, сколько они стоят. Их можно и заработать в игре.',
+    o3: 'Облики', o3p: 'Облики Кнопки, следы Руки и столбы лута. Только внешний вид, никаких характеристик: открой за заработанные самоцветы или купи сразу.',
+    get: 'Играть', getOn: 'Взять в игре', soon: 'скоро', from: 'от',
     pact: 'Наш честный договор: 7 обещаний',
     p1: 'За деньги никогда не продаётся случайность. Яйца, сундуки, сферы, реликвии и снаряжение — только за игру.',
-    p2: 'Деньги покупают облик, время и удобство, но не силу, недоступную бесплатно.',
+    p2: 'Деньги покупают облики и самоцветы на продолжение. Никогда — силу, славу, угли или открытия.',
     p3: 'Разлом и рейтинги чистые: платных усилений там нет.', p4: 'Никакой навязанной рекламы на этом сайте.',
-    p5: 'Простые цены: без премиум-валюты и таймеров.', p6: 'Низкий потолок: не дороже 1199 ₽ за вещь.',
+    p5: 'Простые цены: готовые наборы самоцветов, их цена в рублях видна в игре, никаких таймеров.', p6: 'Низкий потолок: не дороже 1199 ₽ за вещь.',
     p7: 'Навсегда твоё: покупки восстанавливаются, неиспользованное можно вернуть за 14 дней.',
     also: 'ЕЩЁ НА', steam: 'В желаемое Steam',
     k4: 'Вопросы', h_faq: 'Прежде чем нажать',
-    q1: 'Это правда бесплатно?', a1x: 'Да, вся игра. Разработку поддерживают облики и набор поддержки — по желанию. Ни энергии, ни таймеров на предложениях, ни платных лутбоксов.',
+    q1: 'Это правда бесплатно?', a1x: 'Да, вся игра. Разработку поддерживают самоцветы и облики — по желанию. Ни энергии, ни таймеров на предложениях, ни платных лутбоксов.',
     q2: 'Нужно скачивать или регистрироваться?', a2x: 'Нет. Жми «Играть». Работает в любом современном браузере, на телефоне и на ПК.',
     q3: 'Прогресс сохраняется?', a3x: 'Да, автоматически в этом браузере. Настройки → Экспорт дают код сохранения, чтобы перенести игру на другое устройство.',
     q4: 'Надолго это?', a4x: 'На недели. 15 земель по 3 зоны, свой город, 19 уникальных вещей, 8 реликвий и забеги, после которых ты сильнее. Сессия — 3–30 минут.',
     q5: 'Можно играть в idle-режиме?', a5x: 'Да. Держи Кнопку (или пробел) — отряд сражается сам. Пока тебя нет, гарнизон и Страж зарабатывают до 4 часов.',
-    q6: 'Тут есть азартные игры?', a6x: 'Никакого азарта за деньги: ни платных лутбоксов, ни премиум-валюты, ничего случайного на продажу. Редкий лут добывается игрой.',
+    q6: 'Тут есть азартные игры?', a6x: 'Никакого азарта за деньги: ни платных лутбоксов, ничего случайного на продажу. Самоцветы покупают продолжение или облик, а не бросок кубика. Редкий лут добывается игрой.',
     h_go: 'Орда уже идёт.', go: 'Одно нажатие — и ты в игре. Первый босс уже через пару минут.',
     fp: 'Играть', fpr: 'Приватность', fpk: 'Пресс-кит', ffp: 'Честная игра', fc: 'Связаться',
     made: 'BTTN · игру делает один человек · © 2026', fine: 'Анонимная статистика, без cookie, без рекламы. Global Privacy Control учитывается.'
   };
-  var PRICES = { en: { supporter: '$9.99', looks: 'from $0.99', tip_pie: '$2.99' }, ru: { supporter: '599 ₽', looks: 'от 59 ₽', tip_pie: '179 ₽' } };
+  // what each card costs: the host's own prices (/api/config prices, in rubles for Russian, dollars otherwise); these
+  // defaults are the host's default price list, shown until it answers
+  var PRICES = { gems_100: { rub: 59, usd: 0.99 }, starter: { rub: 119, usd: 1.99 }, cos_trail_azure: { rub: 59, usd: 0.99 } };
+  function money(n) { return lang === 'ru' ? Math.round(n).toLocaleString('ru-RU') + ' ₽' : '$' + (+n).toFixed(2); }
+  function priceOf(k) {
+    var P = (CFG.prices && typeof CFG.prices === 'object') ? CFG.prices : PRICES, cur = lang === 'ru' ? 'rub' : 'usd', min = function (re) { var m = null; for (var s in P) if (re.test(s) && P[s] && P[s][cur] > 0 && (m == null || P[s][cur] < m)) m = P[s][cur]; return m; };
+    if (k === 'starter') return P.starter && P.starter[cur] > 0 ? money(P.starter[cur]) : '';
+    var m = k === 'gems' ? min(/^gems_/) : min(/^cos_/);
+    return m == null ? '' : tr('from') + ' ' + money(m);
+  }
+  // sold on the host right now: Gems with payments on; the Starter Kit and looks also once the game draws looks
+  function live(el) { return !!(CFG.payments && CFG.store && CFG.store.on !== false && (el.getAttribute('data-need') !== 'looks' || CFG.store.looks)); }
   var EN = {};
   $$('[data-t]').forEach(function (el) { var k = el.getAttribute('data-t'); if (!(k in EN)) EN[k] = el.innerHTML; });
   $$('[data-ta]').forEach(function (el) { var p = el.getAttribute('data-ta').split(':'); EN[p[1]] = el.getAttribute(p[0]); });
-  EN.get = 'Play free'; EN.getOn = 'Get it in game'; EN.soon = 'soon';
+  EN.get = 'Play free'; EN.getOn = 'Get it in game'; EN.soon = 'soon'; EN.from = 'from';
   var CFG = { payments: false, links: {} };
   var lang = (function () {
     var f = (q.get('lang') || ls.get('bttn_lang') || '').toLowerCase();
@@ -574,11 +590,15 @@ footer{margin-top:clamp(50px,7vw,80px);border-top:2px solid #231c2e;padding:26px
   }
   function renderOffers() {
     $$('[data-price]').forEach(function (el) {
-      el.innerHTML = PRICES[lang][el.getAttribute('data-price')] + (CFG.payments ? '' : '<small>' + tr('soon') + '</small>');
+      var p = priceOf(el.getAttribute('data-price'));
+      el.textContent = p;
+      if (!live(el)) { var sm = d.createElement('small'); sm.textContent = tr('soon'); el.appendChild(sm); }
     });
     $$('a.shop').forEach(function (a) {
-      a.firstChild.innerHTML = CFG.payments ? tr('getOn') : tr('get');
-      a.href = CFG.payments ? playHref('?open=shop&sku=' + encodeURIComponent(a.getAttribute('data-sku'))) + '#store' : playHref();
+      var on = live(a), sku = a.getAttribute('data-sku');
+      a.firstChild.innerHTML = on ? tr('getOn') : tr('get');
+      // (the looks card opens the store's looks; the others their own card)
+      a.href = on ? playHref('?open=shop' + (sku === 'looks' ? '' : '&sku=' + encodeURIComponent(sku))) + (sku === 'looks' ? '#looks' : '#store') : playHref();
     });
   }
   // the PLAY links carry the landing's query (utm_*, ref…) so the game credits the same source

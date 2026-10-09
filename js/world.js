@@ -16,8 +16,9 @@
     // (3.6: orbs a tenth more, for the Lucky Spin's gems) 4.0: far fewer drops (0.12/0.55/0.0011 before): at most a few
     // rare+ labels a minute; the boss's loot moment is where items come from
     dropBrute: 0.02, dropMagic: 0.2, dropFodder: 0.0002, orbShare: 0.033,
-    hoardEvery: 150, hoardFirst: 40, hoardLife: 16,
-    shrineEvery: 170, shrineFirst: 100, shrineLife: 12, shrineDur: 15,
+    hoardEvery: 150, hoardFirst: 40, hoardLife: 16, hoardSiege: [2, 3], hoardUqSiege: 0.03, rareSiege: [1, 2],
+    // 4.0 (DESIGN §5.8): a shrine every 110 s (the first at 60 s), charged by holding the Hand on it for shrineCharge s
+    shrineEvery: 110, shrineFirst: 60, shrineLife: 12, shrineDur: 15, shrineCharge: 2,
     breachEvery: 300, breachFirst: 240, breachDur: 12, breachRate: 2.5,
     // (3.6: the invasion clock now runs on through new runs, and a due invasion comes in the next free window of the
     // pacing director, ahead of a sudden event: about one every 6-8 minutes of play)
@@ -40,15 +41,24 @@
   // 4.0: in a Siege, the route's land (G.realmIndex) with this land slot's map mod merged in (S.run.mods[slot]: an id of
   // G.MAP_MODS, whose .land fields are the same count knobs a land's rule uses: thick, loot, slow, champ, noMend...)
   // (asked on every kill: the cache is checked field by field, no strings built)
-  let landD = -1, landV = null, landI = -1, landM = null;
+  let landD = -1, landV = null, landI = -1, landM = null, landT = null, landP = null, landC = 0;
   G.landNow = () => {
     const S = G.S, d = G.depthNow ? G.depthNow() : S.depth, run = S.run;
-    const mod = run && run.on && !R.rift && run.mods ? run.mods[Math.floor(Math.max(0, d) / G.REALM_SIZE)] || null : null;
+    const slot = Math.floor(Math.max(0, d) / G.REALM_SIZE), on = !!(run && run.on && !R.rift);
+    const mod = on && run.mods ? run.mods[slot] || null : null;
+    // (and the reward tag's land fields, a Pact on this land, a cursed door: every field's twist twice over)
+    const tag = on && run.tags ? run.tags[slot] || null : null, pact = on && run.pact && run.pact.slot === slot ? run.pact.id : null;
+    const curse = on && run.cursed ? run.cursed[slot] | 0 : 0;
     const ri = G.realmIndex(d);
-    if (d !== landD || !landV || ri !== landI || mod !== landM) {
-      landD = d; landI = ri; landM = mod;
-      const base = G.REALMS[ri], M = mod && G.MAP_MODS ? G.MAP_MODS[mod] : null;
-      landV = M && M.land ? Object.assign({}, base, M.land, { mod }) : base;
+    if (d !== landD || !landV || ri !== landI || mod !== landM || tag !== landT || pact !== landP || curse !== landC) {
+      landD = d; landI = ri; landM = mod; landT = tag; landP = pact; landC = curse;
+      const base = G.REALMS[ri], M = mod && G.MAP_MODS ? G.MAP_MODS[mod] : null, T = tag && G.REWARD_TAGS ? G.REWARD_TAGS[tag] : null, P = pact && G.PACTS ? G.PACTS[pact] : null;
+      if ((M && M.land) || (T && T.land) || (P && P.land)) {
+        landV = Object.assign({}, base, { mod, tag });
+        // (multipliers combine: a land's own loot x1.4 and a Thick mod's x1.25 make x1.75)
+        const merge = (o, k2) => { if (!o) return; for (const k in o) { let v = o[k]; if (k2 && typeof v === 'number' && k !== 'noMend') v = 1 + (v - 1) * k2; landV[k] = typeof v === 'number' && typeof landV[k] === 'number' && k !== 'noMend' ? landV[k] * v : v; } };
+        merge(M && M.land, curse ? 2 : 0); merge(T && T.land, curse ? 2 : 0); merge(P && P.land, 0);
+      } else landV = base;
     }
     return landV;
   };
@@ -76,6 +86,8 @@
     const from = fresh.length && chance(0.5) ? fresh : ok;
     return from.length ? from[Math.floor(G.rng() * from.length)] : null;
   }
+  // (4.0: the loot moment's unique cards, js/run.js)
+  G.uniqueFor = uniqueFor;
   // Bad-luck protection for uniques: the 25th chance in a row without one is a sure thing
   const UQ_PITY = 25;
   function uqChance_(p, src) {
@@ -187,9 +199,12 @@
       for (let i = 0; i < randInt(1, 2); i++) { R.dropAt = m; G.spawnChest(Math.max(1, G.rollTier())); R.dropAt = null; }
       return drop('gear', rollGear(1), m);
     }
-    if (m.kind === 'hoard') { S.st.hoards++; emit('hoardDie', m); return shower(m, randInt(8, 12), 2, 0.04, { floorN: 2, spread: 0.1 }); }
+    // 4.0: inside a Siege the Hoarder and the rares spill a few pieces, not a heap (at most a few rare+ labels a minute;
+    // the boss's loot moment is where items come from): a Hoarder 2-3 (a rare floor on one, a unique 3%), a rare 1-2
+    const siege = !!(S.run && S.run.on);
+    if (m.kind === 'hoard') { S.st.hoards++; emit('hoardDie', m); return siege ? shower(m, randInt(TUNE.hoardSiege[0], TUNE.hoardSiege[1]), 2, TUNE.hoardUqSiege, { floorN: 1, spread: 0.1 }) : shower(m, randInt(8, 12), 2, 0.04, { floorN: 2, spread: 0.1 }); }
     if (m.kind === 'guardian') return null; // the Rift or the invasion pays out on its own
-    if (m.kind === 'rare') return shower(m, randInt(3, 5), 1, 0.006 * (uq('goldgrin') ? 1.5 : 1), { floorN: 1, spread: 0.05 });
+    if (m.kind === 'rare') return shower(m, siege ? randInt(TUNE.rareSiege[0], TUNE.rareSiege[1]) : randInt(3, 5), 1, 0.006 * (uq('goldgrin') ? 1.5 : 1), { floorN: 1, spread: 0.05 });
     // the first champion ever always drops an epic
     if (m.kind === 'magic' && !S.st.firstMagic) { S.st.firstMagic = 1; return drop('gear', G.pickItem(3, true), m); }
     // everything else drops by its weight: a brute's worth of fodder drops about what a brute does
@@ -389,8 +404,9 @@
     if (!r || !m.inv) return;
     if (r.boss === m.id) {
       S_().st.invWins = (S_().st.invWins || 0) + 1;
-      // the herald's haul: a shower with a good floor and a real shot at a unique
-      shower(m, randInt(10, 14), 3, 0.2, { floorN: 3, spread: 0.12, rolls: 2 });
+      // the herald's haul: a shower with a good floor and a real shot at a unique (4.0: a Siege's one invasion, 4-5 pieces)
+      const sg = !!(S_().run && S_().run.on);
+      shower(m, sg ? randInt(4, 5) : randInt(10, 14), 3, 0.2, { floorN: sg ? 2 : 3, spread: 0.12, rolls: 2 });
       for (let i = 0; i < 3; i++) drop('orb', rollOrb(), m, { wait: 0.3 + i * 0.1 });
       endInvasion(true);
       return;
@@ -425,16 +441,40 @@
     storm:     { col: '#7fe9ff', name: 'Shrine of Storms', desc: '+3 bolts per click, every swing chains' },
     slaughter: { col: '#ff4f7e', name: 'Shrine of Slaughter', desc: 'Horde 2.5× thicker, XP ×2' },
   };
-  function spawnShrine() {
-    const ks = Object.keys(G.SHRINES);
-    R.shrine = { k: ks[Math.floor(G.rng() * ks.length)], a: rand(0.2, 0.8), p: 0.5, t: TUNE.shrineLife };
+  // 4.0: inside a Siege a shrine is one of four kinds (G.SHRINE_KINDS: power, chance, pact, fury; G.shrineOpen(kind): the
+  // Deeds' unlocks, the meta's): R.shrine = { kind, k (fury: its buff, else the kind: G.SHRINES[k] is what the stage
+  // draws), a, p, t, ch (the Hand's charge, s) }. Outside a Siege, the 3.x buff shrines
+  const FURY = ['frenzy', 'greed', 'storm', 'slaughter'];
+  for (const k in G.SHRINE_KINDS || {}) if (k !== 'fury' && !G.SHRINES[k]) G.SHRINES[k] = G.SHRINE_KINDS[k];
+  function spawnShrine(kind) {
+    const siege = !!(S_().run && S_().run.on), fury = FURY[Math.floor(G.rng() * FURY.length)];
+    if (siege && G.SHRINE_KINDS) {
+      if (!kind) { const ks = Object.keys(G.SHRINE_KINDS).filter(k => !G.shrineOpen || G.shrineOpen(k)); kind = ks[G.weighted(ks.map(k => G.SHRINE_KINDS[k].w))]; }
+      R.shrine = { kind, k: kind === 'fury' ? fury : kind, a: rand(0.2, 0.8), p: 0.5, t: TUNE.shrineLife, ch: 0 };
+    } else R.shrine = { kind: 'fury', k: fury, a: rand(0.2, 0.8), p: 0.5, t: TUNE.shrineLife, ch: 0 };
     emit('shrine', R.shrine);
+    return R.shrine;
   }
+  G.spawnShrine = spawnShrine;
+  // the Hand on the shrine (the UI calls it every frame the Hand rests there and the Button isn't held): it charges, and
+  // at TUNE.shrineCharge s it's used. Returns the charge 0-1. G.shrineLeave(): the Hand moved off (the charge drains)
+  G.shrineHold = function (dt) {
+    const s = R.shrine;
+    if (!s) return 0;
+    s.ch = (s.ch || 0) + dt;
+    if (s.ch >= TUNE.shrineCharge) { G.useShrine('hand'); return 1; }
+    emit('shrineCharge', s, s.ch / TUNE.shrineCharge);
+    return s.ch / TUNE.shrineCharge;
+  };
+  G.shrineLeave = () => { if (R.shrine) R.shrine.ch = 0; };
+  // used: a Fury shrine's buff now; Power, Chance and Pact are the run's (js/run.js G.shrineEffect: a choice, a gamble, a
+  // pact). (G.useShrine('hand') claims it at once: the 3.x tap and the bots)
   G.useShrine = function (how) {
     const s = R.shrine;
     if (!s) return false;
     R.shrine = null;
-    R.shr = { k: s.k, t: TUNE.shrineDur, T: TUNE.shrineDur };
+    if (s.kind && s.kind !== 'fury' && G.shrineEffect) G.shrineEffect(s.kind, s, how);
+    else R.shr = { k: s.k, t: TUNE.shrineDur, T: TUNE.shrineDur };
     S_().st.shrines++;
     G.dirty(); G.recalc();
     emit('shrineUse', s, how);
@@ -567,8 +607,8 @@
     if (R.hoardT <= 0 && room()) { R.hoardT = rand(0.7, 1.3) * TUNE.hoardEvery; spawnHoarder(); took(); }
     if (!R.shrine && !R.shr && R.shrineT <= 0 && room()) { R.shrineT = rand(0.7, 1.3) * TUNE.shrineEvery; spawnShrine(); took(); }
     if (!R.breach && S.bestDepth >= 3 && R.breachT <= 0 && room()) { R.breachT = rand(0.7, 1.3) * TUNE.breachEvery; openBreach(); took(); }
-    // an untouched shrine is claimed by the Warden
-    if (R.shrine && (R.shrine.t -= dt) <= 0) G.useShrine('auto');
+    // an untouched shrine is claimed by the Warden (4.0: inside a Siege it fades: it was the Hand's to charge)
+    if (R.shrine && (R.shrine.t -= dt) <= 0) { if (S.run && S.run.on) { const s0 = R.shrine; R.shrine = null; emit('shrineFade', s0); } else G.useShrine('auto'); }
     // the Breach pours mobs out of one spot
     if (R.breach) {
       const b = R.breach;

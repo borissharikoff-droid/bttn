@@ -21,7 +21,8 @@
     mobRef: 1100, crowdFrom: 0.3, crowdPer: 0.08, crowdRun: 40, crowdRunFrom: 0.45, crowdRunTo: 6, crowdKeep: 0.5,
     // the party: a fallen hero gets up after reviveTime s, each tap of the Hand takes reviveTap s off;
     // a broken Button is out for btnDown s; small fry take smallHp times a normal share of health
-    reviveTime: 24, reviveTap: 4, allyDmg: 0.4, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.8,
+    // (4.0: allyDmg 0.4 -> 0.55: companions are rescued at camps and should be worth one; a cleric's half of it)
+    reviveTime: 24, reviveTap: 4, allyDmg: 0.55, btnDown: 12, healEvery: 1.4, healPct: 0.05, pulseEvery: 6, smallHp: 2.8,
     // chests spill out of the Horde: a chance on every kill, more from the big ones. 4.0: none (killChest 0: the Horde's
     // little chests are off; chests come from holding the Button, Hoarders, Golden Clicks...). Plunder: a rare, champion
     // or Hoarder kill drops a chest, plunder a rank
@@ -45,9 +46,11 @@
     tankP: 0.68, tankArc: 0.09, tankHold: 30, tankWalk: 0.35, tankBiteEvery: 2,
     newKindBase: 0.12, newKindPer: 0.007, newKindMax: 0.38, wardedTake: 0.08, healerEvery: 2.2, healerPct: 0.12, callEvery: 3.2, callN: 7, chargeSpd: 4,
     // 3.6: level-up cards: never in a boss fight or a march; past the first perkEarly s of play, one set every perkGap s
-    // at most (the points wait in the bank; past perkBank of them the extra ones are picked for you, if auto-pick is
-    // on); a set left alone is picked for you after perkAuto s
-    perkGap: 25, perkEarly: 180, perkBank: 3, perkAuto: 12,
+    // at most; a set left alone is picked for you after perkAuto s (outside a Siege only: 4.0 deletes the perk bank)
+    // 4.0 (DESIGN §5.1): inside a Siege only the warm-up levels (cardLevels) bring a card; the rest come one after every
+    // boss (js/run.js). Gear ranks (§5.2): a perk's rank is the picked ranks plus the party's gear's, at most max +
+    // gearPerkOver; an evolution needs evoOwn picked ranks besides
+    perkGap: 25, perkEarly: 180, perkAuto: 12, cardLevels: [2, 3, 4], gearPerkOver: 2, evoOwn: 2,
     // 3.6: a wipe ends the run only once this run has reached this depth (the end of its first land)
     // (4.0: Integrity decides: land 1 is the muster, then a hit at 0 pips is the fall; see js/run.js G.pipHit)
     fallFrom: 3,
@@ -212,7 +215,17 @@
     greed:   { max: 5, icon: 'ic_coin', name: 'Greed', desc: '+20% Horde gold' },
     loot:    { max: 3, icon: 'ic_bag', name: 'Scavenger', desc: '+25% loot bag drops' },
   };
-  const perk = id => (G.S.hero && G.S.hero.perks && G.S.hero.perks[id]) || 0;
+  // 4.0: a perk's rank = the ranks picked (h.perks) + the ranks the party's gear carries (D.gearPerk, built in heroFinish:
+  // mythic and divine items, uniques' themes), at most its max + TUNE.gearPerkOver (DESIGN §5.2). G.perkOwn: the picked
+  // ranks alone (what the cards' slots and the evolutions count)
+  const perkOwn = id => (G.S.hero && G.S.hero.perks && G.S.hero.perks[id]) || 0;
+  const perk = id => {
+    const o = perkOwn(id), gp = G.D.gearPerk;
+    if (!gp || !gp[id]) return o;
+    const P = G.PERKS[id];
+    return Math.min((P ? P.max : o) + TUNE.gearPerkOver, o + gp[id]);
+  };
+  G.perkOwn = perkOwn;
   // a sudden event's pull on the arena (js/events.js); neutral without it
   const evMul = k => (G.evMul ? G.evMul(k) : 1);
   // Today's omen (js/journey.js); neutral where that file isn't loaded, e.g. on the ladder server
@@ -243,7 +256,8 @@
     const h = G.S.hero;
     return Object.keys(G.EVOS).filter(id => {
       const e = G.EVOS[id], g = h.eq[e.slot];
-      return !evo(id) && perk(e.from) >= G.PERKS[e.from].max && g && e.types.includes(G.ITEM_TYPE[g.id]);
+      // (4.0: the rank with gear counts toward max, but at least evoOwn of it must be picked)
+      return !evo(id) && perk(e.from) >= G.PERKS[e.from].max && perkOwn(e.from) >= Math.min(TUNE.evoOwn, G.PERKS[e.from].max) && g && e.types.includes(G.ITEM_TYPE[g.id]);
     });
   }
   G.evoReady = evoReady;
@@ -254,7 +268,8 @@
     return { cls: null, lvl: 1, xp: 0, eq: { weapon: null, ability: null, armor: null, ring: null }, bag: [], gu: 0,
       // (4.0: salv 2: commons and uncommons turn into shards when they're picked up)
       shards: 0, hp: TUNE.baseHp, auto: 1, salv: 2, cast: 1, kills: 0, elites: 0, fresh: 0,
-      perks: {}, perkPts: 0, offer: null, offerT: 0, autoPerk: 1, orbs: {}, whp: TUNE.baseHp, wdown: 0 };
+      // (4.0: auto-pick is off by default: a card waits for the player, the field paused; DESIGN §5.1)
+      perks: {}, perkPts: 0, offer: null, offerT: 0, autoPerk: 0, orbs: {}, whp: TUNE.baseHp, wdown: 0 };
   }
   G.newHero = newHero;
   function ensureHero(S) {
@@ -275,12 +290,30 @@
   // The Warden leads; companions join as you go deeper. 4.0: every run starts alone: a seat opens at this run's
   // depths 3, 6 and 9 (camps 1-3), read against the run (S.maxDepth), not the lifetime best
   G.PARTY_AT = [3, 6, 9];
-  G.partySlots = () => G.PARTY_AT.filter(d => (G.S.maxDepth || 0) >= d).length;
-  G.recruit = function (cls) {
+  // (the Tavern V companion takes a seat from the start: D.startAlly)
+  G.partySlots = () => Math.min(3, G.PARTY_AT.filter(d => (G.S.maxDepth || 0) >= d).length + (G.D.startAlly ? 1 : 0));
+  // an item for a slot at rarity r or the best below it that exists, a weapon of the class's kinds (the recruits' gear)
+  function gearFor(slot, r, cls, il) {
+    const C = G.CLASS_BY_ID[cls];
+    for (let x = Math.min(6, Math.max(0, r)); x >= 0; x--) {
+      const list = (G.ITEMS_BY_RARITY[x] || []).filter(it => G.slotOf(it.id) === slot && (slot !== 'weapon' || !C || C.weapons.includes(G.ITEM_TYPE[it.id])));
+      if (list.length) return makeGear(list[G.weighted(list.map(i => i.w))].id, il);
+    }
+    return null;
+  }
+  G.gearFor = gearFor;
+  // 4.0: a companion is a class plus a trait (G.TRAITS: the camp's candidates; none from the 3.x Tavern). Inside a Siege
+  // it arrives with its class weapon at the current item level and the rarity cap (Tavern II: body armour too)
+  G.recruit = function (cls, trait) {
     const S = G.S, C = G.CLASS_BY_ID[cls];
     if (!C || S.party.length >= G.partySlots()) return false;
     const m = { cls, eq: { weapon: null, ability: null, armor: null, ring: null }, hp: TUNE.baseHp, down: 0, acc: 0 };
-    m.eq.weapon = makeGear(C.starter, Math.max(0, G.S.depth - 1));
+    if (trait && G.TRAITS && G.TRAITS[trait]) m.trait = trait;
+    if (siegeOn()) {
+      const il = Math.max(0, S.depth), cap = G.rarityCap();
+      m.eq.weapon = gearFor('weapon', cap, cls, il) || makeGear(C.starter, il);
+      if (G.D.recruitArmor) m.eq.armor = gearFor('armor', cap, cls, il);
+    } else m.eq.weapon = makeGear(C.starter, Math.max(0, G.S.depth - 1));
     S.party.push(m);
     G.dirty(); G.recalc();
     m.hp = (G.D.party[S.party.length - 1] || {}).hp || TUNE.baseHp;
@@ -467,19 +500,42 @@
     while (out.length < n) out.push(newAffix(r, out));
     return out;
   }
+  // 4.0 (DESIGN §5.2): mythic gear carries a perk rank, divine two (in two different perks), drawn from the Warden's class
+  // schools (G.CLASS_SCHOOLS) among the open perks: pk = {perk id: ranks}
+  function rollPk(r) {
+    const n = r >= 6 ? 2 : r >= 5 ? 1 : 0;
+    if (!n || !G.PERK_SCHOOL) return null;
+    const h = G.S.hero, sch = (G.CLASS_SCHOOLS && G.CLASS_SCHOOLS[h && h.cls]) || G.SCHOOLS || [];
+    const pool = Object.keys(G.PERKS).filter(k => sch.includes(G.PERK_SCHOOL[k]) && (!G.perkOpen || G.perkOpen(k)));
+    const pk = {};
+    for (let i = 0; i < n && pool.length; i++) pk[pool.splice(Math.floor(G.rng() * pool.length), 1)[0]] = 1;
+    return pk;
+  }
+  G.rollPk = rollPk;
   function makeGear(id, il) {
     const it = G.ITEM_BY_ID[id], h = G.S.hero;
-    return { u: ++h.gu, id, r: it.r, il: Math.max(0, il | 0), e: 0, a: rollAffixes(it.r) };
+    const g = { u: ++h.gu, id, r: it.r, il: Math.max(0, il | 0), e: 0, a: rollAffixes(it.r) };
+    let pk = rollPk(it.r);
+    // (Forge V: the first legendary of each run rolls a perk rank too)
+    const run = G.S.run;
+    if (!pk && it.r === 4 && G.D.legendPk && run && run.on && !run.legendPk) { run.legendPk = 1; pk = rollPk(5); }
+    if (pk) g.pk = pk;
+    return g;
   }
   G.makeGear = makeGear;
+  // (4.0: a unique carries 2 ranks of its theme perk (G.UQ_THEME), +1 at Codex rank 2 and +1 at rank 4)
   function makeUnique(q, il) {
     const U = G.UNIQUES[q], it = G.ITEM_BY_ID[U.base], h = G.S.hero;
-    return { u: ++h.gu, id: U.base, r: it.r, il: Math.max(0, il | 0), e: 0, a: U.a.map(x => x.slice()), q };
+    const g = { u: ++h.gu, id: U.base, r: it.r, il: Math.max(0, il | 0), e: 0, a: U.a.map(x => x.slice()), q };
+    const th = G.UQ_THEME && G.UQ_THEME[q];
+    if (th) { const c = G.S.codex && G.S.codex[q], rk = c ? c.rank | 0 : 0; g.pk = { [th]: 2 + (rk >= 2 ? 1 : 0) + (rk >= 4 ? 1 : 0) }; }
+    return g;
   }
   G.makeUnique = makeUnique;
   const enchantMul = g => 1 + 0.12 * g.e;
   // Uniques hit like a mythic of their kind
-  const rmul = g => (g.q ? (G.UNIQUES[g.q] && G.UNIQUES[g.q].rm) || G.RMUL[5] : G.RMUL[g.r]);
+  // (4.0: a keepsake attunes (g.att): until the run opens legendary its rarity counts at most the run's cap, DESIGN §4.7)
+  const rmul = g => { const m = g.q ? (G.UNIQUES[g.q] && G.UNIQUES[g.q].rm) || G.RMUL[5] : G.RMUL[g.r]; return g.att ? Math.min(m, G.RMUL[Math.min(5, G.rarityCap ? G.rarityCap() : 5)]) : m; };
   // The item's main stat: damage per hit, button HP, or % bonus
   function mainStat(g) {
     const type = G.ITEM_TYPE[g.id], slot = SLOT_OF_TYPE[type];
@@ -569,6 +625,56 @@
   // Whose gear set this is: the Warden's (who < 0) or a companion's
   const eqOf = who => (who != null && who >= 0 && G.S.party[who] ? G.S.party[who].eq : G.S.hero.eq);
   G.eqOf = eqOf;
+
+  // ---------- 4.0: comparison (ADDENDUM 2: one helper set for the loot moment, ground labels, bag, Forge, Character) ----------
+  // may this hero wear it? (a companion swings only its own class's weapons; the Warden any)
+  G.canWear = function (who, g) {
+    if (!g) return false;
+    const m = who != null && who >= 0 ? G.S.party[who] : null;
+    if (who != null && who >= 0 && !m) return false;
+    if (!m || G.slotOf(g.id) !== 'weapon') return true;
+    return G.CLASS_BY_ID[m.cls].weapons.includes(G.ITEM_TYPE[g.id]);
+  };
+  // how much better this hero's power gets wearing it in place of what they wear (a fraction: 0.38 = +38%; an empty
+  // slot counts as +100%); null when they can't wear it
+  G.wants = function (who, g) {
+    if (!G.canWear(who, g)) return null;
+    const slot = G.slotOf(g.id), cur = eqOf(who)[slot];
+    if (cur === g) return 0;
+    const now = powerWith(slot, cur || null, who), next = powerWith(slot, g, who);
+    return now > 0 ? next / now - 1 : 1;
+  };
+  // who in the party gains most from it: { who (-1 the Warden, else a companion's index), slot, delta (the fraction),
+  // up: delta > 0 }. Ties go to the Warden.
+  G.bestWearer = function (g) {
+    const S = G.S;
+    if (!g || !S.hero || !S.hero.cls) return { who: -1, slot: g ? G.slotOf(g.id) : null, delta: 0, up: false };
+    let best = null;
+    for (const who of [-1].concat((S.party || []).map((_, i) => i))) {
+      const d = G.wants(who, g);
+      if (d != null && (!best || d > best.delta + 1e-9)) best = { who, slot: G.slotOf(g.id), delta: d };
+    }
+    if (!best) best = { who: -1, slot: G.slotOf(g.id), delta: -1 };
+    best.up = best.delta > 1e-6;
+    return best;
+  };
+  // the side-by-side 'Worn | This' rows for one hero: power, the main stat, every affix, the rule (uniques), the perk
+  // ranks (mythic, divine, uniques) and the Mark (g.px, js/powers.js): { k, a (worn), b (this), d (b - a) }
+  G.compareRows = function (who, g) {
+    const slot = G.slotOf(g.id), cur = eqOf(who)[slot] || null, rows = [];
+    const row = (k, a, b) => rows.push({ k, a, b, d: (typeof a === 'number' && typeof b === 'number') ? b - a : null });
+    row('power', powerWith(slot, cur, who), powerWith(slot, g, who));
+    row('main', cur ? mainStat(cur) : 0, mainStat(g));
+    const ka = {}, kb = {};
+    for (const [k, v] of (cur && cur.a) || []) ka[k] = (ka[k] || 0) + v;
+    for (const [k, v] of g.a || []) kb[k] = (kb[k] || 0) + v;
+    for (const k of Object.keys(G.AFFIXES)) if (ka[k] || kb[k]) row('aff:' + k, ka[k] || 0, kb[k] || 0);
+    if ((cur && cur.q) || g.q) row('rule', cur && cur.q || null, g.q || null);
+    const pa = (cur && cur.pk) || {}, pb = g.pk || {};
+    for (const k of new Set(Object.keys(pa).concat(Object.keys(pb)))) row('perk:' + k, pa[k] | 0, pb[k] | 0);
+    if ((cur && cur.px) || g.px) row('mark', cur && cur.px || null, g.px || null);
+    return rows;
+  };
   // Everything anyone in the party wears
   function worn(g) { if (G.SLOTS.some(s => G.S.hero.eq[s] === g)) return true; return (G.S.party || []).some(m => G.SLOTS.some(s => m.eq[s] === g)); }
   G.isWorn = worn;
@@ -595,16 +701,21 @@
       if (h.salv && g.r < h.salv && !g.q) { salvage(g, true); return g; }
       h.bag.push(g);
     }
-    while (h.bag.length > TUNE.bagMax) {
-      // Drop the weakest item in the bag into shards, uniques last
-      let worst = null, ws = Infinity;
-      for (const b of h.bag) { const s = powerWith(G.slotOf(b.id), b) + (b.q ? 1e300 : 0) + (b.keep ? 1e299 : 0); if (s < ws) { ws = s; worst = b; } }
-      salvage(worst, true);
-    }
+    bagTrim();
     emit('gear', g, equipped);
     return g;
   }
   G.gainGear = gainGear;
+  // a full bag drops its weakest item into shards, uniques last
+  function bagTrim() {
+    const h = G.S.hero;
+    while (h.bag.length > TUNE.bagMax) {
+      let worst = null, ws = Infinity;
+      for (const b of h.bag) { const s = powerWith(G.slotOf(b.id), b) + (b.q ? 1e300 : 0) + (b.keep ? 1e299 : 0); if (s < ws) { ws = s; worst = b; } }
+      salvage(worst, true);
+    }
+  }
+  G.bagTrim = bagTrim;
 
   function equip(g, silent, who) {
     const h = G.S.hero, slot = G.slotOf(g.id), eq = eqOf(who);
@@ -638,6 +749,8 @@
     if (worn(g)) return 0; // never scrap what anyone wears
     const v = salvageValue(g);
     h.shards += v;
+    // (4.0, Forge III: salvage pays an orb for every 40 shards it brings)
+    if (G.D.salvOrbs) { h.salvAcc = (h.salvAcc || 0) + v; while (h.salvAcc >= 40) { h.salvAcc -= 40; const k = G.ORB_IDS[G.weighted(G.ORB_IDS.map(x => G.ORBS[x].w))]; h.orbs[k] = (h.orbs[k] || 0) + 1; } }
     if (!silent) emit('salvage', g, v);
     return v;
   }
@@ -650,8 +763,10 @@
     return { n, v };
   };
 
+  // (4.0: inside a Siege enchanting is paid in shards only, the run's crafting currency (ADDENDUM 3); Enchanter II -20%)
   function enchantCost(g) {
-    return { shards: Math.ceil(4 * Math.pow(1.5, g.e) * G.RMUL[g.r]), gold: Math.max(50, G.D.incomeRef * 6 * Math.pow(1.3, g.e)) };
+    const k = G.D.enchantK || 1;
+    return { shards: Math.ceil(4 * Math.pow(1.5, g.e) * G.RMUL[g.r] * k), gold: siegeOn() ? 0 : Math.max(50, G.D.incomeRef * 6 * Math.pow(1.3, g.e)) };
   }
   G.enchantCost = enchantCost;
   function enchant(g) {
@@ -665,6 +780,50 @@
     return true;
   }
   G.enchant = enchant;
+  // ---------- 4.0: ENCHANT ALL (ADDENDUM 3; the equip map's plan): Forge I and the camp ----------
+  // G.enchantPlan(o): what one tap would do, nothing changed. o = { mode: 'even' (the lowest enchanted worn items first,
+  // the whole party) | 'power' (main stat per shard), shards: the share of the shards it may spend (1), whet: use
+  // whetstones after the shards (true), bag: bag items too (false), only: one item's uid }.
+  // -> { steps, spent: {shards, whet}, items: [{u, who, slot, from, to}], per: [{who, levels, before, after}] }
+  G.enchantPlan = function (o) {
+    o = Object.assign({ mode: 'even', shards: 1, whet: true, bag: false, only: null }, o || {});
+    const S = G.S, h = S.hero;
+    if (!h || !h.cls) return { steps: 0, spent: { shards: 0, whet: 0 }, items: [], per: [] };
+    const xs = [];
+    const add = (g, who, slot) => { if (g && (o.only == null || g.u === o.only)) xs.push({ g, who, slot, e: g.e, from: g.e }); };
+    for (const who of [-1].concat((S.party || []).map((_, i) => i))) for (const slot of G.SLOTS) add(eqOf(who)[slot], who, slot);
+    if (o.bag) for (const g of h.bag) add(g, 'bag', G.slotOf(g.id));
+    let shards = Math.floor((h.shards || 0) * o.shards), whet = o.whet ? (h.orbs.whet | 0) : 0, steps = 0, spentS = 0, spentW = 0;
+    const cost = x => enchantCost(Object.assign({}, x.g, { e: x.e })).shards;
+    const gain = x => rmul(x.g) * (G.slotOf(x.g.id) === 'weapon' || G.slotOf(x.g.id) === 'armor' ? Math.pow(1.16, x.g.il) : 3);
+    const order = x => o.mode === 'power' ? gain(x) / Math.max(1, cost(x)) : -(x.e * 1000 + ((x.who === 'bag' ? 9 : x.who) + 1) * 10 - x.g.r);
+    const pickNext = afford => { let b = null, bk = -Infinity; for (const x of xs) { if (x.e >= G.ENCHANT_MAX || (afford && cost(x) > shards)) continue; const k = order(x); if (k > bk) { bk = k; b = x; } } return b; };
+    for (let guard = 0; guard < 2000; guard++) { const x = pickNext(true); if (!x) break; const c = cost(x); shards -= c; spentS += c; x.e++; steps++; }
+    for (let guard = 0; guard < 2000 && whet > 0; guard++) { const x = pickNext(false); if (!x) break; whet--; spentW++; x.e++; steps++; }
+    // each hero's power before and after
+    const per = [];
+    for (const who of [-1].concat((S.party || []).map((_, i) => i))) {
+      const mine = xs.filter(x => x.who === who && x.e > x.from);
+      if (!mine.length) continue;
+      const m = who >= 0 ? S.party[who] : null, eq = Object.assign({}, m ? m.eq : h.eq), eq2 = {};
+      for (const sl of G.SLOTS) { const x = mine.find(y => y.slot === sl); eq2[sl] = x ? Object.assign({}, eq[sl], { e: x.e }) : eq[sl]; }
+      const unit = m ? { cls: m.cls, lvl: h.lvl } : undefined;
+      per.push({ who, levels: mine.reduce((a, x) => a + x.e - x.from, 0), before: combat(eq, G.D, unit).power, after: combat(eq2, G.D, unit).power });
+    }
+    return { mode: o.mode, steps, spent: { shards: spentS, whet: spentW }, items: xs.filter(x => x.e > x.from).map(x => ({ u: x.g.u, who: x.who, slot: x.slot, from: x.from, to: x.e })), per, _xs: xs };
+  };
+  // do it: one recalc; emits 'enchantAll'(plan); returns the plan (steps 0: nothing affordable)
+  G.enchantAll = function (o) {
+    const S = G.S, h = S.hero, P = G.enchantPlan(o);
+    if (!P.steps || (h.shards | 0) < P.spent.shards || (h.orbs.whet | 0) < P.spent.whet) return Object.assign(P, { _xs: undefined, steps: 0 });
+    h.shards -= P.spent.shards; h.orbs.whet = (h.orbs.whet | 0) - P.spent.whet;
+    for (const x of P._xs) x.g.e = x.e;
+    delete P._xs;
+    S.st.orbsUsed = (S.st.orbsUsed || 0) + P.spent.whet; S.st.enchants = (S.st.enchants || 0) + P.steps;
+    G.dirty(); G.recalc();
+    emit('enchantAll', P);
+    return P;
+  };
 
   // Why an orb can't be used on this item (null when it can)
   function orbBlock(id, g) {
@@ -694,7 +853,8 @@
     else if (id === 'grace') g.a = g.a.map(([k, v]) => [k, Math.max(v, rollAffix(k, g.r))]);
     else if (id === 'ruin') {
       g.c = 1;
-      const roll = G.rng();
+      // (4.0, Enchanter IV: Ruin never bricks: always the item level or the affix)
+      const roll = G.D.ruinSafe ? G.rng() * 0.7 : G.rng();
       if (roll < 0.35) { g.il += 3; res = 'ruin_il'; }
       else if (roll < 0.7) { g.a.push(newAffix(g.r, g.a)); res = 'ruin_aff'; }
       else res = 'ruin_none';
@@ -773,7 +933,8 @@
     if (!h) return;
     const aff = {};
     for (const slot of G.SLOTS) { const g = h.eq[slot]; if (g) for (const [k, v] of g.a) aff[k] = (aff[k] || 0) + v; }
-    d.goldMult *= (1 + (aff.gold || 0)) * (1 + G.STAR_BONUS * (G.starCount ? G.starCount() : 0));
+    // (4.0: a Battle door's land, a Greed Pact: their gold)
+    d.goldMult *= (1 + (aff.gold || 0)) * (1 + G.STAR_BONUS * (G.starCount ? G.starCount() : 0)) * (land().gold || 1);
     d.luck += (aff.luck || 0) + om().luck;
     // (4.0: on top of what came before: the Hall's Scholar)
     d.xpMult = (d.xpMult || 1) * (1 + (aff.xp || 0)) * om().xp;
@@ -785,6 +946,18 @@
     // (4.0: no hidden power: fame no longer adds damage; land stars give none (STAR_BONUS 0); the Journey's is the meta's.
     // The Garrison's +2% a class stays: the Garrison is the run's own power)
     d.heroMult = (d.heroMult || 1) * (1 + 0.02 * (d.heroClasses || 0)) * (G.Journey ? G.Journey.bonus() : 1) * (1 + G.STAR_BONUS * (G.starCount ? G.starCount() : 0));
+    // 4.0 (DESIGN §5.2): the perk ranks the party's worn gear carries (set on the live D at once: perk() reads it below)
+    const gp = {};
+    const addPk = g => { if (g && g.pk) for (const k in g.pk) gp[k] = (gp[k] || 0) + (g.pk[k] | 0); };
+    for (const s of G.SLOTS) addPk(h.eq[s]);
+    for (const m of S.party || []) for (const s of G.SLOTS) addPk(m.eq[s]);
+    d.gearPerk = gp; G.D.gearPerk = gp;
+    // 4.0: companions' traits: a Bannerman lifts the whole party's damage, a Scavenger the loot moment's luck
+    const TR = m => (m && m.trait && G.TRAITS && G.TRAITS[m.trait]) || null;
+    let banner = 0, luck = 0;
+    for (const m of S.party || []) { const T = TR(m); if (T) { banner += T.party || 0; luck += T.luck || 0; } }
+    if (banner) d.heroMult *= 1 + banner;
+    d.lootLuck = (d.lootLuck || 0) + luck;
     const c = combat(h.eq, d);
     // the uniques' rules: 4.0 (the ring bug): a unique works on whoever in the party wears it; and the run's relic belt
     // (S.run.belt: rule ids) works like a worn unique, so every uq() rule needs nothing new
@@ -793,7 +966,9 @@
     for (const m of S.party || []) for (const s of G.SLOTS) if (m.eq[s] && m.eq[s].q) d.uq[m.eq[s].q] = 1;
     if (S.run && S.run.on && Array.isArray(S.run.belt)) for (const q of S.run.belt) if (q) d.uq[q] = 1;
     const hunt = R.hb.hh > 0 && d.uq.headhunter ? 1.6 : 1;
-    const buffDmg = (R.hb.tome > 0 ? 1.5 : 1) * (R.hb.orb > 0 ? 1.3 : 1) * hunt;
+    // (4.0: a Golden Click's Frenzy is party damage x1.5 too, inside a Siege)
+    const frenzyB = siegeOn() && G.hasBuff && G.hasBuff('frenzy') ? 1.5 : 1;
+    const buffDmg = (R.hb.tome > 0 ? 1.5 : 1) * (R.hb.orb > 0 ? 1.3 : 1) * hunt * frenzyB;
     d.hero = c;
     const might = (1 + 0.12 * perk('might')) * (evo('titan') ? 1.5 : 1) * (evo('bloodpact') ? 1.25 : 1);
     const frenzy = (1 + 0.12 * perk('frenzy')) * (evo('berserk') ? 1.5 : 1) * hunt * (1 + 0.02 * (d.uq.reaper ? R.reap : 0)) * (shrine('frenzy') ? 2 : 1);
@@ -809,12 +984,16 @@
     d.wardenHp = c.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (G.ROLES[h.cls] === 'tank' ? 1.5 : 1);
     // companions fight with their own gear and the same run bonuses
     d.party = (S.party || []).map(m => {
-      const pc = combat(m.eq, d, { cls: m.cls, lvl: h.lvl }), role = G.ROLES[m.cls];
+      const pc = combat(m.eq, d, { cls: m.cls, lvl: h.lvl }), role = G.ROLES[m.cls], T = TR(m) || {};
+      // (4.0: a trait's crit counts in its damage per second)
+      if (T.crit) { const c0 = pc.crit; pc.crit = Math.min(0.9, c0 + T.crit); pc.dps *= (1 + pc.crit * (pc.critMult - 1)) / (1 + c0 * (pc.critMult - 1)); }
       // companions back the Warden up: their hits count for less, a cleric's least of all
-      const soft = TUNE.allyDmg * (role === 'heal' ? 0.5 : 1);
-      const o = { c: pc, role, hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy * evMul('rate'), hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) };
-      o.dps = pc.dps * buffDmg * might * frenzy * soft;
-      o.dpsBase = pc.dps * steady * soft;
+      // (4.0: + the trait's damage, speed and health, and the Tavern III/IV levels)
+      const soft = TUNE.allyDmg * (role === 'heal' ? 0.5 : 1) * (1 + (T.dmg || 0)) * (d.allyDmgK || 1), spd = 1 + (T.spd || 0);
+      const o = { c: pc, role, trait: m.trait || null, heal: 1 + (T.heal || 0), hit: pc.hit * buffDmg * might * soft, rate: pc.rate * frenzy * evMul('rate') * spd,
+        hp: pc.hp * 0.8 * (1 + 0.2 * perk('bulwark')) * (role === 'tank' ? 1.5 : 1) * Math.max(0.1, 1 + (T.hp || 0)) * (d.allyHpK || 1) };
+      o.dps = pc.dps * buffDmg * might * frenzy * soft * spd;
+      o.dpsBase = pc.dps * steady * soft * spd;
       if (m.hp > o.hp) m.hp = o.hp;
       return o;
     });
@@ -927,7 +1106,7 @@
     // a stronger Warden meets a heavier Horde: half of it in heft, half in numbers (spawnPack)
     const w = K.w * (add ? 1 : Math.sqrt(Math.max(1, (R.hs || 1) / 1.5))) * (G.SMALL[kind] ? R.crowdK || 1 : 1);
     // small fry take a few hits now, so the Horde piles up and every swing cuts through a crowd
-    const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : kind === 'guardian' ? 1 : TUNE.bigHp) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
+    const hp = mobHp(dnow()) * w * om().mobHp * (R.rift ? 1 : G.torment().mobHp * (land().mobHp || 1) * (G.runTide ? G.runTide() : 1)) * (K.hp || 1) * (G.SMALL[kind] ? TUNE.smallHp : kind === 'guardian' ? 1 : TUNE.bigHp) * (add || kind === 'guardian' ? 1 : evMul('mobHp'));
     const m = { id: ++R.mobUid, kind, w, hp: hp * (R.rift ? 1 : R.opHp || 1), max: hp * (R.rift ? 1 : R.opHp || 1), p, a: clamp01(a), sp: K.spd / (TUNE.mobWalk * rand(0.85, 1.15)), atkT: 0, add: !!add,
       // (3.6: the fields other code sets later, declared up front so every mob shares one shape and the loops over the
       // whole Horde stay fast)
@@ -981,7 +1160,8 @@
     if (d >= 1 && roll < rc) { emit('packIn', a, 'rare'); makeMob('rare', a, 0); swarm('fodder', 60, 0.08); emit('rareSpawn'); return; }
     if (roll < mc) { emit('packIn', a, 'magic'); makeMob('magic', a, 0); makeMob('magic', a + 0.03, -0.04); swarm('fodder', 40, 0.07); return; }
     // 2.5: from the second land, packs led by kinds the Hand alone can't handle, more of them the deeper it gets
-    const ri = G.realmIndex(d), nk = (G.NEW_KINDS || []).filter(k => ri >= G.ARCHETYPES[k].land);
+    // (4.0: inside a Siege the kinds come with the land SLOT (how deep the run is), not with which land the route put there)
+    const ri = siegeOn() ? Math.floor(Math.max(0, d) / G.REALM_SIZE) : G.realmIndex(d), nk = (G.NEW_KINDS || []).filter(k => ri >= G.ARCHETYPES[k].land);
     if (nk.length && G.rng() < Math.min(TUNE.newKindMax, TUNE.newKindBase + TUNE.newKindPer * d)) {
       const k = nk[Math.floor(G.rng() * nk.length)];
       emit('packIn', a, k);
@@ -1223,8 +1403,13 @@
     while (h.xp >= xpNeed(h.lvl)) { h.xp -= xpNeed(h.lvl); h.lvl++; up = true; }
     if (up) {
       if (h.lvl > S.rec.maxLevel) S.rec.maxLevel = h.lvl;
-      h.perkPts = (h.perkPts || 0) + (h.lvl - before);
-      if (!h.offer && offerOk()) offerPerks();
+      // 4.0: inside a Siege only the warm-up levels (TUNE.cardLevels: 2, 3, 4) bring a card (js/run.js G.cardGive; the
+      // rest come one after every boss); a level still gives +5% and the Warden's ranks. Outside one, the 3.x way
+      if (siegeOn() && G.cardGive) { for (let l = before + 1; l <= h.lvl; l++) if (TUNE.cardLevels.includes(l)) G.cardGive('level'); }
+      else {
+        h.perkPts = (h.perkPts || 0) + (h.lvl - before);
+        if (!h.offer && offerOk()) offerPerks();
+      }
       G.dirty(); G.recalc();
       // (4.0: a level-up heals the Button +5% (TUNE.levelHeal), not fully: light attrition)
       h.hp = Math.min(G.D.heroHp, h.hp + G.D.heroHp * TUNE.levelHeal);
@@ -1243,25 +1428,11 @@
     return t < TUNE.perkEarly || R.perkAt == null || t - R.perkAt >= TUNE.perkGap || t < R.perkAt;
   }
   G.perkOfferOk = offerOk;
-  // points banked past perkBank are spent for the player (the cards still come one set at a time)
-  function bankSpend() {
-    const h = G.S.hero;
-    let guard = 0;
-    while ((h.perkPts || 0) > TUNE.perkBank + (h.offer ? 1 : 0) && guard++ < 20) {
-      const open = Object.keys(G.PERKS).filter(k => perk(k) < G.PERKS[k].max);
-      if (!open.length) { h.perkPts = h.offer ? 1 : 0; return; }
-      const set = []; while (set.length < Math.min(3, open.length)) { const k = pick(open); if (!set.includes(k)) set.push(k); }
-      const id = G.autoPerk(set);
-      h.perks = h.perks || {};
-      h.perks[id] = (h.perks[id] || 0) + 1;
-      h.perkPts--;
-      G.dirty();
-      emit('perk', id, h.perks[id], 'bank');
-    }
-  }
+  // (4.0: the perk bank (bankSpend: points past perkBank picked unseen) is deleted: every card is a choice the player sees)
+  // the 3.x dealer (outside a Siege; inside one, js/run.js deals: G.cardGive / G.cardOffer)
   function offerPerks() {
     const h = G.S.hero;
-    const open = Object.keys(G.PERKS).filter(k => perk(k) < G.PERKS[k].max);
+    const open = Object.keys(G.PERKS).filter(k => perkOwn(k) < G.PERKS[k].max);
     const evos = evoReady().map(id => 'evo_' + id);
     if ((!open.length && !evos.length) || !(h.perkPts > 0)) { h.offer = null; h.perkPts = 0; return; }
     const pickN = evos.slice(0, 1);
@@ -1274,6 +1445,8 @@
   }
   G.pickPerk = function (id) {
     const h = G.S.hero;
+    // 4.0: inside a Siege the card on screen is the run's (js/run.js: its rarity adds 1-3 ranks; then the next card)
+    if (siegeOn() && G.cardPick) return G.cardPick(id);
     if (!h.offer || !h.offer.includes(id)) return false;
     h.perks = h.perks || {};
     h.perks[id] = (h.perks[id] || 0) + 1;
@@ -1376,12 +1549,14 @@
     // a broken Button mends on its own
     if (R.btnDown > 0 && (R.btnDown -= dt) <= 0) { R.btnDown = 0; h.hp = Math.max(h.hp, D.heroHp * 0.5); emit('buttonFixed'); }
     // clerics heal whoever is worst off, the Button included (a cleric Warden too)
+    // (4.0: a Medic companion heals half again)
     const healFrom = src => {
+      const hk = src >= 0 && D.party[src] ? D.party[src].heal || 1 : 1;
       let best = null, bk = 0.98;
       for (const u of G.partyUnits()) if (!(u.down > 0) && u.hp / u.max < bk) { bk = u.hp / u.max; best = u.who; }
       if (!(R.btnDown > 0) && h.hp / D.heroHp < bk) { bk = h.hp / D.heroHp; best = 'button'; }
-      if (best === 'button') { h.hp = Math.min(D.heroHp, h.hp + D.heroHp * TUNE.healPct * 1.5); emit('heal', src, 'button'); }
-      else if (best != null) { unitHp(best, Math.min(unitMax(best), unitHp(best) + unitMax(best) * TUNE.healPct * (1 + 0.1 * Math.min(10, h.lvl / 5)))); emit('heal', src, best); }
+      if (best === 'button') { h.hp = Math.min(D.heroHp, h.hp + D.heroHp * TUNE.healPct * 1.5 * hk); emit('heal', src, 'button'); }
+      else if (best != null) { unitHp(best, Math.min(unitMax(best), unitHp(best) + unitMax(best) * TUNE.healPct * (1 + 0.1 * Math.min(10, h.lvl / 5)) * hk)); emit('heal', src, best); }
     };
     if (G.ROLES[h.cls] === 'heal' && !(h.wdown > 0) && (h.healT = (h.healT || 0) - dt) <= 0) { h.healT = TUNE.healEvery; healFrom(-1); }
     S.party.forEach((m, i) => {
@@ -1532,9 +1707,10 @@
       }
     }
     // walk & bite
-    const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1) * evMul('speed');
+    const slow = (R.hb.orb > 0 ? 0.4 : 1) * (uq('frostwalk') ? 0.65 : 1) * (land().slow || 1) * (land().speed || 1) * evMul('speed');
     // 2.2: a bite is never nothing: its depth's damage, or a sliver of the Button's health per unit of weight
-    const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite') * (R.rift ? 1 : G.torment().bite);
+    // (4.0: a Hexed land or a Greed Pact bites harder; the Push's Tide too)
+    const atk = Math.max(mobAtk(dnow()), (D.heroHp || 0) * TUNE.biteFloor) * evMul('bite') * (R.rift ? 1 : G.torment().bite * (land().bite || 1) * (G.runTide ? G.runTide() : 1));
     // the tank's line this tick
     const tk = R.boss || !(G.S.party && G.S.party.length) ? null : tankUp(); let blocked = 0; const tkA = R.tankA == null ? 0.5 : R.tankA;
     if (tk) stepTank(dt);
@@ -1656,12 +1832,13 @@
       for (const m of near) dealHit(m, hit * pow, 'nova', false);
       if (R.boss) G.hitBoss(hit * pow * D.bossMult);
     }
-    // a pending level-up choice is made for the player if they leave it
+    // a pending level-up choice is made for the player if they leave it (outside a Siege: inside one the card holds the
+    // field and js/run.js runs its timer)
     // (the clock stops while a window covers the cards, so they can't be picked for you unseen)
-    if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > TUNE.perkAuto && h.autoPerk) G.pickPerk(G.autoPerk(h.offer));
-    // 3.6: banked points: the next set when its time comes, and the overflow picked for the player
-    if (!h.offer && h.perkPts > 0 && offerOk()) offerPerks();
-    if (h.autoPerk && h.perkPts > TUNE.perkBank + (h.offer ? 1 : 0)) bankSpend();
+    if (!siegeOn()) {
+      if (h.offer && !(G.uiBusy && G.uiBusy()) && (h.offerT = (h.offerT || 0) + dt) > TUNE.perkAuto && h.autoPerk) G.pickPerk(G.autoPerk(h.offer));
+      if (!h.offer && h.perkPts > 0 && offerOk()) offerPerks();
+    }
     // hero attacks
     R.heroAcc += h.wdown > 0 ? 0 : dt * D.heroRate;
     let guard = 0;
@@ -1702,7 +1879,7 @@
     WAVES.length = 0;
     // 3.6: a set of cards on screen waits out the fight (it comes back, fresh, once the march is over)
     const h = G.S.hero;
-    if (h && h.offer) { h.offer = null; h.offerT = 0; emit('perkHold'); }
+    if (h && h.offer && !siegeOn()) { h.offer = null; h.offerT = 0; emit('perkHold'); }
     for (const m of R.mobs) emit('mobFlee', m);
     R.mobs.length = 0; if (R.shots) R.shots.length = 0;
     R.bossAtkT = 2; R.hordeAcc = 0.5; R.surge = 0; R.zoneT = 0;
@@ -1733,10 +1910,17 @@
   // A compact, canonical description of the character. A future ladder server
   // recomputes power from this with the same combat() code, so a client
   // can't just send a big number.
-  G.ladderSnapshot = function () {
-    const S = G.S, h = S.hero;
-    const gear = {};
+  // the Warden's worn gear in the snapshot's canonical form
+  G.gearSnapshot = function () {
+    const h = G.S.hero, gear = {};
     for (const s of G.SLOTS) { const g = h.eq[s]; gear[s] = g ? Object.assign({ id: g.id, r: g.r, il: g.il, e: g.e, a: g.a }, g.c ? { c: 1 } : {}, g.q ? { q: g.q } : {}) : null; }
+    return gear;
+  };
+  // 4.0 (DESIGN §12): the ladder sees the best run (S.rec.bestRun: its class, level and the gear worn at its deepest point,
+  // js/run.js), so a run's end never lowers a row; before the first one, the live Warden
+  G.ladderSnapshot = function () {
+    const S = G.S, h = S.hero, br = S.rec && S.rec.bestRun && S.rec.bestRun.gear && G.CLASS_BY_ID[S.rec.bestRun.cls] ? S.rec.bestRun : null;
+    const gear = br ? br.gear : G.gearSnapshot();
     const rf = S.rift || {}, today = rf.day && rf.day.k === G.utcDayKey() ? { k: rf.day.k, l: rf.day.l | 0, t: rf.day.t | 0 } : null;
     // crown times are at least 0.1s (a lord can die on the tick it appears)
     const cr = {};
@@ -1744,7 +1928,7 @@
     const snap = {
       // the best level reached, so ascending (which starts the level over) doesn't sink you on the ladder
       // v2: 2.0 and later, where depths 65-74 are the Moon and the Star Sea
-      v: 2, ss: G.WIPE || 1, name: (S.profile.name || '').slice(0, 16), cls: h.cls, lvl: Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
+      v: 2, ss: G.WIPE || 1, name: (S.profile.name || '').slice(0, 16), cls: br ? br.cls : h.cls, lvl: br ? br.lvl | 0 || 1 : Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
       depth: S.bestDepth, asc: S.ascensions, fame: S.fameTotal, mad: Math.round(S.rec.madTime || 0), gear, ts: Date.now(),
       rift: rf.best | 0, rt: Math.round(rf.bestT || 0), rd: today, uq: Object.keys(S.uq || {}).length, kills: h.kills | 0, ls: G.starCount ? G.starCount() : 0,
       ev: (S.feed || []).slice(-6), fs: Object.assign({}, S.rec.firsts || {}), cr,

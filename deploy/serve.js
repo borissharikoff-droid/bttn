@@ -18,35 +18,50 @@
 //  POST /api/store/vk/callback                                  VK payments callback (md5 sig): get_item, order_status_change
 //  GET  /api/store/claim?v= → {grants}   POST /api/store/ack {v, ids}   (a grant is delivered until it is acked, once)
 //       Every paid order lands in $DATA_DIR/store-ledger.ndjson: append-only, one grant per provider payment id.
-//  GET  /api/daily?day=&v= → the Daily Siege board   POST /api/daily {day, zones, secs, btn, cls, heat, name, v, seed}
-//       ($DATA_DIR/daily-YYYY-MM-DD.json; the first attempt per visitor per UTC day, rate-limited per IP)
+//  GET  /api/daily?day=&v= → the Daily Siege board   POST /api/daily {day, zones, secs, btn, cls, heat, name, v, seed, tok?}
+//       ($DATA_DIR/daily-YYYY-MM-DD.json; the first attempt per visitor per UTC day, the day's own setup, capped per address)
+//  POST /api/daily/start {day, v} → {tok}   the run token the game asks for when a ranked Daily Siege begins
 //  POST /api/csp     Content-Security-Policy violation reports (counted in memory for the dashboard)
 //  GET  /admin       the admin dashboard (deploy/admin.html); its data needs the ADMIN_TOKEN
 //  GET  /api/admin/stats, /api/admin/live, /api/admin/export, /api/admin/store, /api/admin/daily  (header x-admin-token)
-//  POST /api/admin/store/grant, /api/admin/store/telegram-setup, /api/admin/daily/hide
+//  POST /api/admin/store/grant, /api/admin/store/telegram-setup, /api/admin/daily/hide, /api/admin/daily/reset
+//       (ADMIN_TOKEN must be 20+ characters; wrong tokens are throttled per address)
 //  GET  /health
 // Pages and assets are read once at boot, kept in memory with brotli/gzip copies and ETags. Every page gets a CSP that
 // names its own inline scripts by hash (computed at boot), so a rebuilt game needs no change here.
 // Events are kept on disk (a Railway volume at $DATA_DIR) and folded into memory at boot, so the dashboard is
-// instant. No raw IPs are stored: only a salted hash, to count people and to rate-limit.
+// instant. No raw IPs are stored: only a salted hash, to count people and to rate-limit (an IPv6 address counts by its /64).
 //
 // Environment (all optional; everything that sells or shows ads is OFF until configured):
-//  PORT, PUBLIC_URL (https://…, canonical links and the only allowed YooKassa return origin), DATA_DIR, KEEP_DAYS,
+//  PORT, PUBLIC_URL (https://…, canonical links and the YooKassa return address), DATA_DIR, KEEP_DAYS,
+//  PUBLIC_ORIGINS        more origins this same site answers on (comma list, e.g. https://bttn.example): a YooKassa
+//                        payment may send the player back there too (Railway's own *.up.railway.app domain is added)
+//  TRUST_PROXY           where the client's address comes from: x-real-ip | xff (last X-Forwarded-For hop) | off (the
+//                        socket). Default: x-real-ip on Railway, xff on Render, off elsewhere (a header any client can
+//                        send is never trusted by default: every rate limit and cap keys on this address)
 //  ADMIN_TOKEN, ANALYTICS_SALT, CONTACT_EMAIL, LINK_TELEGRAM/DISCORD/VK/YOUTUBE/REDDIT/CONTACT/TG_APP/YANDEX_GAMES/
 //  CRAZYGAMES/STEAM (public links).
 //  PAYMENTS=1            the master switch: nothing is sold without it (webhooks, claims and acks still work)
 //  TELEGRAM_BOT_TOKEN + TELEGRAM_WEBHOOK_SECRET   Stars invoices; the secret is the setWebhook secret_token
 //                        (/admin → Store → "Connect the Telegram webhook" sets it up)
 //  YOOKASSA_SHOP_ID + YOOKASSA_SECRET_KEY         card/SBP payments in RUB; YOOKASSA_IP_CHECK=1 adds the IP allow-list
+//  YOOKASSA_RECEIPT=1    send a 54-FZ receipt with each payment ("Чеки от ЮKassa" for an ИП/ООО; the self-employed
+//                        «Мой налог» link needs none: it takes the payment's description). The game then asks the buyer
+//                        for an email (sent to YooKassa only, never stored here). YOOKASSA_VAT_CODE (1-6, default 1 = no
+//                        VAT), YOOKASSA_TAX_SYSTEM (1-6, only if the shop has several), YOOKASSA_SUBJECT (default service)
 //  YANDEX_GAMES_SECRET   the game's secret key from the Yandex Games console (signed purchases)
 //  VK_APP_SECRET (+ VK_APP_ID)                    the VK Mini App's secure key (payments callback, launch params)
 //  STORE_SECRET          signs Telegram invoice payloads (default: derived from TELEGRAM_BOT_TOKEN)
 //  STORE_COS             the looks for sale, "id:tier,…" (tiers 1/2/3 = $0.99/$1.99/$2.99); default below
+//  STORE_LOOKS=1         the game draws looks now: the landing advertises the Starter Kit and looks (config store.looks)
 //  ADS_REWARDED          comma list of platforms whose rewarded video may pay a continue: yandex, vk, telegram
 //                        (telegram needs ADSGRAM_BLOCK_ID); ADSGRAM_BLOCK_ID, YANDEX_RTB_ID, ADSENSE_CLIENT (3.6 flags)
 //  ALLOWED_ORIGINS       extra origins (comma list, * wildcards) allowed to call /api/config, /api/store/*, /api/daily
 //  CSP=on|report|off     the Content-Security-Policy mode (default on); CSP_CONNECT extra connect-src sources (a ladder
 //                        server, for example)
+//  DAILY_STRICT=0        stop checking Daily posts against the day's setup (Heat 2, Classic, the seed's class), in case
+//                        the game's Daily rules change before this file's DAILY_RULES do; DAILY_TOKEN=1 requires the run
+//                        token on every post; DAILY_MAX rows kept on a day's board (default 20000)
 //  TELEGRAM_API, YOOKASSA_API   provider API base URLs, for local tests against a mock only
 'use strict';
 const http = require('http');
@@ -77,7 +92,9 @@ const log = (...a) => console.log(redact(a.join(' ')));
 const CSP_MODE = (env('CSP') || 'on').toLowerCase();
 const CSP_HDR = CSP_MODE === 'report' ? 'content-security-policy-report-only' : 'content-security-policy';
 const CSP_EXTRA = env('CSP_CONNECT').split(/[\s,]+/).filter(s => /^(https|wss):\/\/[a-z0-9.*:-]+(\/[^\s;,'"]*)?$/i.test(s)).join(' ');
-const SDK_SCRIPTS = 'https://yandex.ru https://*.yandex.ru https://yastatic.net https://telegram.org https://unpkg.com https://cdn.jsdelivr.net https://sad.adsgram.ai';
+// (exact files, not whole hosts: a host-only source would let any file on a public CDN run here. These are the files
+// js/store.js loads, plus the folder the Yandex SDK pulls its polyfills from; none of them redirect)
+const SDK_SCRIPTS = 'https://yandex.ru/games/sdk/v2 https://yastatic.net/s3/games-static/ https://telegram.org/js/telegram-web-app.js https://unpkg.com/@vkontakte/vk-bridge@2.15.12/dist/browser.min.js https://sad.adsgram.ai/js/sad.min.js';
 const SDK_CONNECT = 'https://yandex.ru https://*.yandex.ru https://*.yandex.net https://*.adsgram.ai https://*.vk.com https://*.vk-apps.com';
 function scriptHashes(html) {
   const out = new Set(), re = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
@@ -290,10 +307,39 @@ function country(req, tz, lang) {
   const m = /^[a-z]{2,3}-([A-Z]{2})$/i.exec(lang || '');
   return m ? m[1].toUpperCase() : '??';
 }
-// Railway's edge sets X-Real-IP to the client's address (docs: networking/public-networking/specs-and-limits); a client
-// can't forge it there, unlike the first X-Forwarded-For hop
-const ipOf = req => String(req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+// The client's address comes from a proxy header only when a proxy we know of sets it (any client can send one).
+// TRUST_PROXY: 'x-real-ip' (Railway's edge sets X-Real-IP to the client's address, docs: networking/public-networking/
+// specs-and-limits), 'xff' (the last X-Forwarded-For hop: the address the nearest proxy saw; Render, Fly, nginx) or
+// 'off' (no proxy: the socket's own address). Default: x-real-ip on Railway, xff on Render, off anywhere else.
+const TRUST = (() => {
+  const t = env('TRUST_PROXY').toLowerCase();
+  if (t === 'x-real-ip' || t === 'xff' || t === 'off') return t;
+  if (t === '1' || t === 'true') return 'xff';
+  if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_PROJECT_ID || process.env.RAILWAY_SERVICE_ID) return 'x-real-ip';
+  return process.env.RENDER ? 'xff' : 'off';
+})();
+const ipOf = req => {
+  let ip = TRUST === 'x-real-ip' ? String(req.headers['x-real-ip'] || '') : TRUST === 'xff' ? String(req.headers['x-forwarded-for'] || '').split(',').pop() : '';
+  ip = ip.trim() || String(req.socket.remoteAddress || '');
+  // (an IPv4 client on a dual-stack socket, a port, brackets)
+  return ip.trim().replace(/^\[([^\]]+)\](?::\d+)?$/, '$1').replace(/^(\d+\.\d+\.\d+\.\d+):\d+$/, '$1').replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, '').toLowerCase();
+};
+// an IPv6 address cut to its first `bits` (a home, a phone or a rented server gets a whole /64, often a /56 or a /48: one
+// address there is free to change every request); IPv4 stays as it is
+function netOf(ip, bits) {
+  if (!ip.includes(':')) return ip;
+  const s = ip.split('%')[0], two = s.split('::');
+  if (two.length > 2 || !/^[0-9a-f:.]+$/.test(s)) return ip;
+  const part = x => (x ? x.split(':') : []).flatMap(h => (h.includes('.') ? (n => (n == null ? ['0', '0'] : [(n >>> 16).toString(16), (n & 65535).toString(16)]))(ip4(h)) : [h]));
+  const a = part(two[0]), b = two.length === 2 ? part(two[1]) : [];
+  const all = two.length === 2 ? a.concat(Array(Math.max(0, 8 - a.length - b.length)).fill('0'), b) : a;
+  if (all.length !== 8) return ip;
+  return all.slice(0, bits >> 4).map(h => parseInt(h || '0', 16).toString(16)).join(':') + '::/' + bits;
+}
 const hashIp = ip => crypto.createHash('sha256').update(SALT + ip).digest('hex').slice(0, 12);
+// the rate-limit key: an IPv4 address or an IPv6 /64 (hashed: no raw address is kept anywhere)
+const ipKey = req => hashIp(netOf(ipOf(req), 64));
+// (ip4 is with the YooKassa allow-list below)
 
 // ---------- the store ----------
 const dayKey = ts => new Date(ts).toISOString().slice(0, 10);
@@ -393,13 +439,17 @@ function replay() {
 replay();
 function append(rec) { fs.appendFile(path.join(DATA, 'ev-' + dayKey(rec.r) + '.ndjson'), JSON.stringify(rec) + '\n', () => {}); }
 
-// ---------- rate limits ----------
-const hits = new Map();
+// ---------- rate limits: per address key (ipKey) and global budgets ('g:' keys), a minute and an hour ----------
+const hits = new Map(), hitsH = new Map();
 setInterval(() => hits.clear(), 60e3).unref();
+setInterval(() => hitsH.clear(), 3600e3).unref();
 const limited = (k, max) => { const n = (hits.get(k) || 0) + 1; hits.set(k, n); return n > max; };
-// per UTC day (the Daily board's per-IP cap): reset when the day turns
-let dayHits = { day: '', m: new Map() };
-const limitedDay = (k, max) => { const d = dayKey(Date.now()); if (dayHits.day !== d) dayHits = { day: d, m: new Map() }; const n = (dayHits.m.get(k) || 0) + 1; dayHits.m.set(k, n); return n > max; };
+const limitedH = (k, max) => { const n = (hitsH.get(k) || 0) + 1; hitsH.set(k, n); return n > max; };
+// a budget a minute and an hour, both counted only when both still have room (a refusal doesn't eat the hour)
+const budget = (k, perMin, perHour) => {
+  if ((hits.get(k) || 0) >= perMin || (hitsH.get(k) || 0) >= perHour) return false;
+  hits.set(k, (hits.get(k) || 0) + 1); hitsH.set(k, (hitsH.get(k) || 0) + 1); return true;
+};
 
 // ---------- request bodies and small helpers ----------
 const J = (res, code, o, extra) => send(res, code, 'application/json; charset=utf-8', JSON.stringify(o), extra);
@@ -424,8 +474,11 @@ const rid = n => Array.from(crypto.randomBytes(n), b => (b % 36).toString(36)).j
 const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
 const VID_RE = /^[a-z0-9]{6,24}$/;         // the analytics visitor id (localStorage bttn_vid, js/analytics.js)
 const VKV_RE = /^vk:\d{1,12}$/;            // a VK buyer without a visitor id in the order (claims need signed launch params)
-// for allow-lists: X-Real-IP, else the address the nearest proxy saw (the last X-Forwarded-For hop)
-const ipStrict = req => String(req.headers['x-real-ip'] || String(req.headers['x-forwarded-for'] || '').split(',').pop() || req.socket.remoteAddress || '').trim();
+// our own addresses: the only places a payment page may send the player back to (never taken from a request header:
+// Host and X-Forwarded-Host are whatever the client says). PUBLIC_URL, Railway's own domain for this service, and
+// PUBLIC_ORIGINS (more of our domains, comma list)
+const OWN_ORIGINS = new Set([ORIGIN, process.env.RAILWAY_PUBLIC_DOMAIN ? 'https://' + String(process.env.RAILWAY_PUBLIC_DOMAIN).trim() : '', ...env('PUBLIC_ORIGINS').split(/[\s,]+/)]
+  .map(s => { try { const u = new URL(s); return /^https?:$/.test(u.protocol) && !u.username && !u.password && s.replace(/\/+$/, '') === u.origin ? u.origin : ''; } catch (e) { return ''; } }).filter(Boolean));
 
 // ======================================================================================================
 // ---------- 4.0: the Gems store (ADDENDUM 9; DESIGN §4.9; MONETIZATION 1.2a) ----------
@@ -466,7 +519,10 @@ const descOf = (sku, lang) => {
 //  {t:'orphan', prov, pid, amt, cur, at, why}   money arrived but the order can't be read (for /admin, by hand)
 // A grant's id is a hash of provider + payment id, and a payment id is granted once: retried webhooks are harmless.
 const LEDGER = path.join(DATA, 'store-ledger.ndjson');
-const ledger = { grants: new Map(), byKey: new Map(), byV: new Map(), orders: new Map(), ordersByV: new Map(), orphans: [], lines: 0, bad: 0 };
+const ledger = { grants: new Map(), byKey: new Map(), byV: new Map(), orders: new Map(), ordersByV: new Map(), orphans: [], lines: 0, bad: 0, badLines: [], oldOrders: 0, torn: false, writeFail: null };
+// orders (payments we created, waiting for the provider) are kept in memory for a week: YooKassa cancels an unpaid one
+// long before that, and a paid one past it still settles (its webhook re-fetch falls back to the list price)
+const ORDER_KEEP = 7 * 864e5;
 function fold(x) {
   if (!x || typeof x !== 'object') return;
   if (x.t === 'grant' && typeof x.id === 'string' && !ledger.grants.has(x.id)) {
@@ -478,21 +534,48 @@ function fold(x) {
   else if (x.t === 'refund') { const g = ledger.grants.get(x.id); if (g && !g.refunded) g.refunded = +x.at || 1; }
   else if (x.t === 'order' && x.prov && x.pid) {
     const k = x.prov + ':' + x.pid; if (ledger.orders.has(k)) return;
-    ledger.orders.set(k, { prov: String(x.prov), pid: String(x.pid), sku: x.sku, v: String(x.v), amt: +x.amt || 0, cur: x.cur || '', at: +x.at || 0, test: x.test ? 1 : 0, state: ledger.byKey.has(k) ? 'paid' : 'pending', checked: 0 });
+    if (Date.now() - (+x.at || 0) > ORDER_KEEP) { ledger.oldOrders++; return; }
+    ledger.orders.set(k, { prov: String(x.prov), pid: String(x.pid), sku: x.sku, v: String(x.v), amt: +x.amt || 0, cur: x.cur || '', at: +x.at || 0, idem: String(x.idem || ''), test: x.test ? 1 : 0, state: ledger.byKey.has(k) ? 'paid' : 'pending', checked: 0 });
     let a = ledger.ordersByV.get(String(x.v)); if (!a) ledger.ordersByV.set(String(x.v), (a = [])); a.push(k);
   } else if (x.t === 'orphan') { ledger.orphans.push(x); if (ledger.orphans.length > 100) ledger.orphans.shift(); }
 }
 (function loadLedger() {
   let txt = ''; try { txt = fs.readFileSync(LEDGER, 'utf8'); } catch (e) { return; }
-  for (const line of txt.split('\n')) { if (!line) continue; try { fold(JSON.parse(line)); ledger.lines++; } catch (e) { ledger.bad++; } }
+  let n = 0;
+  for (const line of txt.split('\n')) {
+    n++; if (!line) continue;
+    // (an unreadable line is money someone may have paid: kept for /admin, where a person can grant it by hand)
+    try { fold(JSON.parse(line)); ledger.lines++; } catch (e) { ledger.bad++; ledger.badLines.push({ line: n, text: line.slice(0, 400) }); if (ledger.badLines.length > 20) ledger.badLines.shift(); }
+  }
   // a crash mid-line must not glue the next record onto it
   if (txt && !txt.endsWith('\n')) fs.appendFileSync(LEDGER, '\n');
-  log(`store: ${ledger.grants.size} grants, ${ledger.orders.size} orders from ${ledger.lines} ledger lines${ledger.bad ? ' (' + ledger.bad + ' unreadable)' : ''}`);
+  log(`store: ${ledger.grants.size} grants, ${ledger.orders.size} open orders from ${ledger.lines} ledger lines${ledger.bad ? ' (' + ledger.bad + ' UNREADABLE: see /admin → Store)' : ''}`);
 })();
-// written and fsynced before the provider hears "OK": a failure throws, the webhook answers 5xx and the provider retries
+// written and fsynced before the provider hears "OK". Every byte or nothing: a short write (a full disk) is written on in
+// a loop, and any failure cuts the file back to where it was and throws, so the webhook answers 5xx and the provider
+// retries the whole record (a torn half line would make this grant, and the next one glued to it, unreadable)
 function ledgerWrite(xs) {
+  const buf = Buffer.from((ledger.torn ? '\n' : '') + xs.map(x => JSON.stringify(x)).join('\n') + '\n');
   const fd = fs.openSync(LEDGER, 'a');
-  try { fs.writeSync(fd, xs.map(x => JSON.stringify(x)).join('\n') + '\n'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  let size = -1;
+  try {
+    size = fs.fstatSync(fd).size;
+    for (let off = 0; off < buf.length;) {
+      const n = fs.writeSync(fd, buf, off, buf.length - off);
+      if (!(n > 0)) throw new Error('ledger: nothing written');
+      off += n;
+    }
+    fs.fsyncSync(fd);
+    ledger.torn = false;
+  } catch (e) {
+    let undone = false;
+    if (size >= 0) { try { fs.ftruncateSync(fd, size); fs.fsyncSync(fd); undone = true; } catch (e2) {} }
+    // (could not cut it back: the next record starts on a line of its own)
+    if (!undone) ledger.torn = true;
+    ledger.writeFail = { at: Date.now(), why: String(e.code || e.message).slice(0, 80), undone };
+    log('store: LEDGER WRITE FAILED (' + (e.code || e.message) + ')' + (undone ? ', cut back; the provider will retry' : ', could not cut back'));
+    throw e;
+  } finally { fs.closeSync(fd); }
   for (const x of xs) fold(x);
 }
 function grant(prov, pid, sku, v, amt, cur, extra) {
@@ -523,7 +606,14 @@ const PROV = {
 const PROV_ENV = { yandex: ['YANDEX_GAMES_SECRET'], vk: ['VK_APP_SECRET'], telegram: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET'], yookassa: ['YOOKASSA_SHOP_ID', 'YOOKASSA_SECRET_KEY'] };
 const storeProviders = () => (PAY_ON() ? Object.keys(PROV).filter(k => PROV[k]()) : []);
 const selling = p => PAY_ON() && PROV[p]();
-const stat = { tgInvoices: 0, tgPreOk: 0, tgPreNo: 0, ykCreated: 0, yaVerified: 0, yaBadSig: 0, vkBadSig: 0, hookBad: 0 };
+const stat = { tgInvoices: 0, tgPreOk: 0, tgPreNo: 0, tgInitStale: 0, ykCreated: 0, ykBusy: 0, yaVerified: 0, yaBadSig: 0, vkBadSig: 0, vkRefunds: 0, hookBad: 0, adminBad: 0 };
+// what the store may ask the providers for (each create/invoice is a real object at the provider, and an order line
+// here): per address an hour, and for everyone a minute and an hour. A real player needs a handful; past the budget
+// the game says the payment did not go through and the player can try again in a moment.
+const STORE_PER_NET_H = 30, STORE_G_MIN = 60, STORE_G_HOUR = 1000;
+// a YooKassa payment the player left on the payment page stays pending for a while: at most this many open at once
+// per visitor (a new one past that waits until one of them is paid, canceled or an hour old)
+const YK_OPEN_PER_V = 3;
 
 // --- Telegram Stars: createInvoiceLink (XTR, one price), then the bot's webhook ---
 const TG_API = (env('TELEGRAM_API') || 'https://api.telegram.org').replace(/\/+$/, '');
@@ -559,8 +649,12 @@ async function tgInvoice(req, res, b) {
   if (!okSku(sku)) return J(res, 400, { error: 'sku' });
   if (typeof v !== 'string' || !VID_RE.test(v)) return J(res, 400, { error: 'v' });
   if (SKUS[sku].once && owned(v, sku)) return J(res, 409, { error: 'owned' });
+  // initData proves nothing the invoice needs (its payload is signed and bound to v already), and a Mini App left open
+  // past a day sends a stale one: counted for /admin, never a refusal
   const init = req.headers['x-tg-init-data'];
-  if (init != null && !tgInitData(String(init))) return J(res, 401, { error: 'init data' });
+  if (init != null && String(init) !== '' && !tgInitData(String(init))) stat.tgInitStale++;
+  // the bot's API is a shared budget: per address an hour, and for everyone a minute and an hour
+  if (limitedH('tgi:' + ipKey(req), STORE_PER_NET_H) || !budget('g:tgi', STORE_G_MIN, STORE_G_HOUR)) return J(res, 429, { error: 'slow down' });
   const lang = b.lang === 'ru' ? 'ru' : 'en', S = SKUS[sku], P = priceOf(sku);
   try {
     const link = await tgCall('createInvoiceLink', Object.assign({ title: S[lang], description: descOf(sku, lang), payload: signPayload(sku, v), provider_token: '', currency: 'XTR', prices: [{ label: S[lang], amount: P.stars }] },
@@ -618,26 +712,44 @@ async function ykCreate(req, res, b) {
   if (!okSku(sku)) return J(res, 400, { error: 'sku' });
   if (typeof v !== 'string' || !VID_RE.test(v)) return J(res, 400, { error: 'v' });
   if (SKUS[sku].once && owned(v, sku)) return J(res, 409, { error: 'owned' });
-  // the way back must be our own site (no open redirect through the payment page): PUBLIC_URL, or the address this
-  // request came in on (Railway's edge routes only our own domains here, and says which in X-Forwarded-Host)
+  // the way back must be our own site (no open redirect through a genuine payment page): one of OWN_ORIGINS, never an
+  // address taken from the request (Host / X-Forwarded-Host are the client's to say)
   let ret = ORIGIN + '/play?paid=yookassa';
-  const self = (String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || 'http') + '://' + String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
   if (b.return_url != null) {
     let x = null; try { x = new URL(String(b.return_url)); } catch (e) {}
-    if (!x || !/^https?:$/.test(x.protocol) || (x.origin !== ORIGIN && x.origin !== self) || String(b.return_url).length > 512 || x.username || x.password) return J(res, 400, { error: 'return_url' });
+    if (!x || !/^https?:$/.test(x.protocol) || !OWN_ORIGINS.has(x.origin) || String(b.return_url).length > 512 || x.username || x.password) return J(res, 400, { error: 'return_url' });
     ret = x.toString();
   }
+  // the 54-FZ receipt (YOOKASSA_RECEIPT=1): the buyer's email, checked here and handed to YooKassa only
+  const rc = ykReceipt(sku, b.email);
+  if (rc === false) return J(res, 400, { error: 'email' });
+  // payments left open on the payment page: a few per visitor, then wait (each one is a real payment at YooKassa)
+  // (a double click inside a minute gets the same payment back: YooKassa's own idempotence, and no new order here)
+  const now = Date.now(), idem = crypto.createHash('sha256').update(['yk', v, sku, ret, Math.floor(now / 60e3), rc ? rc.customer.email : ''].join('|')).digest('hex').slice(0, 36);
+  const open = (ledger.ordersByV.get(v) || []).map(k => ledger.orders.get(k)).filter(o => o && o.prov === 'yookassa' && o.state === 'pending' && now - o.at < 3600e3);
+  if (open.length >= YK_OPEN_PER_V && !open.some(o => o.idem === idem.slice(0, 12))) { stat.ykBusy++; return J(res, 429, { error: 'pending' }); }
+  if (limitedH('ykc:' + ipKey(req), STORE_PER_NET_H) || !budget('g:ykc', STORE_G_MIN, STORE_G_HOUR)) { stat.ykBusy++; return J(res, 429, { error: 'slow down' }); }
   const P = priceOf(sku);
-  // a double click inside a minute gets the same payment back (YooKassa's own idempotence)
-  const idem = crypto.createHash('sha256').update(['yk', v, sku, ret, Math.floor(Date.now() / 60e3)].join('|')).digest('hex').slice(0, 36);
   try {
-    const p = await ykCall('POST', '/payments', { amount: { value: P.rub.toFixed(2), currency: 'RUB' }, capture: true, confirmation: { type: 'redirect', return_url: ret }, description: ('BTTN: ' + SKUS[sku].ru).slice(0, 128), metadata: { sku, v } }, idem);
+    const p = await ykCall('POST', '/payments', Object.assign({ amount: { value: P.rub.toFixed(2), currency: 'RUB' }, capture: true, confirmation: { type: 'redirect', return_url: ret }, description: ('BTTN: ' + SKUS[sku].ru).slice(0, 128), metadata: { sku, v } }, rc ? { receipt: rc } : {}), idem);
     const url = p && p.confirmation && p.confirmation.confirmation_url;
     if (!p || !YK_ID.test(String(p.id)) || typeof url !== 'string' || !/^https:\/\//.test(url)) throw new Error('yookassa create: no confirmation url');
-    if (!ledger.orders.has('yookassa:' + p.id)) ledgerWrite([{ t: 'order', prov: 'yookassa', pid: String(p.id), sku, v, amt: P.rub, cur: 'RUB', at: Date.now(), test: p.test ? 1 : undefined }]);
+    if (!ledger.orders.has('yookassa:' + p.id)) ledgerWrite([{ t: 'order', prov: 'yookassa', pid: String(p.id), sku, v, amt: P.rub, cur: 'RUB', at: Date.now(), idem: idem.slice(0, 12), test: p.test ? 1 : undefined }]);
     stat.ykCreated++;
     return J(res, 200, { confirmation_url: url, id: String(p.id) });
   } catch (e) { log('store: yookassa create failed:', e.message); return J(res, 502, { error: 'provider' }); }
+}
+// the receipt object (YooKassa API v3 'receipt'): null when receipts are off, false when the email is missing or bad
+const YK_RECEIPT = () => env('YOOKASSA_RECEIPT') === '1';
+const MAIL_RE = /^[^\s@<>"(),;:\\]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2,24}$/i;
+function ykReceipt(sku, email) {
+  if (!YK_RECEIPT()) return null;
+  const m = typeof email === 'string' ? email.trim() : '';
+  if (!MAIL_RE.test(m) || m.length > 254) return false;
+  const vat = /^[1-6]$/.test(env('YOOKASSA_VAT_CODE')) ? +env('YOOKASSA_VAT_CODE') : 1, tax = env('YOOKASSA_TAX_SYSTEM');
+  const r = { customer: { email: m }, items: [{ description: ('BTTN: ' + SKUS[sku].ru).slice(0, 128), quantity: '1.00', amount: { value: priceOf(sku).rub.toFixed(2), currency: 'RUB' }, vat_code: vat, payment_mode: 'full_payment', payment_subject: /^[a-z_]{3,40}$/.test(env('YOOKASSA_SUBJECT')) ? env('YOOKASSA_SUBJECT') : 'service' }] };
+  if (/^[1-6]$/.test(tax)) r.tax_system_code = +tax;
+  return r;
 }
 // the one place a YooKassa payment becomes a grant: its state as the API reports it, never as a notification says
 async function ykSettle(pid) {
@@ -657,9 +769,15 @@ const ip4 = s => { const m = /^(?:::ffff:)?(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{
 const ykIpOk = ip => /^2a02:5180:/i.test(ip) || (n => n != null && YK_NETS.some(c => { const [a, bits] = c.split('/'), mask = (~0 << (32 - +bits)) >>> 0; return ((n & mask) >>> 0) === ((ip4(a) & mask) >>> 0); }))(ip4(ip));
 async function ykWebhook(req, res, b) {
   if (!PROV.yookassa()) return J(res, 503, { error: 'off' });
-  if (env('YOOKASSA_IP_CHECK') === '1' && !ykIpOk(ipStrict(req))) { stat.hookBad++; return J(res, 403, { error: 'ip' }); }
+  if (env('YOOKASSA_IP_CHECK') === '1' && !ykIpOk(ipOf(req))) { stat.hookBad++; return J(res, 403, { error: 'ip' }); }
   const ev = String(b.event || ''), id = String((b.object && b.object.id) || '');
   if (!YK_ID.test(id)) { stat.hookBad++; return J(res, 400, { error: 'id' }); }
+  // every payment is created here, so a notification about one we know is checked at once (granted already: nothing to
+  // ask). Anything else (an order older than a week, a refund, a forged id) shares a small budget for the whole server:
+  // past it the answer is 503 and YooKassa asks again later, so a flood of made-up ids can't spend our API quota
+  const known = ev.startsWith('payment.') ? ledger.orders.has('yookassa:' + id) : ev === 'refund.succeeded' && ledger.byKey.has('yookassa:' + String((b.object && b.object.payment_id) || ''));
+  if (ev.startsWith('payment.') && ledger.byKey.has('yookassa:' + id)) return J(res, 200, { ok: true });
+  if (!known && !budget('g:ykhook', 6, 60)) { stat.hookBad++; return J(res, 503, { error: 'busy' }); }
   try {
     if (ev.startsWith('payment.')) await ykSettle(id);
     else if (ev === 'refund.succeeded') {
@@ -683,9 +801,12 @@ function yaVerify(req, res, b) {
   if (typeof v !== 'string' || !VID_RE.test(v)) return J(res, 400, { error: 'v' });
   const dot = sig.indexOf('.');
   if (dot < 1) return J(res, 400, { error: 'signature' });
-  const data = sig.slice(dot + 1), norm = x => x.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
-  if (!safeEq(norm(sig.slice(0, dot)), norm(hmac(key, data, 'base64')))) { stat.yaBadSig++; return J(res, 403, { error: 'signature' }); }
-  let p; try { p = JSON.parse(Buffer.from(data, 'base64').toString('utf8')); } catch (e) { return J(res, 400, { error: 'payload' }); }
+  // Yandex signs the DECODED payload (its docs: hmac.update(Buffer.from(data, 'base64').toString('utf8')); Python
+  // hmac.new(secret, base64.b64decode(data))), not the base64 text after the dot
+  const norm = x => x.replace(/-/g, '+').replace(/_/g, '/').replace(/=+$/, '');
+  const raw = Buffer.from(norm(sig.slice(dot + 1)), 'base64');
+  if (!raw.length || !safeEq(norm(sig.slice(0, dot)), norm(crypto.createHmac('sha256', key).update(raw).digest('base64')))) { stat.yaBadSig++; return J(res, 403, { error: 'signature' }); }
+  let p; try { p = JSON.parse(raw.toString('utf8')); } catch (e) { return J(res, 400, { error: 'payload' }); }
   const items = p && Array.isArray(p.data) ? p.data : p && p.data && typeof p.data === 'object' ? [p.data] : [];
   const grants = [], tokens = [];
   try {
@@ -718,9 +839,14 @@ function vkLaunch(raw) {
   const o = {}; for (const [k, v] of q) if (k.startsWith('vk_')) o[k] = v;
   const str = require('querystring').stringify(Object.fromEntries(Object.keys(o).sort().map(k => [k, o[k]])));
   if (!safeEq(sign, b64url(hmac(secret, str)))) return null;
-  if (env('VK_APP_ID') && o.vk_app_id && o.vk_app_id !== env('VK_APP_ID')) return null;
+  if (env('VK_APP_ID') && o.vk_app_id !== env('VK_APP_ID')) return null;
+  // signed launch params are a credential for 'vk:<user id>': they expire (the game reads fresh ones at every launch),
+  // so a leaked Mini App link doesn't open that player's grants for good
+  const age = Date.now() / 1000 - (+o.vk_ts || 0);
+  if (!(age < VK_LAUNCH_TTL && age > -3600)) return null;
   return { uid: String(o.vk_user_id || '') };
 }
+const VK_LAUNCH_TTL = 72 * 3600;
 function vkCallback(req, res, raw) {
   const out = o => J(res, 200, o), err = (code, msg, critical) => out({ error: { error_code: code, error_msg: msg, critical: !!critical } });
   const secret = env('VK_APP_SECRET');
@@ -737,9 +863,16 @@ function vkCallback(req, res, raw) {
     return out({ response: { item_id: it.sku, title: SKUS[it.sku][lang], price: priceOf(it.sku).votes, photo_url: ORIGIN + '/assets/icon-192.png', expiration: 3600 } });
   }
   if (type === 'order_status_change' || type === 'order_status_change_test') {
-    if (o.status !== 'chargeable') return err(100, 'unsupported status', true);
     const oid = String(o.order_id || '');
     if (!/^\d{1,18}$/.test(oid)) return err(11, 'bad order id', true);
+    // VK cancelled a paid order: take the grant back (a delivered one stays with the player, marked in /admin) and say
+    // yes; an order we never granted is fine too (logged)
+    if (o.status === 'refunded') {
+      const gid = ledger.byKey.get('vk:' + oid);
+      if (gid) { try { refund(gid); stat.vkRefunds++; } catch (e) { return err(2, 'temporary error', false); } } else log('store: vk refund for an order we never granted: ' + oid);
+      return out({ response: { order_id: Number(oid), app_order_id: gid ? parseInt(gid.slice(2, 14), 16) : 0 } });
+    }
+    if (o.status !== 'chargeable') return err(100, 'unsupported status', true);
     if (!it) { try { if (!ledger.byKey.has('vk:' + oid)) orphan('vk', oid, +o.item_price || 0, 'VOTES', 'item'); } catch (e) { return err(2, 'temporary error', false); } return err(20, 'no such item', true); }
     const v = it.v || 'vk:' + String(o.receiver_id || o.user_id || '').replace(/\D/g, '').slice(0, 12);
     if (!VID_RE.test(v) && !VKV_RE.test(v)) return err(11, 'no receiver', true);
@@ -762,8 +895,9 @@ async function claim(req, res, v) {
   if (!vOk(req, v)) return J(res, VKV_RE.test(String(v)) ? 401 : 400, { error: 'v' });
   // back from the YooKassa page before its webhook landed (or no webhook set up at all): ask YooKassa directly
   if (PROV.yookassa()) {
-    const now = Date.now(), mine = (ledger.ordersByV.get(v) || []).map(k => ledger.orders.get(k)).filter(o => o.prov === 'yookassa' && o.state === 'pending' && now - o.at < 864e5 && now - o.checked > 10e3).slice(-3);
-    if (mine.length) await Promise.race([Promise.all(mine.map(o => ykSettle(o.pid).catch(e => log('store: yookassa check failed:', e.message)))), new Promise(r => setTimeout(r, 6000))]);
+    const now = Date.now(), mine = (ledger.ordersByV.get(v) || []).map(k => ledger.orders.get(k)).filter(o => o && o.prov === 'yookassa' && o.state === 'pending' && now - o.at < 864e5 && now - o.checked > 10e3).slice(-3);
+    // (a shared budget too: past it the claim answers from the ledger and the webhook settles the rest)
+    if (mine.length && budget('g:ykpoll', 120, 3000)) await Promise.race([Promise.all(mine.map(o => ykSettle(o.pid).catch(e => log('store: yookassa check failed:', e.message)))), new Promise(r => setTimeout(r, 6000))]);
   }
   return J(res, 200, { grants: claimable(v).map(view) });
 }
@@ -777,6 +911,10 @@ function ack(req, res, b) {
 }
 
 // --- /admin: what was sold, through which rail, and what is still waiting to be delivered ---
+// free space on the data volume (events, the ledger and the boards all live there; a full disk refuses payments)
+function diskFree() {
+  try { const f = fs.statfsSync(DATA); const free = f.bavail * f.bsize, total = f.blocks * f.bsize; return { free, total, low: free < Math.max(50 * 1048576, total * 0.05) }; } catch (e) { return null; }
+}
 function storeStats() {
   const now = Date.now(), G = [...ledger.grants.values()], real = G.filter(g => !g.test && g.prov !== 'admin');
   const rev = {}, bySku = {}, days = {};
@@ -794,7 +932,9 @@ function storeStats() {
     revenue: Object.values(rev).sort((a, b) => b.n - a.n), bySku: top(bySku, 20), byDay: Object.entries(days).sort(),
     pending: { n: pend.length, oldest: pend.length ? Math.round((now - Math.min(...pend.map(g => g.at))) / 60e3) : 0 },
     held: G.filter(g => g.hold && !g.refunded).length, orphans: ledger.orphans.slice(-20).reverse(),
-    orders: { pending: orders.filter(o => o.state === 'pending' && now - o.at < 864e5).length, canceled: orders.filter(o => o.state === 'canceled').length, total: orders.length },
+    orders: { pending: orders.filter(o => o.state === 'pending' && now - o.at < 864e5).length, canceled: orders.filter(o => o.state === 'canceled').length, total: orders.length + ledger.oldOrders },
+    // the ledger's health: unreadable lines (money someone may have paid: grant by hand), a failed write, the disk
+    health: { lines: ledger.lines, bad: ledger.bad, badLines: ledger.badLines.slice(-20), writeFail: ledger.writeFail, disk: diskFree() },
     recent: G.slice().sort((a, b) => b.at - a.at).slice(0, 40).map(g => ({ id: g.id, at: g.at, prov: g.prov, sku: g.sku, v: g.v, amt: g.amt, cur: g.cur, acked: !!g.acked, refunded: !!g.refunded, test: !!g.test, flag: g.flag, hold: !!g.hold })),
     counters: stat, csp: top(Object.fromEntries(cspSeen), 15), skus: Object.keys(SKUS),
     telegramHook: ORIGIN + '/api/store/telegram/webhook', yookassaHook: ORIGIN + '/api/store/yookassa/webhook', vkHook: ORIGIN + '/api/store/vk/callback',
@@ -803,31 +943,87 @@ function storeStats() {
 
 // ======================================================================================================
 // ---------- 4.0: the public Daily Siege board (ADDENDUM 11; DESIGN §6.5) ----------
-// One file per UTC day ($DATA_DIR/daily-YYYY-MM-DD.json), held in memory while in use and written atomically.
-// The first attempt per visitor per day is the ranked one; ranks: zones cleared, then time, then who was first.
-const DAILY_MAX = 20000, DAILY_GRACE = 60 * 60e3; // a run that started before midnight UTC may still post for 1 h
+// One file per UTC day ($DATA_DIR/daily-YYYY-MM-DD.json), held in memory while in use, written whole (fsynced, renamed
+// into place; the file from before the last write kept as .prev). The first attempt per visitor per day is the ranked
+// one; ranks: zones cleared, then time, then who was first. A post must match the day's own setup (Heat, Button, class
+// and seed are all known here), the clock (20 s a zone at least; with a run token, no longer than the run has been
+// going), and the caps per address. A visitor id costs nothing, so the caps are what hold a script back; a full board
+// makes room (the address with the most rows loses its worst one) instead of turning everyone away.
+const DAILY_MAX = Math.max(50, Math.min(200000, +env('DAILY_MAX') || 20000)); // rows on a day's board (hidden rows aside)
+const DAILY_GRACE = 60 * 60e3; // a run that started before midnight UTC may still post for 1 h
+const DAILY_PER_NET = 24, DAILY_PER_48 = 72; // rows a day from one IPv4 address / IPv6 /64 (a home, a school, a carrier's NAT), and from one IPv6 /48
+const DAILY_G_MIN = 120, DAILY_G_HOUR = 3000; // new rows a minute / an hour for the whole board (past it: 'busy', the game posts later)
+const DAILY_TOK_SLACK = 120; // seconds a run may have been going before its token was asked for
+// the Daily Siege's fixed setup: js/run.js G.DAILY_SIEGE and G.dailySetup (FNV-1a of 'bttn-siege|<day>'). Keep the two in
+// step (tests/platform-fix/server_fix_test.js compares them); DAILY_STRICT=0 turns the setup check off if the game changes
+// first. DAILY_TOKEN=1 makes the run token (POST /api/daily/start at the run's start) required; by default a post is
+// checked against its token when it brings one, and rows without one are marked in /admin.
+const DAILY_RULES = { heat: 2, btn: 'classic', classes: ['knight', 'archer', 'wizard'] };
+const DAILY_STRICT = env('DAILY_STRICT') !== '0', DAILY_TOKEN = env('DAILY_TOKEN') === '1';
+const fnv1a = str => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; };
+const dailySetup = day => { const seed = fnv1a('bttn-siege|' + day); return { seed, heat: DAILY_RULES.heat, btn: DAILY_RULES.btn, cls: DAILY_RULES.classes[seed % DAILY_RULES.classes.length] }; };
+// the run token: when this server first heard of the run (t0), signed for this visitor and day; no state kept
+const DAILY_KEY = crypto.createHash('sha256').update('bttn-daily-token|' + SALT).digest();
+const dailyTok = (v, day, t0) => b64url(hmac(DAILY_KEY, 'dt|' + v + '|' + day + '|' + t0)).slice(0, 22) + '.' + t0.toString(36);
+const dailyTokT0 = (tok, v, day) => { const m = /^[A-Za-z0-9_-]{22}\.([0-9a-z]{6,10})$/.exec(typeof tok === 'string' ? tok : ''); if (!m) return null; const t0 = parseInt(m[1], 36); return safeEq(tok, dailyTok(v, day, t0)) ? t0 : null; };
 const dailyDays = new Map();
 const dayFile = d => path.join(DATA, 'daily-' + d + '.json');
 const cmpRow = (a, b) => b.zones - a.zones || a.secs - b.secs || a.at - b.at;
 const vHash = v => crypto.createHash('sha256').update(SALT + '|daily|' + v).digest('hex').slice(0, 16);
 const validDay = d => typeof d === 'string' && /^\d{4}-\d\d-\d\d$/.test(d) && !isNaN(Date.parse(d + 'T00:00:00Z')) && new Date(d + 'T00:00:00Z').toISOString().slice(0, 10) === d;
+// who has posted (rows, and rows that made room on a full board: 'gone'), and the counts per address (posts a day, rows
+// on the board now)
+function dayIndex(D) {
+  D.byV = new Map(); D.seen = new Set(); D.byNet = new Map(); D.by48 = new Map(); D.onNet = new Map(); D.hidN = 0;
+  const add = (m, k) => { if (k) m.set(k, (m.get(k) || 0) + 1); };
+  for (const r of D.rows) { D.byV.set(r.vh, r); D.seen.add(r.vh); add(D.byNet, r.ih); add(D.by48, r.i48 || r.ih); if (r.hid) D.hidN++; else add(D.onNet, r.ih); }
+  for (const g of D.gone) { D.seen.add(g[0]); add(D.byNet, g[1]); add(D.by48, g[2] || g[1]); }
+}
 function dayLoad(d) {
   let D = dailyDays.get(d);
   if (D) { D.used = Date.now(); return D; }
-  D = { day: d, rows: [], byV: new Map(), dirty: false, writing: false, used: Date.now() };
-  try { const j = JSON.parse(fs.readFileSync(dayFile(d), 'utf8')); for (const r of Array.isArray(j.rows) ? j.rows : []) if (r && typeof r.vh === 'string' && !D.byV.has(r.vh)) { D.rows.push(r); D.byV.set(r.vh, r); } } catch (e) {}
+  D = { day: d, rows: [], gone: [], dirty: false, writing: false, used: Date.now(), ro: 0, restored: 0 };
+  const f = dayFile(d), read = x => { const j = JSON.parse(fs.readFileSync(x, 'utf8')); if (!j || typeof j !== 'object' || !Array.isArray(j.rows)) throw new Error('no rows'); return j; };
+  let j = null;
+  try { j = read(f); } catch (e) {
+    if (e.code !== 'ENOENT') {
+      // damaged (a crash, a full disk): never written over. Kept aside for a person to look at; the copy from before the
+      // last write takes its place, or the day goes read-only until /admin starts its board again
+      const bad = f + '.bad-' + Date.now();
+      try { fs.renameSync(f, bad); } catch (e2) {}
+      log('daily: ' + path.basename(f) + ' is unreadable (' + String(e.message).slice(0, 60) + '), kept as ' + path.basename(bad));
+      try { j = read(f + '.prev'); D.restored = 1; log('daily: ' + d + ' restored from the copy before its last write'); } catch (e3) { D.ro = 1; log('daily: no good copy of ' + d + ': its board is read-only until /admin starts it again'); }
+    }
+  }
+  if (j) {
+    const seen = new Set();
+    for (const r of j.rows) if (r && typeof r === 'object' && typeof r.vh === 'string' && !seen.has(r.vh)) { seen.add(r.vh); D.rows.push(r); }
+    if (Array.isArray(j.gone)) D.gone = j.gone.filter(g => Array.isArray(g) && typeof g[0] === 'string');
+  }
   D.rows.sort(cmpRow);
+  dayIndex(D);
   dailyDays.set(d, D);
+  if (D.restored) daySave(D);
   if (dailyDays.size > 8) { const old = [...dailyDays.values()].filter(x => x !== D && !x.dirty && !x.writing).sort((a, b) => a.used - b.used)[0]; if (old) dailyDays.delete(old.day); }
   return D;
 }
 function daySave(D) {
+  if (D.ro) return;
   if (D.writing) { D.dirty = true; return; }
   D.writing = true; D.dirty = false;
-  const tmp = dayFile(D.day) + '.tmp';
-  fs.writeFile(tmp, JSON.stringify({ day: D.day, v: 1, rows: D.rows }), e => {
-    if (e) { D.writing = false; D.dirty = true; return log('daily: write failed:', e.message); }
-    fs.rename(tmp, dayFile(D.day), e2 => { D.writing = false; if (e2) { D.dirty = true; log('daily: rename failed:', e2.message); } else if (D.dirty) daySave(D); });
+  const f = dayFile(D.day), tmp = f + '.tmp', prev = f + '.prev';
+  const done = e => { D.writing = false; if (e) { D.dirty = true; log('daily: write failed:', e.message); } else if (D.dirty) daySave(D); };
+  fs.open(tmp, 'w', (e, fd) => {
+    if (e) return done(e);
+    fs.writeFile(fd, JSON.stringify({ day: D.day, v: 2, rows: D.rows, gone: D.gone }), e1 => fs.fsync(fd, e2 => fs.close(fd, e3 => {
+      if (e1 || e2 || e3) return done(e1 || e2 || e3);
+      // the file being replaced stays as .prev (a hard link, no copy), then the new one takes its name in one step
+      fs.unlink(prev + '.tmp', () => fs.link(f, prev + '.tmp', el => {
+        const swap = () => fs.rename(tmp, f, done);
+        if (el) return swap();
+        fs.rename(prev + '.tmp', prev, swap);
+      }));
+    })));
   });
 }
 const visible = D => D.rows.filter(r => !r.hid);
@@ -844,7 +1040,28 @@ function dailyGet(req, res, u) {
   if (VID_RE.test(v)) { const vh = vHash(v), i = vis.findIndex(r => r.vh === vh); if (i >= 0) you = pubRow(vis[i], i + 1); }
   return J(res, 200, { day, top: vis.slice(0, 50).map((r, i) => pubRow(r, i + 1)), you, n: vis.length });
 }
-function dailyPost(req, res, b, ih) {
+// the run's start: a token that dates it (the post may then claim no more time than has passed since)
+function dailyStart(req, res, b) {
+  const now = Date.now(), { day, v } = b;
+  if (typeof v !== 'string' || !VID_RE.test(v)) return J(res, 400, { error: 'v' });
+  if (day !== dayKey(now)) return J(res, 400, { error: 'day' });
+  return J(res, 200, { tok: dailyTok(v, day, now), t0: now });
+}
+// a full board makes room: the worst row of the address with the most rows on it (a flood pays for itself); with no
+// such address, the last row. The visitor stays 'seen' (no second post), and the address keeps the count.
+function dayEvict(D) {
+  let net = null, max = 1;
+  for (const [k, n] of D.onNet) if (n > max) { max = n; net = k; }
+  for (let i = D.rows.length - 1; i >= 0; i--) {
+    const r = D.rows[i];
+    if (r.hid || (net && r.ih !== net)) continue;
+    D.rows.splice(i, 1); D.byV.delete(r.vh); D.gone.push([r.vh, r.ih || '', r.i48 || '']);
+    D.onNet.set(r.ih, (D.onNet.get(r.ih) || 1) - 1);
+    return true;
+  }
+  return false;
+}
+function dailyPost(req, res, b, ih, i48) {
   const now = Date.now(), today = dayKey(now), { day, zones, secs, heat, v } = b;
   if (typeof v !== 'string' || !VID_RE.test(v)) return J(res, 400, { error: 'v' });
   // today (UTC); yesterday only within the first hour of today, for a run that crossed midnight
@@ -855,17 +1072,34 @@ function dailyPost(req, res, b, ih) {
   if (heat != null && (!Number.isInteger(heat) || heat < 0 || heat > 10)) return J(res, 400, { error: 'heat' });
   const btn = idOf(b.btn), cls = idOf(b.cls);
   if (!btn || !cls) return J(res, 400, { error: 'btn' });
+  // the day's own setup: everyone plays the same Heat, Button, class and seed
+  if (DAILY_STRICT) { const w = dailySetup(day); if (heat !== w.heat || btn !== w.btn || cls !== w.cls || String(b.seed) !== String(w.seed)) return J(res, 400, { error: 'setup' }); }
+  // the run token: no more time claimed than has passed since the run began here
+  let nt = 0;
+  if (b.tok != null && b.tok !== '') {
+    const t0 = dailyTokT0(b.tok, v, day);
+    if (t0 == null) return J(res, 400, { error: 'token' });
+    if (secs > (now - t0) / 1000 + DAILY_TOK_SLACK) return J(res, 400, { error: 'secs' });
+  } else if (DAILY_TOKEN) return J(res, 400, { error: 'token' });
+  else nt = 1;
   const D = dayLoad(day), vh = vHash(v), had = D.byV.get(vh);
   if (had) { const i = visible(D).indexOf(had); return J(res, 409, { error: 'already', rank: i >= 0 ? i + 1 : null }); }
-  if (limitedDay('daily:' + ih, 8)) return J(res, 429, { error: 'too many today' });
-  if (D.rows.length >= DAILY_MAX) return J(res, 503, { error: 'full' });
-  const r = { vh, ih, name: cleanName(b.name), zones, secs: Math.round(secs * 10) / 10, btn, cls, heat: heat | 0, seed: b.seed == null ? '' : String(b.seed).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40), at: now };
+  if (D.seen.has(vh)) return J(res, 409, { error: 'already', rank: null });
+  if (D.ro) return J(res, 503, { error: 'busy' });
+  // the caps: rows a day per address (kept with the rows, so a restart doesn't reset them), then the whole board's pace
+  if ((D.byNet.get(ih) || 0) >= DAILY_PER_NET || (D.by48.get(i48) || 0) >= DAILY_PER_48) return J(res, 429, { error: 'too many today' });
+  if (!budget('g:daily', DAILY_G_MIN, DAILY_G_HOUR)) return J(res, 503, { error: 'busy' });
+  if (D.rows.length - D.hidN >= DAILY_MAX) dayEvict(D);
+  const r = { vh, ih, i48, name: cleanName(b.name), zones, secs: Math.round(secs * 10) / 10, btn, cls, heat: heat | 0, seed: b.seed == null ? '' : String(b.seed).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40), at: now };
+  if (nt) r.nt = 1;
   let lo = 0, hi = D.rows.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (cmpRow(D.rows[mid], r) <= 0) lo = mid + 1; else hi = mid; }
-  D.rows.splice(lo, 0, r); D.byV.set(vh, r); daySave(D);
+  D.rows.splice(lo, 0, r); D.byV.set(vh, r); D.seen.add(vh);
+  for (const [m, k] of [[D.byNet, ih], [D.by48, i48], [D.onNet, ih]]) m.set(k, (m.get(k) || 0) + 1);
+  daySave(D);
   return J(res, 200, { ok: true, rank: visible(D).indexOf(r) + 1 });
 }
-// the boards older than KEEP_DAYS go, like the events
-try { const cut = dayKey(Date.now() - KEEP_DAYS * 864e5); for (const f of fs.readdirSync(DATA)) { const m = /^daily-(\d{4}-\d\d-\d\d)\.json$/.exec(f); if (m && m[1] < cut) fs.unlinkSync(path.join(DATA, f)); } } catch (e) {}
+// the boards older than KEEP_DAYS go, like the events (and their .prev / .bad copies)
+try { const cut = dayKey(Date.now() - KEEP_DAYS * 864e5); for (const f of fs.readdirSync(DATA)) { const m = /^daily-(\d{4}-\d\d-\d\d)\.json(\.prev|\.bad-\d+)?$/.exec(f); if (m && m[1] < cut) fs.unlinkSync(path.join(DATA, f)); } } catch (e) {}
 
 // ---------- CSP violation reports (report-uri /api/csp): counted in memory, shown in /admin ----------
 const cspSeen = new Map();
@@ -1049,13 +1283,29 @@ function exportCsv(qs) {
     const v = visitors.get(s.vid) || {}, t = v.touch || {};
     rows.push([s.sid, s.vid, new Date(s.start).toISOString(), (s.secs / 60).toFixed(1), (Math.max(0, s.pt - (s.pt0 || 0)) / 60).toFixed(1), s.bd, t.src, t.med, t.cmp, t.ref, s.dev.type, s.dev.os, s.dev.br, s.cc, s.lang, s.bot ? 1 : 0]);
   }
-  return rows.map(r => r.map(x => { x = x == null ? '' : String(x); return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join(',')).join('\n');
+  // (a cell a spreadsheet would read as a formula, from a visitor's own utm tags, starts with ' and stays text)
+  const cell = x => { x = x == null ? '' : String(x); if (/^[=+\-@\t\r]/.test(x)) x = "'" + x; return /[",\n\r]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+  return rows.map(r => r.map(cell).join(',')).join('\n');
 }
 const authed = req => {
   if (!TOKEN) return false;
   const got = Buffer.from(String(req.headers['x-admin-token'] || '')), want = Buffer.from(TOKEN);
   return got.length === want.length && crypto.timingSafeEqual(got, want);
 };
+// the admin token mints store grants and points the Telegram webhook: it must be long (a guessable one is refused, the
+// dashboard says why), and wrong guesses are throttled per address (10 in 10 minutes, then 15 minutes of 429)
+const ADMIN_MIN = 20, ADMIN_TRIES = 10, ADMIN_WINDOW = 10 * 60e3, ADMIN_LOCK = 15 * 60e3;
+const adminFails = new Map(); // address key -> {n, t0, until}
+setInterval(() => { const now = Date.now(); for (const [k, f] of adminFails) if (now - f.t0 > ADMIN_WINDOW && now > f.until) adminFails.delete(k); }, 60e3).unref();
+const adminLocked = k => { const f = adminFails.get(k); return !!f && Date.now() < f.until; };
+function adminFail(k) {
+  const now = Date.now();
+  let f = adminFails.get(k);
+  if (!f || now - f.t0 > ADMIN_WINDOW) adminFails.set(k, (f = { n: 0, t0: now, until: 0 }));
+  if (++f.n >= ADMIN_TRIES) f.until = now + ADMIN_LOCK;
+  stat.adminBad++;
+  log('admin: wrong token from ' + k.slice(0, 8) + (f.until ? ' (locked for 15 min)' : ''));
+}
 
 // ---------- the public config: which providers are set up (never the secrets themselves) ----------
 // ?pf=yandex|vk|telegram|web|steam tailors store.provider and ads.provider to the platform asking (optional)
@@ -1081,7 +1331,11 @@ function config(pf) {
   const sell = pf === 'steam' ? [] : storeProviders();
   const prices = {}, skus = {};
   for (const k of Object.keys(SKUS)) { const P = priceOf(k); prices[k] = { rub: P.rub, usd: P.usd, stars: P.stars, votes: P.votes }; skus[k] = { gems: SKUS[k].gems, cos: SKUS[k].cos || null }; }
-  const store = { on: sell.length > 0, providers: sell, provider: pf && sell.includes(STORE_OF[pf]) ? STORE_OF[pf] : null };
+  // (looks: whether the landing may advertise the Starter Kit and looks; set STORE_LOOKS=1 once the game draws them.
+  // The game itself offers them only when its stage does: G.Stage.cosmetics)
+  const store = { on: sell.length > 0, providers: sell, provider: pf && sell.includes(STORE_OF[pf]) ? STORE_OF[pf] : null, looks: env('STORE_LOOKS') === '1' };
+  // (a YooKassa payment needs the buyer's email for its receipt: the game asks for it before the payment page)
+  if (sell.includes('yookassa') && YK_RECEIPT() && (!pf || pf === 'web')) store.email = true;
   const adsOn = pf === 'steam' || pf === 'web' ? [] : ADS_REWARDED;
   const adProv = pf ? (adsOn.includes(pf) ? pf : null) : adsOn[0] || null;
   const ads = { adsgram: !!env('ADSGRAM_BLOCK_ID'), yandex: !!env('YANDEX_RTB_ID'), adsense: !!env('ADSENSE_CLIENT'), rewarded: !!adProv, provider: adProv, providers: adsOn };
@@ -1128,7 +1382,8 @@ const POSTS = {
   '/api/store/yookassa/webhook': [64e3, 600, (req, res, b) => run(res, ykWebhook(req, res, b))],
   '/api/store/yandex/verify': [64e3, 20, (req, res, b) => yaVerify(req, res, b)],
   '/api/store/ack': [8e3, 30, (req, res, b) => ack(req, res, b)],
-  '/api/daily': [2e3, 3, (req, res, b, ih) => dailyPost(req, res, b, ih)],
+  '/api/daily': [2e3, 6, (req, res, b, ih, i48) => dailyPost(req, res, b, ih, i48)],
+  '/api/daily/start': [1e3, 6, (req, res, b) => dailyStart(req, res, b)],
 };
 const ADMIN_POSTS = {
   '/api/admin/store/grant': b => {
@@ -1136,11 +1391,20 @@ const ADMIN_POSTS = {
     const r = grant('admin', 'a' + Date.now().toString(36) + rid(6), b.sku, b.v, 0, '', { test: 1, note: String(b.note || '').slice(0, 120) });
     return [200, { ok: true, grant: view(r.g) }];
   },
+  // hide one row ({day, vh}) or every row from one address ({day, ih}); hid:false shows them again
   '/api/admin/daily/hide': b => {
-    const D = validDay(b.day) && (dailyDays.has(b.day) || fs.existsSync(dayFile(b.day))) ? dayLoad(b.day) : null, r = D && typeof b.vh === 'string' && D.byV.get(b.vh);
-    if (!r) return [404, { error: 'no such row' }];
-    if (b.hid === false) delete r.hid; else r.hid = 1;
-    daySave(D); return [200, { ok: true, hid: !!r.hid }];
+    const D = validDay(b.day) && (dailyDays.has(b.day) || fs.existsSync(dayFile(b.day))) ? dayLoad(b.day) : null;
+    const rows = !D ? [] : typeof b.vh === 'string' ? [D.byV.get(b.vh)].filter(Boolean) : typeof b.ih === 'string' && b.ih ? D.rows.filter(r => r.ih === b.ih) : [];
+    if (!rows.length) return [404, { error: 'no such row' }];
+    for (const r of rows) { if (b.hid === false) delete r.hid; else r.hid = 1; }
+    dayIndex(D); daySave(D); return [200, { ok: true, hid: b.hid !== false, n: rows.length }];
+  },
+  // a day whose file was damaged and had no good copy: start its board again (empty)
+  '/api/admin/daily/reset': b => {
+    const D = validDay(b.day) && dailyDays.get(b.day);
+    if (!D || !D.ro) return [400, { error: 'that day is not read-only' }];
+    D.ro = 0; D.rows = []; D.gone = []; dayIndex(D); daySave(D);
+    return [200, { ok: true }];
   },
 };
 const server = http.createServer((req, res) => {
@@ -1160,7 +1424,7 @@ function handle(req, res) {
   }
   if (p === '/api/ev' && req.method === 'POST') {
     const ip = ipOf(req), ih = hashIp(ip);
-    if (limited('ev:' + ih, 90)) return send(res, 429, 'text/plain', 'slow down');
+    if (limited('ev:' + ipKey(req), 90)) return send(res, 429, 'text/plain', 'slow down');
     return readBody(req, res, 64e3, buf => {
       let b; try { b = JSON.parse(buf.toString('utf8')); } catch (e) { return send(res, 400, 'text/plain', 'bad'); }
       if (!b || typeof b.v !== 'string' || typeof b.s !== 'string' || !/^[a-z0-9]{6,24}$/.test(b.v) || !/^[a-z0-9]{6,24}$/.test(b.s) || !Array.isArray(b.e)) return send(res, 400, 'text/plain', 'bad');
@@ -1173,12 +1437,13 @@ function handle(req, res) {
   }
   if (p === '/api/csp') {
     if (req.method !== 'POST') return send(res, 405, 'text/plain', '');
-    if (limited('csp:' + hashIp(ipOf(req)), 20)) return send(res, 429, 'text/plain', 'slow down');
+    if (limited('csp:' + ipKey(req), 20)) return send(res, 429, 'text/plain', 'slow down');
     return readBody(req, res, 16e3, buf => { cspReport(buf); send(res, 204, 'text/plain', ''); });
   }
   // the store and the Daily board
-  if (p.startsWith('/api/store/') || p === '/api/daily') {
-    const ih = hashIp(ipOf(req));
+  if (p.startsWith('/api/store/') || p === '/api/daily' || p === '/api/daily/start') {
+    // (an IPv4 address or an IPv6 /64; the Daily board also counts an IPv6 /48)
+    const ip = ipOf(req), ih = hashIp(netOf(ip, 64));
     if (p === '/api/store/claim' || (p === '/api/daily' && req.method !== 'POST')) {
       if (req.method !== 'GET' && req.method !== 'HEAD') return J(res, 405, { error: 'method' });
       if (limited((p === '/api/daily' ? 'dg:' : 'cl:') + ih, p === '/api/daily' ? 60 : 30)) return J(res, 429, { error: 'slow down' });
@@ -1193,10 +1458,14 @@ function handle(req, res) {
     if (!R) return J(res, 404, { error: 'not found' });
     if (req.method !== 'POST') return J(res, 405, { error: 'method' });
     if (limited('st:' + p + ':' + ih, R[1])) return J(res, 429, { error: 'slow down' });
-    return readJson(req, res, R[0], b => { try { R[2](req, res, b, ih); } catch (e) { log('error:', p, e.message); if (!res.headersSent) J(res, 500, { error: 'server' }); } });
+    return readJson(req, res, R[0], b => { try { R[2](req, res, b, ih, hashIp(netOf(ip, 48))); } catch (e) { log('error:', p, e.message); if (!res.headersSent) J(res, 500, { error: 'server' }); } });
   }
   if (p.startsWith('/api/admin/')) {
-    if (!authed(req)) return J(res, TOKEN ? 401 : 503, { error: TOKEN ? 'bad token' : 'ADMIN_TOKEN is not set on the server' });
+    if (!TOKEN) return J(res, 503, { error: 'ADMIN_TOKEN is not set on the server' });
+    if (TOKEN.length < ADMIN_MIN) return J(res, 503, { error: 'ADMIN_TOKEN is too short: set it to ' + ADMIN_MIN + ' or more random characters (Railway → Variables), then reload.' });
+    const ak = ipKey(req);
+    if (adminLocked(ak)) return J(res, 429, { error: 'Too many wrong tokens from here: wait 15 minutes.' });
+    if (!authed(req)) { adminFail(ak); return J(res, 401, { error: 'bad token' }); }
     const qs = Object.fromEntries(u.searchParams);
     if (req.method === 'POST') {
       if (p === '/api/admin/store/telegram-setup') return run(res, (async () => {
@@ -1220,8 +1489,10 @@ function handle(req, res) {
     if (p === '/api/admin/daily') {
       const day = qs.day || dayKey(Date.now());
       if (!validDay(day)) return J(res, 400, { error: 'day' });
-      const D = dailyDays.has(day) || fs.existsSync(dayFile(day)) ? dayLoad(day) : { rows: [] };
-      return J(res, 200, { day, n: D.rows.length, rows: D.rows.slice(0, 300).map(r => ({ vh: r.vh, name: r.name, zones: r.zones, secs: r.secs, btn: r.btn, cls: r.cls, heat: r.heat, seed: r.seed, at: r.at, hid: !!r.hid })) });
+      const D = dailyDays.has(day) || fs.existsSync(dayFile(day)) ? dayLoad(day) : { rows: [], gone: [], byNet: new Map() };
+      // (ih: the address key, hashed; with how many posts that address made today, so a flood stands out)
+      return J(res, 200, { day, n: D.rows.length, gone: D.gone.length, ro: !!D.ro, restored: !!D.restored, max: DAILY_MAX, strict: DAILY_STRICT, token: DAILY_TOKEN,
+        nets: top(Object.fromEntries(D.byNet), 10), rows: D.rows.slice(0, 300).map(r => ({ vh: r.vh, ih: r.ih || '', n: D.byNet.get(r.ih) || 0, name: r.name, zones: r.zones, secs: r.secs, btn: r.btn, cls: r.cls, heat: r.heat, seed: r.seed, at: r.at, hid: !!r.hid, nt: !!r.nt })) });
     }
     return J(res, 404, { error: 'no' });
   }
@@ -1249,5 +1520,5 @@ function handle(req, res) {
 }
 // slow clients don't get to hold a socket open forever
 server.headersTimeout = 20e3; server.requestTimeout = 30e3;
-server.listen(PORT, () => log('BTTN on port ' + PORT + (TOKEN ? '' : ' (admin off: set ADMIN_TOKEN)') + ' · ' + ORIGIN + ' · store ' + (storeProviders().join(', ') || 'off') + ' · CSP ' + CSP_MODE));
+server.listen(PORT, () => log('BTTN on port ' + PORT + (!TOKEN ? ' (admin off: set ADMIN_TOKEN)' : TOKEN.length < ADMIN_MIN ? ' (admin off: ADMIN_TOKEN is shorter than ' + ADMIN_MIN + ' characters)' : '') + ' · ' + ORIGIN + ' · store ' + (storeProviders().join(', ') || 'off') + ' · CSP ' + CSP_MODE + ' · client address from ' + (TRUST === 'off' ? 'the socket' : TRUST)));
 process.on('unhandledRejection', e => log('unhandled:', e && e.message));

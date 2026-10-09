@@ -73,21 +73,29 @@ function siegeAct(G) {
   const S = G.S;
   if (S.fallen) { G.runGiveUp(); return 'fall'; }
   if (!S.run || !S.run.on) { if (G.runAgain && S.hero && S.hero.cls && G.runAgain()) return 'again'; return null; }
+  // (a card on screen is the persona's own to pick: tools/playtest.js reads h.offer; idle ones leave it to the timer)
+  if (S.run.offer) return null;
+  // a shrine's choice: the steadiest boon; a pact declined
+  if (S.run.boonOffer && G.boonPick) { const ids = S.run.boonOffer.ids; G.boonPick(['dmg', 'spd', 'crit', 'hp'].find(k => ids.includes(k)) || ids[0]); return 'boon'; }
+  if (S.run.pactOffer && G.pactAnswer) { G.pactAnswer(false); return 'pact'; }
   if (S.run.phase !== 'field' && G.beatAuto && G.beatAuto()) return 'beat';
   return null;
 }
 function shop(G, cps) {
   siegeAct(G);
+  const siege = !!(G.S.run && G.S.run.on);
   // take on companions as slots open: a healer, a tank and damage, skipping what the Warden already is
-  if (G.recruit && G.S.party && G.S.party.length < G.partySlots()) {
+  // (4.0: inside a Siege the camp's candidates are how they join: its auto takes the role the party lacks)
+  if (!siege && G.recruit && G.S.party && G.S.party.length < G.partySlots()) {
     const have = [G.S.hero.cls].concat(G.S.party.map(m => m.cls));
     const want = ['cleric', 'knight', 'archer', 'wizard', 'rogue'].find(c => !have.includes(c));
     if (want) G.recruit(want);
   }
   let k = 0;
   while (tryBuy(G, cps) && k++ < 40);
-  // enchant worn gear, cheapest first
-  for (let i = 0; i < 10; i++) {
+  // enchant worn gear, cheapest first (4.0: the whole party at once with the Forge's Enchant All)
+  if (siege && G.D.enchantAll && G.enchantAll) G.enchantAll();
+  else for (let i = 0; i < 10; i++) {
     const worn = G.SLOTS.map(s => G.S.hero.eq[s]).filter(g => g && g.e < G.ENCHANT_MAX).sort((a, b) => G.enchantCost(a).shards - G.enchantCost(b).shards);
     if (!worn.length || !G.enchant(worn[0])) break;
   }

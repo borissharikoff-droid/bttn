@@ -1,4 +1,4 @@
-// BTTN 3.5 — anonymous play analytics for the public host (deploy/serve.js). Where players come from (UTM tags,
+// BTTN 3.5 (4.0: + the Siege run events and the store funnel) — anonymous play analytics for the public host (deploy/serve.js). Where players come from (UTM tags,
 // referrer), what they play on, and how far they get: intro, class, first press, tutorial, bosses, depths, lands,
 // falls, the team, and whether they come back. No names, no saves, no IPs from here: a random visitor id kept in
 // this browser, a session id, and game milestones. Off on claude.ai (the server sets window.BTTN_AN), with Global
@@ -81,7 +81,28 @@
   on('runOver', sum => ev('run_over', { d: sum && sum.depth, s: sum && Math.round(sum.secs), f: sum && sum.fame, g: S().gems || 0, c: S().runConts || 0 }));
   // 3.6: what they chose when it fell: continue here (how, the n-th this run) or a new run
   on('runContinue', how => ev('run_cont', { h: how, n: S().runConts, g: S().gems || 0, d: S().depth }));
-  on('runEnd', f => ev('run_end', { d: f && f.depth, f: f && f.fame }));
+  // (3.6's run_end {d, f}; in 4.0 the Siege's own run_end below says it, so this one is left out when it did)
+  let sumAt = 0;
+  on('runEnd', f => { if (Date.now() - sumAt > 5000) ev('run_end', { d: f && f.depth, f: f && f.fame }); });
+  // 4.0 (ADDENDUM 12, DESIGN §12): the Siege. A run's start and end ({kind, depth, mins, cause, heat, btn}: the admin's
+  // "Runs (4.0)" card), the cards picked, the doors taken, the camp's choices, the Deeds a run earned, and the big drops
+  // (legendary and up, uniques, relics: the rest would only fill the queue)
+  on('runStart', r => { if (r) ev('run_start', { btn: r.btn || '', heat: r.heat | 0, cls: r.cls || (S().hero && S().hero.cls) || '', day: r.day ? 1 : 0, n: r.n | 0 }); });
+  on('runSummary', s => {
+    if (!s) return;
+    sumAt = Date.now();
+    ev('run_end', { kind: String(s.kind || ''), depth: (s.maxDepth != null ? s.maxDepth : s.depth) | 0, mins: Math.round((+s.secs || 0) / 6) / 10, cause: s.cause || '', heat: s.heat | 0, btn: s.btn || '', cls: s.cls || '', day: s.day ? 1 : 0, f: s.fame && typeof s.fame === 'object' ? s.fame.total : undefined });
+    if (s.kind === 'extract') ev('extract', { depth: s.depth | 0 });
+    for (const d of (Array.isArray(s.deeds) ? s.deeds : []).slice(0, 20)) ev('deed', { id: String(d && typeof d === 'object' ? d.id : d).slice(0, 24) });
+  });
+  on('cardPick', (id, rank, tier, how) => ev('card', { id: String(id || '').slice(0, 24), n: rank | 0, how: how || '' }));
+  on('door', (o, slot) => { if (o) ev('door', { id: String(o.land || '').slice(0, 24), mod: o.mod || '', tag: o.tag || '', slot: slot | 0 }); });
+  on('campAct', k => ev('camp', { a: String(k || '').slice(0, 16) }));
+  on('loot', li => {
+    const it = li && li.it;
+    if (!it || !(it.r >= 4 || it.uq || it.relic)) return;
+    ev('loot', { r: it.relic ? 'relic' : it.uq ? 'unique' : (G.RARITIES && G.RARITIES[it.r] && G.RARITIES[it.r].id) || String(it.r) });
+  });
   on('gems', (n, why) => ev('gems', { n, w: why }));
   // 4.0: the store funnel (js/store.js emits 'store' with the step): the store opened, a purchase started / paid /
   // failed, a rewarded ad shown / paid out. Only these names pass, with their small payload (sku, provider, why, placement)

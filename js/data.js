@@ -476,8 +476,12 @@
   // Embers (from the Furnace): each worn or bagged item burns for EMBER_R[rarity] (a unique 20, an old relic item 60)
   // x (1 + il/20) x (1 + 0.1 enchant); shards 1 per 25; orbs by kind; Keys 10 each. The run's pouch takes boss kills and
   // the loot moment's unpicked cards. Then x the end (fall/abandon 0.5, extract 1, win 1.5) x (1 + 0.15 Heat)
-  G.EMBER_R = [1, 2, 3, 5, 8, 15, 30];
-  G.EMBERS = { uq: 20, relic: 60, shard: 25, orb: { whet: 1, flux: 1, ruin: 3, ascent: 3, grace: 10 }, key: 10,
+  // (4.0 tuning, measured with the bots once the loot moment replaced the boss showers: DESIGN's [1,2,3,5,8,15,30], unique 20,
+  // relic 60 and orbs 1/1/3/3/10 paid 1.6-2x the targets at every checkpoint (a first fall at depth 7 ~160 vs 60-100, an
+  // Act II fall ~280 vs 120-200, an Act II extract ~700 vs 250-400, a Heat-0 win ~2,150 vs 1,200-1,500): the bag is full
+  // by Act I and Temper raises every worn piece. Halved, they land in the bands; the kill Embers stay as designed)
+  G.EMBER_R = [0.5, 1, 1.5, 2.5, 4, 7.5, 15];
+  G.EMBERS = { uq: 10, relic: 30, shard: 25, orb: { whet: 0.5, flux: 0.5, ruin: 1.5, ascent: 1.5, grace: 5 }, key: 10,
     kill: { boss: 2, lord: 10, act: 25, final: 100 }, end: { fall: 0.5, abandon: 0.5, extract: 1, win: 1.5 }, heat: 0.15, card: 0.5 };
   // Heat 0-10 (chosen at setup; Heat N opens with a win at N-1). Each level: Horde and boss health x1.15, bites x1.10,
   // Fame x(1+0.2n), Embers x(1+0.15n), rarity +n/3, drops +15%. And the named rules, cumulative:
@@ -494,6 +498,90 @@
     { n: 9, id: 'escort', name: 'Escorts', desc: 'Act bosses bring their Land Champion' },
     { n: 10, id: 'mad', name: 'Madness', desc: 'The Mad Button at double strength; Integrity 2' },
   ];
+
+  // ---------- 4.0: cards, schools, gear ranks (DESIGN §5.1-5.2) ----------
+  // Each perk's school (a card is drawn from a school already owned 60% of the time; mythic and divine gear roll perk ranks
+  // from the wearer's class schools)
+  G.SCHOOLS = ['storm', 'blades', 'fire', 'frost', 'bastion', 'greed', 'party'];
+  G.PERK_SCHOOL = {
+    thunder: 'storm', chain: 'storm', crush: 'storm', mark: 'storm',
+    blades: 'blades', cleave: 'blades', multi: 'blades', overkill: 'blades', momentum: 'blades', frenzy: 'blades', might: 'blades', glass: 'blades',
+    burn: 'fire', corpse: 'fire', nova: 'fire', aura: 'fire',
+    frost: 'frost', reach: 'frost', ricochet: 'frost', execute: 'frost',
+    bulwark: 'bastion', aegis: 'bastion', thorns: 'bastion', secondwind: 'bastion', leech: 'bastion', fortress: 'bastion', laststand: 'bastion',
+    greed: 'greed', loot: 'greed', plunder: 'greed', avarice: 'greed', souls: 'greed',
+    warband: 'party',
+  };
+  G.CLASS_SCHOOLS = { knight: ['blades', 'bastion'], archer: ['frost', 'blades'], wizard: ['fire', 'storm'], rogue: ['blades', 'greed'], cleric: ['bastion', 'storm'] };
+  // the perks the Deeds unlock (DESIGN §4.8: 22 of 33 open at the start). The meta's G.perkOpen(id) reads it; without the
+  // meta every perk is open
+  G.PERK_LOCKED = ['overkill', 'momentum', 'laststand', 'ricochet', 'souls', 'crush', 'mark', 'warband', 'glass', 'fortress', 'avarice'];
+  // a unique's theme perk: it carries 2 ranks of it (+1 at Codex rank 2 and 4)
+  G.UQ_THEME = { pincer: 'corpse', goldgrin: 'greed', windripper: 'multi', cleaver: 'cleave', sporeheart: 'leech', stormcaller: 'chain',
+    nightfang: 'execute', headhunter: 'mark', frostwalk: 'frost', watcher: 'nova', hellstring: 'overkill', voidplate: 'thorns',
+    reaper: 'momentum', lastbutton: 'crush', codex: 'souls', tyrant: 'might', ashbringer: 'burn', othercloak: 'aegis', firsthand: 'thunder' };
+
+  // ---------- 4.0: companions' traits (DESIGN §5.4): a recruit is a class plus one of these ----------
+  //   dmg/hp/spd/crit/heal: that companion's own; party: the whole party's damage; luck: the loot moment's luck
+  G.TRAITS = {
+    veteran: { name: 'Veteran', desc: '+25% damage', dmg: 0.25 },
+    stalwart: { name: 'Stalwart', desc: '+40% health', hp: 0.4 },
+    swift: { name: 'Swift', desc: '+20% attack speed', spd: 0.2 },
+    lucky: { name: 'Lucky', desc: '+5% crit', crit: 0.05 },
+    medic: { name: 'Medic', desc: 'Heals +50%', heal: 0.5 },
+    bannerman: { name: 'Bannerman', desc: '+5% party damage', party: 0.05 },
+    scavenger: { name: 'Scavenger', desc: 'Loot moment luck +0.1', luck: 0.1 },
+    zealot: { name: 'Zealot', desc: '+40% damage, -20% health', dmg: 0.4, hp: -0.2 },
+  };
+  G.TRAIT_IDS = Object.keys(G.TRAITS);
+
+  // ---------- 4.0: doors (DESIGN §5.6): each land's map mod (the risk) and reward tag ----------
+  //   land: fields merged into G.landNow() (the count knobs hero.js and world.js read: thick, loot, mobHp, speed, bite,
+  //   hoard, noMend, gold); emb: this land's Embers into the pouch x(1+emb); rar: the loot moment's rarity +n; lordCards:
+  //   more cards at its lord's loot moment; cards: more card offers at its lord; affix: its lord +n affix
+  G.MAP_MODS = {
+    calm: { w: 30, name: 'Calm', desc: 'No twist', land: null },
+    thick: { w: 10, name: 'Thick', desc: '+40% density, +25% items', land: { thick: 1.4, loot: 1.25 } },
+    armored: { w: 10, name: 'Armored', desc: '+30% Horde health, loot rarity +1', land: { mobHp: 1.3 }, rar: 1 },
+    swift: { w: 10, name: 'Swift', desc: 'Horde +25% speed, Embers +30%', land: { speed: 1.25 }, emb: 0.3 },
+    hexed: { w: 10, name: 'Hexed', desc: 'Bites +30%, +1 card at the lord', land: { bite: 1.3 }, cards: 1 },
+    elite: { w: 10, name: 'Elite Lord', desc: 'Lord +1 affix, +1 lord loot card', land: null, affix: 1, lordCards: 1 },
+    treasure: { w: 10, name: 'Treasure', desc: 'Hoarders x3', land: { hoard: 3 } },
+    nomend: { w: 10, name: 'No Mending', desc: 'Mend off, Embers +50%', land: { noMend: 1 }, emb: 0.5 },
+  };
+  G.REWARD_TAGS = {
+    battle: { w: 30, name: 'Battle', desc: 'Gold +25%', land: { gold: 1.25 } },
+    elite: { w: 20, name: 'Elite', desc: 'A Land Champion in zone 1: its kill pays a Key and a legendary loot card' },
+    treasure: { w: 15, name: 'Treasure', desc: '+1 loot card at each boss, a golden chest in zone 1', bossCards: 1 },
+    shrine: { w: 15, name: 'Shrine', desc: 'A Power shrine at the start, shrines every 55 s', land: { shrine: 2 } },
+    merchant: { w: 10, name: 'Merchant', desc: 'A merchant mid-land' },
+    mystery: { w: 10, name: 'Mystery', desc: 'Something strange mid-land' },
+  };
+
+  // ---------- 4.0: shrines (DESIGN §5.8): charged by holding the Hand on them 2 s ----------
+  G.SHRINE_KINDS = {
+    power: { w: 35, col: '#ffd84a', name: 'Shrine of Power', desc: 'Pick 1 of 3 run boons' },
+    chance: { w: 20, col: '#7fe9ff', name: 'Shrine of Chance', desc: 'Pay 15% of your gold: a boon, a better loot card, or nothing' },
+    pact: { w: 25, col: '#b36bff', name: 'Shrine of Pacts', desc: 'A curse now, a reward at the lord' },
+    fury: { w: 20, col: '#ff4f7e', name: 'Shrine of Fury', desc: '15 s of Frenzy, Greed, Storm or Slaughter' },
+  };
+  // the run boons a Power shrine offers (the old blessing cards' effects: they last the rest of the run)
+  G.BOONS = {
+    dmg: { name: '+10% damage', fx: (n, d) => { d.heroMult *= 1 + 0.1 * n; } },
+    spd: { name: '+10% attack speed', fx: (n, d) => { d.spdMult *= 1 + 0.1 * n; } },
+    hp: { name: '+15% health', fx: (n, d) => { d.hpMult *= 1 + 0.15 * n; } },
+    crit: { name: '+3% crit', fx: (n, d) => { d.crit += 0.03 * n; } },
+    gold: { name: '+20% gold', fx: (n, d) => { d.goldMult *= 1 + 0.2 * n; } },
+    xp: { name: '+15% XP', fx: (n, d) => { d.xpMult = (d.xpMult || 1) * (1 + 0.15 * n); } },
+    reroll: { name: '+1 card reroll', once: 1 },
+  };
+  // Pacts: a curse now, a reward at the lord (blood, greed, hunt: this land; glass: the rest of the run)
+  G.PACTS = {
+    blood: { name: 'Blood Pact', desc: 'Horde +50% health in this land; the lord’s loot +1 rarity and +1 card', land: { mobHp: 1.5 } },
+    glass: { name: 'Glass Pact', desc: 'x0.6 health, x1.4 damage for the rest of the run' },
+    greed: { name: 'Greed Pact', desc: 'Bites +40% in this land; gold x2.5 in this land', land: { bite: 1.4, gold: 2.5 } },
+    hunt: { name: 'Hunt Pact', desc: 'A second Land Champion now: +1 Key and a 20% unique card at the lord' },
+  };
 
   // Land mastery: three stars per land, kept forever. 4.0: cosmetic completion marks (+1 Gem each): no hidden power
   G.STAR_BONUS = 0;
@@ -538,12 +626,15 @@
   ];
 
   // ---------- Wisp buffs (golden-cookie style event) ----------
+  // 4.0: the Golden Clicks (DESIGN §5.8): Frenzy (gold x7 and party damage x1.5 for 20 s), Loot Storm (+1 card at the next
+  // loot moment, a rare floor), Chest Rain, Click Storm, an egg. (lucky stays for old readers, weight 0)
   G.WISP_EFFECTS = [
-    { id: 'frenzy', w: 40, name: 'Frenzy! Gold ×7', dur: 20 },
-    { id: 'rain',   w: 24, name: 'Chest Rain!' },
-    { id: 'lucky',  w: 24, name: 'Lucky! A sack of gold' },
-    { id: 'storm',  w: 10, name: 'Click Storm! Click ×77', dur: 10 },
-    { id: 'egg',    w: 2,  name: 'A pet egg!' },
+    { id: 'frenzy', w: 40, name: 'Frenzy! Gold ×7, damage ×1.5', dur: 20 },
+    { id: 'lootstorm', w: 25, name: 'Loot Storm! +1 card at the next loot moment' },
+    { id: 'rain',   w: 20, name: 'Chest Rain!' },
+    { id: 'storm',  w: 14, name: 'Click Storm! Click ×77', dur: 10 },
+    { id: 'egg',    w: 1,  name: 'A pet egg!' },
+    { id: 'lucky',  w: 0,  name: 'Lucky! A sack of gold' },
   ];
 
   // ---------- Daily login rewards (7-day cycle) ----------

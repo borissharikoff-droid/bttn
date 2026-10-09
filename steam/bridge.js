@@ -53,6 +53,14 @@
       stmImport: 'Import', stmFile: 'From a file…', stmFresh: 'Start fresh', stmBad: 'That code did not load. Copy the whole code and try again.',
       stmToFile: 'Save to file…', stmFromFile: 'Load from file…', stmSavedFile: 'Saved to file.',
     });
+    // Russian, for the i18n stream's G.addStrings (ADDENDUM 10); readable in G.STR_RU either way
+    const RU_STR = {
+      stmBring: 'Перенеси сохранение из браузера', stmBringHint: 'Играл в BTTN в браузере? Там: Настройки → Сохранение → Экспорт, потом «Копировать». Вставь код сюда.',
+      stmImport: 'Импорт', stmFile: 'Из файла…', stmFresh: 'Начать заново', stmBad: 'Код не загрузился. Скопируй код целиком и попробуй ещё раз.',
+      stmToFile: 'Сохранить в файл…', stmFromFile: 'Загрузить из файла…', stmSavedFile: 'Сохранено в файл.',
+    };
+    G.STR_RU = Object.assign(G.STR_RU || {}, RU_STR);
+    try { if (G.addStrings) G.addStrings('ru', RU_STR); } catch (e) {}
     // ---------- 4. achievements ----------
     const done = {};
     const unlock = id => { if (!id || done[id]) return; done[id] = 1; try { ST.ach(api(id)); } catch (e) {} };
