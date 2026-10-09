@@ -465,10 +465,18 @@
 
   function loop(now) {
     if (!show) return;
-    const dt = Math.min(0.05, Math.max(0, (now - show.last) / 1000));
+    // (a slow device: the frame's time is stepped in <= 0.05-s pieces, up to 0.15 s a frame, so the show keeps pace with
+    // its score (scheduled on the audio clock) down to ~7 fps instead of stretching; a longer stall is not counted)
+    let left = Math.min(0.15, Math.max(0, (now - show.last) / 1000));
     show.last = now;
-    show.prev = show.t; show.t += dt;
-    try { if (show.belt) { stepBelt(dt); if (show) drawBelt(); } else { step(dt); if (show) draw(); } } catch (e) { console.error(e); finish(); return; }
+    try {
+      do {
+        const dt = Math.min(0.05, left); left -= dt;
+        show.prev = show.t; show.t += dt;
+        if (show.belt) stepBelt(dt); else step(dt);
+      } while (show && left > 1e-6);
+      if (show) { if (show.belt) drawBelt(); else draw(); }
+    } catch (e) { console.error(e); finish(); return; }
     if (show) requestAnimationFrame(loop);
   }
   const passed = k => show.prev < k && show.t >= k;

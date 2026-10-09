@@ -120,7 +120,10 @@
   // ---------- 3.6: the stage's place on the screen, cached (no layout reads every frame) ----------
   // (read in St.readLayout at the start of a frame, before anything writes to the page, so it never forces a layout)
   let rectC = null, rectT = -1, wrapC = null, layT = -9;
+  const NORECT = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
   function stageRect() {
+    // (before the stage exists - e.g. a 'lootMoment' resumed at page load - a zero rect, never a throw)
+    if (!cv) return NORECT;
     if (!rectC) { rectC = cv.getBoundingClientRect(); rectT = time; }
     return rectC;
   }
@@ -941,17 +944,17 @@
     // 4.0: the keyboard's way to a shrine - hold H (the Hand's key) while one stands on the field: it charges as if the
     // Hand were on it (2 s in a Siege; outside a Siege the 3.x claim at once). Let go (or the window loses focus) drains it.
     // Only on the field: a run screen over it, a modal, a text field or the town keep H for themselves.
-    const keyEnd = () => { if (FF.charge && FF.charge.key) { FF.charge = null; if (G.R.shrine && G.shrineLeave) G.shrineLeave(); } };
+    const keyEnd = () => { keyH = false; if (FF.charge && FF.charge.key) { FF.charge = null; if (G.R.shrine && G.shrineLeave) G.shrineLeave(); } };
     window.addEventListener('keydown', e => {
       if (e.code !== 'KeyH' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
       const tg = e.target;
       if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;
-      if (!G.R.shrine || G.R.town || (G.uiBusy && G.uiBusy())) return;
-      if (inSiege() && G.shrineHold) {
-        if (runP() !== 'field' || (G.runHeld && G.runHeld())) return;
-        e.preventDefault();
-        if (!FF.charge || !FF.charge.key) FF.charge = { on: false, k: 0, key: true };
-      } else if (!e.repeat) { e.preventDefault(); G.Audio && G.Audio.unlock(); G.useShrine('hand'); }
+      // (held: shrineChargeStep starts the charge as soon as a shrine stands and the field is free - a key pressed a beat
+      // before the shrine came, or while a card was closing, still counts)
+      keyH = true;
+      if (!G.R.shrine || G.R.town) return;
+      e.preventDefault();
+      if (!(inSiege() && G.shrineHold) && !e.repeat && !(G.uiBusy && G.uiBusy())) { G.Audio && G.Audio.unlock(); G.useShrine('hand'); }
     });
     window.addEventListener('keyup', e => { if (e.code === 'KeyH') keyEnd(); });
     window.addEventListener('blur', keyEnd);
@@ -4144,6 +4147,7 @@
   const inSiege = () => !!(G.inSiege && G.inSiege());
   const runP = () => { const r = G.S.run; return r && r.on ? r.phase : null; };
   // a mouse (not a finger): the shrine names its key (asked once; a device does not change its main pointer mid-game)
+  let keyH = false; // the H key held (the keyboard's shrine charge)
   let fineP = null;
   const finePtr = () => { if (fineP == null) { try { fineP = !!(window.matchMedia && window.matchMedia('(pointer: fine)').matches); } catch (e) { fineP = false; } } return fineP; };
   const RBW = ['#ff4f4f', '#ffa033', '#ffd84a', '#56d45a', '#4fd0ff', '#5a7bff', '#b36bff', '#ff6ad8'];
@@ -4362,6 +4366,8 @@
 
   // ---------- the shrine: hold the Hand on it for 2 s (DESIGN §5.8); its ring fills, the light gathers in ----------
   function shrineChargeStep(dt) {
+    // (H held: the keyboard's charge starts once a shrine stands on a free field)
+    if (keyH && !FF.charge && G.R.shrine && inSiege() && G.shrineHold && runP() === 'field' && !G.R.town && !(G.runHeld && G.runHeld()) && !(G.uiBusy && G.uiBusy())) FF.charge = { on: false, k: 0, key: true };
     const c = FF.charge;
     if (!c) return;
     if (!G.R.shrine) { FF.charge = null; return; }

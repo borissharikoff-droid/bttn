@@ -157,7 +157,7 @@
     clearTimeout(irc.timer); irc.timer = null; irc.retryAt = 0;
     const ws = irc.ws; irc.ws = null; irc.joined = false;
     if (ws) { try { ws.onclose = null; ws.close(); } catch (e) { /* gone already */ } }
-    if (!keep) { irc.ch = ''; irc.tries = 0; setState('off'); endVote(false); }
+    if (!keep) { irc.ch = ''; irc.tries = 0; setState('off'); endVote(false, true); }
   }
   St.connect = () => { const c = cfg(); return c.on ? connect(c.ch) : false; };
   St.disconnect = () => disconnect();
@@ -285,10 +285,13 @@
     V.drawn = key; V.dirty = 0;
     safe(() => RU().voteTally(V.kind, V.counts.slice(), secs));
   }
-  function endVote(take) {
+  // (back: streamer mode switched off mid-window - the choice stays on screen, so its own clock gets its touch back as if
+  // chat had never held it: an auto-pick or the loot ring runs again instead of waiting for a click forever)
+  function endVote(take, back) {
     if (!V) return;
     const v = V; V = null; lastDone = v.obj; lastSig = v.sig;
     safe(() => RU() && RU().voteTally && RU().voteTally(v.kind, null));
+    if (back && !v.prevTouch && v.obj) v.obj.touch = 0;
     if (!take) return;
     const tot = v.counts.reduce((a, x) => a + x, 0);
     if (!tot) { if (!v.prevTouch && v.obj) v.obj.touch = 0; return; }
@@ -429,7 +432,7 @@
   function tick() {
     const c = cfg(), key = c.on + '|' + c.ch;
     if (key !== lastCfg) { lastCfg = key; sync(true); if (!c.on) feedClear(); }
-    if (!c.on) { if (V) endVote(false); pend.length = 0; namesSync(); return; }
+    if (!c.on) { if (V) endVote(false, true); pend.length = 0; namesSync(); return; }
     if (!c.feed && feedEl && feedEl.childElementCount) feedClear();
     const ch = choiceNow();
     if (V) {
@@ -660,8 +663,9 @@
 .stSet .stStatus[data-state=live]{color:var(--good)}
 .stSet .stStatus[data-state=wait],.stSet .stStatus[data-state=err],.stSet .stStatus[data-state=bad]{color:var(--bad)}
 .stSet .stStatus[data-state=conn]{color:var(--gold)}
-.stSet .stSeg .seg{flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end;margin-left:auto}
-.stSet .stSeg .seg button{white-space:nowrap}
+/* (the switches of a kind as one full-width strip under their label: five vote kinds fit a 360-px phone on one line) */
+.stSet .stSeg .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;flex:1 1 100%;margin-left:0}
+.stSet .stSeg .seg button{white-space:nowrap;padding-left:2px;padding-right:2px;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .stSet .stCodeV{display:flex;gap:8px;align-items:center;flex:1 1 220px;justify-content:flex-end;min-width:0}
 .stSet .stCodeV b{font:8px/1.4 var(--font-display);color:var(--gold);overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
 .stSet .stCodeV .btn{flex:none}
