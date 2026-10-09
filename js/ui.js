@@ -298,7 +298,8 @@
     // It never covers a run screen or a card offer waiting between two beats)
     const r = G.S.run;
     if (G.inSiege && !(r && r.on)) return;
-    if (r && r.on && ((+r.beatAfter || 0) > 0 || r.autoAgain)) { UI.toast(`<b>${esc(t('chTitle', slot + 1, G.REALMS[li].name))}</b>`, 'ach', 'ic_star', { k: 'chapter', p: 0 }); return; }
+    // (the finale - the Last Stand, the Mad Button - is no place for a story window either: it would pause the Stand)
+    if (r && r.on && ((+r.beatAfter || 0) > 0 || r.autoAgain || G.R.lastStand || (G.R.boss && G.R.boss.final))) { UI.toast(`<b>${esc(t('chTitle', slot + 1, G.REALMS[li].name))}</b>`, 'ach', 'ic_star', { k: 'chapter', p: 1 }); return; }
     if (!$('#modal').hidden || (G.relicShow && G.relicShow()) || G.R.boss || (G.runHeld && G.runHeld()) || (r && r.offer) || (G.RunUI && G.RunUI.busy && G.RunUI.busy())) { whenFree(() => UI.chapter(li, slot), { dir: true, secs: 5 }); return; }
     // (4.0: the road is chosen at the doors, so the card tells the land's story, not the next stop; the Torment line went;
     // its number is the land's place in this Siege)
@@ -545,6 +546,26 @@
       const opens = un && un.length ? ` · <span class="unl">${esc(t('unlOpens', ''))}${unlLine(un)} <small>(${esc(unlWhen())})</small></span>` : '';
       if (d.ach) { if (un && un.length) UI.toast(`<span><b>${esc(t('unlTitle'))}</b> · <span class="unl">${unlLine(un)} <small>(${esc(unlWhen())})</small></span></span>`, 'ach', 'ic_key', { k: 'unl' }); return; }
       UI.toast(`<span>${esc(t('deedDone'))}: <b>${esc(L(d.name))}</b>${opens}</span>`, 'ach', 'ic_trophy', { k: 'deed' });
+    });
+    // 4.0 (js/blessings.js): the run's Button evolves mid-Siege (its secret recipe met): the big moment - the Button
+    // morphs into its evolved colour, the new rule, NEW the first time ever (the Codex's recipe book names it). The Gold
+    // recipe opens THE GOLDEN BUTTON for good instead (the run doesn't change). It waits for the field: never behind the
+    // loot moment, a card or a covering run screen (stale after 30 s: a toast). run_ui may draw its own one day
+    // (G.RunUI.btnEvolve): then this stands back
+    G.on('btnEvolve', (base, evo, first) => {
+      dirtyTab('recipes'); dirtyTab('buttons');
+      if (G.RunUI && G.RunUI.btnEvolve) return;
+      const E = G.BUTTON_EVOS && G.BUTTON_EVOS[evo]; if (!E) return;
+      const B = btnInfo(base), nm = hasStr('bevo_' + evo + '_n') ? t('bevo_' + evo + '_n') : E.name, rule = hasStr('bevo_' + evo + '_r') ? t('bevo_' + evo + '_r') : E.rule || '';
+      const gold = evo === 'golden', title = gold ? t('btn_golden') : t('btn_evolved', String(B.name).replace(/\s+Button$/i, '').toUpperCase(), nm);
+      const col = E.col || '#ffd84a';
+      const html = `<div class="inner ultB bevoB" style="color:${col}"><h2 class="rbw">${esc(title)}</h2>
+        <div class="bevoMorph"><img src="${btnSpr(B.base)}" alt=""><i>➜</i><img class="to" src="${btnSpr(col)}" alt="" style="filter:drop-shadow(0 0 14px ${col})"></div>
+        <p class="rbw">${esc(nm)}</p>${rule ? `<p class="sub">${esc(rule)}</p>` : ''}${first ? `<p class="sub"><b class="bevoNew">${esc(t('newPet'))}</b> · ${esc(t('bevoBook'))}</p>` : ''}</div>`;
+      // (it outranks the loot banners in the queue (p 2: never the one dropped first) and waits out a boss fight itself)
+      const runUp = () => { const r = G.S.run; return !!((r && r.on && ((r.phase && r.phase !== 'field') || r.offer || r.loot)) || G.R.boss); };
+      const snd = () => { if (G.Audio.lootUltra) G.Audio.lootUltra(gold ? 'divine' : 'mythic'); else if (G.Audio.evolve) G.Audio.evolve(); else G.Audio.achievement(); };
+      UI.bannerShow(html, 3600, { p: 2, stale: 60000, wait: runUp, show: snd, late: () => { UI.toast(`<span><b class="rbw">${esc(title)}</b>${gold ? '' : ' · ' + esc(nm)}</span>`, 'ach', 'ic_star', { k: 'bevo' }); try { G.Audio.achievement(); } catch (e) { /* optional */ } } });
     });
     G.on('unlock', (kind, id, deed) => { if (deed) return; UI.toast(`<span><b>${esc(t('unlTitle'))}</b> · ${esc(G.unlockName ? G.unlockName(kind, id) : id)}</span>`, 'ach', 'ic_key', { k: 'unl' }); dirtyTab('buttons'); });
     G.on('questDone', q => UI.toast(`<b>${esc(t('questDone'))}</b>`, '', 'ic_scroll', { k: 'quest', p: 0 }));
@@ -3337,6 +3358,7 @@
   const bannerQ = [];
   let bannerBusy = false, bannerTm = 0, bannerUpAt = 0;
   UI.bannerBusy = () => bannerBusy;
+  UI.bannerQueue = () => bannerQ.length; // (tests)
   function bannerHard() { return !!((G.uiBusy && G.uiBusy()) || G.R.town || (G.relicShow && G.relicShow())); }
   let cardSeenAt = -1e9;
   function bannerSoft(b) {
@@ -3383,12 +3405,13 @@
     if (!b) return;
     // a window, the town, a relic, the field's own title card, a champion's card or (loot) a boss fight hold it;
     // past its stale time it goes (a loot banner as a line in the corner)
-    if (bannerHard() || bannerSoft(b)) { bannerTm = setTimeout(pumpBanner, 250); return; }
+    if (bannerHard() || bannerSoft(b) || (b.wait && b.wait())) { bannerTm = setTimeout(pumpBanner, 250); return; }
     bannerQ.shift();
     const el = $('#banner');
     bannerBusy = true; bannerUpAt = now;
     el.innerHTML = b.html; el.hidden = false; el.classList.remove('out');
     toastsYield(true);
+    if (b.show) { try { b.show(); } catch (e) { /* its sound is optional */ } }
     placeBanner(el);
     // (its art may land a frame later and make it taller: then it fits itself again)
     for (const im of el.querySelectorAll('img')) if (!im.complete) im.addEventListener('load', () => { if (!el.hidden) placeBanner(el); }, { once: true });
@@ -3396,11 +3419,12 @@
     if (G.director && G.director.mark) { try { G.director.mark('card', ms / 1000); } catch (e) { /* the director is optional */ } }
     setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.hidden = true; el.innerHTML = ''; bannerBusy = false; pumpBanner(); }, 400); }, ms);
   }
-  // UI.bannerShow(html, ms, { p: 0 can wait out a boss fight, late: what to do when it went stale, stale: ms })
+  // UI.bannerShow(html, ms, { p: 0 can wait out a boss fight, late: what to do when it went stale, stale: ms, wait: () => bool
+  // holds it while true (4.0: a run screen over the field, e.g. the loot moment), show: called as it shows (its sound) })
   UI.bannerShow = function (html, ms, o) {
     o = o || {};
     if (bannerQ.length > 2) { const i = bannerQ.findIndex(x => x.p <= 0); const d = bannerQ.splice(i >= 0 ? i : 0, 1)[0]; if (d && d.late) d.late(); }
-    bannerQ.push({ html, ms: ms || 2000, p: o.p != null ? o.p : 1, late: o.late, stale: o.stale, t0: performance.now() });
+    bannerQ.push({ html, ms: ms || 2000, p: o.p != null ? o.p : 1, late: o.late, stale: o.stale, wait: o.wait, show: o.show, t0: performance.now() });
     pumpBanner();
   };
   // (4.0: with the rolled piece g: its rainbow name for a mythic or divine, its Marks named)

@@ -809,9 +809,9 @@
   // 4.0 (DESIGN §4.5): each level is mostly an unlock now, not a percentage (no hidden power). What each sets on D, and who
   // reads it: forge I enchantAll (G.enchantAll at camp and in the menu), II reforge (camp), III salvOrbs (an orb a 40
   // shards salvaged), IV lordCard (+1 card at a lord's loot moment), V legendPk (a run's first legendary rolls a perk
-  // rank). tavern I recruitN 4 (camp candidates), II recruitArmor, III allyDmgK 1.15, IV allyHpK 1.15, V startAlly (a
+  // rank). tavern I recruitN 4 (camp candidates), II recruitArmor, III allyDmgK 1.1, IV allyHpK 1.15, V startAlly (a
   // companion from the start). enchant I gambleWare (camp market), II enchantK 0.8, III whet2 (lords' whetstones x2), IV
-  // ruinSafe, V crit power +0.1. alch I-V startPots 1/1/2/2/3 (II: mendBonus +1 Mend charge a run; IV: potion caps +2).
+  // ruinSafe, V crit power +0.05. alch I-V startPots 1/1/2/2/3 (II: mendBonus +1 Mend charge a run; IV: potion caps +2).
   // barracks: offline Embers cap (offHours 4-12 h; G.barracksRate). museum I keepSlots 1, II/IV the Codex rank cap 3/4
   // (G.codexCap), III uqK 1.2 (unique chances), V itemEmb 1.1 (item Embers). quests: the run deeds board (the meta's).
   // stars (Observatory): Star Chart nodes visible 8/16/24/32/37 (G.nodeVisible). pets (Hatchery): II/IV eggMult 1.5/2,

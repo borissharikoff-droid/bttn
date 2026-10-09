@@ -1508,7 +1508,9 @@
       emit('relicOffer', r.relicOffer, ctx);
       return true;
     },
-    tick(dt) { const o = runOf().relicOffer; if (!o) { G.beatDone('relic'); return; } if (!o.touch) o.t += dt; if (G.runUI && o.t >= G.beatAfter()) G.relicPick(0, 0); },
+    // (runflow: left untouched, the first relic goes on the belt; a full belt is kept as it is - a timeout never throws
+    // away a relic the player chose)
+    tick(dt) { const o = runOf().relicOffer; if (!o) { G.beatDone('relic'); return; } if (!o.touch) o.t += dt; if (G.runUI && o.t >= G.beatAfter() && !G.relicPick(0)) G.relicSkip(); },
     auto() { const r = runOf(); if (r.relicOffer && !G.relicPick(0, r.belt.length >= r.beltMax ? 0 : undefined)) G.relicSkip(); },
     resume() { if (!runOf().relicOffer) G.beatDone('relic'); },
   });
@@ -1667,6 +1669,8 @@
     for (const m of R.mobs || []) m.dead = true;
     R.boss = null; R.bossReady = false; R.bossIn = null; R.bossHold = 0; R.march = null; R.combo = 0; R.wisp = null; R.wave = null;
     R.lastStand = null; R.doomAt = null; R.ward = 0; R.cine = 0; R.zoneT = 0; R.runRng = null; R.rngS = null; R.rngKey = null; R.dpsAvg = null;
+    // (the finale's crowd cap, if the run ended inside it: the page's own mobMax back)
+    finaleCrowdOff();
     if (R.pw) for (const k in R.pw) R.pw[k] = 0;
     if (R.town) { R.town = false; emit('town', false); }
     if (G.worldClear) G.worldClear();
@@ -1981,8 +1985,29 @@
   Object.assign(TUNE, { lastStand: 75, lastStandRetry: 30, lsEvery: 0.45, lsCaps: [850, 600, 400], lsKeep: 1 });
   G.lastStandCap = function () {
     const Q = G.Quality, t = Q && Q.tier != null ? Q.tier | 0 : 0, k = t <= 0 ? 0 : t >= 3 ? 2 : 1;
-    return Math.max(40, Math.min(TUNE.lsCaps[k] || TUNE.lsCaps[0], TUNE.mobMax || 850));
+    return Math.max(40, Math.min(TUNE.lsCaps[k] || TUNE.lsCaps[0], mobMax0() || 850));
   };
+  // (runflow: the tier's cap holds the WHOLE crowd while the finale is on - the Stand, its retry and the Mad Button's fight -
+  // not only the Golden Horde's packs: hero.js's own waves, the boss's adds, events and champions fill the field to its
+  // crowd cap. So for that time TUNE.mobMax is the tier's cap (R.lsMobMax keeps the page's own, put back after): hero.js's
+  // 3.6 crowd rule (crowdUpdate: base = min(mobMax, mobRef), crowdK = mobRef / base) then fields fewer, heavier small bodies
+  // - hit points, bites, gold and XP follow the weight - so it is the same fight on every tier, with fewer bodies to draw.
+  // Measured before (tests/runflow/ls_perf.js): a 600 cap let the crowd sit at p95 799 / max 850, a 400 cap p95 578)
+  const mobMax0 = () => (R.lsMobMax != null ? R.lsMobMax : TUNE.mobMax);
+  function finaleCrowd() {
+    const r = runOf();
+    if (!(r && r.on && !r.push && (R.lastStand || (R.boss && R.boss.final)))) { finaleCrowdOff(); return; }
+    if (R.lsMobMax == null) R.lsMobMax = TUNE.mobMax;
+    // (the page lowered its own cap meanwhile (a narrow window): that is the one to put back)
+    else if (TUNE.mobMax !== R.lsMobSet) R.lsMobMax = TUNE.mobMax;
+    TUNE.mobMax = R.lsMobSet = Math.min(R.lsMobMax, R.lastStand ? R.lastStand.cap : G.lastStandCap());
+  }
+  function finaleCrowdOff() {
+    if (R.lsMobMax == null) return;
+    if (TUNE.mobMax === R.lsMobSet) TUNE.mobMax = R.lsMobMax;
+    R.lsMobMax = null; R.lsMobSet = null;
+  }
+  G.finaleCrowdOff = finaleCrowdOff;
   G.lastStandDue = () => { const S = S_(), r = runOf(); return !!(r && r.on && !r.push && S.depth === SG().final && !R.lastStand && !r.lsReady && !R.boss); };
   G.lastStandStart = function () {
     const r = runOf();
@@ -1997,11 +2022,12 @@
   };
   if (G.hook) G.hook('tick', dt => {
     const L = R.lastStand, r = runOf();
+    if (L) L.cap = G.lastStandCap();
+    if (L || R.lsMobMax != null || (R.boss && R.boss.final)) finaleCrowd();
     if (!L) return;
     if (!r || !r.on) { R.lastStand = null; return; }
     L.t -= dt;
-    // (the quality governor may step while it runs: the cap follows it)
-    L.cap = G.lastStandCap();
+    // (the quality governor may step while it runs: the cap follows it, above)
     if (G.hordeLoop) L.packs += G.hordeLoop(L, dt, L.cap, L.every);
     else { L.acc += dt; while (L.acc >= L.every && R.mobs.length < L.cap) { L.acc -= L.every; if (G.spawnPack) G.spawnPack(false, G.rng()); L.packs++; } if (L.acc >= L.every) L.acc = 0; }
     if (L.t <= 0) {

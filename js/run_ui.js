@@ -103,6 +103,14 @@
     ru_hudPips: 'Integrity: a wipe or a lost lord fight cracks one; a lord gives one back', ru_hudPouch: 'Embers in the pouch', ru_hudPace: 'Pace against par',
     ru_onPace: 'on pace', ru_hudMend: 'Mend charges', ru_hudKeys: 'Keys', ru_hudHeat: 'Heat', ru_hudBelt: 'Relic belt', ru_newSiegeBtn: 'NEW SIEGE',
     ru_ls: 'LAST STAND', ru_lsSub: 'Hold out: {0}', ru_lsRetry: 'The Mad Button returns: {0}',
+    // (continuation 3: runflow's doors at the setup, codes, the Daily's doors, the Push, the Reaper, the Hunt, the summary's extras)
+    ru_champLine: 'Champion: {0}', ru_cursedTag: 'CURSED', ru_firstDoorHint: 'Its twist and its prize come with it', ru_heat8: 'Heat 8: one door is cursed',
+    ru_codeRun: '{0} · Heat {1}', ru_codeDoors: 'Its first land:', ru_codeLocked: '{0} is locked here: Classic instead', ru_dailyDoor: 'First land:',
+    ru_mad: 'THE MAD BUTTON', ru_madSub: 'It walks into the standing Horde', ru_pushOnT: 'PUSH ON · the win is banked: +{0} Fame · +{1} Embers',
+    ru_pushLandT: 'Push land {0}: {1} · pays ×{2}', ru_tideUp: 'The Tide rises: the Horde ×{0}', ru_hudTide: 'The Tide: the Horde grows each Push minute', ru_hudPush: 'Push land {0}',
+    ru_reaperOn: 'THE REAPER bites ×{0}: catch up with par', ru_reaperOff: 'The Reaper falls back', ru_hudReaper: 'Heat 7: more than 2 minutes behind par, the Horde bites harder',
+    ru_hunt: 'THE HUNT: {0} comes for you', ru_golden: 'Golden Clicks {0}', ru_shrinesN: 'Shrines {0}', ru_replay: 'Replay · unranked', ru_swift: 'Under par',
+    ru_unl_swift: 'Swift sticker: {0} · Heat {1}', ru_pays: 'pays ×{0}', ru_keepRank: 'Rank {0}/{1}', ru_keepTheme: '+{0} {1} ranks',
   });
 
   // ---------- CSS ----------
@@ -157,6 +165,12 @@
 @keyframes ruBump{40%{transform:scale(1.25);filter:brightness(1.6)}}
 #ruHud .rhPace.behind{color:#ff8a7a}#ruHud .rhPace.ahead{color:#8ae07a}
 #ruHud .rhHeat{color:#ff9a4a}
+#ruHud .rhTide{color:#c8a0ff}#ruHud .rhReaper{color:#ff6a6a;animation:ruPulse 1s steps(2) infinite}
+#ru .ruBanner{position:fixed;z-index:5;left:50%;transform:translate(-50%,-50%);pointer-events:none;text-align:center;white-space:nowrap;animation:lmSlam 2.4s cubic-bezier(.2,1.5,.4,1) forwards}
+#ru .ruBanner b{display:block;font:26px/1.1 var(--font-display);letter-spacing:.06em;color:#ff4f4f;text-shadow:3px 3px 0 var(--ink),0 0 18px #ff2a2a}
+#ru .ruBanner small{display:block;margin-top:6px;font:9px/1.3 var(--font-display);color:#ffe0c0;text-shadow:2px 2px 0 var(--ink)}
+#ru .ruBanner.push b{color:#d8b8ff;text-shadow:3px 3px 0 var(--ink),0 0 18px #9146ff}
+@media (max-width:600px){#ru .ruBanner b{font-size:17px}#ru .ruBanner small{font-size:7px;white-space:normal;width:86vw}}
 #ruHud .rhBelt{gap:2px;cursor:pointer;padding:0 2px}
 #ruHud .rhBelt img{width:14px;height:14px}
 #ruHud .rhCode{color:#c8b4ff;font-size:7px}
@@ -385,6 +399,7 @@
     hud.innerHTML = `<span class="rhPips" title="${esc(t('ru_hudPips'))}"></span><span class="rhPouch" title="${esc(t('ru_hudPouch'))}">${img('ic_ember', 2)}<b>0</b></span>`
       + `<span class="rhPace" title="${esc(t('ru_hudPace'))}">${img('ic_clock', 1)}<b>0:00</b></span><span class="rhMend" title="${esc(t('ru_hudMend'))}">${img('ic_heart', 1)}<b>0</b></span>`
       + `<span class="rhKeys" title="${esc(t('ru_hudKeys'))}" hidden>${img('ic_key', 1)}<b>0</b></span><span class="rhHeat" title="${esc(t('ru_hudHeat'))}" hidden></span>`
+      + `<span class="rhTide" title="${esc(t('ru_hudTide'))}" hidden>${img('ic_rift', 1)}<b></b></span><span class="rhReaper" title="${esc(t('ru_hudReaper'))}" hidden>${img('ic_skull', 1)}<b></b></span>`
       + `<span class="rhBelt" title="${esc(t('ru_hudBelt'))}" hidden></span><span class="rhCode" hidden></span>`;
     // (after the land strip's own lines: depth, omen, rival, goal)
     realm.appendChild(hud);
@@ -444,6 +459,9 @@
     setT(hud.querySelector('.rhMend b'), (r.mend | 0) + '/' + (r.mendMax | 0));
     const ke = hud.querySelector('.rhKeys'); setH(ke, !(r.keys > 0)); if (r.keys > 0) setT(ke.querySelector('b'), String(r.keys | 0));
     const he = hud.querySelector('.rhHeat'); setH(he, !(r.heat > 0)); if (r.heat > 0) setT(he, 'H' + (r.heat | 0));
+    // (runflow: a Push's land and Tide; Heat 7's Reaper while it bites)
+    const te = hud.querySelector('.rhTide'); setH(te, !r.push); if (r.push) setT(te.querySelector('b'), 'P' + Math.max(1, (G.runSlot ? G.runSlot() : 0) - G.SIEGE.lands + 1) + ' ×' + (G.runTide ? (+G.runTide()).toFixed(2) : '1.00'));
+    const rk = r.reaperStep > 0 && G.runReaper ? +G.runReaper() : 1, re_ = hud.querySelector('.rhReaper'); setH(re_, !(rk > 1)); if (rk > 1) setT(re_.querySelector('b'), '×' + rk.toFixed(2));
     const beltK = (r.belt || []).join(',');
     if (hudKey.belt !== beltK) {
       hudKey.belt = beltK;
@@ -478,6 +496,33 @@
   ['key', 'mendCharge', 'relicPick', 'runStart', 'runResume', 'boon'].forEach(k => G.on(k, () => hudUpdate(true)));
   G.on('lastStand', L => { hudUpdate(true); if (lsEl) { lsEl.classList.remove('slam'); void lsEl.offsetWidth; lsEl.classList.add('slam'); } sfx('horn'); });
   G.on('lastStandEnd', () => hudUpdate(true));
+  // a banner across the field (the Mad Button walking in): DOM over the stage, never in the way, gone in 2.4 s
+  function banner(title, sub, cls) {
+    ensureRoot();
+    const sw = document.getElementById('stageWrap'), rr = sw && sw.getBoundingClientRect();
+    const e = document.createElement('div'); e.className = 'ruBanner ' + (cls || '');
+    e.innerHTML = `<b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}`;
+    e.style.left = (rr && rr.width ? rr.left + rr.width / 2 : window.innerWidth / 2) + 'px';
+    e.style.top = (rr && rr.height ? rr.top + rr.height * 0.3 : window.innerHeight * 0.3) + 'px';
+    root.appendChild(e); setTimeout(() => e.remove(), 2500);
+  }
+  // runflow's moments the player must see: the Mad Button enters at once after the Last Stand (into the standing Horde),
+  // PUSH ON banks the win, each Push land and its pay, the Tide's steps, the Reaper (Heat 7), the Hunt Pact's champion
+  G.on('madButton', () => { hudUpdate(true); banner(t('ru_mad'), t('ru_madSub')); sfx('horn'); });
+  G.on('pushOn', r => { hudUpdate(true); const b = (r && r.pushBank) || {}; toast(`<b>${esc(t('ru_pushOnT', fmt(b.fame || 0), fmt(b.embers || 0)))}</b>`, 'ach', 'ic_fame', { p: 2 }); });
+  G.on('pushLand', (k, o) => {
+    hudUpdate(true);
+    const Rm = (o && G.REALMS[o.land]) || {}, slot = G.SIEGE.lands + (k | 0) - 1;
+    let nm = L(Rm.name || (o && o.name) || ''); if (G.corrupt && G.REALM_SIZE) nm = safe(() => G.corrupt(nm, slot * G.REALM_SIZE), nm);
+    toast(`<b>${esc(t('ru_pushLandT', k, nm, G.runPushMul ? (+G.runPushMul(slot)).toFixed(2) : '1'))}</b>`, 'ach', 'ic_skull', { p: 2 });
+  });
+  G.on('tide', f => { hudUpdate(true); toast(esc(t('ru_tideUp', (+f || 1).toFixed(2))), '', 'ic_skull', { k: 'tide', p: 1 }); });
+  G.on('reaper', (f, step) => {
+    hudUpdate(true);
+    if (f > 1) { toast(`<b>${esc(t('ru_reaperOn', (+f).toFixed(2)))}</b>`, 'ach', 'ic_skull', { k: 'reaper', p: 2 }); if ((step | 0) <= 1) sfx('horn'); }
+    else toast(esc(t('ru_reaperOff')), '', 'ic_clock', { k: 'reaper', p: 1 });
+  });
+  G.on('huntChamp', c => toast(`<b>${esc(t('ru_hunt', L((c && c.name) || '')))}</b>`, 'ach', 'ic_skull', { p: 2 }));
 
   // ---------- RUN SETUP (DESIGN §2.1): Button, class, keepsakes, Heat, the first door; AGAIN; a code; the Daily ----------
   CSS_PARTS.push(`
@@ -523,10 +568,42 @@
 #ru .suFirst .suCard b{font-size:10px}
 #ru .suDoor img{width:40px;height:40px}
 #ru .suDoor .lord{font:7px/1.3 var(--font-display);color:#ff9ab4}
+#ru .suDoor .suTw,#ru .suDoor .suPz,#ru .suDoor .suCh{font-size:12px;line-height:1.2;color:#ff8a6a}
+#ru .suDoor .suTw b,#ru .suDoor .suPz b{font:7px/1.3 var(--font-display);color:inherit;margin-right:4px}
+#ru .suDoor .suPz{color:#ffd84a}#ru .suDoor .suCh{color:#ffb0d0}
+#ru .suCard.cursed{box-shadow:inset 0 0 0 2px #b36bff,0 0 12px #b36bff55;background:linear-gradient(180deg,#30183e,var(--panel2))}
+#ru .suCard.cursed.on{box-shadow:inset 0 0 0 2px var(--gold),0 0 12px #b36bff88}
+#ru .suCard .drTag{top:-8px;right:4px}
+#ru .suCodeInfo{width:100%;display:flex;gap:5px;flex-wrap:wrap;justify-content:center;align-items:center;font-size:12px;color:var(--dim)}
+#ru .suCodeInfo:empty{display:none}
+#ru .suCodeInfo small{width:auto!important}
+#ru .dyDoors{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:3px}
+#ru .dyDoors small{display:inline!important}
+#ru button.ruChip{cursor:pointer;pointer-events:auto}
+#ru button.ruChip.on{background:var(--slot-hi);box-shadow:inset 0 0 0 1px var(--gold);color:var(--gold)}
+#ru button.ruChip.cursed{box-shadow:inset 0 0 0 1px #b36bff}
 @media (max-width:600px){#ru .ru-setup .ruBox{padding:12px 10px 14px}#ru .suGrid{grid-template-columns:repeat(2,minmax(0,1fr))}#ru .suGrid.cls{grid-template-columns:repeat(3,minmax(0,1fr))}
   #ru .suCard img{width:36px;height:36px}#ru .suFirst .suCard img{width:52px;height:52px}#ru .suDaily{grid-template-columns:minmax(0,1fr)}#ru .suDaily .acts{justify-content:flex-start}#ru .suHeat{grid-template-columns:minmax(0,1fr)}}
 `);
-  const sel = { btn: 'classic', cls: 'knight', heat: 0, keeps: [], first: null, code: '', codeErr: '' };
+  const sel = { btn: 'classic', cls: 'knight', heat: 0, keeps: [], first: null, code: '', codeErr: '', codeFirst: null, dailyDoor: 0 };
+  // (runflow: the setup's options carry the next run's own first doors, dealt from the seed G.runStart will use; the Heat
+  // on the dial previews Heat 8's cursed door)
+  const setupOpts = () => G.setupOptions({ heat: sel.heat });
+  const doorsOf = opts => (opts.firstDoors && opts.firstDoors.length ? opts.firstDoors : (opts.firstLands || []).map(id => { const i = G.REALM_BY_ID[id], Rm = G.REALMS[i] || {}; return { land: i, id, name: Rm.name, rule: Rm.rule, ruleDesc: Rm.ruleDesc, lord: Rm.lordName, lordSpr: Rm.lord, minionSpr: Rm.minion, mod: 'calm', tag: null, cursed: 0 }; }));
+  // a door as a setup card: its land, rule, lord, twist (map mod), prize (reward tag), Land Champion, a cursed door's mark
+  function doorMini(o, isOn, attr) {
+    const Rm = G.REALMS[o.land] || {}, M = o.mod && o.mod !== 'calm' ? (G.MAP_MODS || {})[o.mod] : null, T_ = o.tag ? (G.REWARD_TAGS || {})[o.tag] : null;
+    const spr = sprOk(o.lordSpr || Rm.lord) ? (o.lordSpr || Rm.lord) : (o.minionSpr || Rm.minion);
+    return `<button class="suCard suDoor ${isOn ? 'on' : ''} ${o.cursed ? 'cursed' : ''}" ${attr}>${o.cursed ? `<span class="drTag cur">${esc(t('ru_cursedTag'))}</span>` : ''}${img(spr, 2)}<b>${esc(L(Rm.name || o.name || ''))}</b>`
+      + `<small>${esc(L(o.rule || Rm.rule || ''))}: ${esc(L(o.ruleDesc || Rm.ruleDesc || ''))}</small><span class="lord">${esc(t('door_lord', L(o.lord || Rm.lordName || '')))}</span>`
+      + (M ? `<span class="suTw"><b>${esc(t('ru_risk'))}</b>${esc(L(M.name))}${o.cursed ? ' ×2' : ''}: ${esc(L(M.desc))}</span>` : '')
+      + (T_ ? `<span class="suPz"><b>${esc(t('ru_reward'))}</b>${esc(L(T_.name))}${o.cursed ? ' ×2' : ''}: ${esc(L(T_.desc))}</span>` : '')
+      + (o.champ ? `<span class="suCh">${esc(t('ru_champLine', L(o.champ)))}</span>` : '') + `</button>`;
+  }
+  // a door as a chip (the Daily's and a code's first doors)
+  const doorChip = (o, isOn, attr) => `<button class="ruChip ${isOn ? 'on' : ''} ${o.cursed ? 'cursed' : ''}" ${attr} title="${esc([o.mod && o.mod !== 'calm' && G.MAP_MODS && G.MAP_MODS[o.mod] ? L(G.MAP_MODS[o.mod].name) : '', o.tag && G.REWARD_TAGS && G.REWARD_TAGS[o.tag] ? L(G.REWARD_TAGS[o.tag].name) : ''].filter(Boolean).join(' · '))}">${esc(L((G.REALMS[o.land] || {}).name || o.name || ''))}</button>`;
+  // the Daily's own first doors (its seed, its Heat)
+  const dailyDoors = ds => (ds && G.firstDoors ? safe(() => G.firstDoors({ seed: ds.seed, heat: ds.heat }), []) || [] : []);
   const btnList = () => { const B = G.BUTTONS; if (!B) return [{ id: 'classic', name: t('ru_btnClassic'), rule: t('ru_btnNoRule') }]; return (Array.isArray(B) ? B : Object.keys(B).map(id => Object.assign({ id }, B[id]))); };
   const skinBase = b => { const sk = (G.SKINS || []).find(s => s.id === (b.skin || b.id)); return (sk && sk.base) || b.base || '#e8413c'; };
   function btnImg(b) { try { return `<img src="${G.SPR.url(G.SPR.button(skinBase(b), false, 200), 1)}" alt="" draggable="false">`; } catch (e) { return img('ic_star', 3); } }
@@ -545,9 +622,14 @@
     if (on() || G.S.fallen) return false;
     o = o || {};
     if (isOpen('summary')) close('summary');
-    const opts = safe(() => G.setupOptions(), null);
+    const fresh = !isOpen('setup') || o.reset;
+    let opts = safe(() => (fresh ? G.setupOptions() : setupOpts()), null);
     if (!opts) return false;
-    if (!isOpen('setup') || o.reset) setupFrom(opts);
+    if (fresh) {
+      setupFrom(opts); sel.dailyDoor = 0;
+      // (the dial's Heat may differ from the one the options were dealt at: the cursed door follows the dial)
+      if ((((opts.last && opts.last.heat) | 0)) !== sel.heat) opts = safe(setupOpts, opts);
+    }
     renderSetup(opts, o);
     return true;
   };
@@ -568,9 +650,15 @@
     const ds = G.dailySetup ? safe(() => G.dailySetup(), null) : null, dsS = S.dailySiege;
     const dailyTried = !!(ds && dsS && dsS.day === ds.day && dsS.tries > 0);
     const board = G.Daily && G.Daily.ready && G.Daily.ready();
+    const dd = opts.daily && ds ? dailyDoors(ds) : [];
+    if (sel.dailyDoor >= dd.length) sel.dailyDoor = 0;
+    const fdoors = doorsOf(opts), cursed = fdoors.some(x => x.cursed);
+    // (keepsakes with the meta's Codex info when it has it: rank of cap, the theme's ranks)
+    const kinfo = q => (G.codexInfo ? safe(() => G.codexInfo(q), null) : null);
     const html = `<div class="ruBox"><button class="ruX" data-act="town" aria-label="${esc(t('ru_toTown'))}" title="${esc(t('ru_toTown'))}">✕</button>
       <div class="suTop"><h2 class="ruH">${esc(t('ru_newSiege'))}</h2><small>${esc(t('ru_siegeN', ((S.st && S.st.sieges) | 0) + 1))}</small></div>
-      ${opts.daily && ds ? `<div class="suDaily">${img('ic_trophy', 3)}<div><b>${esc(t('ru_daily'))}</b><small>${esc(t('ru_dailyRule', L((G.CLASS_BY_ID[ds.cls] || {}).name || ''), ds.heat))}</small><small>${esc(t(dailyTried ? 'ru_dailyPractice' : 'ru_dailyRanked'))}</small></div>
+      ${opts.daily && ds ? `<div class="suDaily">${img('ic_trophy', 3)}<div><b>${esc(t('ru_daily'))}</b><small>${esc(t('ru_dailyRule', L((G.CLASS_BY_ID[ds.cls] || {}).name || ''), ds.heat))}</small><small>${esc(t(dailyTried ? 'ru_dailyPractice' : 'ru_dailyRanked'))}</small>
+        ${dd.length > 1 ? `<span class="dyDoors"><small>${esc(t('ru_dailyDoor'))}</small>${dd.map((x, i) => doorChip(x, i === sel.dailyDoor, `data-ddoor="${i}"`)).join('')}</span>` : ''}</div>
         <div class="acts"><button class="btn gold" data-act="daily">${esc(t('ru_dailyGo'))}</button>${board ? `<button class="btn" data-act="board">${esc(t('ru_board'))}</button>` : ''}</div></div>` : ''}
       <h3 class="ruS">${esc(t('ru_button'))}</h3>
       <div class="suGrid">${btns.map(b => { const open_ = opts.buttons.includes(b.id), n = stk[b.id]; let st = ''; for (let i = 0; i <= 10; i++) st += `<i class="${n != null && i <= n ? 'on' : ''}"></i>`;
@@ -580,19 +668,33 @@
         return `<button class="suCard r_${role} ${sel.cls === C.id ? 'on' : ''} ${open_ ? '' : 'lock'}" data-cls="${C.id}" ${open_ ? '' : 'disabled'}>${img(C.spr, 4)}<b>${esc(L(C.name))}</b><em>${esc(G.ROLE_NAMES[role] || '')}</em><small>${esc(open_ ? L(C.desc) : lockHint('class', C.id))}</small></button>`; }).join('')}</div>
       <h3 class="ruS">${esc(t('ru_keeps'))}<small>${opts.keepSlots ? esc(t('ru_keepsN', sel.keeps.length, opts.keepSlots)) : ''}</small></h3>
       ${!opts.keepSlots ? `<p class="ruNote">${esc(t(opts.keepsakes.length ? 'ru_keepsNone' : 'ru_keepsEmpty'))}</p>` : !opts.keepsakes.length ? `<p class="ruNote">${esc(t('ru_keepsEmpty'))}</p>`
-        : `<div class="suGrid">${opts.keepsakes.map(k => `<button class="suCard ${sel.keeps.includes(k.q) ? 'on' : ''}" data-keep="${esc(k.q)}">${img('u_' + k.q, 3)}<b class="${k.relic ? 'ruRbw' : ''}">${esc(relicName(k.q))}</b><small>${esc(relicFx(k.q))}</small>${k.rank > 1 ? `<span class="rk">${esc(t('ru_codexRank', k.rank))}</span>` : ''}</button>`).join('')}</div>`}
+        : `<div class="suGrid">${opts.keepsakes.map(k => { const ci = kinfo(k.q), th = ci && ci.theme && G.PERKS[ci.theme];
+          return `<button class="suCard ${sel.keeps.includes(k.q) ? 'on' : ''}" data-keep="${esc(k.q)}">${img('u_' + k.q, 3)}<b class="${k.relic ? 'ruRbw' : ''}">${esc(relicName(k.q))}</b><small>${esc(relicFx(k.q))}</small>${th && ci.themeRanks ? `<em>${esc(t('ru_keepTheme', ci.themeRanks, L(th.name)))}</em>` : ''}<span class="rk">${esc(ci ? t('ru_keepRank', ci.rank, ci.cap) : k.rank > 1 ? t('ru_codexRank', k.rank) : '')}</span></button>`; }).join('')}</div>`}
       <h3 class="ruS">${esc(t('ru_heat'))}<small>${hi && hi.perLevel ? esc(t('heat_each', hi.perLevel.hp, hi.perLevel.bite)) : ''}</small></h3>
       ${heatN < 1 && sel.heat === 0 ? `<p class="ruNote">${esc(t('ru_heatLocked'))}</p>` : `<div class="suHeat"><div class="suDial"><button class="btn" data-act="heat-" ${sel.heat <= 0 ? 'disabled' : ''} aria-label="-">-</button><b>H${sel.heat}</b><button class="btn" data-act="heat+" ${sel.heat >= heatN ? 'disabled' : ''} aria-label="+">+</button></div>
         <div class="suRules">${hi ? `<small>${esc(t('ru_heatMul', hi.fame.toFixed(1), hi.embers.toFixed(2), hi.rarity))}</small>` : ''}${hi && hi.rules.length ? hi.rules.map(x => `<span class="${hi.added && hi.added.n === x.n ? 'add' : ''}">${x.n}. ${esc(L(x.name))}: ${esc(L(x.desc))}</span>`).join('') : `<span>${esc(t('ru_heatNone'))}</span>`}</div></div>`}
-      ${opts.firstLands.length > 1 ? `<h3 class="ruS">${esc(t('ru_firstDoor'))}</h3><div class="suGrid">${opts.firstLands.map(id => { const i = G.REALM_BY_ID[id], Rm = G.REALMS[i]; if (!Rm) return '';
-        return `<button class="suCard suDoor ${sel.first === id ? 'on' : ''}" data-first="${id}">${img(sprOk(Rm.lord) ? Rm.lord : Rm.minion, 2)}<b>${esc(L(Rm.name))}</b><small>${esc(L(Rm.rule || ''))}: ${esc(L(Rm.ruleDesc || ''))}</small><span class="lord">${esc(t('door_lord', L(Rm.lordName || '')))}</span></button>`; }).join('')}</div>` : ''}
+      ${fdoors.length ? `<h3 class="ruS">${esc(t('ru_firstDoor'))}<small>${esc(cursed ? t('ru_heat8') : fdoors.length > 1 ? t('ru_firstDoorHint') : '')}</small></h3><div class="suGrid">${fdoors.map((x, i) => doorMini(x, sel.first === x.id || (!sel.first && !i), `data-first="${esc(x.id)}"`)).join('')}</div>` : ''}
       <div class="suFoot"><button class="btn gold ruBig" data-act="start">${esc(t(same ? 'ru_again' : 'ru_start'))}</button>${same && lastTxt ? `<small class="ruNote">${esc(lastTxt)}</small>` : ''}
-        <div class="suCode"><input id="ruCodeIn" maxlength="40" placeholder="${esc(t('ru_code'))}" value="${esc(sel.code)}" spellcheck="false" autocomplete="off"><button class="btn" data-act="code">${esc(t('ru_codeGo'))}</button><small>${esc(sel.codeErr || t('ru_codeNote'))}</small></div></div></div>`;
+        <div class="suCode"><input id="ruCodeIn" maxlength="40" placeholder="${esc(t('ru_code'))}" value="${esc(sel.code)}" spellcheck="false" autocomplete="off"><button class="btn" data-act="code">${esc(t('ru_codeGo'))}</button><small>${esc(sel.codeErr || t('ru_codeNote'))}</small><span class="suCodeInfo"></span></div></div></div>`;
     const s = open('setup', { cover: true, html, keys: setupKeys, def: () => startSetup(opts) });
     const box = s.el.querySelector('.ruBox'); if (box && o && o.scroll != null) box.scrollTop = o.scroll;
     s.el.onclick = e => setupClick(e, opts, s);
     const inp = s.el.querySelector('#ruCodeIn');
-    if (inp) { inp.oninput = () => { sel.code = inp.value; }; inp.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); startCode(); } }; }
+    if (inp) { inp.oninput = () => { sel.code = inp.value; codeInfo(); }; inp.onkeydown = ev => { if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); startCode(); } }; }
+    codeInfo();
+  }
+  // a valid code shows what it replays: its Button (Classic while that one is locked here), its Heat, its own first doors
+  // (runflow: G.firstDoors({seed}) - a code's run deals its own, not this setup's)
+  function codeInfo() {
+    const s = SCR.setup, el = s && s.el.querySelector('.suCodeInfo'); if (!el) return;
+    const p = sel.code && G.runParseCode ? G.runParseCode(sel.code) : null;
+    if (!p) { if (el.innerHTML) el.innerHTML = ''; sel.codeFirst = null; return; }
+    const open_ = !G.btnOpen || p.btn === 'classic' || safe(() => G.btnOpen(p.btn), false);
+    const heat = Math.min(p.heat, G.tormentMax ? G.tormentMax() : p.heat);
+    const ds = G.firstDoors ? safe(() => G.firstDoors({ seed: p.seed, heat }), []) || [] : [];
+    if (!ds.some(x => x.id === sel.codeFirst)) sel.codeFirst = ds.length ? ds[0].id : null;
+    el.innerHTML = `<span>${esc(t('ru_codeRun', btnName(open_ ? p.btn : 'classic'), heat))}${open_ ? '' : ' · ' + esc(t('ru_codeLocked', btnName(p.btn)))}</span>`
+      + (ds.length > 1 ? `<small>${esc(t('ru_codeDoors'))}</small>${ds.map(x => doorChip(x, x.id === sel.codeFirst, `data-cdoor="${esc(x.id)}"`)).join('')}` : '');
   }
   const btnName = id => { const b = btnList().find(x => x.id === id); return b ? L(b.name || id) : id === 'classic' ? t('ru_btnClassic') : id; };
   function setupKeys(e, fresh) {
@@ -603,16 +705,23 @@
     const b = e.target.closest('button'); if (!b || b.disabled) return;
     if (G.Audio && G.Audio.unlock) G.Audio.unlock();
     const box = s.el.querySelector('.ruBox'), scroll = box ? box.scrollTop : 0;
-    const re = () => renderSetup(G.setupOptions(), { scroll });
+    const re = () => renderSetup(setupOpts(), { scroll });
     if (b.dataset.btn) { sel.btn = b.dataset.btn; sfx('buy'); re(); }
     else if (b.dataset.cls) { sel.cls = b.dataset.cls; sfx('buy'); re(); }
-    else if (b.dataset.keep) { const q = b.dataset.keep, i = sel.keeps.indexOf(q); if (i >= 0) sel.keeps.splice(i, 1); else { sel.keeps.push(q); while (sel.keeps.length > opts.keepSlots) sel.keeps.shift(); } sfx('buy'); re(); }
+    else if (b.dataset.keep) {
+      const q = b.dataset.keep, i = sel.keeps.indexOf(q); if (i >= 0) sel.keeps.splice(i, 1); else { sel.keeps.push(q); while (sel.keeps.length > opts.keepSlots) sel.keeps.shift(); }
+      // (the meta's loadout: kept for the next Siege even when this setup is left for the town)
+      if (G.keepSet) safe(() => G.keepSet(sel.keeps.slice()));
+      sfx('buy'); re();
+    }
     else if (b.dataset.first) { sel.first = b.dataset.first; sfx('buy'); re(); }
+    else if (b.dataset.ddoor != null) { sel.dailyDoor = +b.dataset.ddoor | 0; sfx('buy'); re(); }
+    else if (b.dataset.cdoor != null) { sel.codeFirst = b.dataset.cdoor; sfx('buy'); codeInfo(); }
     else if (b.dataset.act === 'heat-') { sel.heat = Math.max(0, sel.heat - 1); sfx('buy'); re(); }
     else if (b.dataset.act === 'heat+') { sel.heat = Math.min(opts.heat.max | 0, sel.heat + 1); sfx('buy'); re(); }
     else if (b.dataset.act === 'start') startSetup(opts);
     else if (b.dataset.act === 'code') startCode();
-    else if (b.dataset.act === 'daily') { if (G.runDaily && G.runDaily()) sfx('levelUp'); else sfx('error'); }
+    else if (b.dataset.act === 'daily') { if (G.runDaily && G.runDaily(undefined, { door: sel.dailyDoor | 0 })) sfx('levelUp'); else sfx('error'); }
     else if (b.dataset.act === 'board') { if (G.Daily && G.Daily.open) G.Daily.open(); }
     else if (b.dataset.act === 'town') setupTown();
   }
@@ -628,10 +737,13 @@
   // 'Enter a code' (streamer mode's share code): the same seed, Button and Heat; an unranked replay (no Daily, flagged)
   function startCode() {
     const p = G.runParseCode ? G.runParseCode(sel.code) : null;
-    if (!p) { sel.codeErr = t('ru_codeBad'); sfx('error'); renderSetup(G.setupOptions(), {}); return; }
+    if (!p) { sel.codeErr = t('ru_codeBad'); sfx('error'); renderSetup(setupOpts(), {}); return; }
     sel.codeErr = '';
-    const opts = G.setupOptions();
-    const r = G.runStart({ seed: p.seed, btn: opts.buttons.includes(p.btn) ? p.btn : sel.btn, cls: sel.cls, heat: Math.min(p.heat, opts.heat.max | 0), keeps: [], first: sel.first, replay: 1 });
+    // (runflow's G.runFromCode: the parse, a locked Button -> Classic, the Heat clamp, no keepsakes, r.replay; the first
+    // land is one of the code's own doors - the one picked under the code, else its first)
+    let r;
+    if (G.runFromCode) r = G.runFromCode(sel.code, Object.assign({ cls: sel.cls }, sel.codeFirst ? { first: sel.codeFirst } : {}));
+    else { const opts = setupOpts(); r = G.runStart({ seed: p.seed, btn: opts.buttons.includes(p.btn) ? p.btn : 'classic', cls: sel.cls, heat: Math.min(p.heat, opts.heat.max | 0), keeps: [], replay: 1 }); }
     if (r) sfx('levelUp'); else sfx('error');
   }
   // (a replay is marked on the run: ladders and records may leave it out)
@@ -1316,8 +1428,10 @@
     const rec = c.recruits && !c.hired ? `<h3 class="ruS">${esc(t('ru_recruitTitle'))}</h3><div class="cpRecruits">${c.recruits.map((x, i) => { const C = G.CLASS_BY_ID[x.cls] || {}, T = (G.TRAITS || {})[x.trait] || {}, role = G.ROLES[x.cls];
       return `<button class="cpRec r_${role}" data-rec="${i}">${img(C.spr || 'h_knight', 4)}<b>${esc(L(C.name || x.cls))}</b><em>${esc(G.ROLE_NAMES[role] || '')}</em><strong>${esc(L(T.name || x.trait))}</strong><small>${esc(L(T.desc || ''))}</small></button>`; }).join('')}</div>`
       : c.hired ? `<p class="ruNote">${esc(t('ru_recruitDone'))}</p>` : '';
+    // (runflow: c.can says what this camp offers - Forge I's Enchant All, Forge II's Reforge; else the derived flags)
+    const can = c.can || { enchant: !!G.D.enchantAll, reforge: !!G.D.reforge };
     let ench = '';
-    if (G.D.enchantAll && G.enchantPlan) {
+    if (can.enchant && G.enchantPlan) {
       const plan = safe(() => G.enchantPlan({}), null);
       const steps = plan ? plan.steps | 0 : 0, cost = plan && (plan.cost || plan.spent) || {};
       const per = plan ? (plan.perHero || plan.per || []).filter(x => x.levels > 0) : [];
@@ -1326,14 +1440,17 @@
         <button class="btn gold" data-ench ${steps ? '' : 'disabled'}>${esc(t('ench_go', steps))}</button></div>`;
     }
     let reforge = '';
-    if (G.D.reforge && G.campReforge) {
+    if (can.reforge && G.campReforge) {
       const cost = Math.ceil(Math.max(1, G.D.incomeRef || 1) * (TUNE.reforgeSecs || 60)), list = [];
       for (const w of whos()) for (const sl of G.SLOTS) { const g = G.eqOf(w)[sl]; if (g && (g.il | 0) < S.depth) list.push({ g, w }); }
       list.sort((a, b) => (a.g.il | 0) - (b.g.il | 0));
       if (list.length) reforge = `<div class="cpTool"><b>${esc(t('camp_reforge'))}</b><small>${esc(t('ru_reforgeT'))}</small><div class="per">${list.slice(0, 4).map(x => `<button class="btn" data-ref="${x.g.u}" ${gold >= cost ? '' : 'disabled'}>${img(gspr(x.g), 1)} il ${x.g.il | 0}→${S.depth} · ${img('ic_coin', 1)}${fmt(cost)}</button>`).join('')}</div></div>`;
     }
-    const emb = G.runEmbers ? G.runEmbers('extract') : 0, c4 = c.n >= 4;
-    const extract = `<div class="cpTool ext"><b>${esc(t('ru_extractT'))}</b><small>${esc(c4 ? t('camp_extract4', fmt(emb)) : t('ru_extractNote'))}</small><button class="btn ${extractArm > now() ? 'red' : ''}" data-extract>${esc(extractArm > now() ? t('ru_extractArm') : t('camp_extract', fmt(emb)))}</button></div>`;
+    // (runflow: c.extract is the camp's own Extract line - the Embers banked at x1 now, Camp 4's 'or go for x1.5' text)
+    const ex = c.extract || (G.campExtract ? safe(() => G.campExtract(), null) : null);
+    const emb = ex ? ex.embers : G.runEmbers ? G.runEmbers('extract') : 0, c4 = ex ? !!ex.camp4 : c.n >= 4;
+    const exTxt = ex && Array.isArray(ex.text) ? t.apply(null, [ex.text[0]].concat(ex.text.slice(1).map(v => (typeof v === 'number' ? fmt(v) : v)))) : '';
+    const extract = `<div class="cpTool ext"><b>${esc(t('ru_extractT'))}</b><small>${esc(c4 ? exTxt || t('camp_extract4', fmt(emb)) : t('ru_extractNote'))}</small><button class="btn ${extractArm > now() ? 'red' : ''}" data-extract>${esc(extractArm > now() ? t('ru_extractArm') : t('camp_extract', fmt(emb)))}</button></div>`;
     const party = ['btn'].concat(whos()).map(hpChip).join('');
     const html = `<div class="ruBox"><div class="cpHead"><div><h2 class="ruH">${esc(t('camp_title', c.n))}</h2><small>${esc(t('ru_campLand', L(land.name || '')))}</small></div><div class="cpVit">${party}</div></div>
       <h3 class="ruS">${esc(t('ru_campAct'))}</h3><div class="cpActs">${act('rest')}${act('temper')}${act('train')}</div>
@@ -1424,15 +1541,21 @@
     const r = run(), D_ = r && r.doors;
     if (!D_) { if (isOpen('doors')) close('doors', 200); return; }
     const slot = D_.slot, push = slot >= G.SIEGE.lands;
-    const html = `<div class="ruBox"><h2 class="ruH">${esc(t('doors_title'))}</h2><p class="ruNote">${esc(push ? t('push_land', slot - G.SIEGE.lands + 1) : t('ru_land', slot + 1))}</p>
+    // (a Push land: its pay and the Tide as it stands)
+    const pushTxt = push ? [t('push_land', slot - G.SIEGE.lands + 1), G.runPushMul ? t('ru_pays', (+G.runPushMul(slot)).toFixed(2)) : '', G.runTide ? t('push_tide', (+G.runTide()).toFixed(2)) : ''].filter(Boolean).join(' · ') : '';
+    const html = `<div class="ruBox"><h2 class="ruH">${esc(t('doors_title'))}</h2><p class="ruNote">${esc(push ? pushTxt : t('ru_land', slot + 1))}</p>
       ${D_.vault && (r.keys | 0) > 0 ? `<div class="drVault"><button class="btn ${vaultMode ? 'on' : ''}" data-vault>${img('ic_key', 1)} ${esc(t('door_vault'))} <kbd>V</kbd></button></div>` : ''}
       <div class="drRow">${D_.opts.map((o, i) => {
         const Rm = G.REALMS[o.land] || {}, M = (G.MAP_MODS || {})[o.mod] || null, T_ = o.tag ? (G.REWARD_TAGS || {})[o.tag] : null;
+        // (runflow's door: its lord's and minions' sprites, its Land Champion; past the Void a Push land reads 'Corrupted <land>')
+        const spr = sprOk(o.lordSpr || Rm.lord) ? (o.lordSpr || Rm.lord) : (o.minionSpr || Rm.minion);
+        let nm = L(Rm.name || o.name || ''), lord = L(o.lord || Rm.lordName || '');
+        if (push && G.corrupt && G.REALM_SIZE) { const d0 = slot * G.REALM_SIZE; nm = safe(() => G.corrupt(nm, d0), nm); lord = safe(() => G.corrupt(lord, d0), lord); }
         return `<button class="drCard ${o.cursed ? 'cursed' : ''}" data-door="${i}" style="--d:${(i * 0.08).toFixed(2)}s">
           ${o.final ? `<span class="drTag">${esc(t('door_final'))}</span>` : o.act ? `<span class="drTag">${esc(t('door_act'))}</span>` : ''}${o.cursed ? `<span class="drTag cur" style="right:auto;left:6px">${esc(t('door_cursed').split(':')[0])}</span>` : ''}
-          <div class="drTop"><span class="art">${img(sprOk(Rm.lord) ? Rm.lord : Rm.minion, 2)}${img(Rm.fodder, 2, 'f')}</span><div><b>${esc(L(Rm.name || o.name))}</b><small>${esc((Rm.zones || []).slice(0, 2).map(L).join(' · '))}</small></div></div>
-          <div class="drLine"><span>${esc(L(Rm.rule || ''))}</span><div><small>${esc(L(Rm.ruleDesc || ''))}</small></div></div>
-          <div class="drLine lord"><span>${esc(t('door_lord', '').replace(/[:\s]+$/, ''))}</span><div><b>${esc(L(o.lord || Rm.lordName || ''))}</b></div></div>
+          <div class="drTop"><span class="art">${img(spr, 2)}${img(Rm.fodder, 2, 'f')}</span><div><b>${esc(nm)}</b><small>${esc((Rm.zones || []).slice(0, 2).map(L).join(' · '))}</small></div></div>
+          <div class="drLine"><span>${esc(L(o.rule || Rm.rule || ''))}</span><div><small>${esc(L(o.ruleDesc || Rm.ruleDesc || ''))}</small></div></div>
+          <div class="drLine lord"><span>${esc(t('door_lord', '').replace(/[:\s]+$/, ''))}</span><div><b>${esc(lord)}</b>${o.champ && !o.final ? `<small>${esc(t('ru_champLine', L(o.champ)))}</small>` : ''}</div></div>
           ${M ? `<div class="drLine mod ${o.mod === 'calm' ? 'calm' : ''}"><span>${esc(t('ru_risk'))}</span><div><b>${esc(L(M.name))}${o.cursed ? ' ×2' : ''}</b><small>${esc(L(M.desc))}</small></div></div>` : ''}
           ${T_ ? `<div class="drLine tag"><span>${esc(t('ru_reward'))}</span><div><b>${esc(L(T_.name))}${o.cursed ? ' ×2' : ''}</b><small>${esc(L(T_.desc))}</small></div></div>` : ''}
           <span class="btn gold drGo">${esc(t(vaultMode ? 'ru_doorVault' : 'ru_doorGo'))}</span><kbd>${i + 1}</kbd></button>`; }).join('')}</div>
@@ -1739,6 +1862,7 @@
     if (!u) return '';
     if (typeof u === 'string') return u;
     if (u.kind === 'heat') return t('ru_unl_heat', u.n);
+    if (u.kind === 'swift') return t('ru_unl_swift', btnName(u.btn), u.heat | 0);
     return L(u.name || u.label || u.text || '') || [u.kind, u.id].filter(Boolean).join(' ');
   }
   const bldName = id => { for (const k of ['town_' + id, 'twShort_' + id]) { const v = t(k); if (v !== k) return v; } const B = (G.BLD || []).find(b => b.id === id); return (B && B.name && L(B.name)) || id; };
@@ -1747,7 +1871,7 @@
     if (x.kind === 'hall') name = (L(x.name || '') || x.id) + ' ' + (['', 'I', 'II', 'III', 'IV', 'V'][x.rank] || x.rank || '');
     else if (x.kind === 'town') { name = bldName(x.id) + ' ' + (['', 'I', 'II', 'III', 'IV', 'V'][x.lvl] || x.lvl || ''); const u = t('bld_' + x.id + '_' + x.lvl); if (u !== 'bld_' + x.id + '_' + x.lvl) name += ': ' + u; }
     const have = +x.have || 0, need = +x.need || 0, k = need > 0 ? clamp(have / need, 0, 1) : 1;
-    const ico = x.kind === 'hall' ? 'ic_fame' : x.kind === 'town' ? 'ic_ember' : 'ic_star';
+    const ico = x.kind === 'hall' ? 'ic_fame' : x.kind === 'town' ? 'ic_ember' : x.kind === 'deed' ? 'ic_trophy' : 'ic_star';
     return `<div class="nxRow ${k >= 1 ? 'done' : ''}"><span>${img(ico, 1)} ${esc(name)}</span><small>${need ? fmt(Math.min(have, need)) + '/' + fmt(need) : ''}${k >= 1 ? ' ✓' : ''}</small><i><u data-w="${Math.round(k * 100)}"></u></i></div>`;
   }
   RU.summary = function (sum) {
@@ -1763,7 +1887,9 @@
     const items = (E.items || []).slice(), shown = items.slice(0, 14), more = items.length - shown.length;
     const moreV = items.slice(14).reduce((a, x) => a + (x.v || 0), 0);
     const C = G.CLASS_BY_ID[sum.cls] || {};
-    const stats = [t('ru_siegeN', sum.n), btnName(sum.btn), L(C.name || ''), sum.heat ? 'H' + sum.heat : '', t('ru_stats', sum.cleared | 0, mmss(sum.secs), sum.lvl | 0, sum.cardsN | 0)].filter(Boolean);
+    // (runflow: a replay's mark, the run under par, the Golden Clicks caught and the shrines met)
+    const stats = [t('ru_siegeN', sum.n), btnName(sum.btn), L(C.name || ''), sum.heat ? 'H' + sum.heat : '', t('ru_stats', sum.cleared | 0, mmss(sum.secs), sum.lvl | 0, sum.cardsN | 0),
+      sum.replay ? t('ru_replay') : '', sum.swift ? t('ru_swift') : '', sum.golden ? t('ru_golden', sum.golden) : '', sum.shrines ? t('ru_shrinesN', sum.shrines) : ''].filter(Boolean);
     const evos = (sum.evos || []).map(e => (G.EVOS[e] ? L(G.EVOS[e].name) : e));
     const lines = [];
     if (E.shards && E.shards.v) lines.push([t('emb_shards') + ' (' + fmt(E.shards.n) + ')', E.shards.v]);
