@@ -7,7 +7,9 @@
   const { chance, pick, rand, randInt, emit } = G;
   const TUNE = G.TUNE;
   Object.assign(TUNE, {
-    mobBase: 10, mobGrowth: 1.6, mobAtkBase: 5, mobAtkGrowth: 1.22,
+    // (4.0: mobGrowth 1.6 -> 1.65: the Siege's balance, DESIGN §14 lever 1, measured with camps, relics, boons and the
+    // loot moment in: notes/core.md continuation 2)
+    mobBase: 10, mobGrowth: 1.65, mobAtkBase: 5, mobAtkGrowth: 1.22,
     mobWalk: 5, opFrom: 2.5, opHpPow: 0.8, kbPush: 0.045, kbEvery: 0.6, hordeRate: 0.6, hordeRef: 2.2, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
@@ -29,7 +31,9 @@
     killChest: 0, plunder: 0.2, biteFloor: 0.042,
     // a boss's own blow, every bossHitEvery s (faster in later phases): its depth's bite x bossHit (a lord x lordHit), or
     // this share of what it hits, whichever is more
-    bossHitEvery: 2, bossHit: 2.5, lordHit: 4, bossHitPct: 0.09, lordHitPct: 0.12,
+    // (4.0: a quarter harder and a tenth more often than 3.x's 2 s / 2.5 / 4 / 9% / 12%: with the least fight length binding
+    // again, a lord's 20 s is the run's check, DESIGN §14)
+    bossHitEvery: 1.8, bossHit: 3.1, lordHit: 5, bossHitPct: 0.11, lordHitPct: 0.15,
     // 3.0: the bigger mobs (not the small fry) take this many times longer to bring down
     bigHp: 2.4,
     // 2.3: the Horde never shrinks below a full one; the first lands' extra health (see mobHp);
@@ -41,8 +45,8 @@
     hsSiegeMax: 3, hsSiegeK: 2, hsLast: 4.5,
     // 4.0: the bite shelter: half bites for the first shelterSecs of each run, for the first shelterRuns runs
     shelterSecs: 60, shelterRuns: 3, levelHeal: 0.05,
-    // 4.0: a wipe with pips left: the Button and the party come back at wipeBack of their health (wipeBackMuster in land 1)
-    wipeBack: 0.5, wipeBackMuster: 0.5,
+    // 4.0: a wipe with pips left: the Button and the party come back at this share of their health
+    wipeBack: 0.5,
     // 2.5: the new kinds: a pack's chance to be led by one (base + per depth, capped); Warded takes this share
     // of the Hand's damage; menders heal this share of health round them every few seconds; callers call
     // callN small fry every callEvery s; chargers run chargeSpd times faster for the last stretch
@@ -455,9 +459,8 @@
     } else if (!inRift) { S.bossMeter = 0; if (hadBoss && S.depth > 0) S.depth--; R.bossReady = false; }
     if (R.ground) R.ground.length = 0;
     R.btnDown = 0;
-    // (4.0: with pips left the Button comes back at half and everyone gets up at half: no free full heal; in land 1, the
-    // muster, at wipeBackMuster: a party still finding its feet isn't sent back in at half to break again)
-    const back = siege ? (from < G.REALM_SIZE ? TUNE.wipeBackMuster : TUNE.wipeBack) : 1;
+    // (4.0: with pips left the Button comes back at half and everyone gets up at half: no free full heal)
+    const back = siege ? TUNE.wipeBack : 1;
     h.hp = G.D.heroHp * back;
     for (const u of G.partyUnits()) reviveUnit(u.who, back);
     R.stun = 4; // the party regroups
