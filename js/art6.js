@@ -1649,4 +1649,80 @@
     const rate = m && m.kind === 'fodder' ? 7 : 4.5;
     return Math.floor(t * rate + ((m && m.id) || 0) * 0.37) % 2 ? id2 : id;
   };
+
+  // ======================================================================
+  // 4.0 "The Siege" (fieldfx): the run's own shrines (Power, Chance, Pact; DESIGN §5.8), the Golden Click's wisp
+  // (a little golden Button), the camp's tent. Plain SPR.def (no walk frame).
+  const S1 = (id, pal, px) => { if (SPR.defs[id]) { console.warn('art6: sprite id taken', id); return; } SPR.def(id, Object.assign({ k: K }, pal), px); };
+  S1('shrine_power', { Y: '#ffd84a', y: '#c89a1a', w: '#ffffff', g: '#6e6e7c', G: '#9a9aa8' }, [
+    '....w....',
+    '...wYw...',
+    '..wYYYw..',
+    '...wYw...',
+    '....y....',
+    '...ggg...',
+    '..gGYGg..',
+    '..gGYGg..',
+    '..gYYYg..',
+    '..gGYGg..',
+    '..gGGGg..',
+    '.gGGGGGg.',
+    'ggggggggg',
+    '.ggggggg.',
+  ]);
+  S1('shrine_chance', { c: '#2f8ab8', C: '#7fe9ff', w: '#ffffff', g: '#5a6a7c', G: '#8aa0b4' }, [
+    '...ccc...',
+    '..cCCCc..',
+    '.cCwCCwc.',
+    '.cCCwCCc.',
+    '.cwCCCwc.',
+    '..cCCCc..',
+    '...ccc...',
+    '...ggg...',
+    '..gGCGg..',
+    '..gGGGg..',
+    '..gGCGg..',
+    '.gGGGGGg.',
+    'ggggggggg',
+    '.ggggggg.',
+  ]);
+  S1('shrine_pact', { p: '#b36bff', P: '#6a2fa8', r: '#ff3b3b', w: '#ffffff', D: '#3a2a4a', d: '#55406a', g: '#2a2236' }, [
+    'p.......p',
+    'pp.....pp',
+    '.pp...pp.',
+    '..pPPPp..',
+    '..PrwrP..',
+    '..pPrPp..',
+    '...PPP...',
+    '...ggg...',
+    '..gDdDg..',
+    '..gDpDg..',
+    '..gDdDg..',
+    '.gDDDDDg.',
+    'ggggggggg',
+    '.ggggggg.',
+  ]);
+  // the Golden Click: a little golden Button that flies over the field
+  S1('wisp_btn', { Y: '#ffd84a', y: '#e8b020', o: '#a8780a', w: '#ffffff', W: '#fff3a0', g: '#8a8a98', G: '#c8c8d4' }, [
+    '...wWWWw...',
+    '..WYwwYYW..',
+    '.WYYYYYYYW.',
+    '.yYYYYYYYy.',
+    '.oyYYYYYyo.',
+    '..ooyyyoo..',
+    '.GGGGGGGGG.',
+    '..ggggggg..',
+  ]);
+  // the camp's tent (the field during a camp)
+  S1('camp_tent', { T: '#c89a5a', t: '#9a6a3a', D: '#3a2618', r: '#e8d0a0', p: '#6a4a2a' }, [
+    '.......r........',
+    '......rTt.......',
+    '.....rTTtt......',
+    '....rTTTttt.....',
+    '...rTTTDtttt....',
+    '..rTTTTDDtttt...',
+    '.rTTTTTDDDtttt..',
+    'rTTTTTTDDDDtttt.',
+    'pppppppppppppppp',
+  ]);
 })(globalThis.G = globalThis.G || {});

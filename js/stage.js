@@ -805,7 +805,7 @@
     });
     G.on('classChosen', () => { const hp = heroPos(); burst(hp.x, hp.y - 12, ['#ffffff', '#ffe27a'], 30, 80); St.flash(0.3, '#ffffff'); });
     G.on('bossStart', b => {
-      bossVis = { t: 0, sprite: SPR.boss(b.sprite, b.lord), lord: b.lord, enter: 1 };
+      bossVis = { t: 0, sprite: SPR.boss(b.sprite, b.lord), lord: b.lord, enter: 1, final: !!(b.final || b.kind === 'final') };
       St.shake(4); St.flash(0.3, b.lord ? '#ff3b3b' : '#ffffff');
       const p = btnPos();
       burst(p.x, p.y, ['#3a3a44', '#6e6e7c', '#ffffff'], 30, 90);
@@ -838,7 +838,8 @@
     });
     G.on('realm', r => {
       groundKey = ''; if (!march) St.flash(0.3, '#000000');
-      // a title card for the new land and its rule
+      // a title card for the new land and its rule (4.0: in a Siege, the route's land: LAND n · its name, the act, the door's twist)
+      if (inSiege()) { landTitle(G.S.depth); return; }
       const R_ = G.REALMS[r];
       cardText(0, G.realmName(G.S.depth).toUpperCase(), '#ffffff', 7, { life: 3, max: 3, vy: -3, big: true, tag: 'land' });
       cardText(11, R_.rule + ': ' + R_.ruleDesc, '#ffe27a', 3, { life: 3, max: 3, vy: -3 });
@@ -912,7 +913,8 @@
     if (po != null && G.tapPortal(po)) return 'portal';
     const ge = hitLoot(p);
     if (ge) { G.pickup(ge, 'hand'); return 'loot'; }
-    if (hitShrine(p)) { G.useShrine('hand'); return 'shrine'; }
+    // 4.0: in a Siege a shrine is charged: the Hand held on it for 2 s (DESIGN §5.8; js/world.js G.shrineHold)
+    if (hitShrine(p)) { if (inSiege() && G.shrineHold) { pointer.x = p.x; pointer.y = p.y; FF.charge = { on: false, k: 0 }; return 'shrine'; } G.useShrine('hand'); return 'shrine'; }
     const dn = hitDowned(p);
     if (dn != null) { G.reviveTap(dn); return 'revive'; }
     const c = hitChest(p);
@@ -926,17 +928,19 @@
     cv.addEventListener('pointerdown', e => {
       e.preventDefault();
       const p = toLogical(e, true);
+      trailAt(p.x, p.y, 5);
       const what = doPress(p);
       // (holding repeats only once Steady Hand is bought, at its rate)
       if (what === 'button' && G.S.set.hold && G.D.holdRate > 0) { holding = true; holdTimer = Math.max(0.1, 1 / G.D.holdRate); }
     });
-    const end = () => { holding = false; };
+    const end = () => { holding = false; if (FF.charge) { FF.charge = null; if (G.R.shrine && G.shrineLeave) G.shrineLeave(); } };
     cv.addEventListener('pointerup', end);
     cv.addEventListener('pointercancel', end);
     cv.addEventListener('pointerleave', () => { end(); pointer.over = false; hoverChest = null; hoverLoot = null; });
     cv.addEventListener('pointermove', e => {
       const p = toLogical(e);
       pointer.x = p.x; pointer.y = p.y; pointer.over = true;
+      if (time - FF.trailT > 0.03) { FF.trailT = time; trailAt(p.x, p.y, 1); }
       hoverChest = hitChest(p);
       hoverLoot = hitLoot(p);
       if (G.R.town) { townHover = hitTown(p); cv.style.cursor = townHover ? 'pointer' : 'default'; return; }
@@ -2197,8 +2201,7 @@
   // 3.6: the Button's last moment (see the 'wipe' handler): fallT counts the seconds since, -1 when it stands
   let fallT = -1;
   function buttonBoom() {
-    const b = btnPos(), skin = G.SKINS.find(s => s.id === G.S.skin) || G.SKINS[0];
-    const spr = SPR.button(skin.base, false, time * 120 % 360);
+    const b = btnPos(), spr = btnSprite(btnLookNow(), false);
     fallT = 0;
     hitstop = Math.max(hitstop, 0.16); slowmo = Math.max(slowmo, 1.6);
     St.flash(1, '#ffffff'); St.shake(16); kick = 1;
@@ -2615,6 +2618,8 @@
     if (e.k === 'uq' && Math.random() < 0.3) part(v.x + rand(-5, 5), v.y - rand(3, 10), pick(['#ffd28a', '#e8903a', '#ffffff']), { vy: -14, vx: 0, grav: 0, life: 0.6 });
   }
   function drawLootBeams() {
+    // 4.0: the store's beam look (G.cosmetic('beam'): its core and sparks; the edge keeps the rarity's colour)
+    const cb = cosm('beam');
     for (const e of G.R.ground || []) {
       const v = gvis.get(e.id);
       if (!v || !v.beam || !v.landed) continue;
@@ -2625,14 +2630,26 @@
       const top = Math.round(v.y - 2 - (v.y - 2) * grow);
       const w = st.halo ? 9 : loud(e) >= 5 ? 7 : 5;
       const a = (0.2 + 0.08 * Math.sin(time * 5 + e.id)) * fade;
+      if (ultraE(e)) {
+        // 4.0 (ADDENDUM 1): an ultra-rare stands in a rainbow beam, wider, with its colours climbing and sparks in it
+        const uw = 11, x0 = Math.round(v.x - uw / 2), hh = Math.round(v.y - 2 - top), sh = Math.floor(time * 10 + e.id);
+        for (let dx = 0; dx < uw; dx++) { lctx.globalAlpha = (0.22 + 0.3 * (1 - Math.abs(dx - uw / 2) / (uw / 2))) * fade; lctx.fillStyle = rbw(Math.floor(dx / 2) + sh); lctx.fillRect(x0 + dx, top, 1, hh); }
+        lctx.globalAlpha = 0.8 * fade; lctx.fillStyle = cb && cb.core ? cb.core : '#ffffff'; lctx.fillRect(Math.round(v.x - 1), top, 2, hh);
+        lctx.globalAlpha = 0.3 * fade; lctx.fillStyle = '#ffffff';
+        for (let j = 0; j < 3; j++) { const by = Math.round(v.y - 2 - ((time * 60 + j * 31 + e.id * 7) % Math.max(1, hh))); lctx.fillRect(x0, by, uw, 1); }
+        lctx.globalAlpha = 1;
+        if (Math.random() < 0.35) part(v.x + rand(-uw / 2, uw / 2), v.y - rand(2, 40), cb && cb.spark ? cb.spark : rbw(Math.floor(Math.random() * 8)), { vx: 0, vy: -rand(18, 34), grav: 0, life: 0.7 });
+        if (Math.random() < 0.08) part(v.x + rand(-6, 6), v.y - rand(0, 6), '#ffffff', { vx: 0, vy: 0, grav: 0, life: 0.35, plus: true });
+        continue;
+      }
       lctx.globalAlpha = a;
       lctx.fillStyle = st.halo || st.beam;
       lctx.fillRect(Math.round(v.x - w / 2), top, w, Math.round(v.y - 2 - top));
       lctx.globalAlpha = 0.65 * fade;
-      lctx.fillStyle = st.beam;
+      lctx.fillStyle = cb && cb.core ? cb.core : st.beam;
       lctx.fillRect(Math.round(v.x - 1), top, 2, Math.round(v.y - 2 - top));
       lctx.globalAlpha = 1;
-      if (Math.random() < 0.1) part(v.x + rand(-w / 2, w / 2), v.y - rand(2, 30), st.beam, { vx: 0, vy: -20, grav: 0, life: 0.6 });
+      if (Math.random() < 0.1) part(v.x + rand(-w / 2, w / 2), v.y - rand(2, 30), cb && cb.spark ? cb.spark : st.beam, { vx: 0, vy: -20, grav: 0, life: 0.6 });
     }
   }
   // Plates on the hi-res layer, stacked so they never overlap
@@ -2662,7 +2679,9 @@
       const sz = crisp(st.sz);
       ctx.font = sz + 'px ' + FONT;
       const txt = lname(e);
-      const w = Math.ceil(measureW(txt)) + 4, h = Math.ceil(sz) + 2;
+      // 4.0 (ADDENDUM 2): a rare+ piece rolled where it fell says whether it is an upgrade for someone: ▲ / ▼
+      const cmp = e.g && G.groundCmp ? G.groundCmp(e) : null, arr = cmp ? (cmp.up ? 1 : cmp.pct < -1e-6 ? -1 : 0) : 0, aw = arr ? Math.ceil(sz) + 2 : 0;
+      const w = Math.ceil(measureW(txt)) + 4 + aw, h = Math.ceil(sz) + 2;
       const x0 = clamp(Math.round(v.x - w / 2), 1, W - w - 1), y0 = Math.round(v.y - 10 - h);
       // try beside it first, then stack upwards
       let x = x0, y = y0, ok = false;
@@ -2687,9 +2706,19 @@
       if (pop > 1) { ctx.translate(x + w / 2, y + h / 2); ctx.scale(pop, pop); ctx.translate(-(x + w / 2), -(y + h / 2)); }
       if (st.bg) { ctx.fillStyle = st.bg; ctx.fillRect(x, y, w, h); }
       if (st.bd) { ctx.strokeStyle = st.bd; ctx.lineWidth = hoverLoot === e ? 1 : 0.6; ctx.strokeRect(x + 0.3, y + 0.3, w - 0.6, h - 0.6); }
-      if (!st.bg) { ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12'; ctx.strokeText(txt, x + w / 2, y + h / 2 + 0.3); }
-      ctx.fillStyle = st.fg;
-      ctx.fillText(txt, x + w / 2, y + h / 2 + 0.3);
+      const tx = x + aw + (w - aw) / 2;
+      if (!st.bg) { ctx.lineWidth = 1; ctx.strokeStyle = '#0c0b12'; ctx.strokeText(txt, tx, y + h / 2 + 0.3); }
+      // (an ultra-rare's name runs through the rainbow: 8 steps, so each stays a stamped text)
+      ctx.fillStyle = ultraE(e) ? (st.bg ? '#ffffff' : rbw(Math.floor(time * 8) + e.id)) : st.fg;
+      ctx.fillText(txt, tx, y + h / 2 + 0.3);
+      if (ultraE(e) && st.bg) { ctx.fillStyle = rbw(Math.floor(time * 8) + e.id); ctx.fillRect(x + aw, y + h - 0.6, w - aw, 0.6); ctx.fillRect(x + aw, y, w - aw, 0.6); }
+      if (arr) {
+        // the arrow: a little triangle in its own box at the plate's left (green up, red down)
+        const ah = Math.max(2, sz * 0.75), cx = x + aw / 2 + 0.5, cy = y + h / 2, rows = 4;
+        ctx.fillStyle = '#0c0b12'; ctx.fillRect(x, y, aw, h);
+        ctx.fillStyle = arr > 0 ? '#56e05a' : '#ff4f4f';
+        for (let j = 0; j < rows; j++) { const f = (j + 1) / rows, ww = ah * f, yy = arr > 0 ? cy - ah / 2 + j * ah / rows : cy + ah / 2 - (j + 1) * ah / rows; ctx.fillRect(cx - ww / 2, yy, ww, ah / rows + 0.05); }
+      }
       if (hoverLoot === e) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(x, y, w, h); }
       ctx.restore();
     }
@@ -2722,6 +2751,15 @@
     shadow(q.x, q.y - 1, 12);
     blit(SPR.get('shrine_' + s.k) || SPR.get('ic_star'), q.x, q.y + Math.round(Math.sin(time * 2) * 0.5));
     if (Math.random() < 0.4) part(q.x + rand(-4, 4), q.y - rand(8, 16), col, { vx: 0, vy: -18, grav: 0, life: 0.5 });
+    // 4.0: in a Siege the Hand charges it (the ring under it fills); its time left runs out round the outside
+    if (inSiege() && G.shrineHold) {
+      drawShrineCharge(s, q, col);
+      const left = clamp(s.t / G.TUNE.shrineLife, 0, 1), m = 30;
+      lctx.globalAlpha = 0.6; lctx.fillStyle = left < 0.3 && Math.floor(time * 6) % 2 ? '#ff4f4f' : '#ffffff';
+      for (let j = 0; j < Math.round(m * left); j++) { const a = -Math.PI / 2 + j / m * Math.PI * 2; lctx.fillRect(Math.round(q.x + Math.cos(a) * 17), Math.round(q.y - 2 + Math.sin(a) * 8), 1, 1); }
+      lctx.globalAlpha = 1;
+      return;
+    }
     // the ring fills as the Warden walks over to claim it
     const k = clamp(1 - s.t / G.TUNE.shrineLife, 0, 1), n = 24;
     lctx.fillStyle = col;
@@ -2942,6 +2980,11 @@
       const S_ = G.SHRINES[s.k];
       ctx.font = crisp(3) + 'px ' + FONT;
       ctx.strokeText(S_.name, q.x, q.y - 22); ctx.fillStyle = S_.col; ctx.fillText(S_.name, q.x, q.y - 22);
+      // 4.0: HOLD (the Hand charges it), and how far
+      if (inSiege() && G.shrineHold) {
+        const k = clamp((s.ch || 0) / (G.TUNE.shrineCharge || 2), 0, 1), str = k > 0 ? Math.round(k * 100) + '%' : G.t('ff_hold');
+        ctx.strokeText(str, q.x, q.y + 9); ctx.fillStyle = k > 0 ? '#ffffff' : Math.floor(time * 2) % 2 ? S_.col : '#ffffff'; ctx.fillText(str, q.x, q.y + 9);
+      }
     }
     const bq = breachPos();
     if (bq) { ctx.font = crisp(3) + 'px ' + FONT; ctx.strokeText(G.t('breach'), bq.x, bq.y - 12); ctx.fillStyle = '#d8b8ff'; ctx.fillText(G.t('breach'), bq.x, bq.y - 12); }
@@ -3433,6 +3476,7 @@
     drawEventFx(vdt);
     stepGround(vdt);
     drawJackpot(dt);
+    siegeUnder(dt, vdt);
 
     // Collect drawables by y (3.6: into integer-y buckets, no sort; mobs go in as their cached vis)
     const list = DL;
@@ -3532,6 +3576,8 @@
       const y = H * (0.25 + w.seed * 0.3) + Math.sin(time * 2.5 + w.seed * 10) * H * 0.12;
       St._wispPos = { x, y };
       list.push({ y, draw: () => {
+        // 4.0: in a Siege the Golden Click is a little golden Button (DESIGN §5.8)
+        if (inSiege() && SPR.defs.wisp_btn) { drawGoldenWisp(x, y); return; }
         glow(x, y - 4, 6, '#fff3a0', 0.25 + 0.1 * Math.sin(time * 8));
         blit(SPR.get('wisp'), x, y + Math.sin(time * 6) * 1.5);
         if (Math.random() < 0.5) part(x + rand(-3, 3), y - 4, pick(['#fff3a0', '#ffd84a', '#ffffff']), { vx: rand(-8, 8), vy: rand(-8, 8), grav: 0, life: 0.6 });
@@ -3645,6 +3691,7 @@
     drawGibs(false);
     // the party's blows go over the gore, so they read in the thick of it
     drawPfx(vdt);
+    siegeOver(dt, vdt);
 
     // Buff tint
     if (G.hasBuff('frenzy')) { lctx.globalAlpha = 0.07 + 0.03 * Math.sin(time * 6); lctx.fillStyle = '#ffd84a'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; }
@@ -3658,7 +3705,7 @@
     // hurt: the edges run red, and pulse while the Button is low (3.6: and while a DOOM gathers)
     const lowK = G.S.hero && G.S.hero.cls && !(G.R.btnDown > 0) && G.D.heroHp ? clamp(1 - G.S.hero.hp / (G.D.heroHp * 0.3), 0, 1) : 0;
     const doomK = R.boss && R.boss.move && R.boss.move.k === 'doom' ? clamp(1 - R.boss.move.t / R.boss.move.T, 0, 1) : 0;
-    const red = Math.min(0.6, hurtFx * 0.6 + lowK * (0.16 + 0.12 * Math.sin(time * 7)) + (G.R.btnDown > 0 ? 0.22 : 0) + (doomK ? (0.12 + 0.3 * doomK) * (0.6 + 0.4 * Math.sin(time * (8 + 10 * doomK))) : 0));
+    const red = Math.min(0.6, hurtFx * 0.6 + lowK * (0.16 + 0.12 * Math.sin(time * 7)) + (G.R.btnDown > 0 ? 0.22 : 0) + (doomK ? (0.12 + 0.3 * doomK) * (0.6 + 0.4 * Math.sin(time * (8 + 10 * doomK))) : 0) + siegeRed());
     setFx(red, flash);
     if (flash > 0) flash = Math.max(0, flash - dt * 1.8);
     // ---- Hi-res layer: text & bars ----
@@ -3768,7 +3815,7 @@
     lctx.globalAlpha = 1;
   }
   St.marching = () => !!march;
-  G.on('marchStart', (T, newLand) => { march = { t: 0, T, prev: groundCanvas, land: newLand }; St.clearStain(); if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); if (newLand) setTimeout(prewarmLand, 120); });
+  G.on('marchStart', (T, newLand) => { march = { t: 0, T, prev: groundCanvas, land: newLand }; if (newLand && inSiege()) { const ri = G.realmIndex(G.depthNow ? G.depthNow() : G.S.depth); FF.gate = { col: landCol((G.REALMS[ri] || {}).id) }; } St.clearStain(); if (G.Audio && G.Audio.whoosh) G.Audio.whoosh(); if (newLand) setTimeout(prewarmLand, 120); });
   // 3.6: a new land's mob looks (and their gib chunks) are made during the march, not on first sight in the fight
   function prewarmLand() {
     try {
@@ -3966,7 +4013,9 @@
       if (Math.random() < 0.5) { const an = Math.random() * Math.PI * 2, r = rand(40, 110), pts = [[b.x, b.y - 14]]; for (let j = 1; j < 5; j++) pts.push([b.x + Math.cos(an) * r * j / 5 + rand(-6, 6), b.y - 14 + Math.sin(an) * r * 0.55 * j / 5 + rand(-6, 6)]); bolts.push({ pts, life: 0.1, cols: ['#ffffff', '#7fe9ff'] }); }
       glow(b.x, b.y - 8, 34 + 6 * Math.sin(time * 18), '#7fe9ff', 0.35 + 0.15 * Math.sin(time * 25)); if (Math.random() < 0.6) part(b.x + rand(-22, 22), b.y - rand(0, 20), pick(['#ffffff', '#7fe9ff']), { vx: rand(-30, 30), vy: -rand(20, 60), grav: 0, life: 0.3 }); }
     else if (G.odReady && G.odReady()) glow(b.x, b.y - 8, 22, '#7fe9ff', 0.12 + 0.08 * Math.sin(time * 6));
-    const skin = G.SKINS.find(s => s.id === G.S.skin) || G.SKINS[0];
+    // 4.0: the Button's look: the run's Button (its evolution), the store's finish (js/sprites.js SPR.buttonLook)
+    const lk = btnLookNow(), skin = { id: lk.id };
+    const evoK = drawEvoUnder(b, fdt);
     const pressed = btnPress > 0;
     if (btnPress > 0) btnPress -= fdt;
     const combo = G.R.combo, cap = G.D.comboCap || 50;
@@ -3975,11 +4024,12 @@
       part(b.x + Math.cos(a) * 16, b.y - 6 + Math.sin(a) * 6, combo >= cap ? pick(['#ff7ae6', '#ffffff']) : pick(['#ffd84a', '#fff3a0']), { vx: 0, vy: -rand(15, 35), grav: 0, life: 0.5 });
     }
     shadow(b.x, b.y + 1, 36);
-    const spr = SPR.button(skin.base, pressed, time * 120 % 360);
+    const spr = btnSprite(lk, pressed);
     btnSpring.v += (1 - btnSpring.s) * 0.35; btnSpring.v *= 0.7; btnSpring.s += btnSpring.v;
     const sy = clamp(btnSpring.s, 0.8, 1.15), sx = 1 + (1 - sy) * 0.9;
     const bw = Math.round(spr.width * sx), bh = Math.round(spr.height * sy);
     lctx.drawImage(spr, Math.round(b.x - bw / 2), Math.round(b.y + 4 - bh), bw, bh);
+    if (evoK > 0) { lctx.globalAlpha = Math.min(0.85, evoK * evoK); lctx.drawImage(white(spr), Math.round(b.x - bw / 2), Math.round(b.y + 4 - bh), bw, bh); lctx.globalAlpha = 1; }
     if (btnFlashT > 0) { lctx.globalAlpha = Math.min(0.7, btnFlashT * 9); lctx.drawImage(white(spr), Math.round(b.x - bw / 2), Math.round(b.y + 4 - bh), bw, bh); lctx.globalAlpha = 1; btnFlashT -= fdt; }
     if (btnHurtT > 0) { blit(white(spr), b.x, b.y + 4, 1, btnHurtT * 3); btnHurtT -= fdt; }
     if (G.R.btnDown > 0) {
@@ -4001,6 +4051,7 @@
       lctx.fillStyle = k > 0.35 ? '#56d45a' : '#e84a4a'; lctx.fillRect(b.x - w / 2, b.y + 8, Math.round(w * k), 2);
     }
     if ((G.S.upg.prince || 0) > 0) blit(SPR.get('crown_small'), b.x, b.y - 22 + (pressed ? 3 : 0) + Math.round(Math.sin(time * 2)));
+    siegeOnButton(b, lk);
     if (skin.id === 'divine' && Math.random() < 0.2) part(b.x + rand(-14, 14), b.y - rand(8, 20), '#ffffff', { vy: -10, vx: 0, grav: 0, life: 0.6 });
     if (skin.id === 'gold' && Math.random() < 0.12) part(b.x + rand(-14, 14), b.y - rand(8, 20), '#fff3a0', { vy: -10, vx: 0, grav: 0, life: 0.6 });
   }
@@ -4049,11 +4100,612 @@
     shadow(bp.x, bp.y + 1, Math.round(sp.canvas.width * sc * 0.7));
     if (bossVis.lord) glow(bp.x, bp.y - sp.canvas.height * sc / 2, Math.round(sp.canvas.width * sc / 3), '#ff4f7e', 0.12 + 0.06 * Math.sin(time * 5));
     const x = bp.x + (bossHitT > 0 ? Math.round(rand(-1, 1)) : 0), y = bp.y + bob + enterY;
+    if (bossVis.final) drawMadUnder(bp, sp.canvas, sc);
     blit(sp.canvas, x, y, sc);
+    if (bossVis.final) drawMadOver(sp.canvas, x, y, sc);
     if (bossHitT > 0) { blit(white(sp.canvas), x, y, sc, Math.min(0.45, bossHitT * 6)); bossHitT -= fdt; }
     if (sp.crown) blit(SPR.get('crown_small'), x, y - sp.canvas.height * sc + 2, 1);
     if (G.R.boss) drawBossMove(bp);
   }
+
+  // ======================================================================================================================
+  // ---------- 4.0 "The Siege" on the field (the fieldfx stream) ----------
+  // The loot moment (the boss's loot bursts toward the camera and the field dims; an ultra-rare's 1.2-s slow-motion
+  // rainbow pillar with a screen-wide shimmer; rainbow beams on ultra-rares on the ground, ▲/▼ on the labels), the
+  // Integrity pips cracking the Button (and mending it), the shrine's charge ring (the Hand held on it for 2 s), Pacts, the
+  // Golden Click (a little golden Button), the door march and the land's title, the Last Stand (a red sky, packs
+  // telegraphed at the edges, a drum: js/audio.js), the Mad Button, the camp's fire, the Buttons' looks and their
+  // evolution, the store's looks (G.cosmetic: skin / trail / beam) and the Marks' blows (js/powers.js pw* events).
+  // Everything here is drawn on the stage's own pixel layer with the 3.6 budgets (particles through newPart, rings capped).
+  const inSiege = () => !!(G.inSiege && G.inSiege());
+  const runP = () => { const r = G.S.run; return r && r.on ? r.phase : null; };
+  const RBW = ['#ff4f4f', '#ffa033', '#ffd84a', '#56d45a', '#4fd0ff', '#5a7bff', '#b36bff', '#ff6ad8'];
+  const rbw = i => RBW[((i % 8) + 8) % 8];
+  // an ultra-rare (mythic, divine, unique, relic: ADDENDUM 1) on the ground or in a loot card
+  const ultraG = g => !!(g && (g.q || g.relic || (g.r | 0) >= 5));
+  const ultraE = e => !!(e && (e.k === 'uq' || (e.k === 'gear' && e.r >= 5) || ultraG(e.g)));
+  const FF = { loot: null, dim: 0, pillars: [], shimmer: [], edges: [], lsK: 0, madK: 0, campK: 0, cracks: 0, crackT: 9, heal: null,
+    pipFx: null, charge: null, pact: null, evo: null, door: null, gate: null, light: false, trailT: 0, edgeT: 0, lsFlashT: 0 };
+  St.ff = FF; // (tests read it)
+  // the store sells looks only when the stage draws them (js/store.js reads this flag)
+  St.cosmetics = true;
+  const cosm = k => { try { return G.cosmetic ? G.cosmetic(k) : null; } catch (e) { return null; } };
+  if (G.tAdd) G.tAdd({
+    ff_pipLost: 'INTEGRITY −1', ff_pipLast: 'LAST PIP', ff_pipLastSub: 'The next hit is the fall', ff_pipGain: 'INTEGRITY +1',
+    ff_muster: 'The muster: no pip lost', ff_hold: 'HOLD', ff_landN: 'LAND {0} · {1}', ff_act: 'ACT {0}', ff_actFinal: 'THE FINALE',
+    ff_twist: 'Twist: {0}', ff_prize: 'Prize: {0}', ff_cursed: 'CURSED ×2', ff_vault: 'THE VAULT', ff_ls: 'LAST STAND',
+    ff_lsSub: 'Hold {0} s: the whole Horde, from every side', ff_lsHeld: 'THE HORDE HELD', ff_pact: 'PACT SEALED', ff_pactDone: 'PACT FULFILLED',
+    ff_golden: 'GOLDEN CLICK', ff_camp: 'CAMP', ff_reap: 'REAP', ff_phoenix: 'PHOENIX', ff_echo: 'ECHO', ff_break: 'ARMOUR BROKEN', ff_engine: 'ENGINE +{0}%',
+    ff_loot: 'LOOT!', ff_lootBig: 'HOLY LOOT!',
+  });
+  const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
+
+  // ---------- the loot moment: the boss's loot bursts toward the camera, the field dims ----------
+  G.on('lootMoment', L => {
+    const cards = (L && L.cards) || [], b = btnPos(), o = { x: b.x, y: b.y - 14 };
+    let best = 0, ultra = 0;
+    const list = cards.map((c, i) => {
+      const g = c && c.g, r = g ? (g.q ? 7 : g.relic ? 8 : g.r | 0) : 0, u = ultraG(g);
+      best = Math.max(best, r); if (u) ultra++;
+      return { i, r, u, col: g && g.q ? '#e8903a' : g && g.relic ? '#ffffff' : G.RARITIES[Math.min(6, r)].color };
+    });
+    FF.loot = { t: 0, best, ultra, cards: list, o, n: list.length };
+    const cols = list.map(c => c.col).concat(['#ffffff', '#ffd84a']);
+    burst(o.x, o.y, cols, Math.round(40 + 10 * Math.min(best, 7)), 110 + best * 14, { life: 0.9 });
+    ring(o.x, o.y + 6, 46 + best * 8, 26 + best * 4, best >= 4 ? '#ffd84a' : '#ffffff', 0.6);
+    ring(o.x, o.y + 6, 24, 12, '#ffffff', 0.3);
+    // great loot is felt: a gold flash, a kick, a held frame, the word on the field
+    if (best >= 4) {
+      St.flash(0.22 + 0.05 * Math.min(4, best - 4), best >= 7 ? '#ffe0a0' : '#ffd84a'); St.shake(3 + Math.min(5, best - 4)); hitstop = Math.max(hitstop, 0.07);
+      text(o.x, o.y - 26, G.t(best >= 5 ? 'ff_lootBig' : 'ff_loot'), best >= 5 ? '#ff6ad8' : '#ffd84a', best >= 5 ? 9 : 7, { life: 1.4, max: 1.4, vy: -10, big: true, pop: 0.25 });
+    }
+  });
+  function drawLootMoment(dt) {
+    const L = FF.loot, on = runP() === 'loot';
+    FF.dim += ((on ? 0.42 : 0) - FF.dim) * Math.min(1, dt * (on ? 5 : 3));
+    if (FF.dim > 0.01) { lctx.globalAlpha = FF.dim; lctx.fillStyle = '#06040c'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; }
+    if (!L) return;
+    L.t += dt;
+    if (!on && L.t > 1.6) { FF.loot = null; return; }
+    const o = L.o, best = L.best;
+    // the spot it all came from keeps a light while the moment lasts; god rays turn behind it for legendary and up
+    if (on || L.t < 1.2) {
+      const fade = on ? Math.min(1, L.t * 3) : Math.max(0, 1 - (L.t - 1.2) * 2);
+      const col = best >= 7 ? '#ffd28a' : best >= 4 ? G.RARITIES[Math.min(6, best)].color : '#ffffff';
+      if (best >= 4 && Q.glows) {
+        lctx.globalAlpha = 0.1 * fade; lctx.fillStyle = best >= 5 ? rbw(Math.floor(time * 4)) : col;
+        const n = 9, r = Math.max(W, H);
+        for (let j = 0; j < n; j++) {
+          const a = time * 0.6 + j / n * Math.PI * 2;
+          lctx.beginPath(); lctx.moveTo(o.x, o.y);
+          lctx.lineTo(o.x + Math.cos(a - 0.08) * r, o.y + Math.sin(a - 0.08) * r); lctx.lineTo(o.x + Math.cos(a + 0.08) * r, o.y + Math.sin(a + 0.08) * r);
+          lctx.fill();
+        }
+        lctx.globalAlpha = 1;
+      }
+      glow(o.x, o.y + 2, 10 + Math.min(8, best * 1.5), col, (0.25 + 0.08 * Math.sin(time * 6)) * fade);
+    }
+    // the cards themselves fly out of the boss toward the screen (growing, spinning), where the loot screen deals them
+    const n = L.n;
+    if (L.t < 1.05) for (const c of L.cards) {
+      const k = clamp((L.t - c.i * 0.05) / 0.9, 0, 1); if (k <= 0) continue;
+      const e = 1 - (1 - k) * (1 - k), tx = W / 2 + (c.i - (n - 1) / 2) * Math.min(W * 0.17, 46), ty = H * 0.3;
+      const x = o.x + (tx - o.x) * e, y = o.y + (ty - o.y) * e - Math.sin(k * Math.PI) * 26;
+      const s = 1 + 2.6 * e, fl = Math.abs(Math.cos(L.t * 11 + c.i * 1.3)), w = Math.max(1, Math.round(6 * s * fl)), h = Math.round(8 * s);
+      const a = k > 0.75 ? (1 - k) / 0.25 : 1;
+      lctx.globalAlpha = a;
+      lctx.fillStyle = '#0c0b12'; lctx.fillRect(Math.round(x - w / 2) - 1, Math.round(y - h / 2) - 1, w + 2, h + 2);
+      lctx.fillStyle = c.u ? rbw(Math.floor(time * 14) + c.i) : c.col; lctx.fillRect(Math.round(x - w / 2), Math.round(y - h / 2), w, h);
+      if (w > 4) { lctx.fillStyle = '#2a2236'; lctx.fillRect(Math.round(x - w / 2) + 1, Math.round(y - h / 2) + 1, w - 2, h - 2); lctx.fillStyle = c.u ? '#ffffff' : c.col; lctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2); }
+      lctx.globalAlpha = 1;
+      if (k < 0.9 && Math.random() < 0.6) part(x + rand(-2, 2), y + rand(-2, 2), c.u ? rbw(Math.floor(Math.random() * 8)) : c.col, { vx: rand(-10, 10), vy: rand(-10, 10), grav: 0, life: 0.35 });
+    }
+  }
+
+  // ---------- an ultra-rare's flip: a 1.2-s slow-motion rainbow pillar where the boss fell, hitstop, sparks, a shimmer ----------
+  const PILLAR_COL = { mythic: '#ff4f7e', divine: '#ffffff', unique: '#e8903a', relic: '#ffffff' };
+  function lootPillar(tier) {
+    tier = tier || 'mythic';
+    const b = btnPos();
+    FF.pillars.push({ t: 0, T: tier === 'relic' ? 2.4 : 1.7, tier, x: b.x, y: b.y + 2 });
+    if (FF.pillars.length > 3) FF.pillars.shift();
+    slowmo = Math.max(slowmo, 1.2); hitstop = Math.max(hitstop, 0.14);
+    if (Q.tier < 3) FF.shimmer.push({ t: 0, T: tier === 'relic' ? 1.6 : 1.1 });
+    for (let i = 0; i < 3; i++) ring(b.x, b.y - 2, 60 + i * 34, 32 + i * 18, rbw(i * 3 + 1), 0.6 + i * 0.2);
+    burst(b.x, b.y - 10, RBW.concat(['#ffffff']), Math.round(90 * Math.max(0.5, Q.particles)), 190, { life: 1.1 });
+    St.shake(8); St.flash(0.35, PILLAR_COL[tier] || '#ffffff');
+  }
+  St.lootPillar = lootPillar;
+  G.on('lootUltra', (c, tier) => lootPillar(tier));
+  function drawPillars(dt) {
+    for (let i = FF.pillars.length - 1; i >= 0; i--) {
+      const p = FF.pillars[i];
+      p.t += dt;
+      if (p.t >= p.T) { FF.pillars.splice(i, 1); continue; }
+      const k = p.t / p.T, wk = k < 0.08 ? k / 0.08 : k > 0.7 ? (1 - k) / 0.3 : 1;
+      const w = Math.max(1, Math.round((8 + Math.min(26, W * 0.05)) * wk)), y = p.y, x0 = p.x;
+      const edge = PILLAR_COL[p.tier] || '#ffffff';
+      // a halo in the tier's colour, the rainbow body column by column (the bands climb), a white core
+      lctx.globalAlpha = 0.18 * wk; lctx.fillStyle = edge; lctx.fillRect(x0 - w - 6, 0, w * 2 + 12, y);
+      const sh = Math.floor(time * 24);
+      for (let dx = -w; dx <= w; dx++) {
+        const f = 1 - Math.abs(dx) / (w + 1);
+        lctx.globalAlpha = (0.28 + 0.5 * f) * wk; lctx.fillStyle = rbw(Math.floor((dx + w) / 3) + sh);
+        lctx.fillRect(x0 + dx, 0, 1, y);
+      }
+      lctx.globalAlpha = 0.9 * wk; lctx.fillStyle = '#ffffff'; lctx.fillRect(x0 - 1, 0, 3, y);
+      lctx.globalAlpha = 0.35 * wk;
+      for (let j = 0; j < 6; j++) { const by = Math.round(y - ((time * 150 + j * 37) % (y + 30))); lctx.fillRect(x0 - w, by, w * 2 + 1, 2); }
+      lctx.globalAlpha = 1;
+      glow(x0, y - 2, 12 + Math.round(10 * wk), '#ffffff', 0.5 * wk);
+      // sparks rising up the pillar
+      const ns = Math.round(4 * wk);
+      for (let j = 0; j < ns; j++) part(x0 + rand(-w - 4, w + 4), y - rand(0, y), rbw(Math.floor(Math.random() * 8)), { vx: rand(-14, 14), vy: -rand(60, 150), grav: -20, life: rand(0.4, 0.9) });
+    }
+    // the shimmer: a rainbow band sweeps across the whole field
+    for (let i = FF.shimmer.length - 1; i >= 0; i--) {
+      const s = FF.shimmer[i];
+      s.t += dt;
+      if (s.t >= s.T) { FF.shimmer.splice(i, 1); continue; }
+      const k = s.t / s.T, a = 0.2 * (1 - Math.abs(2 * k - 1)), x = -80 + (W + 160) * k;
+      for (let yy = 0; yy < H; yy += 3) { lctx.globalAlpha = a; lctx.fillStyle = rbw(Math.floor(yy / 10 + time * 12)); lctx.fillRect(Math.round(x + yy * 0.45 - 30), yy, 28, 3); }
+      lctx.globalAlpha = a * 0.5; lctx.fillStyle = '#ffffff';
+      for (let yy = 0; yy < H; yy += 3) lctx.fillRect(Math.round(x + yy * 0.45 - 4), yy, 4, 3);
+      lctx.globalAlpha = 1;
+    }
+  }
+
+  // ---------- Integrity: a pip cracks the Button (and the crack stays), a pip back mends it with a sparkle ----------
+  const CRACKS = [
+    [[-7, -16], [-4, -11], [-6, -7], [-3, -3], [-4, 1]],
+    [[6, -15], [8, -10], [5, -6], [8, -2]],
+    [[0, -17], [1, -13], [-1, -10], [2, -6], [0, -2], [1, 2]],
+  ];
+  G.on('pip', (dl, n, why, kind) => {
+    const b = btnPos();
+    if (kind === 'lost' || kind === 'last') {
+      FF.pipFx = { t: 0, kind }; FF.crackT = 0;
+      burst(b.x, b.y - 12, ['#ffffff', '#e8f4ff', '#ff4f4f', '#c8c8d4'], Math.round(36 * Math.max(0.5, Q.particles)), 120, { life: 0.7, grav: 160 });
+      ring(b.x, b.y - 6, 50, 28, '#ff3b3b', 0.5); ring(b.x, b.y - 6, 30, 16, '#ffffff', 0.3);
+      St.flash(kind === 'last' ? 0.55 : 0.4, '#ff2a3a'); St.shake(kind === 'last' ? 10 : 6); hitstop = Math.max(hitstop, 0.1);
+      cardText(0, G.t(kind === 'last' ? 'ff_pipLast' : 'ff_pipLost'), '#ff4f4f', kind === 'last' ? 8 : 7, { life: 2.2, vy: -3, big: true, now: true });
+      if (kind === 'last') cardText(10, G.t('ff_pipLastSub'), '#ffffff', 3, { life: 2.2, vy: -3 });
+    } else if (kind === 'gain') {
+      FF.pipFx = { t: 0, kind };
+      if (FF.cracks > 0) FF.heal = { t: 0, i: FF.cracks - 1 };
+      burst(b.x, b.y - 12, ['#ffd84a', '#fff3a0', '#ffffff', '#8ae07a'], Math.round(40 * Math.max(0.5, Q.particles)), 90, { grav: -30, life: 0.9 });
+      ring(b.x, b.y - 6, 40, 22, '#ffd84a', 0.6);
+      text(b.x, b.y - 42, G.t('ff_pipGain'), '#ffd84a', 6, { life: 1.6, max: 1.6, vy: -10, big: true });
+    } else if (kind === 'muster') text(b.x, b.y - 42, G.t('ff_muster'), '#c8c8d4', 3, { life: 1.8, max: 1.8, vy: -8 });
+  });
+  // the cracks the Button carries: one a pip lost this run (the next drawn as it splits); a pip back mends the last one
+  function drawCracks(b, dt) {
+    const r = G.S.run, want = r && r.on && !G.S.fallen ? clamp((r.pipMax | 0) - (r.pips | 0), 0, 3) : 0;
+    if (want > FF.cracks) { FF.cracks = want; if (FF.crackT > 0.5) FF.crackT = 0; }
+    else if (want < FF.cracks && !FF.heal) FF.heal = { t: 0, i: FF.cracks - 1 };
+    FF.crackT += dt;
+    let n = FF.cracks;
+    if (FF.heal) {
+      const hl = FF.heal; hl.t += dt;
+      if (hl.t >= 0.7) { FF.heal = null; FF.cracks = Math.min(FF.cracks, want); n = FF.cracks; }
+    }
+    if (!n) return;
+    const pressedY = btnPress > 0 ? 3 : 0;
+    for (let i = 0; i < n; i++) {
+      const pts = CRACKS[i];
+      const grow = i === n - 1 ? clamp(FF.crackT / 0.25, 0, 1) : 1;
+      const healK = FF.heal && FF.heal.i === i ? 1 - FF.heal.t / 0.7 : 1;
+      const m = Math.max(1, Math.round((pts.length - 1) * grow));
+      lctx.globalAlpha = 0.9 * healK; lctx.fillStyle = '#0c0b12';
+      for (let j = 0; j < m; j++) line(b.x + pts[j][0], b.y + pts[j][1] + pressedY, b.x + pts[j + 1][0], b.y + pts[j + 1][1] + pressedY);
+      lctx.globalAlpha = 0.45 * healK; lctx.fillStyle = '#ffffff';
+      for (let j = 0; j < m; j++) line(b.x + pts[j][0] + 1, b.y + pts[j][1] + pressedY, b.x + pts[j + 1][0] + 1, b.y + pts[j + 1][1] + pressedY);
+      lctx.globalAlpha = 1;
+      if (FF.heal && FF.heal.i === i && Math.random() < 0.7) { const q = pts[Math.floor(Math.random() * pts.length)]; part(b.x + q[0], b.y + q[1], pick(['#ffd84a', '#ffffff', '#fff3a0']), { vx: rand(-10, 10), vy: -rand(10, 30), grav: 0, life: 0.5 }); }
+    }
+  }
+  // the pip itself over the Button: a diamond that splits and falls (lost), or pops in gold and rises (gained)
+  function drawPipFx(b, dt) {
+    const f = FF.pipFx; if (!f) return;
+    f.t += dt;
+    if (f.t > 1) { FF.pipFx = null; return; }
+    const x = b.x, y = b.y - 40, a = 1 - Math.max(0, f.t - 0.6) / 0.4;
+    const dia = (cx, cy, col, half) => { lctx.fillStyle = col; for (let j = -3; j <= 3; j++) { const w = 3 - Math.abs(j); if (half < 0) lctx.fillRect(Math.round(cx - w), Math.round(cy + j), w + 1, 1); else if (half > 0) lctx.fillRect(Math.round(cx), Math.round(cy + j), w + 1, 1); else lctx.fillRect(Math.round(cx - w), Math.round(cy + j), w * 2 + 1, 1); } };
+    lctx.globalAlpha = a;
+    if (f.kind === 'gain') { const s = Math.min(1, f.t * 6), yy = y - f.t * 10; glow(x, yy, 6, '#ffd84a', 0.4 * a); dia(x, yy, '#0c0b12', 0); if (s >= 1) dia(x, yy, '#ffd84a', 0); }
+    else {
+      const k = clamp((f.t - 0.12) / 0.88, 0, 1), dx = k * 10, dy = k * k * 30;
+      if (f.t < 0.12) dia(x, y, '#ff4f4f', 0);
+      else { dia(x - dx, y + dy, '#ff4f4f', -1); dia(x + dx, y + dy, f.kind === 'last' ? '#7a1020' : '#ff4f4f', 1); lctx.fillStyle = '#ffffff'; lctx.fillRect(Math.round(x), Math.round(y - 3), 1, 7); }
+    }
+    lctx.globalAlpha = 1;
+  }
+
+  // ---------- the shrine: hold the Hand on it for 2 s (DESIGN §5.8); its ring fills, the light gathers in ----------
+  function shrineChargeStep(dt) {
+    const c = FF.charge;
+    if (!c) return;
+    if (!G.R.shrine || runP() !== 'field') { FF.charge = null; return; }
+    if (hitShrine(pointer)) { c.k = G.shrineHold(dt); c.on = true; }
+    else if (c.on) { c.on = false; c.k = 0; if (G.shrineLeave) G.shrineLeave(); }
+  }
+  function drawShrineCharge(s, q, col) {
+    const T = G.TUNE.shrineCharge || 2, k = clamp((s.ch || 0) / T, 0, 1), n = 36;
+    // the ring under it: dim dots all round, bright ones as far as the charge has come (two rows: it reads at arm's length)
+    for (let j = 0; j < n; j++) {
+      const a = -Math.PI / 2 + j / n * Math.PI * 2, lit = j / n < k;
+      lctx.globalAlpha = lit ? 1 : 0.35; lctx.fillStyle = lit ? (k >= 0.999 ? '#ffffff' : col) : '#0c0b12';
+      const x = Math.round(q.x + Math.cos(a) * 13), y = Math.round(q.y - 2 + Math.sin(a) * 6);
+      lctx.fillRect(x, y, 1, 1); if (lit) lctx.fillRect(x, y + 1, 1, 1);
+    }
+    lctx.globalAlpha = 1;
+    if (k > 0) {
+      glow(q.x, q.y - 8, 8 + Math.round(8 * k), col, 0.2 + 0.3 * k);
+      // the light runs in to it
+      const m = Math.round(1 + 3 * k);
+      for (let j = 0; j < m; j++) { const a = Math.random() * Math.PI * 2, r = rand(16, 26); part(q.x + Math.cos(a) * r, q.y - 6 + Math.sin(a) * r * 0.5, pick([col, '#ffffff']), { vx: -Math.cos(a) * r * 3, vy: -Math.sin(a) * r * 1.5, grav: 0, life: 0.3 }); }
+      if (k > 0.85) St.shake(0.8);
+    }
+  }
+
+  // ---------- Pacts: chains from the corners to the Button; dark runes circle it while the pact holds ----------
+  G.on('pact', (id, yes) => {
+    if (!yes) return;
+    FF.pact = { t: 0, id };
+    const b = btnPos(), P = (G.PACTS && G.PACTS[id]) || {};
+    St.flash(0.5, '#3a0a5a'); St.shake(5); hitstop = Math.max(hitstop, 0.08);
+    ring(b.x, b.y - 4, 70, 38, '#b36bff', 0.7); ring(b.x, b.y - 4, 40, 22, '#ff3b3b', 0.5);
+    burst(b.x, b.y - 10, ['#b36bff', '#6a2fa8', '#ff3b3b', '#0c0b12'], 40, 90, { grav: -20 });
+    cardText(0, G.t('ff_pact'), '#b36bff', 7, { life: 2.2, vy: -3, big: true });
+    if (P.name) cardText(10, P.name, '#ffffff', 3, { life: 2.2, vy: -3 });
+  });
+  G.on('pactDone', () => {
+    const b = btnPos();
+    burst(b.x, b.y - 10, ['#ffd84a', '#b36bff', '#ffffff'], 50, 120); ring(b.x, b.y - 4, 80, 44, '#ffd84a', 0.7);
+    cardText(0, G.t('ff_pactDone'), '#ffd84a', 6, { life: 2, vy: -3, big: true });
+  });
+  function drawPact(b, dt) {
+    const r = G.S.run, held = !!(r && r.on && (r.pact || r.glass));
+    const p = FF.pact;
+    if (p) {
+      p.t += dt;
+      if (p.t > 1.6) FF.pact = null;
+      else {
+        // the chains come in from the four corners
+        const k = clamp(p.t / 0.45, 0, 1), fade = 1 - Math.max(0, p.t - 1.1) / 0.5;
+        lctx.globalAlpha = 0.85 * fade;
+        for (const [cx, cy] of [[0, 0], [W, 0], [0, H], [W, H]]) {
+          const ex = cx + (b.x - cx) * k, ey = cy + (b.y - 8 - cy) * k, d = Math.hypot(ex - cx, ey - cy), m = Math.floor(d / 4);
+          for (let j = 0; j < m; j++) { const t = j / Math.max(1, m), x = cx + (ex - cx) * t, y = cy + (ey - cy) * t; lctx.fillStyle = j % 2 ? '#6a2fa8' : '#b36bff'; lctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, j % 2 ? 2 : 3, j % 2 ? 2 : 3); }
+        }
+        lctx.globalAlpha = 1;
+      }
+    }
+    if (!held) return;
+    // the runes of a pact still running
+    for (let j = 0; j < 6; j++) {
+      const a = time * 0.7 + j / 6 * Math.PI * 2, x = Math.round(b.x + Math.cos(a) * 28), y = Math.round(b.y - 4 + Math.sin(a) * 11);
+      lctx.globalAlpha = 0.45 + 0.25 * Math.sin(time * 3 + j); lctx.fillStyle = j % 2 ? '#b36bff' : '#ff3b5c';
+      lctx.fillRect(x, y - 1, 1, 3); lctx.fillRect(x - 1, y, 3, 1);
+    }
+    lctx.globalAlpha = 1;
+  }
+
+  // ---------- the Golden Click: a little golden Button on the wing ----------
+  function drawGoldenWisp(x, y) {
+    const pulse = 0.5 + 0.5 * Math.sin(time * 8);
+    glow(x, y - 4, 9, '#ffd84a', 0.22 + 0.12 * pulse);
+    blit(SPR.get('wisp_btn'), x, y + Math.sin(time * 6) * 1.5);
+    // a little ring that breathes round it, and a trail of gold
+    if (Math.floor(time * 3) % 2 === 0) { lctx.globalAlpha = 0.5 * pulse; lctx.fillStyle = '#fff3a0'; for (let j = 0; j < 14; j++) { const a = j / 14 * Math.PI * 2 + time; lctx.fillRect(Math.round(x + Math.cos(a) * 10), Math.round(y - 4 + Math.sin(a) * 6), 1, 1); } lctx.globalAlpha = 1; }
+    if (Math.random() < 0.7) part(x + rand(-4, 4), y - rand(0, 6), pick(['#fff3a0', '#ffd84a', '#ffffff', '#ffb347']), { vx: rand(-14, 14), vy: rand(-6, 14), grav: 30, life: 0.6 });
+  }
+  G.on('goldenClick', (id, e) => {
+    const w = St._wispPos || btnPos(), b = btnPos();
+    ring(w.x, w.y - 4, 30, 18, '#ffd84a', 0.5); ring(w.x, w.y - 4, 16, 9, '#ffffff', 0.3);
+    for (let i = 0; i < 14 && coins.length < 240; i++) coins.push({ x: w.x + rand(-6, 6), y: w.y - 4, vx: rand(-60, 60), vy: rand(-90, -30), floor: b.y + rand(-6, 10), t: rand(0.4, 0.8), fly: 0 });
+    cardText(0, G.t('ff_golden'), '#ffd84a', 6, { life: 1.8, vy: -3, big: true });
+    if (e && e.name) cardText(9, G.L(e.name), '#ffffff', 3, { life: 1.8, vy: -3 });
+  });
+
+  // ---------- the doors: the march through a gate into the next land, the land's title ----------
+  G.on('door', (o, slot, vault) => { FF.door = { o, slot, vault, at: time }; });
+  function landCol(id) { const g = SPR.REALM_GROUND && SPR.REALM_GROUND[id]; return g ? g.detail || g.base[0] : '#ffd84a'; }
+  function drawGate(dt) {
+    const g = FF.gate;
+    if (!g) return;
+    if (!march) { FF.gate = null; return; }
+    const k = Math.min(1, march.t / march.T), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    // the gate stands on the line between the lands: it comes down from ahead and the party walks through it
+    const b = btnPos(), y = Math.round(e * H) + 6, half = Math.min(46, Math.round(W * 0.16)), ph = 34, col = g.col;
+    if (y < 0 || y - ph - 10 > H) return;
+    for (const sx of [-1, 1]) {
+      const x = b.x + sx * half;
+      lctx.fillStyle = 'rgba(0,0,0,0.3)'; lctx.fillRect(x - 5, y, 12, 2);
+      lctx.fillStyle = '#4a4458'; lctx.fillRect(x - 4, y - ph, 8, ph);
+      lctx.fillStyle = '#6e6880'; lctx.fillRect(x - 4, y - ph, 2, ph);
+      lctx.fillStyle = '#2a2632'; lctx.fillRect(x + 3, y - ph, 1, ph); lctx.fillRect(x - 5, y - ph - 2, 10, 2); lctx.fillRect(x - 5, y - 2, 10, 2);
+      // the land's banner on the pillar, waving
+      const wv = Math.round(Math.sin(time * 6 + sx) * 1.2);
+      lctx.fillStyle = col; lctx.fillRect(x - 3 + wv, y - ph + 3, 6, 12); lctx.fillStyle = '#0c0b12'; lctx.fillRect(x - 3 + wv, y - ph + 15, 2, 2); lctx.fillRect(x + 1 + wv, y - ph + 15, 2, 2);
+      lctx.fillStyle = '#ffffff'; lctx.fillRect(x - 1 + wv, y - ph + 7, 2, 2);
+      // torches
+      glow(x, y - ph - 4, 4, '#ff9a3a', 0.35 + 0.1 * Math.sin(time * 12 + sx));
+      if (Math.random() < 0.4) part(x + rand(-1, 1), y - ph - 4, pick(['#ffd84a', '#ff7a2e']), { vx: rand(-4, 4), vy: -rand(10, 24), grav: 0, life: 0.35 });
+    }
+    // the arch
+    lctx.fillStyle = '#4a4458';
+    for (let dx = -half; dx <= half; dx++) { const a = Math.abs(dx) / half, h = Math.round(6 * (1 - a * a)); lctx.fillRect(b.x + dx, y - ph - 4 - h, 1, 4); }
+    lctx.fillStyle = col; lctx.fillRect(b.x - 4, y - ph - 12, 8, 4);
+  }
+  function landTitle(d) {
+    const ri = G.realmIndex(d), R_ = G.REALMS[ri], slot = Math.floor(d / G.REALM_SIZE), act = G.SIEGE && G.SIEGE.actOf ? G.SIEGE.actOf[slot] : null;
+    const dr = FF.door && time - FF.door.at < 12 ? FF.door : null, o = dr && dr.o;
+    const name = (o && o.name) || G.realmName(d), col = landCol(R_.id);
+    cardText(0, G.t('ff_landN', slot + 1, String(name).toUpperCase()), '#ffffff', 7, { life: 3.2, max: 3.2, vy: -3, big: true, tag: 'land' });
+    cardText(10, act ? G.t('ff_act', ROMAN[act] || act) : act === 0 ? G.t('ff_actFinal') : '', act === 0 ? '#ff4f7e' : col, 3, { life: 3.2, max: 3.2, vy: -3 });
+    cardText(16, R_.rule + ': ' + R_.ruleDesc, '#ffe27a', 3, { life: 3.2, max: 3.2, vy: -3 });
+    const bits = [];
+    if (o && o.mod && G.MAP_MODS && G.MAP_MODS[o.mod] && o.mod !== 'calm') bits.push(G.t('ff_twist', G.MAP_MODS[o.mod].name) + (o.cursed ? ' ' + G.t('ff_cursed') : ''));
+    if (o && o.tag && G.REWARD_TAGS && G.REWARD_TAGS[o.tag]) bits.push(G.t('ff_prize', G.REWARD_TAGS[o.tag].name));
+    if (bits.length) cardText(22, bits.join(' · '), o && o.cursed ? '#ff6a5a' : '#c8f0ff', 3, { life: 3.2, max: 3.2, vy: -3 });
+    St.flash(0.25, col);
+    if (G.Audio && G.Audio.landTitle) G.Audio.landTitle();
+  }
+
+  // ---------- the finale: the Last Stand (a red sky, packs telegraphed at the edges) and the Mad Button ----------
+  G.on('lastStand', L => {
+    FF.edges.length = 0;
+    St.flash(0.6, '#ff2a2a'); St.shake(9); hitstop = Math.max(hitstop, 0.12);
+    const b = btnPos(); ring(b.x, b.y - 4, 140, 80, '#ff3b3b', 1); ring(b.x, b.y - 4, 90, 50, '#ffffff', 0.6);
+    cardText(0, G.t('ff_ls'), '#ff3b3b', 10, { life: 3, vy: -2, big: true, now: true });
+    cardText(13, G.t('ff_lsSub', Math.round((L && L.T) || 75)), '#ffffff', 3, { life: 3, vy: -2 });
+  });
+  G.on('lastStandEnd', L => { if (!L) return; const b = btnPos(); ring(b.x, b.y - 4, 120, 66, '#ffd84a', 0.8); cardText(0, G.t('ff_lsHeld'), '#ffd84a', 7, { life: 1.6, vy: -3, big: true }); });
+  G.on('packIn', a => { if (G.R.lastStand && FF.edges.length < 16) FF.edges.push({ a, t: 0 }); });
+  G.on('madButton', () => {
+    const p = bossPos();
+    St.flash(0.95, '#1a0024'); St.shake(14); hitstop = Math.max(hitstop, 0.3); slowmo = Math.max(slowmo, 0.8);
+    for (let i = 0; i < 4; i++) { const x = p.x + rand(-50, 50), pts = [[x + rand(-20, 20), 0]]; for (let j = 1; j < 7; j++) pts.push([x + (p.x - x) * j / 7 + rand(-10, 10), (p.y - 20) * j / 7]); bolts.push({ pts, life: 0.45, cols: ['#ffffff', '#ff2ad4'], wide: true }); }
+    ring(p.x, p.y - 8, 150, 84, '#ff2ad4', 1); ring(p.x, p.y - 8, 100, 56, '#7a00ff', 0.8); ring(p.x, p.y - 8, 50, 28, '#ffffff', 0.5);
+    burst(p.x, p.y - 14, ['#ff2ad4', '#7a00ff', '#0c0b12', '#ffffff'], 120, 200, { life: 1 });
+  });
+  function drawFinaleSky(dt) {
+    const R = G.R, lsOn = !!R.lastStand, mad = !!(R.boss && R.boss.final);
+    FF.lsK = clamp(FF.lsK + (lsOn ? dt : -dt) * 1.2, 0, 1);
+    FF.madK = clamp(FF.madK + (mad ? dt : -dt) * 1.2, 0, 1);
+    const k = FF.lsK, m = FF.madK;
+    if (k <= 0 && m <= 0) return;
+    if (k > 0) {
+      // a red sky: the field runs red, a dark band at the top, a blood moon, ash on the wind, the odd flicker of red lightning
+      lctx.globalCompositeOperation = 'multiply'; lctx.globalAlpha = 0.55 * k; lctx.fillStyle = '#ff7a6a'; lctx.fillRect(0, 0, W, H);
+      lctx.globalCompositeOperation = 'source-over';
+      for (let yy = 0; yy < H * 0.28; yy += 2) { lctx.globalAlpha = 0.5 * k * (1 - yy / (H * 0.28)); lctx.fillStyle = '#2a0006'; lctx.fillRect(0, yy, W, 2); }
+      const mx = Math.round(W * 0.82), my = Math.round(H * 0.12) + 4;
+      glow(mx, my, 14, '#ff3b2a', 0.3 * k);
+      lctx.globalAlpha = k; lctx.fillStyle = '#ff3b2a';
+      for (let dy = -7; dy <= 7; dy++) { const w = Math.round(Math.sqrt(49 - dy * dy)); lctx.fillRect(mx - w, my + dy, w * 2, 1); }
+      lctx.fillStyle = '#8a0a12'; for (let dy = -7; dy <= 7; dy++) { const w = Math.round(Math.sqrt(49 - dy * dy) * 0.6); lctx.fillRect(mx + 2, my + dy, w, 1); }
+      lctx.globalAlpha = 1;
+      if (Math.random() < 0.5 * k) part(rand(0, W), -2, pick(['#3a2a2a', '#5a3a3a', '#ff7a2e']), { vx: rand(-30, -10), vy: rand(30, 60), grav: 0, life: rand(1.2, 2.4) });
+      if ((FF.lsFlashT -= dt) <= 0) { FF.lsFlashT = rand(2.5, 5); if (lsOn) { St.flash(0.18, '#ff5a5a'); const x = rand(W * 0.1, W * 0.9), pts = [[x, 0]]; for (let j = 1; j < 5; j++) pts.push([x + rand(-12, 12), H * 0.2 * j / 5]); bolts.push({ pts, life: 0.2, cols: ['#ffffff', '#ff4f4f'] }); } }
+    }
+    if (m > 0) {
+      // the Mad Button's own sky: the void closes in (dark, violet, the field's edges eaten away)
+      lctx.globalAlpha = 0.28 * m; lctx.fillStyle = '#12001a'; lctx.fillRect(0, 0, W, H);
+      lctx.globalAlpha = 0.35 * m; lctx.fillStyle = '#7a00ff';
+      for (let j = 0; j < 24; j++) { const a = j / 24 * Math.PI * 2 + time * 0.3, r = 0.46 + 0.04 * Math.sin(time * 2 + j); lctx.fillRect(Math.round(W / 2 + Math.cos(a) * W * r), Math.round(H / 2 + Math.sin(a) * H * r), 3, 3); }
+      lctx.globalAlpha = 1;
+      if (Math.random() < 0.3 * m) part(rand(0, W), rand(0, H), pick(['#7a00ff', '#ff2ad4', '#0c0b12']), { vx: 0, vy: -rand(5, 15), grav: 0, life: 1 });
+    }
+  }
+  function drawEdges(dt) {
+    if (!FF.edges.length) return;
+    const b = btnPos();
+    for (let i = FF.edges.length - 1; i >= 0; i--) {
+      const e = FF.edges[i];
+      if ((e.t += dt) >= 0.9) { FF.edges.splice(i, 1); continue; }
+      const q = ringPos(e.a, 0), x = clamp(q.x, 6, W - 6), y = clamp(q.y, 22, H - 24), a = 1 - e.t / 0.9;
+      glow(x, y, 7, '#ff2a2a', 0.45 * a);
+      const dx = b.x - x, dy = b.y - y, l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l;
+      lctx.globalAlpha = a; lctx.fillStyle = Math.floor(time * 10) % 2 ? '#ff4f4f' : '#ffffff';
+      for (let j = 0; j < 3; j++) { const d = 6 + j * 5 + (e.t * 20) % 5; lctx.fillRect(Math.round(x + ux * d - uy * 2), Math.round(y + uy * d + ux * 2), 2, 2); lctx.fillRect(Math.round(x + ux * d + uy * 2), Math.round(y + uy * d - ux * 2), 2, 2); lctx.fillRect(Math.round(x + ux * (d + 2)), Math.round(y + uy * (d + 2)), 2, 2); }
+      lctx.globalAlpha = 1;
+    }
+  }
+  // the Last Stand's drum shows on the screen's edge (with the hurt glow's layer)
+  function siegeRed() { return FF.lsK > 0 ? FF.lsK * (0.07 + 0.09 * Math.pow(0.5 + 0.5 * Math.sin(time * 12.5), 6)) : 0; }
+  // the Mad Button: its colours split, the void crawls round it
+  const tintCache = new Map();
+  function tinted(c, col) {
+    let m = tintCache.get(col); if (!m) { m = new WeakMap(); tintCache.set(col, m); }
+    let w = m.get(c); if (w) return w;
+    w = SPR.makeCanvas(c.width, c.height); const x = w.getContext('2d');
+    x.drawImage(c, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height);
+    m.set(c, w); return w;
+  }
+  function drawMadUnder(bp, sp, sc) {
+    glow(bp.x, bp.y - sp.height * sc / 2, Math.round(sp.width * sc / 2), '#7a00ff', 0.18 + 0.08 * Math.sin(time * 4));
+    if (Math.random() < 0.12) { const a = Math.random() * Math.PI * 2, r = sp.width * sc * 0.6, pts = [[bp.x, bp.y - sp.height * sc / 2]]; for (let j = 1; j < 4; j++) pts.push([bp.x + Math.cos(a) * r * j / 3 + rand(-4, 4), bp.y - sp.height * sc / 2 + Math.sin(a) * r * 0.6 * j / 3 + rand(-4, 4)]); bolts.push({ pts, life: 0.08, cols: ['#ffffff', '#ff2ad4'] }); }
+  }
+  function drawMadOver(sp, x, y, sc) {
+    const glitch = Math.random() < (G.R.boss && G.R.boss.rage ? 0.35 : 0.15);
+    if (!glitch) return;
+    const o = Math.round(rand(1, 3));
+    blit(tinted(sp, '#ff2a5a'), x - o, y, sc, 0.45); blit(tinted(sp, '#2af0ff'), x + o, y, sc, 0.35);
+    if (Math.random() < 0.4) { lctx.globalAlpha = 0.6; lctx.fillStyle = pick(['#ff2ad4', '#0c0b12', '#ffffff']); lctx.fillRect(Math.round(x - sp.width * sc / 2 + rand(-6, 6)), Math.round(y - rand(0, sp.height * sc)), Math.round(sp.width * sc * rand(0.3, 0.9)), 1); lctx.globalAlpha = 1; }
+  }
+
+  // ---------- the camp (DESIGN §5.5): night falls on the field, a fire burns by the Button, the tents are up ----------
+  function drawCamp(dt) {
+    const on = runP() === 'camp';
+    FF.campK = clamp(FF.campK + (on ? dt : -dt) * 1.5, 0, 1);
+    const k = FF.campK;
+    if (k <= 0) return;
+    const b = btnPos(), fx = b.x, fy = b.y + 26, fl = 0.8 + 0.2 * Math.sin(time * 9) * Math.sin(time * 5.3);
+    lctx.globalAlpha = 0.45 * k; lctx.fillStyle = '#0a0c24'; lctx.fillRect(0, 0, W, H);
+    // the warm light (an additive glow) and the tents in it
+    lctx.globalCompositeOperation = 'lighter';
+    glow(fx, fy - 4, 34, '#ff7a2a', 0.16 * k * fl); glow(fx, fy - 4, 18, '#ffb347', 0.18 * k * fl);
+    lctx.globalCompositeOperation = 'source-over'; lctx.globalAlpha = 1;
+    const tent = SPR.get('camp_tent');
+    if (tent) { lctx.globalAlpha = k; blit(tent, b.x - 48, b.y + 22); blit(tent, b.x + 50, b.y + 14); lctx.globalAlpha = 1; }
+    // the fire: logs, then three tongues of flame that never hold still, sparks going up
+    lctx.globalAlpha = k;
+    lctx.fillStyle = '#4a2a16'; lctx.fillRect(fx - 6, fy - 1, 12, 2); lctx.fillStyle = '#6a3e20'; lctx.fillRect(fx - 5, fy - 2, 4, 2); lctx.fillRect(fx + 1, fy, 5, 2);
+    lctx.fillStyle = '#8a8a98'; for (const dx of [-8, -5, 5, 8]) lctx.fillRect(fx + dx, fy + 1, 2, 1);
+    const fh = [5 + Math.sin(time * 13) * 1.5, 8 + Math.sin(time * 11 + 1) * 2, 5 + Math.sin(time * 15 + 2) * 1.5];
+    [['#ff4f2e', 1], ['#ffa033', 0.7], ['#fff3a0', 0.4]].forEach(([c, s]) => { lctx.fillStyle = c; for (let i = 0; i < 3; i++) { const h = Math.round(fh[i] * s), x = fx - 3 + i * 2; lctx.fillRect(x, fy - 1 - h, 2, h); } });
+    lctx.globalAlpha = 1;
+    if (Math.random() < 0.5 * k) part(fx + rand(-3, 3), fy - 6, pick(['#ffd84a', '#ff7a2e', '#fff3a0']), { vx: rand(-6, 6), vy: -rand(20, 40), grav: -6, life: rand(0.6, 1.2) });
+  }
+
+  // ---------- the Buttons' looks (DESIGN §6.1-6.2) and the store's skin ----------
+  // the look on the field: the store's finish (if one is worn) over the run's Button (G.btnSkin(): its evolution once it
+  // has evolved), or the 3.x skin outside a Siege
+  function btnLookNow() {
+    const cs = cosm('skin');
+    let id = null;
+    try { id = inSiege() && G.btnSkin ? G.btnSkin() : null; } catch (e) { id = null; }
+    if (FF.evo && FF.evo.t < FF.evo.at) id = FF.evo.from;
+    if (!id) id = G.S.skin || 'classic';
+    const L = (SPR.BTN_LOOKS && SPR.BTN_LOOKS[id]) || null, sk = L ? null : G.SKINS.find(s => s.id === id);
+    const look = L || { base: sk ? sk.base : '#e8413c' };
+    return { id, look, base: cs && cs.base ? cs.base : look.base, glow: cs && cs.glow ? cs.glow : look.glow, aura: look.aura };
+  }
+  St.btnLook = btnLookNow;
+  function btnSprite(lk, pressed) {
+    const fr = Math.floor(time * (lk.aura === 'perpetual' ? 10 : lk.aura === 'clock' ? 2 : 3));
+    return SPR.buttonLook ? SPR.buttonLook(lk.look, pressed, time * 120 % 360, fr, lk.base) : SPR.button(lk.base, pressed, time * 120 % 360);
+  }
+  // what each look does round the Button every frame (cheap: a few particles, a glow, the odd arc)
+  function drawBtnAura(b, lk) {
+    const A = lk.aura, P = Q.particles;
+    if (lk.glow) glow(b.x, b.y - 10, 16, lk.glow, 0.1 + 0.05 * Math.sin(time * 4));
+    if (!A) return;
+    const top = () => [b.x + rand(-13, 13), b.y - rand(10, 20)];
+    if (A === 'storm' || A === 'tempest') {
+      if (Math.random() < (A === 'tempest' ? 0.3 : 0.1)) { const a = Math.random() * Math.PI * 2, r = rand(16, A === 'tempest' ? 34 : 24), pts = [[b.x, b.y - 14]]; for (let j = 1; j < 4; j++) pts.push([b.x + Math.cos(a) * r * j / 3 + rand(-3, 3), b.y - 14 + Math.sin(a) * r * 0.6 * j / 3 + rand(-3, 3)]); bolts.push({ pts, life: 0.08, cols: ['#ffffff', A === 'tempest' ? '#d27bff' : '#a048ff'] }); }
+    } else if (A === 'spore' || A === 'bloom') {
+      if (Math.random() < 0.25 * P) { const [x, y] = top(); part(x, y, A === 'bloom' ? pick(['#ffd0f0', '#ffffff', '#7dff9a']) : pick(['#b6ff5a', '#2fc46a', '#e8ffe8']), { vx: rand(-8, 8), vy: -rand(6, 14), grav: A === 'bloom' ? 12 : -4, life: rand(0.8, 1.4) }); }
+    } else if (A === 'gold' || A === 'golden') {
+      if (Math.random() < (A === 'golden' ? 0.35 : 0.15)) { const [x, y] = top(); part(x, y, pick(['#fff3a0', '#ffd84a', '#ffffff']), { vx: 0, vy: -rand(8, 16), grav: 0, life: 0.6, plus: Math.random() < 0.4 }); }
+      if (A === 'golden' && Q.glows) { lctx.globalAlpha = 0.08; lctx.fillStyle = '#ffd84a'; for (let j = 0; j < 6; j++) { const a = time * 0.8 + j / 6 * Math.PI * 2; lctx.beginPath(); lctx.moveTo(b.x, b.y - 12); lctx.lineTo(b.x + Math.cos(a - 0.1) * 60, b.y - 12 + Math.sin(a - 0.1) * 36); lctx.lineTo(b.x + Math.cos(a + 0.1) * 60, b.y - 12 + Math.sin(a + 0.1) * 36); lctx.fill(); } lctx.globalAlpha = 1; }
+    } else if (A === 'glass' || A === 'diamond' || A === 'iron' || A === 'adamant') {
+      if (Math.random() < (A === 'diamond' ? 0.18 : 0.06)) { const [x, y] = top(); part(x, y, A === 'glass' ? '#d8b8ff' : '#ffffff', { vx: 0, vy: 0, grav: 0, life: 0.4, plus: true }); }
+      if (A === 'adamant') { lctx.globalAlpha = 0.25 + 0.1 * Math.sin(time * 3); lctx.fillStyle = '#9fd8ff'; for (let j = 0; j < 28; j++) { if ((j + Math.floor(time * 6)) % 4 === 0) continue; const a = j / 28 * Math.PI * 2; lctx.fillRect(Math.round(b.x + Math.cos(a) * 24), Math.round(b.y - 6 + Math.sin(a) * 12), 1, 1); } lctx.globalAlpha = 1; }
+    } else if (A === 'prism' || A === 'spectrum') {
+      if (Math.random() < 0.2 * P) { const [x, y] = top(); part(x, y, rbw(Math.floor(Math.random() * 8)), { vx: rand(-6, 6), vy: -rand(6, 16), grav: 0, life: 0.6 }); }
+      if (A === 'spectrum') for (let j = 0; j < 24; j++) { const a = j / 24 * Math.PI * 2 + time; lctx.fillStyle = rbw(j + Math.floor(time * 8)); lctx.globalAlpha = 0.55; lctx.fillRect(Math.round(b.x + Math.cos(a) * 25), Math.round(b.y - 6 + Math.sin(a) * 12), 1, 1); }
+      lctx.globalAlpha = 1;
+    } else if (A === 'crimson') {
+      glow(b.x, b.y - 10, 18, '#ff2a3a', 0.12 + 0.06 * Math.sin(time * 7));
+      if (Math.random() < 0.4 * P) part(b.x + rand(-14, 14), b.y - rand(0, 8), pick(['#ff2a3a', '#ff7a2e', '#ffd84a']), { vx: rand(-4, 4), vy: -rand(16, 34), grav: -10, life: rand(0.4, 0.8) });
+    } else if (A === 'clock' || A === 'perpetual') {
+      const per = A === 'perpetual' ? 0.25 : 1;
+      if (Math.floor(time / per) !== Math.floor((time - fdt) / per)) { ring(b.x, b.y - 4, 22, 11, A === 'perpetual' ? '#ffe9a0' : '#c8b47a', 0.25); if (A === 'perpetual') part(b.x + rand(-16, 16), b.y - rand(0, 6), '#ffd84a', { vx: rand(-20, 20), vy: -rand(20, 40), life: 0.3 }); }
+    }
+  }
+  // ---------- a Button evolving (DESIGN §6.2, 'btnEvolve'): it rises, spins and glows, the shell bursts, the new form ----------
+  G.on('btnEvolve', (base, evo) => {
+    const E = G.BUTTON_EVOS && G.BUTTON_EVOS[evo], B = G.BUTTON_BY_ID && G.BUTTON_BY_ID[base];
+    if (!E) return;
+    FF.evo = { t: 0, T: 2.6, at: 1.3, from: (B && B.skin) || 'classic', col: E.col || '#ffffff', golden: evo === 'golden', burst: false };
+  });
+  function drawEvoUnder(b, dt) {
+    const v = FF.evo; if (!v) return 0;
+    v.t += dt;
+    if (v.t >= v.T) { FF.evo = null; return 0; }
+    const pre = v.t < v.at, k = pre ? v.t / v.at : 1 - (v.t - v.at) / (v.T - v.at);
+    // light rays turn behind the Button, faster as it charges
+    if (Q.glows) {
+      lctx.globalAlpha = 0.12 * k; lctx.fillStyle = v.golden ? '#ffd84a' : v.col;
+      for (let j = 0; j < 10; j++) { const a = time * (pre ? 1 + 4 * k : 1) + j / 10 * Math.PI * 2, r = Math.max(W, H); lctx.beginPath(); lctx.moveTo(b.x, b.y - 12); lctx.lineTo(b.x + Math.cos(a - 0.07) * r, b.y - 12 + Math.sin(a - 0.07) * r); lctx.lineTo(b.x + Math.cos(a + 0.07) * r, b.y - 12 + Math.sin(a + 0.07) * r); lctx.fill(); }
+      lctx.globalAlpha = 1;
+    }
+    if (pre) {
+      // the light runs in to the Button
+      for (let j = 0; j < Math.round(2 + 4 * k); j++) { const a = Math.random() * Math.PI * 2, r = rand(30, 60); part(b.x + Math.cos(a) * r, b.y - 12 + Math.sin(a) * r * 0.6, pick([v.col, '#ffffff']), { vx: -Math.cos(a) * r * 2.2, vy: -Math.sin(a) * r * 1.3, grav: 0, life: 0.4 }); }
+      if (k > 0.6) St.shake(1 + 2 * k);
+    } else if (!v.burst) {
+      v.burst = true;
+      const old = SPR.buttonLook ? SPR.buttonLook(v.from, false, time * 120 % 360, 0) : SPR.button('#e8413c', false, 0);
+      explodeSprite(old, b.x, b.y + 4, 1, Math.round(70 * Math.max(0.5, Q.particles)), 2, 'shatter');
+      St.flash(0.9, '#ffffff'); St.shake(10); hitstop = Math.max(hitstop, 0.2);
+      ring(b.x, b.y - 8, 40, 22, '#ffffff', 0.4); ring(b.x, b.y - 8, 100, 56, v.col, 0.8); ring(b.x, b.y - 8, 160, 90, v.golden ? '#ffd84a' : rbw(2), 1.1);
+      burst(b.x, b.y - 12, [v.col, '#ffffff', '#ffd84a'], Math.round(80 * Q.particles), 170);
+      btnSpring.s = 1.5; btnSpring.v = 0;
+    } else if (Math.random() < 0.5) part(b.x + rand(-16, 16), b.y - rand(4, 22), pick([v.col, '#ffffff']), { vx: 0, vy: -rand(10, 30), grav: 0, life: 0.6, plus: Math.random() < 0.5 });
+    return pre ? k : 0;
+  }
+
+  // ---------- the store's looks: the Hand's trail ----------
+  function trailAt(x, y, n) {
+    const tr = cosm('trail'); if (!tr || !tr.cols || G.R.town) return;
+    for (let i = 0; i < (n || 1); i++) part(x + rand(-1.5, 1.5), y + rand(-1.5, 1.5), pick(tr.cols), { vx: rand(-8, 8), vy: rand(-14, 2), grav: -4, life: rand(0.35, 0.6), size: Math.random() < 0.3 ? 2 : 1 });
+  }
+
+  // ---------- the Marks' blows (js/powers.js; ADDENDUM 1: Mythic and Divine items carry them) ----------
+  const mpos = m => (m && m.a != null ? mobPos(m) : null);
+  G.on('pwArc', (from, list) => { const a = mpos(from) || btnPos(); for (const m of (list || []).slice(0, 6)) { const q = mpos(m); if (q) zap(a, q, ['#ffffff', '#b36bff']); } if (!list || !list.length) { const p = bossPos(); ring(p.x, p.y - 10, 30, 16, '#b36bff', 0.3); } });
+  G.on('pwSurge', (m, list) => { const q = mpos(m); if (!q) return; ring(q.x, q.y - 4, 26, 13, '#7fe9ff', 0.4); for (const o of (list || []).slice(0, 5)) { const p = mpos(o); if (p) zap(q, p, ['#ffffff', '#7fe9ff']); } });
+  G.on('pwReap', m => { const q = mpos(m); if (!q) return; burst(q.x, q.y - 6, ['#0c0b12', '#6a2fa8', '#c8c8d4'], 14, 70, { life: 0.4 }); text(q.x, q.y - 16, G.t('ff_reap'), '#c8a0ff', 3, { life: 0.8, max: 0.8, vy: -14 }); });
+  G.on('pwGold', (m, g) => { const q = mpos(m); if (!q) return; burst(q.x, q.y - 6, ['#ffd84a', '#fff3a0'], 12, 70, { life: 0.4 }); text(q.x, q.y - 14, '+' + G.fmt(g), '#ffd84a', 3, { life: 0.9, max: 0.9, vy: -14, dmg: true }); });
+  G.on('pwPhoenix', who => { const q = unitPos(who); ring(q.x, q.y - 4, 40, 22, '#ff7a2e', 0.7); burst(q.x, q.y - 8, ['#ff4f2e', '#ffa033', '#ffd84a', '#ffffff'], 50, 110, { grav: -60, life: 0.9 }); text(q.x, q.y - 30, G.t('ff_phoenix'), '#ffa033', 6, { life: 1.6, max: 1.6, vy: -10, big: true }); St.flash(0.3, '#ff7a2e'); });
+  G.on('pwBolt', (list, boss) => {
+    const tg = boss ? [bossPos()] : (list || []).slice(0, 6).map(mpos).filter(Boolean);
+    for (const q of tg) { const pts = [[q.x + rand(-10, 10), 0]]; for (let j = 1; j < 5; j++) pts.push([q.x + rand(-6, 6), (q.y - 6) * j / 5]); bolts.push({ pts, life: 0.18, cols: ['#ffffff', '#7fe9ff'], wide: true }); burst(q.x, q.y - 4, ['#ffffff', '#7fe9ff'], 6, 50, { life: 0.3 }); }
+    if (tg.length) St.flash(0.1, '#bff4ff');
+  });
+  G.on('pwSpike', m => { const q = mpos(m); if (!q) return; for (let j = -2; j <= 2; j++) part(q.x + j * 3, q.y, '#c8c8d4', { vx: j * 10, vy: -rand(40, 70), grav: 200, life: 0.35 }); ring(q.x, q.y - 1, 12, 6, '#c8c8d4', 0.25); });
+  G.on('pwMeteor', (m, r, n) => {
+    const q = mpos(m) || bossPos(), rx = Math.max(10, (r || 0.15) * W * 0.62), ry = rx * 0.55;
+    const pts = [[q.x + 40, 0], [q.x + 20, q.y * 0.5], [q.x, q.y - 6]];
+    bolts.push({ pts, life: 0.15, cols: ['#ffd84a', '#ff7a2e'], wide: true });
+    ring(q.x, q.y - 2, rx, ry, '#ff7a2e', 0.45); burst(q.x, q.y - 6, ['#ff4f2e', '#ffa033', '#ffd84a', '#3a2a2a'], 30, 120, { life: 0.6 });
+    St.shake(4); hitstop = Math.max(hitstop, 0.04);
+  });
+  G.on('pwEcho', () => { const b = btnPos(); ring(b.x, b.y - 4, 50, 28, '#c8f0ff', 0.5); text(b.x, b.y - 46, G.t('ff_echo'), '#c8f0ff', 4, { life: 1, max: 1, vy: -10 }); });
+  G.on('pwBreak', () => { const p = bossPos(); burst(p.x, p.y - 14, ['#c8c8d4', '#ffffff', '#6e6e7c'], 40, 140, { grav: 160 }); text(p.x, overBoss(6), G.t('ff_break'), '#ffffff', 6, { life: 1.4, max: 1.4, vy: -8, big: true }); St.shake(6); hitstop = Math.max(hitstop, 0.1); });
+  G.on('pwNose', (m, v) => { const q = mpos(m); if (!q) return; burst(q.x, q.y - 6, ['#ff7a2e', '#ffd84a'], 6, 40, { grav: -30, life: 0.5 }); if (v) text(q.x, q.y - 14, '+' + fmtSmall(v), '#ffa033', 3, { life: 0.9, max: 0.9, vy: -12, dmg: true }); });
+  G.on('pwLight', on => { FF.light = !!on; if (on) { const b = btnPos(); ring(b.x, b.y - 4, 50, 28, '#fff3a0', 0.6); } });
+  G.on('pwEngine', pct => { if (!(pct > 0) || Math.round(pct) % 25) return; const b = btnPos(); text(b.x + 26, b.y - 30, G.t('ff_engine', Math.round(pct)), '#ffe27a', 3, { life: 1, max: 1, vy: -12 }); });
+  function zap(a, q, cols) { const pts = [[a.x, a.y - 6]]; for (let i = 1; i < 3; i++) pts.push([a.x + (q.x - a.x) * i / 3 + rand(-3, 3), a.y - 6 + (q.y - a.y) * i / 3 + rand(-3, 3)]); pts.push([q.x, q.y - 6]); if (bolts.length < 80) bolts.push({ pts, life: 0.12, cols }); }
+  // a chest the Siege's budget paid out as coin (game.js 'chestCoin'): a spill of coins where it fell
+  G.on('chestCoin', (tier, v, at) => {
+    const q = mpos(at) || btnPos(), b = btnPos();
+    for (let i = 0; i < 6 && coins.length < 240; i++) coins.push({ x: q.x, y: q.y - 6, vx: rand(-50, 50), vy: rand(-90, -40), floor: q.y + rand(-2, 3), t: rand(0.4, 0.7), fly: 0 });
+    burst(q.x, q.y - 6, ['#ffd84a', '#fff3a0'], 8, 50, { life: 0.4 });
+    if (v > 0) text(q.x, q.y - 16, '+' + G.fmt(v), '#ffd84a', 3, { life: 0.9, max: 0.9, vy: -14, dmg: true });
+    void b;
+  });
+
+  // ---------- the hooks the frame calls ----------
+  // under the crowd (after the ground and the zone's light): the finale's sky, the camp, the door's gate
+  function siegeUnder(dt, vdt) {
+    shrineChargeStep(dt);
+    drawFinaleSky(dt);
+    drawCamp(dt);
+    drawGate(dt);
+    void vdt;
+  }
+  // over everything on the pixel layer: the edge telegraphs, the loot moment, the pillars and the shimmer
+  function siegeOver(dt, vdt) {
+    drawEdges(dt);
+    drawLootMoment(dt);
+    drawPillars(vdt > 0 ? Math.max(vdt, dt * 0.3) : dt);
+  }
+  // on the Button itself (drawButton): its look's aura, the Last Light, a pact's runes, the cracks, the pip over it
+  function siegeOnButton(b, lk) {
+    drawBtnAura(b, lk);
+    if (FF.light) glow(b.x, b.y - 10, 20, '#fff3a0', 0.16 + 0.08 * Math.sin(time * 5));
+    drawPact(b, fdt);
+    drawCracks(b, fdt);
+    drawPipFx(b, fdt);
+  }
+  // a resize or a new run forgets the moment's leftovers
+  G.on('ascend', () => { FF.loot = null; FF.pillars.length = 0; FF.shimmer.length = 0; FF.edges.length = 0; FF.cracks = 0; FF.heal = null; FF.pipFx = null; FF.evo = null; FF.pact = null; FF.charge = null; FF.light = false; });
+  G.on('runStart', () => { FF.cracks = 0; FF.heal = null; FF.light = false; });
 
   // ---------- Hi-res text layer (drawn in logical coords, crisp font) ----------
   const FONT = '"Press Start 2P", "BTTN Body", monospace';

@@ -105,6 +105,7 @@
     help_15: 'Your powers', help_15t: 'Z Smite (18 s): break wind-ups, hit hard. X Ward (26 s): no damage for 3.5 s. C Mend: 2 charges a land, each heals 35%.',
     tip_relic: 'A relic: its rule goes on your belt for the rest of the Siege. Choose one that fits your cards.',
     tip_pipLost: 'INTEGRITY CRACKED: the Horde broke through. A lord gives a pip back; at none left, the next hit is the fall.',
+    tip_lost: 'Lost that one? Its wounds stay: it heals back less each try. Hold the Button all fight, tap its glowing weak point when it winds up, Mend (C) when the party is low. ▲ in the Forge (TOWN) is better gear waiting.',
     tip_embers: 'Embers and Fame! Build the town with Embers; buy the Hall of Fame at the Temple with Fame. Then NEW SIEGE.',
     tip_codex: 'A unique joined the Codex: from the Museum I it can come along as a keepsake.',
     help_1: 'You are the Hand', help_1t: 'Hold the Button: every press spills gold, fills the chest bar and zaps the Horde near it. Fast presses build a combo.',
@@ -244,6 +245,18 @@
     // 4.0: the first cracked pip says what Integrity is
     G.on('pip', (d, pips, why, kind) => { if (kind === 'lost' && !active() && !seen().tips.pipLost) showTip({ id: 'pipLost', text: 'tip_pipLost' }); });
     G.on('potion', () => { if (!active() && !seen().tips.potion && !G.R.boss) showTip({ id: 'potion', text: 'tip_potion' }); });
+    // 4.0 (the 3.x 'wall' tip's job, without ascension): a lost boss fight or a wipe (back a zone) says what helps - on the
+    // second loss at one depth (the first after the tutorial), once per wall, three walls at most
+    const lostTip = (d, least) => {
+      const S = G.S, sn = seen();
+      if (G.R.rift || tip || !S.run || !S.run.on || (sn.lostN | 0) >= 3 || sn.lostD === d) return;
+      const n = Math.max(least | 0, S.scar && S.scar.d === d ? S.scar.n | 0 : 1);
+      if (n < (active() ? 2 : 1)) return;
+      sn.lostN = (sn.lostN | 0) + 1; sn.lostD = d;
+      showTip({ id: 'lost', text: 'tip_lost' });
+    };
+    G.on('bossFail', b => lostTip(b ? b.d : G.S.depth));
+    G.on('wipe', (from, to, rift) => { if (!rift) lostTip(from, 1); });
     window.addEventListener('resize', () => place(true));
     Tut.maybeIntro();
     // A returning player on a new device: the cloud prompt goes first, the intro only if they keep this fresh save

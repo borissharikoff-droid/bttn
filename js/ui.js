@@ -129,7 +129,7 @@
     // (continuation 1: the meta stream's final API)
     collCombatOff: 'Crit, crit power and boss damage from the collection are off: permanent power has a budget now.', collOff: 'off',
     hfPower: 'Permanent power: damage {0} · bosses {1} · health {2} (budget {3} / {4} / {5})', hfCapped: 'At the budget: the rest is scaled down.',
-    qDaily: '×2 today', qWeekly: 'Weekly',
+    qDaily: '×2 today', qWeekly: 'Weekly', fightCard: 'Pick a card first: the boss waits for it.', fightHeld: 'Not now: the Siege waits for your choice.',
     setAutoRun: 'Auto-Run', setAutoRunHint: 'Clockwork plays on by itself: the next Siege starts when one ends, and it extracts at camp {0}.', setAutoRunCamp: 'Auto-Run extracts at camp',
     deedDone: 'Deed', unlTitle: 'Unlocked', unlOpens: 'opens: ', unlNext: 'from the next Siege', unlNow: 'now',
     alchStart: 'Each Siege starts with {0} potion(s)', alchPickHint: 'Pick up to {0}: tap to choose, tap again to drop.', alchRandom: 'Each Siege starts with {0} random potion(s). Alchemist III lets you choose them.',
@@ -479,7 +479,18 @@
     $$('[data-mico]').forEach(im => { im.src = ic(im.dataset.mico, 2); });
     [['#bossWrap', 'tipClear'], ['#hpWrap', 'tipHp'], ['#chestWrap', 'tipChest'], ['#comboWrap', 'tipCombo'], ['#btnAbil', 'tipAbil']].forEach(([sel, k]) => { const el = $(sel); if (el) el.title = t(k); });
     $('#btnMusic img').src = ic('ic_echo', 3);
-    $('#btnFight').addEventListener('click', () => { G.Audio.unlock(); G.startBoss(); });
+    // (4.0: a card or another beat of the Siege holds the field, the boss with it: say so rather than do nothing)
+    let fightSaidAt = 0;
+    $('#btnFight').addEventListener('click', () => {
+      G.Audio.unlock();
+      const r = G.S.run;
+      if (r && r.on && G.runHeld && G.runHeld()) {
+        G.Audio.error();
+        const now = performance.now(); if (now - (fightSaidAt || 0) > 2500) { fightSaidAt = now; UI.toast(esc(t(r.offer ? 'fightCard' : 'fightHeld')), '', 'ic_skull', { p: 2 }); }
+        return;
+      }
+      G.startBoss();
+    });
     $('#btnRetreat').addEventListener('click', () => {
       // (3.6: on a touch screen the first tap only arms it: it sits a thumb away from the powers)
       const b = $('#btnRetreat');

@@ -489,7 +489,7 @@
   G.EMBER_R = [0.5, 1, 1.5, 2.5, 4, 7.5, 15];
   G.EMBERS = { uq: 10, relic: 30, shard: 25, orb: { whet: 0.5, flux: 0.5, ruin: 1.5, ascent: 1.5, grace: 5 }, key: 10,
     kill: { boss: 2, lord: 10, act: 25, final: 100 }, end: { fall: 0.5, abandon: 0.5, extract: 1, win: 1.5 }, heat: 0.15, card: 0.5 };
-  // Heat 0-10 (chosen at setup; Heat N opens with a win at N-1). Each level: Horde and boss health x1.18, bites x1.12
+  // Heat 0-10 (chosen at setup; Heat N opens with a win at N-1). Each level: Horde and boss health x1.15, bites x1.10
   // (game.js TUNE.heatHp / heatBite), Fame x(1+0.2n), Embers x(1+0.15n), rarity +n/3, drops +15%. And the named rules,
   // cumulative:
   G.HEAT_MAX = 10;

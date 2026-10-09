@@ -1975,6 +1975,107 @@
   SPR.button = button;
   SPR.buttonSize = () => ({ w: 39, h: 36, R: 14 });
 
+  // ---------- 4.0: the Buttons' own looks (DESIGN §6.1-6.2: 9 playable Buttons and 8 evolved forms) ----------
+  // SPR.BTN_LOOKS[skin id] = { base, deco, aura, glow }: base is the dome's colour ('rainbow' cycles), deco the marks
+  // painted on the dome (cached per frame of its animation), aura what the stage adds around it every frame (js/stage.js)
+  const BTN_LOOKS = {
+    classic:   { base: '#e8413c' },
+    sapphire:  { base: '#3f7bff', deco: 'rivets', aura: 'iron' },        // Iron
+    amethyst:  { base: '#a048ff', deco: 'bolt', aura: 'storm' },         // Storm
+    emerald:   { base: '#2fc46a', deco: 'spots', aura: 'spore' },        // Spore
+    gold:      { base: '#ffc629', deco: 'coin', aura: 'gold' },          // Gold
+    obsidian:  { base: '#3a3348', deco: 'gloss', aura: 'glass' },        // Glass
+    rainbow:   { base: 'rainbow', deco: 'prism', aura: 'prism' },        // Prism
+    divine:    { base: '#f4f6ff', deco: 'gear', aura: 'clock' },         // Clockwork
+    golden:    { base: '#ffd84a', deco: 'crown', aura: 'golden', glow: '#fff3a0' }, // THE GOLDEN BUTTON
+    founder:   { base: '#ffb347', deco: 'coin' },
+    // the evolved forms (G.BUTTON_EVOS[evo].skin)
+    adamant:   { base: '#9fd8ff', deco: 'facets', aura: 'adamant', glow: '#e0f4ff' },
+    tempest:   { base: '#d27bff', deco: 'bolt', aura: 'tempest', glow: '#f0d8ff' },
+    crimson:   { base: '#ff2a3a', deco: 'ember', aura: 'crimson', glow: '#ff7a5a' },
+    diamond:   { base: '#e8fbff', deco: 'facets', aura: 'diamond', glow: '#ffffff' },
+    spectrum:  { base: 'rainbow', deco: 'facets', aura: 'spectrum', glow: '#ffffff' },
+    bloom:     { base: '#7dff9a', deco: 'petals', aura: 'bloom', glow: '#d8ffe0' },
+    perpetual: { base: '#fff6c8', deco: 'gear', aura: 'perpetual', glow: '#ffe9a0' },
+  };
+  SPR.BTN_LOOKS = BTN_LOOKS;
+  // a Button with its look: the plain dome (SPR.button) and the look's marks on top. frame: the deco's animation step (0-3)
+  SPR.buttonLook = function (look, pressed, hue, frame, baseOver) {
+    const L = typeof look === 'string' ? (BTN_LOOKS[look] || BTN_LOOKS.classic) : look || BTN_LOOKS.classic;
+    const base = baseOver || L.base || '#e8413c', deco = L.deco;
+    if (!deco) return button(base, pressed, hue);
+    const fr = (frame | 0) & 3;
+    const key = 'btnL|' + base + '|' + deco + '|' + (pressed ? 1 : 0) + '|' + (base === 'rainbow' ? Math.floor(hue / 15) : 0) + '|' + fr;
+    if (SPR.cache[key]) return SPR.cache[key];
+    const src = button(base, pressed, hue), c = SPR.makeCanvas(src.width, src.height), x = c.getContext('2d');
+    x.drawImage(src, 0, 0);
+    const cx = 19, baseY = 26, fy = baseY - 2 - (pressed ? 5 : 10), R = 14;
+    const px = (col, pts) => { x.fillStyle = col; for (const [a, b, w, h] of pts) x.fillRect(cx + a, fy + b, w || 1, h || 1); };
+    const lt = base === 'rainbow' ? '#ffffff' : G.shade(base, 0.55), dk = base === 'rainbow' ? '#3a3348' : G.shade(base, -0.55);
+    const side = pressed ? 2 : 5; // the dome's side, under the face
+    if (deco === 'rivets') {
+      // a steel band round the dome and its rivets
+      px('#c8d0dc', [[-13, side + 1, 27, 1]]); px('#6e7a90', [[-13, side + 2, 27, 1]]);
+      px('#ffffff', [[-11, side + 1], [-5, side + 1], [1, side + 1], [7, side + 1], [12, side + 1]]);
+      px('#c8d0dc', [[-4, -1, 9, 1]]); px('#ffffff', [[-4, -1]]);
+    } else if (deco === 'bolt') {
+      // a lightning mark across the face
+      px(dk, [[1, -4], [0, -3], [-1, -2], [-2, -1], [-1, -1], [0, -1], [1, -1], [0, 0], [-1, 1], [-2, 2]]);
+      px('#fff3a0', [[2, -4], [1, -3], [0, -2], [-1, -1], [0, -1], [1, -1], [2, -1], [1, 0], [0, 1], [-1, 2]]);
+      if (fr & 1) px('#ffffff', [[1, -1]]);
+    } else if (deco === 'spots') {
+      // a toadstool's spots
+      px('#e8ffe8', [[-7, -1, 3, 1], [-6, -2], [3, -2, 3, 1], [4, -3], [-1, 1, 2, 1], [8, 0, 2, 1], [-10, side + 1, 2, 1], [6, side + 2, 2, 1]]);
+      if (fr & 1) px('#ffffff', [[-6, -1], [4, -2]]);
+    } else if (deco === 'coin') {
+      // an embossed coin ring with a shine that walks round it
+      px(G.shade(base, 0.45), [[-4, -2, 9, 1], [-4, 2, 9, 1], [-6, -1, 1, 3], [6, -1, 1, 3]]);
+      px(dk, [[-3, 3, 7, 1], [7, 0, 1, 2]]);
+      px('#ffffff', [[[-3, -2], [2, -2], [5, 1], [-1, 2]][fr]]);
+      px(G.shade(base, 0.6), [[0, -1, 1, 3], [-1, -1, 3, 1], [-1, 1, 3, 1]]);
+    } else if (deco === 'gloss') {
+      // polished black glass: long streaks of light and a violet glint
+      px('#ffffff', [[-9, -2, 4, 1], [-7, -1, 2, 1], [5, 1, 3, 1]]);
+      px('#b36bff', [[-12, side, 1, 3], [11, side + 1, 1, 2]]);
+      px(['#d8b8ff', '#ffffff', '#b36bff', '#ffffff'][fr], [[3 + fr * 2, -3]]);
+    } else if (deco === 'prism') {
+      px('#ffffff', [[-2, -3, 5, 1], [-3, -2], [3, -2], [-1, -1, 3, 1]]);
+      px(['#ff4f7e', '#ffd84a', '#4fd0ff', '#56d45a'][fr], [[0, 0]]);
+    } else if (deco === 'gear') {
+      // cog teeth round the housing ring (they step round: frame) and a clock's hands on the face
+      for (let i = 0; i < 12; i++) {
+        const a = (i + fr * 0.25) / 12 * Math.PI * 2, gx = Math.round(Math.cos(a) * (R + 3)), gy = Math.round(Math.sin(a) * 5);
+        x.fillStyle = gy > 0 ? '#8a7a50' : '#c8b47a'; x.fillRect(cx + gx - 1, baseY - 1 + gy, 2, 2);
+      }
+      px('#3a3348', [[0, -2, 1, 3], [0, 0, 4, 1]]);
+      px('#ffd84a', [[0, 0]]);
+      px(dk, [[[0, -3], [2, -2], [3, 0], [2, 2]][fr]]);
+    } else if (deco === 'crown') {
+      // a little crown on the dome and a jewel in its face
+      const cy = -6;
+      px('#a8780a', [[-5, cy + 3, 11, 2]]); px('#ffd84a', [[-5, cy + 2, 11, 1], [-5, cy, 1, 2], [0, cy - 1, 1, 3], [5, cy, 1, 2]]);
+      px('#ff4f4f', [[-2, cy + 3], [2, cy + 3]]); px('#5ae8ff', [[0, cy + 3]]); px('#ffffff', [[0, cy - 1], [-5, cy], [5, cy]]);
+      px('#fff3a0', [[-8, -1, 3, 1], [6, 1, 2, 1]]);
+      px(['#ffffff', '#fff3a0', '#ffffff', '#ffe27a'][fr], [[[-9, 0], [8, -1], [-3, 2], [4, -2]][fr]]);
+    } else if (deco === 'facets') {
+      // a cut stone: facet lines, a bright table and a glint that travels
+      px(lt, [[-6, -1, 1, 1], [-5, 0], [-4, 1], [4, 1], [5, 0], [6, -1], [-3, -3, 7, 1]]);
+      px(dk, [[-1, 2, 3, 1], [-10, side, 1, 2], [10, side, 1, 2], [-5, side + 2, 1, 1], [5, side + 2, 1, 1]]);
+      px('#ffffff', [[-1, -2, 3, 1], [[-6, -1], [-3, -3], [3, -3], [6, -1]][fr]]);
+    } else if (deco === 'ember') {
+      // a molten core
+      px(dk, [[-4, -1, 9, 3]]); px('#ff7a2e', [[-3, -1, 7, 2]]); px('#ffd84a', [[-1 + (fr & 1), -1, 3, 1]]);
+      px('#ffe27a', [[[-2, 0], [2, 0], [0, -1], [1, 0]][fr]]);
+    } else if (deco === 'petals') {
+      // six petals round the rim and a gold heart
+      const P = [[-11, -1], [-7, -3], [0, -4], [7, -3], [11, -1], [0, 3]];
+      P.forEach(([a, b], i) => px(i % 2 ? '#ffd0f0' : '#ffffff', [[a - 1, b, 3, 1], [a, b - (b < 0 ? 1 : -1)]]));
+      px('#ffd84a', [[-1, -1, 3, 2]]); px('#ff8ad0', [[[-11, -1], [-7, -3], [7, -3], [11, -1]][fr]]);
+    }
+    SPR.cache[key] = c;
+    return c;
+  };
+
   // ---------- Procedural: The All-Seeing Eye (lord) ----------
   function bigEye() {
     if (SPR.cache.bigEye) return SPR.cache.bigEye;

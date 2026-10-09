@@ -5,20 +5,33 @@
   let ac = null, master = null, sfxBus = null, musicBus = null, unlocked = false;
   const last = {};
 
+  // (4.0: resume() is a promise: Safari rejects it with 'Failed to start the audio device' when iOS holds the audio; a
+  // try/catch does not see that, so the rejection is caught here and nothing reaches the page as an unhandled one)
+  const resume = () => { try { const p = ac.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* fine */ } };
   A.unlock = function () {
-    if (unlocked) { if (ac && ac.state === 'suspended') ac.resume(); return; }
+    if (unlocked) { if (ac && ac.state === 'suspended') resume(); return; }
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       ac = new AC();
+      if (ac.state === 'suspended') resume();
       master = ac.createGain(); master.connect(ac.destination);
-      sfxBus = ac.createGain(); sfxBus.connect(master);
+      // 4.0: every sound effect goes through a limiter before the master: the tier stings stack many voices (louder and
+      // longer than 3.x's), and a JACKPOT or a relic over a crunch of the Horde must never clip
+      limiter = ac.createDynamicsCompressor ? ac.createDynamicsCompressor() : null;
+      if (limiter) {
+        const set = (p, v) => { try { p.value = v; } catch (e) { /* older engines */ } };
+        set(limiter.threshold, -9); set(limiter.knee, 2); set(limiter.ratio, 20); set(limiter.attack, 0.002); set(limiter.release, 0.18);
+        limiter.connect(master);
+      }
+      sfxBus = ac.createGain(); sfxBus.connect(limiter || master);
       musicBus = ac.createGain(); musicBus.connect(master);
       unlocked = true;
       A.apply();
       startMusic();
     } catch (e) { /* audio unavailable */ }
   };
+  let limiter = null;
   A.apply = function () {
     if (!ac) return;
     const s = G.S.set;
@@ -152,6 +165,8 @@
   function duck(sec) { if (!ac || !G.S.set.music) return; const t = ac.currentTime; musicBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(0.04, t); musicBus.gain.linearRampToValueAtTime(0.16, t + sec); }
   A.loot = function (kind, L, p) {
     if (!ac) return;
+    // 4.0: 'item' is a loot moment's card turning over (js/run_ui.js): the card's flip and its tier's sting
+    if (kind === 'item') { A.lootFlip(L); return; }
     if (L >= 5) duck(1.4);
     if (!throttle('loot' + Math.min(L, 3), L >= 4 ? 120 : 45)) return;
     const up = Math.pow(2, (p || 0) / 12);
@@ -263,6 +278,256 @@
   A.horn = function () { tone(110, 0.9, 'sawtooth', 0.09, 0, 98); tone(165, 0.9, 'sawtooth', 0.06, 0.05, 147); noise(0.5, 0.03, 0, 200); };
   A.ascend = function () { [0, 4, 7, 12, 16, 19, 24, 28, 31].forEach((s, i) => tone(note(7 + s), 0.5, 'sine', 0.07, i * 0.1)); };
 
+  // ---------- 4.0: the Siege's sounds (DESIGN §5.3 / ADDENDUM 1: one sting a tier, louder and longer than a field drop) ----------
+  // voice(): an oscillator with a real envelope (attack, hold, release), detune, a vibrato and an optional low-pass sweep;
+  // the stings are built from it. Every voice goes through sfxBus -> the limiter, so stacked chords never clip.
+  function voice(f, dur, o) {
+    o = o || {};
+    if (!ac || quiet(sfxBus)) return;
+    const t = ac.currentTime + (o.when || 0), att = o.att || 0.01, rel = Math.max(0.05, o.rel || dur * 0.6);
+    const osc = ac.createOscillator(), g = ac.createGain();
+    osc.type = o.type || 'square';
+    osc.frequency.setValueAtTime(f, t);
+    if (o.slide) osc.frequency.exponentialRampToValueAtTime(Math.max(30, o.slide), t + (o.slideT || dur));
+    if (o.det) osc.detune.setValueAtTime(o.det, t);
+    let tail = osc;
+    if (o.lp) {
+      const fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.Q.value = o.q || 1;
+      fl.frequency.setValueAtTime(o.lp, t); if (o.lp2) fl.frequency.exponentialRampToValueAtTime(o.lp2, t + (o.lpT || dur));
+      osc.connect(fl); tail = fl;
+    }
+    if (o.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = o.vibF || 5.5; lg.gain.value = f * o.vib; l.connect(lg); lg.connect(osc.frequency); l.start(t); l.stop(t + dur + 0.05); }
+    const v = o.vol || 0.06, hold = Math.max(att, dur - rel);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(v, t + att);
+    g.gain.setValueAtTime(v, t + hold);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    tail.connect(g); g.connect(sfxBus);
+    osc.start(t); osc.stop(t + dur + 0.05);
+  }
+  // shaped noise: a band/high/low-pass sweep from f0 to f1 (a whoosh, a cymbal, a snare, a crack)
+  function hiss(dur, vol, when, type, f0, f1, att, q) {
+    if (!ac || quiet(sfxBus)) return;
+    ensureNoise();
+    const t = ac.currentTime + (when || 0);
+    const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+    const f = ac.createBiquadFilter(); f.type = type || 'bandpass'; f.Q.value = q || 1.2;
+    f.frequency.setValueAtTime(f0 || 1000, t); if (f1) f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ac.createGain(); const a = att || 0.005;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(sfxBus);
+    s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.05);
+  }
+  const boom = (v, w, f0) => { voice(f0 || 72, 1.3, { type: 'sine', vol: v, when: w, slide: 30, att: 0.004, rel: 1.1 }); thud(0.5, v * 0.9, w || 0, 220); };
+  const snare = (v, w) => { hiss(0.14, v, w, 'highpass', 1800, 1200); voice(190, 0.08, { type: 'triangle', vol: v * 0.6, when: w, slide: 120 }); };
+  const crash = (v, w, d) => hiss(d || 1.6, v, w, 'highpass', 5000, 7000, 0.004, 0.5);
+  // a choir 'aah': detuned saws through the two formants of an open vowel, a slow swell and a singer's vibrato
+  function choir(notes, dur, vol, when) {
+    if (!ac || quiet(sfxBus)) return;
+    const t = ac.currentTime + (when || 0);
+    for (const n of notes) {
+      const f = note(n);
+      for (const d of [-7, 6]) {
+        const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d;
+        const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 5 + Math.random(); lg.gain.value = f * 0.007; l.connect(lg); lg.connect(o.frequency);
+        const g = ac.createGain();
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.32); g.gain.setValueAtTime(vol, t + dur * 0.55); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        for (const [ff, q, k] of [[780, 6, 1], [1180, 7, 0.6], [2600, 8, 0.25]]) {
+          const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = ff; bp.Q.value = q;
+          const kg = ac.createGain(); kg.gain.value = k * 2.2;
+          o.connect(bp); bp.connect(kg); kg.connect(g);
+        }
+        g.connect(sfxBus);
+        o.start(t); o.stop(t + dur + 0.05); l.start(t); l.stop(t + dur + 0.05);
+      }
+    }
+  }
+  const bellAt = (n, d, v, w) => bell(note(n), d, v, w);
+  // the music steps back while a sting plays (and comes back up after it)
+  function duckFor(sec) { if (!ac || !G.S.set.music) return; const t = ac.currentTime; musicBus.gain.cancelScheduledValues(t); musicBus.gain.setValueAtTime(0.03, t); musicBus.gain.setValueAtTime(0.03, t + sec * 0.7); musicBus.gain.linearRampToValueAtTime(0.16, t + sec); }
+
+  // the loot moment's card turning over: a paper snap, and a tier's own little sting on top (rare / epic / legendary);
+  // the ultra-rares get lootUltra() instead
+  A.lootFlip = function (r) {
+    if (!ac) return;
+    r = r | 0;
+    hiss(0.05, 0.08, 0, 'highpass', 4500, 7000); voice(note(26 + r * 2), 0.05, { type: 'square', vol: 0.04 }); thud(0.04, 0.06, 0, 1600);
+    if (r === 2) { bellAt(31, 0.9, 0.08, 0.04); bellAt(38, 0.8, 0.05, 0.12); }
+    else if (r === 3) {
+      [0, 4, 7, 12].forEach((s, i) => voice(note(24 + s), 0.22, { type: 'triangle', vol: 0.07, when: 0.03 + i * 0.06 }));
+      bellAt(36, 1.3, 0.09, 0.26); hiss(0.6, 0.03, 0.2, 'highpass', 5000, 9000, 0.1);
+    } else if (r === 4) {
+      duckFor(1.6);
+      boom(0.16, 0, 60);
+      [0, 4, 7, 11, 14].forEach((s, i) => voice(note(19 + s), 1.4, { type: i % 2 ? 'triangle' : 'square', vol: 0.045, when: 0.05 + i * 0.03, lp: 2400, lp2: 900, rel: 1.1 }));
+      bellAt(31, 1.8, 0.1, 0.1); bellAt(38, 1.6, 0.06, 0.22);
+      for (let i = 0; i < 8; i++) voice(note(36 + PENTA[i % PENTA.length]), 0.12, { type: 'triangle', vol: 0.035, when: 0.3 + i * 0.05 });
+      hiss(1.1, 0.035, 0.15, 'highpass', 4000, 10000, 0.2);
+    }
+  };
+  // the beat of suspense before an ultra card turns: a rising hiss, a climbing whine and a drum roll
+  A.ultraRiser = function (sec) {
+    if (!ac) return;
+    sec = Math.max(0.3, Math.min(3, sec || 0.9));
+    duckFor(sec + 0.6);
+    hiss(sec, 0.11, 0, 'bandpass', 300, 6000, sec * 0.8, 2);
+    voice(note(0), sec, { type: 'sawtooth', vol: 0.04, slide: note(24), att: sec * 0.6, rel: 0.08, lp: 600, lp2: 4000 });
+    voice(note(7), sec, { type: 'square', vol: 0.025, slide: note(31), att: sec * 0.6, rel: 0.08, when: 0.04 });
+    const n = Math.round(sec * 14); for (let i = 0; i < n; i++) snare(0.02 + 0.06 * i / n, i * sec / n);
+  };
+  // ONE STING A TIER (the owner: "crazy sound"): mythic a chord, divine a choir, unique a fanfare, relic all of it
+  function mythicChord(w) {
+    boom(0.24, w, 66);
+    crash(0.05, w + 0.02, 1.4);
+    // the strike: a wide ninth chord in detuned saws that opens up, then rings
+    [0, 7, 12, 16, 19, 23, 26].forEach((s, i) => { voice(note(7 + s), 2.4, { type: 'sawtooth', vol: 0.04, when: w + i * 0.012, det: -8, lp: 700, lp2: 5000, lpT: 0.5, rel: 1.8 }); voice(note(7 + s), 2.4, { type: 'sawtooth', vol: 0.03, when: w + i * 0.012, det: 9, lp: 700, lp2: 5000, lpT: 0.5, rel: 1.8 }); });
+    // a run up the chord, and bells on top
+    [0, 4, 7, 11, 14, 19, 23, 26, 31].forEach((s, i) => voice(note(31 + s), 0.18, { type: i % 2 ? 'triangle' : 'square', vol: 0.05, when: w + 0.1 + i * 0.045 }));
+    bellAt(43, 2.2, 0.1, w + 0.5); bellAt(38, 2.4, 0.07, w + 0.56);
+    hiss(1.8, 0.03, w + 0.4, 'highpass', 6000, 11000, 0.3);
+  }
+  function divineChoir(w) {
+    boom(0.22, w, 55);
+    choir([0, 7, 12, 16, 19], 3, 0.022, w + 0.02);
+    voice(note(-12), 3, { type: 'sine', vol: 0.12, when: w, att: 0.3, rel: 1.6 });
+    for (let i = 0; i < 12; i++) bellAt(36 + [0, 4, 7, 12, 16, 19][i % 6], 1.4, 0.06, w + 0.25 + i * 0.11);
+    hiss(2.6, 0.04, w + 0.1, 'highpass', 3500, 12000, 0.8, 0.7);
+  }
+  function uniqueFanfare(w) {
+    boom(0.2, w, 70);
+    // ta-ta-taaa, ta-ta-TAAA: brass (squares and saws through a low-pass) over a snare and a timpani
+    const brass = (k, at, d) => { voice(note(12 + k), d, { type: 'square', vol: 0.06, when: w + at, att: 0.02, lp: 1800, lp2: 3200, lpT: 0.1, rel: Math.min(0.5, d * 0.5) }); voice(note(k), d, { type: 'sawtooth', vol: 0.045, when: w + at, att: 0.02, lp: 1200, rel: Math.min(0.5, d * 0.5) }); voice(note(k + 7), d, { type: 'sawtooth', vol: 0.03, when: w + at, att: 0.03, lp: 1400, rel: Math.min(0.5, d * 0.5) }); };
+    [[7, 0, 0.13], [7, 0.15, 0.13], [12, 0.3, 0.8], [11, 1.0, 0.13], [12, 1.15, 0.13], [16, 1.3, 1.3]].forEach(([k, at, d]) => brass(k, at, d));
+    [0, 0.15, 0.3, 1.0, 1.15, 1.3].forEach(at => snare(0.08, w + at));
+    for (let i = 0; i < 8; i++) snare(0.03 + i * 0.006, w + 0.6 + i * 0.05);
+    [0.3, 1.3].forEach(at => { voice(note(-17), 0.6, { type: 'sine', vol: 0.14, when: w + at, slide: note(-24) }); });
+    crash(0.06, w + 1.3, 1.8);
+    bellAt(36, 2, 0.08, w + 1.35);
+  }
+  A.lootUltra = function (tier) {
+    if (!ac) return;
+    if (!throttle('ultra', 250)) return;
+    if (tier === 'relic') { duckFor(5); divineChoir(0); mythicChord(0.9); uniqueFanfare(1.8); for (let i = 0; i < 14; i++) bellAt(43 + PENTA[i % 8], 0.5, 0.04, 3.2 + i * 0.06); return; }
+    duckFor(tier === 'divine' ? 3.4 : 2.8);
+    if (tier === 'divine') divineChoir(0);
+    else if (tier === 'unique') uniqueFanfare(0);
+    else mythicChord(0);
+  };
+  // a card that burns into Embers: a soft whoosh and a crackle
+  A.burn = function () {
+    if (!ac || !throttle('burn', 120)) return;
+    hiss(0.45, 0.07, 0, 'lowpass', 2200, 260, 0.08, 0.8);
+    for (let i = 0; i < 5; i++) hiss(0.03, 0.04, 0.05 + Math.random() * 0.35, 'highpass', 3000 + Math.random() * 3000);
+    voice(note(5), 0.3, { type: 'triangle', vol: 0.03, slide: note(-7) });
+  };
+  // the loot bursting out of a boss toward the screen: a pop and a glitter that climbs with the best rarity in it
+  A.lootBurst = function (r) {
+    if (!ac || !throttle('lburst', 300)) return;
+    r = Math.max(0, Math.min(7, r | 0));
+    thud(0.18, 0.16, 0, 500); hiss(0.4, 0.06, 0, 'bandpass', 600, 5000, 0.05, 1.5);
+    for (let i = 0; i < 4 + r; i++) voice(note(24 + PENTA[i % PENTA.length] + r), 0.1, { type: 'triangle', vol: 0.035, when: 0.04 + i * 0.04 });
+    if (r >= 4) bellAt(31 + r, 1.2, 0.07, 0.2);
+  };
+  // the Button's Integrity: a pip cracks (glass breaking, a falling tone; darker on the last one), or comes back (a sparkle)
+  A.pipCrack = function (last) {
+    if (!ac) return;
+    hiss(0.06, 0.14, 0, 'highpass', 5000, 3000); hiss(0.35, 0.06, 0.03, 'highpass', 7000, 4000);
+    for (let i = 0; i < 6; i++) voice(2200 + Math.random() * 2600, 0.05, { type: 'triangle', vol: 0.03, when: 0.02 + i * 0.03 + Math.random() * 0.02 });
+    voice(note(last ? 4 : 12), 0.6, { type: 'square', vol: 0.06, slide: note(last ? -20 : -5), when: 0.02, lp: 2000 });
+    thud(0.25, 0.16, 0, 400);
+    if (last) { voice(note(-20), 1.2, { type: 'sawtooth', vol: 0.06, when: 0.1, lp: 500, rel: 0.9 }); A.heartbeat(); }
+  };
+  A.pipGain = function () {
+    if (!ac) return;
+    [0, 4, 7, 12, 16, 19, 24].forEach((s, i) => voice(note(31 + s), 0.18, { type: 'triangle', vol: 0.05, when: i * 0.045 }));
+    bellAt(43, 1.2, 0.06, 0.2); hiss(0.5, 0.03, 0.05, 'highpass', 6000, 11000, 0.1);
+  };
+  // the Hand charging a shrine: a hum that climbs as the ring fills (stage calls it every few frames with the charge 0-1)
+  A.shrineCharge = function (k) {
+    if (!ac || !throttle('shrineCh', 95)) return;
+    voice(note(12 + Math.round(k * 19)), 0.12, { type: 'triangle', vol: 0.03 + 0.03 * k });
+    voice(note(24 + Math.round(k * 19)), 0.08, { type: 'sine', vol: 0.02 + 0.02 * k, when: 0.02 });
+  };
+  // a Pact sealed: a low minor chord and a bell that does not quite ring true
+  A.pact = function (yes) {
+    if (!ac) return;
+    if (!yes) { voice(note(0), 0.3, { type: 'triangle', vol: 0.05, slide: note(-5) }); return; }
+    boom(0.16, 0, 50);
+    [-12, -9, -5, 0, 3].forEach((s, i) => voice(note(s), 2, { type: 'sawtooth', vol: 0.035, when: i * 0.04, lp: 500, lp2: 1400, rel: 1.4 }));
+    bell(note(27) * 1.03, 2, 0.06, 0.3); hiss(1.2, 0.04, 0.1, 'lowpass', 800, 200, 0.3);
+  };
+  // a Golden Click: coins and a bright chord
+  A.goldenClick = function () {
+    if (!ac) return;
+    [0, 4, 7, 12, 16, 19, 24, 28].forEach((s, i) => voice(note(31 + s), 0.14, { type: i % 2 ? 'triangle' : 'square', vol: 0.05, when: i * 0.03 }));
+    for (let i = 0; i < 6; i++) { voice(1320 + i * 90, 0.05, { type: 'triangle', vol: 0.04, when: 0.25 + i * 0.05 }); voice(1760 + i * 90, 0.07, { type: 'triangle', vol: 0.035, when: 0.28 + i * 0.05 }); }
+    bellAt(36, 1.2, 0.07, 0.25);
+  };
+  // the doors: a heavy gate swings, then the march's drums
+  A.door = function () {
+    if (!ac) return;
+    voice(70, 0.9, { type: 'sawtooth', vol: 0.06, slide: 52, lp: 400 });
+    hiss(0.8, 0.05, 0, 'bandpass', 300, 160, 0.2, 4);
+    thud(0.4, 0.2, 0.75, 300);
+    for (let i = 0; i < 6; i++) thud(0.12, 0.08 + i * 0.012, 1 + i * 0.16, 500);
+  };
+  // a new land's title (after a door): a horn call
+  A.landTitle = function () {
+    if (!ac) return;
+    [[0, 0, 0.5], [7, 0.45, 0.35], [12, 0.75, 1.1]].forEach(([k, at, d]) => { voice(note(-5 + k), d, { type: 'sawtooth', vol: 0.05, when: at, att: 0.05, lp: 900, lp2: 2000, rel: d * 0.6 }); voice(note(7 + k), d, { type: 'square', vol: 0.025, when: at, att: 0.06, lp: 1500 }); });
+    thud(0.3, 0.12, 0, 300);
+  };
+  // the Last Stand: a war drum that quickens as the clock runs down (its own loop; stops with the Stand)
+  let drumT = null;
+  function drumLoop() {
+    drumT = null;
+    const L = G.R.lastStand;
+    if (!L || !ac) return;
+    const k = Math.max(0, Math.min(1, 1 - L.t / (L.T || 75))), beat = 0.52 - 0.22 * k;
+    if (!quiet(sfxBus)) {
+      voice(55, 0.4, { type: 'sine', vol: 0.18, slide: 38 }); thud(0.22, 0.17, 0, 260);
+      voice(82, 0.22, { type: 'sine', vol: 0.11, slide: 55, when: beat * 0.5 }); thud(0.1, 0.08, beat * 0.5, 600);
+      if (k > 0.6) snare(0.03, beat * 0.75);
+    }
+    drumT = setTimeout(drumLoop, beat * 1000);
+  }
+  A.drum = function (on) { if (on === false) { if (drumT) clearTimeout(drumT); drumT = null; return; } if (!drumT) drumLoop(); };
+  A.lastStand = function () {
+    if (!ac) return;
+    duckFor(2.5);
+    A.horn(); boom(0.22, 0.1, 50);
+    [0, 3, 7].forEach((s, i) => voice(note(-12 + s), 1.6, { type: 'sawtooth', vol: 0.05, when: 0.3 + i * 0.03, lp: 600, rel: 1 }));
+    setTimeout(() => A.drum(true), 900);
+  };
+  // THE MAD BUTTON: a clang, a laugh that falls apart, a crushed chord
+  A.madButton = function () {
+    if (!ac) return;
+    duckFor(3);
+    boom(0.26, 0, 44); crash(0.06, 0, 2);
+    for (let i = 0; i < 7; i++) voice(note(19 - i * 2 + (i % 2) * 5), 0.12, { type: 'square', vol: 0.05, when: 0.35 + i * 0.1, slide: note(14 - i * 2), vib: 0.03, vibF: 18 });
+    [-24, -23, -18, -12].forEach((s, i) => voice(note(s), 2.2, { type: 'sawtooth', vol: 0.06, when: 1.1 + i * 0.02, lp: 300, lp2: 2400, lpT: 0.8, rel: 1.4 }));
+  };
+  // a Button evolving: a rising spin, the crack of the shell, the new form's chord (ui.js's banner plays its tier sting)
+  A.evolveMorph = function () {
+    if (!ac) return;
+    hiss(1.4, 0.08, 0, 'bandpass', 200, 7000, 1.2, 3);
+    voice(note(-5), 1.4, { type: 'sawtooth', vol: 0.04, slide: note(31), att: 1.1, rel: 0.1, lp: 800, lp2: 6000 });
+    boom(0.22, 1.4, 60); hiss(0.08, 0.14, 1.4, 'highpass', 6000, 3000);
+    [0, 4, 7, 12, 16].forEach((s, i) => voice(note(19 + s), 1.6, { type: i % 2 ? 'triangle' : 'square', vol: 0.045, when: 1.45 + i * 0.03, rel: 1.2 }));
+  };
+  // the camp: a fire crackles while it is open (its own loop; stops when the camp closes)
+  let fireT = null;
+  function fireLoop() {
+    fireT = null;
+    const r = G.S && G.S.run;
+    if (!ac || !r || r.phase !== 'camp') return;
+    if (!quiet(sfxBus)) { hiss(0.02 + Math.random() * 0.03, 0.02 + Math.random() * 0.035, 0, 'highpass', 1500 + Math.random() * 3000); if (Math.random() < 0.25) thud(0.15, 0.03, 0, 300); }
+    fireT = setTimeout(fireLoop, 70 + Math.random() * 380);
+  }
+  A.campfire = function (on) { if (on === false) { if (fireT) clearTimeout(fireT); fireT = null; return; } if (!fireT) fireLoop(); };
+  // a chest that came as coin (the Siege's chest budget): a quick jingle
+  A.coinBurst = function () { if (!throttle('coinB', 120)) return; for (let i = 0; i < 5; i++) voice(1320 + Math.random() * 900, 0.05, { type: 'triangle', vol: 0.035, when: i * 0.035 }); };
+
   // ---------- Music: 16-step loop, mood per realm ----------
   const MOODS = [
     { bass: [0, 0, 7, 7, 5, 5, 3, 7], lead: [12, 16, 19, 16, 14, 12, 9, 12], tempo: 0.2 },
@@ -329,7 +594,7 @@
   G.on('bossWin', () => A.bossWin());
   G.on('bossFail', () => A.bossFail());
   G.on('wisp', () => A.wisp());
-  G.on('wispCatch', () => A.catchWisp());
+  G.on('wispCatch', () => { if (!(G.inSiege && G.inSiege())) A.catchWisp(); });
   G.on('achievement', () => A.achievement());
   G.on('lightning', () => A.lightning());
   G.on('chestHit', () => A.bossHit());
@@ -353,4 +618,20 @@
   G.on('perk', () => A.perk());
   G.on('evolve', () => A.evolve());
   G.on('nova', () => A.nova());
+  // 4.0: the Siege
+  G.on('lootMoment', L => { let r = 0; for (const c of (L && L.cards) || []) if (c && c.g) r = Math.max(r, c.g.q ? 7 : c.g.r | 0); A.lootBurst(r); });
+  G.on('pip', (dl, n, why, kind) => { if (kind === 'lost' || kind === 'last') A.pipCrack(kind === 'last'); else if (kind === 'gain') A.pipGain(); });
+  G.on('shrineCharge', (s, k) => A.shrineCharge(k));
+  G.on('pact', (id, yes) => A.pact(yes));
+  G.on('goldenClick', () => A.goldenClick());
+  G.on('door', () => A.door());
+  G.on('lastStand', () => A.lastStand());
+  G.on('lastStandEnd', () => A.drum(false));
+  G.on('madButton', () => A.madButton());
+  G.on('btnEvolve', () => A.evolveMorph());
+  G.on('campOpen', () => A.campfire(true));
+  G.on('campDone', () => A.campfire(false));
+  G.on('runPhase', p => { if (p === 'camp') A.campfire(true); });
+  G.on('chestCoin', () => A.coinBurst());
+  G.on('ascend', () => { A.drum(false); A.campfire(false); });
 })(globalThis.G = globalThis.G || {});
