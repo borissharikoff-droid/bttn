@@ -528,43 +528,8 @@
     nightfang: 'execute', headhunter: 'mark', frostwalk: 'frost', watcher: 'nova', hellstring: 'overkill', voidplate: 'thorns',
     reaper: 'momentum', lastbutton: 'crush', codex: 'souls', tyrant: 'might', ashbringer: 'burn', othercloak: 'aegis', firsthand: 'thunder' };
 
-  // ---------- 4.0: companions' traits (DESIGN §5.4): a recruit is a class plus one of these ----------
-  //   dmg/hp/spd/crit/heal: that companion's own; party: the whole party's damage; luck: the loot moment's luck
-  G.TRAITS = {
-    veteran: { name: 'Veteran', desc: '+25% damage', dmg: 0.25 },
-    stalwart: { name: 'Stalwart', desc: '+40% health', hp: 0.4 },
-    swift: { name: 'Swift', desc: '+20% attack speed', spd: 0.2 },
-    lucky: { name: 'Lucky', desc: '+5% crit', crit: 0.05 },
-    medic: { name: 'Medic', desc: 'Heals +50%', heal: 0.5 },
-    bannerman: { name: 'Bannerman', desc: '+5% party damage', party: 0.05 },
-    scavenger: { name: 'Scavenger', desc: 'Loot moment luck +0.1', luck: 0.1 },
-    zealot: { name: 'Zealot', desc: '+40% damage, -20% health', dmg: 0.4, hp: -0.2 },
-  };
-  G.TRAIT_IDS = Object.keys(G.TRAITS);
-
-  // ---------- 4.0: doors (DESIGN §5.6): each land's map mod (the risk) and reward tag ----------
-  //   land: fields merged into G.landNow() (the count knobs hero.js and world.js read: thick, loot, mobHp, speed, bite,
-  //   hoard, noMend, gold); emb: this land's Embers into the pouch x(1+emb); rar: the loot moment's rarity +n; lordCards:
-  //   more cards at its lord's loot moment; cards: more card offers at its lord; affix: its lord +n affix
-  G.MAP_MODS = {
-    calm: { w: 30, name: 'Calm', desc: 'No twist', land: null },
-    thick: { w: 10, name: 'Thick', desc: '+40% density, +25% items', land: { thick: 1.4, loot: 1.25 } },
-    armored: { w: 10, name: 'Armored', desc: '+30% Horde health, loot rarity +1', land: { mobHp: 1.3 }, rar: 1 },
-    swift: { w: 10, name: 'Swift', desc: 'Horde +25% speed, Embers +30%', land: { speed: 1.25 }, emb: 0.3 },
-    hexed: { w: 10, name: 'Hexed', desc: 'Bites +30%, +1 card at the lord', land: { bite: 1.3 }, cards: 1 },
-    elite: { w: 10, name: 'Elite Lord', desc: 'Lord +1 affix, +1 lord loot card', land: null, affix: 1, lordCards: 1 },
-    treasure: { w: 10, name: 'Treasure', desc: 'Hoarders x3', land: { hoard: 3 } },
-    nomend: { w: 10, name: 'No Mending', desc: 'Mend off, Embers +50%', land: { noMend: 1 }, emb: 0.5 },
-  };
-  G.REWARD_TAGS = {
-    battle: { w: 30, name: 'Battle', desc: 'Gold +25%', land: { gold: 1.25 } },
-    elite: { w: 20, name: 'Elite', desc: 'A Land Champion in zone 1: its kill pays a Key and a legendary loot card' },
-    treasure: { w: 15, name: 'Treasure', desc: '+1 loot card at each boss, a golden chest in zone 1', bossCards: 1 },
-    shrine: { w: 15, name: 'Shrine', desc: 'A Power shrine at the start, shrines every 55 s', land: { shrine: 2 } },
-    merchant: { w: 10, name: 'Merchant', desc: 'A merchant mid-land' },
-    mystery: { w: 10, name: 'Mystery', desc: 'Something strange mid-land' },
-  };
-
+  // (4.0 runflow: the run's own tables, G.TRAITS / TRAIT_IDS / MAP_MODS / REWARD_TAGS / BOONS / PACTS, live in js/run.js
+  //  'The run's data tables'; data.js keeps only what loads before run.js reads: G.SHRINE_KINDS (world.js), G.BLESS_TO (blessings.js))
   // ---------- 4.0: shrines (DESIGN §5.8): charged by holding the Hand on them 2 s ----------
   G.SHRINE_KINDS = {
     power: { w: 35, col: '#ffd84a', name: 'Shrine of Power', desc: 'Pick 1 of 3 run boons' },
@@ -572,33 +537,9 @@
     pact: { w: 25, col: '#b36bff', name: 'Shrine of Pacts', desc: 'A curse now, a reward at the lord' },
     fury: { w: 20, col: '#ff4f7e', name: 'Shrine of Fury', desc: '15 s of Frenzy, Greed, Storm or Slaughter' },
   };
-  // the run boons a Power shrine offers (the old blessing cards' effects: they last the rest of the run)
-  G.BOONS = {
-    dmg: { name: '+10% damage', fx: (n, d) => { d.heroMult *= 1 + 0.1 * n; } },
-    spd: { name: '+10% attack speed', fx: (n, d) => { d.spdMult *= 1 + 0.1 * n; } },
-    hp: { name: '+15% health', fx: (n, d) => { d.hpMult *= 1 + 0.15 * n; } },
-    crit: { name: '+3% crit', fx: (n, d) => { d.crit += 0.03 * n; } },
-    gold: { name: '+20% gold', fx: (n, d) => { d.goldMult *= 1 + 0.2 * n; } },
-    xp: { name: '+15% XP', fx: (n, d) => { d.xpMult = (d.xpMult || 1) * (1 + 0.15 * n); } },
-    reroll: { name: '+1 card reroll', once: 1 },
-    // (4.0 meta: the rest of the retired blessing cards, at a boon's size: Giant Slayer, Fortune, Live Wire, Orb Seeker)
-    boss: { name: '+15% boss damage', fx: (n, d) => { d.bossMult *= 1 + 0.15 * n; } },
-    luck: { name: 'Chest find +15%, luck +10%', fx: (n, d) => { d.chestProg *= 1 + 0.15 * n; d.luck += 0.1 * n; } },
-    od: { name: 'Overdrive charges +30%', fx: (n, d) => { d.odRate = (d.odRate || 1) * (1 + 0.3 * n); } },
-    orbs: { name: 'Orbs drop +50%', fx: (n, d) => { d.orbMult = (d.orbMult || 1) * (1 + 0.5 * n); } },
-  };
-  // (each boon's line for the UI; G.BOONS[id].desc)
-  for (const k in G.BOONS) if (!G.BOONS[k].desc) G.BOONS[k].desc = G.BOONS[k].name;
   // the retired blessing cards (js/blessings.js G.BLESSINGS) and where each went: a Power shrine boon, a Pact, or gone
   G.BLESS_TO = { gilded: 'boon:gold', warpath: 'boon:dmg', iron: 'boon:hp', quick: 'boon:spd', fortune: 'boon:luck', livewire: 'boon:od',
     seeker: 'boon:orbs', scholar: 'boon:xp', slayer: 'boon:boss', glass: 'pact:glass', greed: 'pact:greed', reckless: null };
-  // Pacts: a curse now, a reward at the lord (blood, greed, hunt: this land; glass: the rest of the run)
-  G.PACTS = {
-    blood: { name: 'Blood Pact', desc: 'Horde +50% health in this land; the lord’s loot +1 rarity and +1 card', land: { mobHp: 1.5 } },
-    glass: { name: 'Glass Pact', desc: 'x0.6 health, x1.4 damage for the rest of the run' },
-    greed: { name: 'Greed Pact', desc: 'Bites +40% in this land; gold x2.5 in this land', land: { bite: 1.4, gold: 2.5 } },
-    hunt: { name: 'Hunt Pact', desc: 'A second Land Champion now: +1 Key and a 20% unique card at the lord' },
-  };
 
   // Land mastery: three stars per land, kept forever. 4.0: cosmetic completion marks (+1 Gem each): no hidden power
   G.STAR_BONUS = 0;

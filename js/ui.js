@@ -6,6 +6,9 @@
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // the player's own name as the page shows it (4.0 stream handoff: js/stream.js may define G.nameShown(name, me) to mask
+  // it in streamer mode; others' names come through G.Net.displayName / accountName, which that module wraps itself)
+  const myName = () => { const n = G.S.profile.name || G.t('wardenName'); return G.nameShown ? (G.nameShown(n, true) || n) : n; };
   const ic = (id, sc, o) => G.SPR.url(id, sc || 4, o);
   // each icon carries its sprite's size, so it can be shown at a whole multiple of it (see snapPixels)
   const sprW = id => { try { const c = G.SPR.get(id); return c ? c.width + 'x' + c.height : ''; } catch (e) { return ''; } };
@@ -2050,7 +2053,7 @@
   const isUltra = g => !!g && (!!g.q || g.r >= 5);
   UI.isUltra = isUltra;
   const rarName = g => (g.q ? t(G.isRelic && G.isRelic(g) ? 'relic' : 'unique') : L(G.RARITIES[g.r].name));
-  const whoLabel = w => (w < 0 ? (G.S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[(G.S.party[w] || {}).cls || 'knight'].name));
+  const whoLabel = w => (w < 0 ? myName() : L(G.CLASS_BY_ID[(G.S.party[w] || {}).cls || 'knight'].name));
   // the name as every view shows it: the rarity's colour, the rainbow for the ultra-rares
   UI.itemName = (g, cls) => `<b class="iName${isUltra(g) ? ' rbw' : ''}${cls ? ' ' + cls : ''}" style="--rc:${gearCol(g)}">${esc(gearName(g))}</b>`;
   UI.rarName = rarName;
@@ -2669,7 +2672,7 @@
   function twHeader(npc, title, sub) {
     return `<header class="twHead">${img(npc, '', 4)}<div><b>${esc(title)}</b><small>${esc(sub)}</small></div><button class="twX" data-tw="close" aria-label="${esc(t('close'))}">✕</button></header>`;
   }
-  const whoName = w => (w < 0 ? (G.S.profile.name || t('wardenName')) : L(G.CLASS_BY_ID[clsOf(w)].name));
+  const whoName = w => (w < 0 ? myName() : L(G.CLASS_BY_ID[clsOf(w)].name));
   // QoL: what in the bag is an upgrade for whom: the count per member, the total, and for each item its best wearer.
   // 4.0: THE rule (G.bagUps, hero.js): companions take uniques too (the ring bug), so every ▲ is what EQUIP BEST does
   function bagUps() {
@@ -2855,7 +2858,7 @@
     const recruits = siege ? `<p class="note">${esc(t(open > 0 ? 'seatOpenCamp' : slots >= 3 ? 'twPartyFull' : 'seatCampTip'))}</p>`
       : open > 0 ? `<p>${esc(t('twRecruitN', open))}</p><div class="twRecruit">${G.CLASSES.map(c => `<button class="clsCard" data-twrec="${c.id}">${img(c.spr, '', 5)}<b>${esc(L(c.name))}</b><small class="r_${G.ROLES[c.id]}">${esc(G.ROLE_NAMES[G.ROLES[c.id]])}</small></button>`).join('')}</div>` : `<p class="note">${esc(t('twTavernOut'))}</p>`;
     el.innerHTML = `<div class="tw tavern">${twHeader('npc_keeper', t('town_tavern'), t('twTavernSub'))}
-      ${team}<div class="twParty"><div class="twMem lead"><img src="${G.Doll.portrait(S.hero, 3)}" alt=""><b>${esc(S.profile.name || t('wardenName'))}</b><small>${esc(L(G.CLASS_BY_ID[S.hero.cls].name))} · ${esc(t('lvl'))} ${S.hero.lvl}</small>${memLine(-1, ups)}<button class="btn" data-twgear="-1">${esc(t('twGearUp'))}</button></div>${mem}</div>
+      ${team}<div class="twParty"><div class="twMem lead"><img src="${G.Doll.portrait(S.hero, 3)}" alt=""><b>${esc(myName())}</b><small>${esc(L(G.CLASS_BY_ID[S.hero.cls].name))} · ${esc(t('lvl'))} ${S.hero.lvl}</small>${memLine(-1, ups)}<button class="btn" data-twgear="-1">${esc(t('twGearUp'))}</button></div>${mem}</div>
       ${recruits}</div>`;
   }
   function renderTown(full) {
@@ -2990,7 +2993,7 @@
     const m = UI.modal(t('pickClass'), html, G.S.hero.cls ? [{ label: t('cancel') }] : [], !G.S.hero.cls);
     m.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => {
       if (G.runStart) G.runStart({ cls: b.dataset.c }); else G.chooseClass(b.dataset.c);
-      if (!G.S.profile.name && G.Net && G.Net.myName) { G.S.profile.name = G.Net.myName.trim().split(/\s+/)[0].slice(0, 16); setTimeout(() => UI.toast(esc(t('onLadderAs', G.S.profile.name)), '', 'ic_crown'), 4000); }
+      if (!G.S.profile.name && G.Net && G.Net.myName) { G.S.profile.name = G.Net.myName.trim().split(/\s+/)[0].slice(0, 16); setTimeout(() => UI.toast(esc(t('onLadderAs', myName())), '', 'ic_crown'), 4000); }
       m.hidden = true; m.innerHTML = '';
       UI.render();
     }));

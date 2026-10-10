@@ -68,7 +68,7 @@
     doors_title: 'Choose the next land', door_lord: 'Lord: {0}', door_act: 'ACT BOSS', door_final: 'THE MAD BUTTON', door_vault: 'Vault first (1 Key)', door_cursed: 'CURSED: twice the twist, twice the prize',
     relic_title: 'Choose a relic', relic_belt: 'Belt {0}/{1}', relic_replace: 'Replace', relic_skip: 'Leave it',
     shrine_charge: 'Hold the Hand here', boon_title: 'Choose a boon', chance_boon: 'Fortune smiles: {0}', chance_loot: 'A better card waits at the next loot', chance_none: 'Nothing',
-    pact_title: 'A pact', pact_yes: 'Accept', pact_no: 'Decline',
+    pact_title: 'A pact', pact_yes: 'Accept', pact_no: 'Decline: a boon instead',
     won_title: 'THE MAD BUTTON IS BROKEN', push_on: 'PUSH ON', push_return: 'RETURN', push_tide: 'The Tide x{0}', push_land: 'Push land {0}',
     ls_title: 'LAST STAND', ls_left: 'Hold for {0}s', ls_retry: 'The Mad Button returns in {0}s',
   });
@@ -780,7 +780,11 @@
   // 'shrine', S.run.boonOffer, G.boonPick(i)). Chance: 15% of the gold for 45% a boon, 30% a loot card a rarity above the
   // cap at the next loot moment, 25% nothing. Pact (S.run.pactOffer, G.pactAnswer(yes)): a curse now, a reward at the
   // lord (G.PACTS; S.run.pact {id, slot}; Glass is for the rest of the run: S.run.glass). Fury: world.js's 15-s buffs.
-  Object.assign(TUNE, { shrineAuto: 10, chanceCost: 0.15, chanceOdds: [0.45, 0.3] });
+  // (4.0 runflow, continuation 3: a declined Pact leaves the shrine's own gift, a Power shrine's 1-of-3 boons
+  // (pactNoBoon): the Pact shrine is a Power shrine with a wager on top, so the Deed that unlocks it ('reach Act II') adds
+  // a choice instead of thinning the run's boons - measured: with Pact + Chance shrines open and every pact declined a
+  // fresh save's first run won 34% against 57% with them locked, tests/runflow/bal/out/shr*)
+  Object.assign(TUNE, { shrineAuto: 10, chanceCost: 0.15, chanceOdds: [0.45, 0.3], pactNoBoon: 1 });
   const BOON_PREF = ['dmg', 'spd', 'crit', 'hp', 'reroll', 'xp', 'gold'];
   function boonApply(id) {
     const r = runOf(), B = G.BOONS && G.BOONS[id];
@@ -857,6 +861,9 @@
       G.dirty(); G.recalc();
     }
     emit('pact', o.id, !!yes);
+    // declined: the boons the shrine would have offered (its own stream, 'shrine:<n>:no', so a world that says no and one
+    // that says yes deal the same later offers; the 'pact' event first: a screen closes the pact before the boons open)
+    if (!yes && TUNE.pactNoBoon && !r.boonOffer) G.runRngIn('shrine:' + (r.shrineN | 0) + ':no', () => shrineEffectIn('power', o, 'pact'));
     shrineFree();
     return true;
   };

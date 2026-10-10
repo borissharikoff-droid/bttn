@@ -99,7 +99,7 @@
     tu_camp: 'CAMP. Your three Integrity pips light up: land 1 was the muster. From now on a wipe cracks one; each lord gives one back. Rest, Temper or Train; then the market.',
     tu_doors: 'Choose the next land. Each door shows its rule, its lord, a risk and a reward.',
     tu_final: 'That\u2019s the Siege. When the Button falls, all you carried burns into Embers for the town, and Fame buys the Hall of Fame. Press ? any time.',
-    tip_shrine: 'A shrine! Hold the Hand on it for 2 s (not on the Button) to claim it.',
+    tip_shrine: 'A shrine! Hold the Hand on it for 2 s (not on the Button) to claim it (or hold H).',
     tip_shards: 'Shards piled up: ENCHANT ALL at the Forge (TOWN) raises the whole party.',
     tip_break: 'The Button broke: clicks do nothing for 12 seconds. If the party falls meanwhile, Integrity cracks.',
     help_15: 'Your powers', help_15t: 'Z Smite (18 s): break wind-ups, hit hard. X Ward (26 s): no damage for 3.5 s. C Mend: 2 charges a land, each heals 35%.',
@@ -378,7 +378,7 @@
   let lastKey = '';
   // on a touch screen the keyboard letters mean nothing: drop them from what the coach says
   const touch = typeof matchMedia !== 'undefined' && matchMedia('(hover: none)').matches;
-  const untype = s => s.replace(/ ?\((?:or press )?[A-Z]\)/g, '').replace(/\b([ZXC]) (Smite|Ward|Mend)\b/g, '$2').replace(/ (?:or )?(?:with|press) [ZXCQRTEB]\b/g, '').replace(/ ?\((?:[ZXC] )?\d+ ?s\)/g, m => m.replace(/[ZXC] /, ''));
+  const untype = s => s.replace(/ ?\((?:or (?:press|hold) )?[A-Z]\)/g, '').replace(/\b([ZXC]) (Smite|Ward|Mend)\b/g, '$2').replace(/ (?:or )?(?:with|press) [ZXCQRTEB]\b/g, '').replace(/ ?\((?:[ZXC] )?\d+ ?s\)/g, m => m.replace(/[ZXC] /, ''));
   function render(key, text, step, manual, top) {
     if (touch && typeof text === 'string') text = untype(text);
     const c = $('#coach');
@@ -441,6 +441,8 @@
     const hp = document.querySelector('#holdPlate:not(.away) .hpIn'); if (hp) avoid.push(hp.getBoundingClientRect());
     const bn = $('#banner'); if (bn && !bn.hidden && bn.firstElementChild) avoid.push(bn.firstElementChild.getBoundingClientRect());
     avoid.push(rectOf('#champCard'));
+    // (4.0: a standing shrine wants a 2-s hold on it: on a phone the bubble used to sit right on it - fieldfx's handoff)
+    if (G.R.shrine && G.Stage.shrinePoint) { const q = G.Stage.shrinePoint(), s = G.Stage.scale ? G.Stage.scale() : 2; if (q) avoid.push({ left: q.x - 14 * s, right: q.x + 14 * s, top: q.y - 6 * s, bottom: q.y + 30 * s }); }
     if (G.UI.cardRect) avoid.push(G.UI.cardRect());
     if (wide) avoid.push(rectOf('#perks'));
     const hit = (a, x, y) => !!a && x < a.right && x + width > a.left && y < a.bottom && y + h > a.top;

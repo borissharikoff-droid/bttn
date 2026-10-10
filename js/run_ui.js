@@ -356,6 +356,8 @@
   window.addEventListener('keydown', () => Snd.warm(), { once: true, capture: true });
   const ultraSting = tier => { if (G.Audio && typeof G.Audio.lootUltra === 'function') sfx('lootUltra', tier); else Snd.sting(tier); };
   const ultraRiser = sec => { if (G.Audio && typeof G.Audio.ultraRiser === 'function') sfx('ultraRiser', sec); else Snd.riser(sec); };
+  // (audio.js's burn when it has one - fieldfx stream; it does not listen to 'lootBurn' itself, so no double)
+  const burnSnd = () => { if (G.Audio && typeof G.Audio.burn === 'function') sfx('burn'); else Snd.burn(); };
 
   // ---------- flying Embers (a burned card's '+N' into the pouch chip) ----------
   function rectOf(el) { if (!el || !el.getBoundingClientRect) return null; const r = el.getBoundingClientRect(); return r.width || r.height ? { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height } : null; }
@@ -908,8 +910,11 @@
       bar.lastChild.textContent = n + (tot ? ' · ' + Math.round(n / tot * 100) + '%' : '');
       el.classList.toggle('lead', n === mx && n > 0);
     });
+    // (the doors' bars sit above their cards: the row makes room so they do not cover the 'Land N' line - stream handoff)
+    s.el.classList.toggle('voting', !!v);
     const chat = s.el.querySelector('.ckChat, .ruChat');
-    if (chat) { setH(chat, !v); if (v) chat.textContent = '!1 !2 !3 · ' + (v.secs != null ? Math.ceil(v.secs) + 's' : ''); }
+    // (the chip names as many options as the vote has: '!1 !2' on two doors, '!1 .. !5' on a 5-card loot moment)
+    if (chat) { setH(chat, !v); if (v) chat.textContent = Array.from({ length: Math.max(1, Math.min(9, v.counts.length || els.length)) }, (_, k) => '!' + (k + 1)).join(' ') + ' · ' + (v.secs != null ? Math.ceil(v.secs) + 's' : ''); }
   }
 
   // ---------- THE LOOT MOMENT (DESIGN §5.3, ADDENDUM 1-2): cards dealt from the boss and flipped like a booster pack,
@@ -1325,7 +1330,7 @@
     const s = SCR.loot;
     if (!s || !list || !list.length) return;
     pouchHold = 1;
-    Snd.burn();
+    burnSnd();
     let k = list.length;
     list.forEach((x, j) => {
       const el = cardEl(x.i), r = rectOf(el);
@@ -1534,6 +1539,7 @@
 #ru .drGo{justify-self:stretch;margin-top:2px}
 #ru .drVault{display:flex;gap:8px;align-items:center;justify-content:center}
 #ru .drCard kbd{position:absolute;left:6px;bottom:6px}
+#ru .ru-doors.voting .drRow{padding-top:16px}
 @media (max-width:600px){#ru .drRow{grid-template-columns:minmax(0,1fr)}}
 `);
   let vaultMode = false;
@@ -1980,7 +1986,7 @@
       at += isU ? 480 : 100;
     });
     const moreEl = el.querySelector('.fnHopper [data-fi="more"]');
-    if (moreEl) { later('summary', () => { moreEl.classList.add('gone'); acc = E.itemsV || acc; cnt.textContent = fmt(Math.round(acc)); Snd.burn(); }, at); at += 300; }
+    if (moreEl) { later('summary', () => { moreEl.classList.add('gone'); acc = E.itemsV || acc; cnt.textContent = fmt(Math.round(acc)); burnSnd(); }, at); at += 300; }
     later('summary', () => { show(el.querySelector('[data-fl="items"]')); acc = E.itemsV || acc; cnt.textContent = fmt(Math.round(acc)); }, at); at += 220;
     el.querySelectorAll('.fnLines [data-fl]').forEach(x => { if (x.dataset.fl === 'items' || x.dataset.fl === 'base') return; later('summary', () => { show(x); sfx('coin'); }, at); at += 140; });
     later('summary', () => { show(el.querySelector('[data-fl="base"]')); cnt.textContent = fmt(E.base || 0); }, at); at += 220;

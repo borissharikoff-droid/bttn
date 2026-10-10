@@ -633,6 +633,17 @@
     safe(() => G.UI && G.UI.render && G.UI.render());
   }
   St.namesHidden = () => ({ me: hideMe(), others: hideOthers() });
+  // the hook a renderer calls where it writes a name (ui.js's myName(): whoLabel / whoName / the Tavern card / the
+  // 'onLadderAs' toast - metaui's side of the handoff): the text to show. me: the player's own name -> 'Streamer' while
+  // Mine is hidden; else another player's -> 'Player K7Q' (a stable tag from the name) while Others is hidden. With the
+  // hook in place ui.js's renders never carry the real name, so the observer only still covers daily.js's board rows and
+  // whatever else writes the own name straight from the save.
+  G.nameShown = (name, me) => {
+    const n = name == null ? '' : String(name);
+    if (!n) return n;
+    if (me) return hideMe() ? t('st_meName') : n;
+    return hideOthers() ? pseud({ name: n }) : n;
+  };
 
   // ---------- CSS (from css/style.css's variables; the pixel look: hard edges, ink outlines, the display font) ----------
   const css = `
