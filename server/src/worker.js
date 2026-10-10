@@ -85,11 +85,15 @@ export default {
         const snap = await readJson(req, 16 * 1024);
         const problems = G.verifySnapshot(snap);
         if (problems.length) return json(env, { error: 'rejected', problems }, 422);
+        // (4.0 fix1: a row from an earlier season than this server's is refused, not archived into the live board)
+        if ((snap.ss | 0 || 1) < season) return json(env, { error: 'old_season' }, 422);
         const prev = await env.DB.prepare('SELECT updated_at FROM ladder WHERE player_id = ?').bind(me.id).first();
         if (prev && Date.now() - prev.updated_at < LADDER_COOLDOWN) return json(env, { error: 'too_soon' }, 429);
+        // (4.0 fix1: the row keeps its season (ss) and snapshot version (v): js/net.js prepare() drops rows without this
+        // season's ss, so a board without them was always empty; v3 adds heat and hw)
         const clean = {
-          v: snap.v === 2 ? 2 : 1, name: String(snap.name || '').slice(0, 16), cls: snap.cls, lvl: snap.lvl, depth: snap.depth,
-          asc: snap.asc | 0, fame: +snap.fame || 0, mad: snap.mad | 0, gear: snap.gear, ts: Date.now(),
+          v: Math.max(1, Math.min(3, snap.v | 0 || 1)), ss: season, name: String(snap.name || '').slice(0, 16), cls: snap.cls, lvl: snap.lvl, depth: snap.depth,
+          asc: snap.asc | 0, fame: +snap.fame || 0, mad: snap.mad | 0, gear: snap.gear, ts: Date.now(), heat: snap.heat | 0, hw: snap.hw == null ? -1 : snap.hw | 0,
           rift: snap.rift | 0, rt: snap.rt | 0, rd: snap.rd || null, uq: snap.uq | 0, kills: snap.kills | 0, ls: snap.ls | 0, ev: Array.isArray(snap.ev) ? snap.ev : [], fs: snap.fs || {}, cr: snap.cr || {},
         };
         clean.power = G.ladderPower(clean); // never trust the client's number
