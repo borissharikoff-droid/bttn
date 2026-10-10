@@ -489,11 +489,12 @@
   // (4.0 bots: x0.8 again - the personas take the ▲ loot and stash every legendary and unique, so a Heat-0 win burned ~1,610
   // against the 1,200-1,500 band and an Act II extract ~405 against 250-400 (tests/bots/out/t2); the early fall (~90) and
   // the Act II fall (~150) stay inside their bands. One-decimal values: the Furnace rounds each item to 0.1)
-  // (4.0 fix1: x1.3 - [0.4, 0.8, 1.2, 2, 3.2, 6, 12] -> [0.5, 1, 1.6, 2.6, 4.2, 7.8, 15.6]. game.js rarityAt moved mythic to depth
+  // (4.0 fix1: x1.33 - [0.4, 0.8, 1.2, 2, 3.2, 6, 12] -> [0.5, 1.1, 1.6, 2.7, 4.3, 8, 16]. game.js rarityAt moved mythic to depth
   // 13 and divine to 16, so a Siege's furnace is legendary where it was mythic (EMBER_R 3.2 against 6): the Heat-0 win fell
-  // to ~1,050 (band 1,200-1,500) and the Camp-3 extract to ~200 (250-400); x1.3 puts them back (tests/fix1/out, notes/gates.md).
+  // to ~1,050 (band 1,200-1,500) and the Camp-3 extract to ~200 (250-400); x1.33 puts them back (tests/fix1/out, notes/gates.md).
   // One-decimal values: the Furnace rounds each item to 0.1)
-  G.EMBER_R = [0.5, 1, 1.6, 2.6, 4.2, 7.8, 15.6];
+  // (x1.3 read the Camp-3 extract at 246 over 6 seeds x 90 min - 4 under the band; x1.33, one decimal: g7)
+  G.EMBER_R = [0.5, 1.1, 1.6, 2.7, 4.3, 8, 16];
   // (4.0 bots C2: the extract stays x1 - DESIGN §2.4 'paid in full', its §8 example 'N Embers safe at x1'. The §4.3 'Act II
   // extract 250-400' row is an extract INSIDE Act II (Camp 3, zone 9: the same ground as the 'Act II fall 120-200' row at x1
   // instead of x0.5), not the Camp-4 decision after the Act II boss, which the design's own walkthrough prices at ~1,050 of
