@@ -22,6 +22,9 @@
     parZone: 45, parCamp: 20, reaperAfter: 120, reaperPer: 0.1,
     // Integrity: pips at the start (Heat 10 and the Golden Button: 2), at most pipCap with the Hall's Second Wind
     pips: 3, pipCap: 4,
+    // DESIGN §14 lever 3: a LOST lord / act / Mad Button fight (not a wipe) cracks a pip only from this Heat up (0: at every
+    // Heat, the design's default; 1: Heat 0 forgives the fight - the summary still names it; the bots' --tune lever)
+    lordPipHeat: 0,
     // the boss relic item drop (relic.js, 1/600 bosses, 1/200 lords) is off inside a Siege: relics come as belt choices
     // (a flag for relic.js, which is not this module's: skip the roll when G.inSiege() && !TUNE.siegeRelicItems)
     siegeRelicItems: 0,
@@ -447,8 +450,9 @@
   // will a hit at this depth be the fall? (land 1 is the muster; past it, a hit at 0 pips)
   G.pipFalls = d => { const r = runOf(); return !!(r && r.on && (d == null ? S_().depth : d) >= SIZE() && (r.pips | 0) <= 0); };
   // a hit on the Integrity: a wipe ('wipe', info {depth, meter, boss: a boss fight was on}) or a lost fight against a
-  // lord, an act boss or the Mad Button ('lord', info: the boss). Returns 'muster' (land 1: nothing lost), 'pip' (one
-  // lost) or 'fall' (it was the last: the Button falls; G.runOver asks the player, Continue or the end)
+  // lord, an act boss or the Mad Button ('lord', info: the boss). Returns 'muster' (land 1: nothing lost), 'spared' (a lost
+  // lord fight under TUNE.lordPipHeat), 'pip' (one lost) or 'fall' (it was the last: the Button falls; G.runOver asks the
+  // player, Continue or the end)
   G.pipHit = function (why, info) {
     const S = S_(), r = runOf();
     if (!r || !r.on) return 'off';
@@ -459,6 +463,8 @@
     r.cause = causeOf(why, bd != null);
     r.causeAt = { d, why, boss: bd != null ? G.bossName(bd) : null, kind: bd != null ? G.bossKind(bd) : null, bd };
     if (d < SIZE()) { emit('pip', 0, r.pips, why, 'muster'); return 'muster'; }
+    // (lever 3: below TUNE.lordPipHeat a lost lord fight is forgiven - 'spared'; the cause is still recorded above)
+    if (why === 'lord' && (r.heat | 0) < (TUNE.lordPipHeat | 0)) { emit('pip', 0, r.pips, why, 'spared'); return 'spared'; }
     if ((r.pips | 0) > 0) {
       r.pips--;
       emit('pip', -1, r.pips, why, r.pips === 0 ? 'last' : 'lost');
