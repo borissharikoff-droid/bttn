@@ -60,6 +60,10 @@
     // 4.0 attrition: a boss kill heals the Button and the party this share, a lord this share; Mend is charges (per land,
     // each heals mendHeal, mendLock s apart); DOOM takes this share of what it would (by Heat: 0-2, 3-5, 6+)
     healBoss: 0.1, healLord: 0.25, mendCharges: 2, mendHeal: 0.35, mendLock: 8, doomK: [0.64, 0.8, 1],
+    // 4.0 fix1 C2: taps that don't break a move still blunt it: a SLAM / BARRAGE / DOOM landing with n of need taps hits for
+    // x(1 - tapBlunt x n/need) (a lord's DOOM, 7 taps: 4 landed = 60% of the blow at 0.7). Reaches the low-tap player
+    // (the attentive casual lands 1.6 a second and broke no lord move), costs the active (who breaks most) nothing
+    tapBlunt: 0.7,
     // 4.0: a Siege boss's least fight length is measured by the party's damage averaged over this many s of field time
     // (0: by the steady damage only, as before)
     bossFloorAvg: 15,
@@ -1016,9 +1020,12 @@
     if ((b.move.t -= dt) > 0) return;
     // the move lands
     const k = b.move.k;
+    // (4.0 fix1 C2: blunted by the taps that landed on the weak point but didn't break it, TUNE.tapBlunt)
+    const blunt = Math.max(0, 1 - (TUNE.tapBlunt || 0) * Math.min(1, (b.move.n || 0) / Math.max(1, b.move.need || 1)));
+    b.lastBlunt = blunt;
     b.move = null; b.moveT = (b.lord ? 5 : 7) / (1 + 0.3 * ((b.phase || 1) - 1)) * (b.enr > 0 ? 0.5 : 1);
     // 2.2: a boss's blows take a share of what they hit, so a fight is never safe; its depth's curve is the floor
-    const rage = b.rage ? 1.5 : 1;
+    const rage = (b.rage ? 1.5 : 1) * blunt;
     if (k === 'barrage' && G.partyUnits) {
       const a = G.mobAtk(b.d) * rage;
       for (let i = 0; i < 3 && R.boss === b; i++) { const up = G.partyUnits().filter(u => !(u.down > 0)); const v = up.length && chance(0.75) ? up[Math.floor(G.rng() * up.length)].who : 'button'; G.blowParty(v, a * 2.2, 0.1 * rage, 'barrage'); emit('barrageHit', b, v, i); }
@@ -1036,14 +1043,14 @@
     if (k === 'doom' && G.blowParty) {
       const up = G.partyUnits ? G.partyUnits().filter(u => !(u.down > 0)) : [];
       // 4.0: DOOM by Heat: x0.64 at Heat 0-2 (the Button 61%/54% for a lord/boss), x0.8 at 3-5, in full from 6
-      const n = heatNow(), dk = inSiege() ? TUNE.doomK[n <= 2 ? 0 : n <= 5 ? 1 : 2] : 1;
+      const n = heatNow(), dk = (inSiege() ? TUNE.doomK[n <= 2 ? 0 : n <= 5 ? 1 : 2] : 1) * blunt;
       // (an unanswered DOOM is remembered: the run summary names it if the party falls soon after)
       if (!(R.ward > 0)) R.doomAt = ptime();
       // (never the rage on top: a Button at full health always survives it)
       G.blowParty('button', 0, (b.lord ? 0.95 : 0.85) * dk, 'doom');
       for (const u of up) if (R.boss === b) G.blowParty(u.who, 0, (b.lord ? 0.9 : 0.8) * dk, 'doom');
     }
-    emit('bossMoveLand', b, k);
+    emit('bossMoveLand', b, k, blunt);
   }
   // ---------- The Hand's powers (2.2): three choices with cooldowns ----------
   // Smite hits the boss for five seconds of the party's damage and breaks its wind-up (or blasts the
