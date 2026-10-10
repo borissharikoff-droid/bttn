@@ -563,7 +563,17 @@
   // a chest that came as coin (the Siege's chest budget): a quick jingle
   A.coinBurst = function () { if (!throttle('coinB', 120)) return; for (let i = 0; i < 5; i++) voice(1320 + Math.random() * 900, 0.05, { type: 'triangle', vol: 0.035, when: i * 0.035 }); };
 
+  // ---------- 4.0 (town): the square's little sounds; the stage calls them only when they exist and sound is on ----------
+  // the smith's hammer on the anvil: a short bright clank with a thin ring after it (throttled: the stage strikes at 0.6 s)
+  A.anvil = function () { if (!ac || !throttle('anvil', 300)) return; tone(1800 + Math.random() * 200, 0.03, 'square', 0.045); noise(0.02, 0.04, 0, 4000); tone(2400, 0.14, 'sine', 0.02, 0.01, 2300); };
+  // the cauldron: one bubble (a sine blip up), every 2-4 s
+  A.bubble = function () { if (!ac || !throttle('bubble', 180)) return; tone(300, 0.08, 'sine', 0.05, 0, 600 + Math.random() * 100); if (Math.random() < 0.35) tone(420, 0.06, 'sine', 0.03, 0.09, 760); };
+  // a flock entering the square: two blips, one a bird
+  A.chirp = function () { if (!ac || !throttle('chirp', 900)) return; tone(2400, 0.05, 'sine', 0.035, 0, 2900); tone(3000, 0.05, 'sine', 0.03, 0.09, 2600); if (Math.random() < 0.5) tone(2700, 0.04, 'sine', 0.025, 0.2, 3100); };
+
   // ---------- Music: 16-step loop, mood per realm ----------
+  // 4.0 (town): a mood of its own in the square: a lilting major tune at a lighter step, the lead every bar, no hats
+  const TOWN_MOOD = { bass: [0, 0, 5, 5, 7, 7, 5, 5], lead: [12, 16, 19, 16, 17, 16, 14, 12], tempo: 0.24, town: 1 };
   const MOODS = [
     { bass: [0, 0, 7, 7, 5, 5, 3, 7], lead: [12, 16, 19, 16, 14, 12, 9, 12], tempo: 0.2 },
     { bass: [0, 0, 5, 5, 7, 7, 5, 4], lead: [12, 14, 16, 19, 16, 14, 12, 7], tempo: 0.19 },
@@ -589,16 +599,17 @@
     const tickMusic = () => {
       if (!ac) return;
       const S = G.S;
-      const mood = MOODS[G.realmIndex(S.depth) % MOODS.length];
-      const boss = G.R.boss;
+      const mood = G.R.town ? TOWN_MOOD : MOODS[G.realmIndex(S.depth) % MOODS.length];
+      const boss = !mood.town && G.R.boss;
       const tempo = boss ? mood.tempo * 0.75 : mood.tempo;
       if (S.set.music && ac.state === 'running') {
         const i = step % 16, bar = Math.floor(step / 16) % 2;
         if (i % 2 === 0) tone(note(mood.bass[(i / 2) | 0] - 12), tempo * 1.8, 'triangle', 0.22, 0, null, musicBus);
-        if (i % 4 === 2 || (boss && i % 2 === 1)) noiseM(0.03);
-        if (bar === 1 || boss) {
+        if (!mood.town && (i % 4 === 2 || (boss && i % 2 === 1))) noiseM(0.03);
+        if (bar === 1 || boss || mood.town) {
           const n = mood.lead[(i / 2 | 0) % 8];
-          if (i % 2 === 0) tone(note(n + (boss ? 12 : 0)), tempo * 0.9, 'square', 0.06, 0, null, musicBus);
+          // (the town's lead is a softer triangle a fifth up on the second bar, like a second fiddle joining)
+          if (i % 2 === 0) tone(note(n + (boss ? 12 : 0) + (mood.town && bar === 1 ? 7 : 0)), tempo * 0.9, mood.town ? 'triangle' : 'square', mood.town ? 0.09 : 0.06, 0, null, musicBus);
         }
       }
       step++;

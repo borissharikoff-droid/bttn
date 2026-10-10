@@ -3229,6 +3229,7 @@
     twBubGear: '{0} upgrades for me!', twBubGear1: 'An upgrade for me!', twBubQuest: 'Reward to claim!', twBubEggs: 'Eggs are warm!', twBubBuild: 'We could build up!', twBubLook: 'Look at this!',
     twBubCodex: 'A new entry for the Codex!', twFallenWon: 'won', twFallenFell: 'fell: {0}', twHeat: 'Heat {0}', twDeepLord: 'Deepest lord slain: {0}', twNoLord: 'No lord slain yet',
     twKeepsake: 'Keepsake: {0}', twButton: 'Button: {0}', twHallTap: 'Hall of the Fallen', twWardenNow: 'the Warden',
+    twNewLoot: 'New loot: {0}', twBubLoot: 'Loot on the cart!', twMore: '+{0}',
     twTalk_knight_1: 'Shield up, always.', twTalk_knight_2: 'Button holds. So do I.', twTalk_knight_3: 'One more Siege.', twTalk_knight_4: 'Who sharpened these?',
     twTalk_knight_5: 'I miss the Shoreline.', twTalk_knight_6: 'Formation, people.', twTalk_knight_7: 'A plume is not vanity.', twTalk_knight_8: 'Stand fast.',
     twTalk_archer_1: "Wind's from the east.", twTalk_archer_2: 'Three shots, three kills', twTalk_archer_3: 'I never miss. Mostly.', twTalk_archer_4: 'Quiet feet, loud bow.',
@@ -3253,7 +3254,8 @@
   });
   // the square's live state (St.town for the tests): the party's dolls, the folk, critters, birds, bubbles, timers
   const TW = { heroes: [], folk: [], critters: [], birds: [], patrons: [], mates: [], bubbles: [], bubAt: -99, bubBy: {}, stateAt: -99, pick: 0,
-    acc: {}, build: {}, flock: 0, flockAt: 0, smithF: -1, anvilAt: 0, hover: null, force: null, key: '', folkKey: '', items: [], statics: [], warm: 0, hudBoxes: null };
+    acc: {}, build: {}, flock: 0, flockAt: 0, smithF: -1, anvilAt: 0, hover: null, force: null, key: '', folkKey: '', items: [], statics: [], warm: 0, hudBoxes: null,
+    flowers: [], bflies: [], loot: null, lights: null };
   St.town = TW;
   G.on('town', on => {
     parts.length = 0; texts.length = 0; townHover = null; TW.hover = null; TW.bubbles.length = 0; TW.bubAt = time - 2; hudRead = false; St.flash(0.6, '#0c0b12');
@@ -3307,7 +3309,16 @@
     const d = new Date(), m = d.getMonth();
     return m <= 1 || m === 11 ? 'winter' : m <= 4 ? 'spring' : m <= 7 ? 'summer' : 'autumn';
   }
-  St.townPhase = townPhase; St.townSeason = townSeason;
+  // the festivals (map §6): yule Dec 15 - Jan 7 (string lights between the lamps), harvest Oct 20 - Nov 2 (pumpkins by every door)
+  function townFest() {
+    if (TW.force && 'fest' in TW.force) return TW.force.fest || null;
+    const d = new Date(), m = d.getMonth(), dd = d.getDate();
+    if ((m === 11 && dd >= 15) || (m === 0 && dd <= 7)) return 'yule';
+    if ((m === 9 && dd >= 20) || (m === 10 && dd <= 2)) return 'harvest';
+    return null;
+  }
+  St.townPhase = townPhase; St.townSeason = townSeason; St.townFest = townFest;
+  let twSeason = 'summer';
   const isNight = p => p === 'night', isDark = p => p === 'night' || p === 'dusk';
   // a rate*dt emitter: how many to spawn this frame (never a burst after a hitch)
   function every(k, rate, dt) { const a = TW.acc; a[k] = (a[k] || 0) + rate * dt; let n = 0; while (a[k] >= 1 && n < 6) { a[k] -= 1; n++; } if (a[k] > 6) a[k] = 0; return n; }
@@ -3338,8 +3349,9 @@
     // scatter: flowers on the grass (none under snow), a ring of trees round the square in the season's colours
     const put = (id, px_, py) => { const s = sprOr(id); if (s) x.drawImage(s, Math.round(px_ - s.width / 2), Math.round(py - s.height)); };
     const tree = SPR.defs['tw_tree_' + { autumn: 'au', winter: 'w', spring: 'sp' }[season]] ? 'tw_tree_' + { autumn: 'au', winter: 'w', spring: 'sp' }[season] : 'tw_tree';
-    for (let i = 0; i < 26; i++) { const fx = rnd() * W, fy = rnd() * H, dx = (fx - cx) / rx, dy = (fy - cy) / ry; if (dx * dx + dy * dy > 1.05 && season !== 'winter') put('tw_flower', fx, fy); }
-    for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, tx = cx + Math.cos(a) * rx * k, ty = cy + Math.sin(a) * ry * k + 10; if (ty > 20) put(tree, tx, ty); }
+    TW.flowers.length = 0;
+    for (let i = 0; i < 26; i++) { const fx = rnd() * W, fy = rnd() * H, dx = (fx - cx) / rx, dy = (fy - cy) / ry; if (dx * dx + dy * dy > 1.05 && season !== 'winter') { put('tw_flower', fx, fy); if (fy > townTop + 30) TW.flowers.push({ x: fx, y: fy }); } }
+    for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, tx = cx + Math.cos(a) * rx * k, ty = cy + Math.sin(a) * ry * k + 10; if (ty > 20) { put(tree, tx, ty); if (tx > 4 && tx < W - 4 && ty > townTop + 30 && ty < H + 6) TW.flowers.push({ x: tx, y: ty - 4 }); } } // (the trees' feet are the butterflies' haunts too: a narrow square has few flowers)
     return c;
   }
   // ---- the static part of the sorted list: buildings, props, the fountain, keepers, statues, plinths, pedestals, the banner ----
@@ -3354,8 +3366,25 @@
   }
   function townStaticKey() {
     const rw = townRows(), f = fallenList(), S0 = G.S;
-    return W + 'x' + H + ':' + rw.r1 + ':' + (G.townLvl ? G.townLvl() : 0) + ':' + TOWN.map(t => (townOpen(t) ? 1 : 0)).join('') + ':' + f.length + ':' + (f.length ? f[f.length - 1].at : 0) + ':' + buttonsOpen().length + ':' + keepsakeList().map(k => k.q).join(',') + ':' + (deepLord() || {}).id + ':' + (S0 && S0.lastRun ? (S0.lastRun.party || []).join('') : '') + ':' + townSeason();
+    return W + 'x' + H + ':' + rw.r1 + ':' + (G.townLvl ? G.townLvl() : 0) + ':' + TOWN.map(t => (townOpen(t) ? 1 : 0)).join('') + ':' + f.length + ':' + (f.length ? f[f.length - 1].at : 0) + ':' + buttonsOpen().length + ':' + keepsakeList().map(k => k.q).join(',') + ':' + (deepLord() || {}).id + ':' + (S0 && S0.lastRun ? (S0.lastRun.party || []).join('') : '') + ':' + townSeason() + ':' + townFest() + ':' + lootKey();
   }
+  // ---- the newest great loot (map §8): what's new since the player last looked at the bag, best first ----
+  // (the Forge's own 'seen' mark (set.ui.seenU, kept by ui.js) or the cart's (rec.townSeenU, written on a tap), whichever
+  // is later; uniques and legendary+ count, else the single best epic; up to 3 on the cart, '+N' for the rest)
+  function lootSeen() { const S0 = G.S; return Math.max(S0 && S0.rec ? S0.rec.townSeenU | 0 : 0, S0 && S0.set && S0.set.ui ? S0.set.ui.seenU | 0 : 0); }
+  function lootNew() {
+    const S0 = G.S, h = S0 && S0.hero; if (!h || !Array.isArray(h.bag) || !h.cls) return { list: [], n: 0 };
+    const seen = lootSeen(), all = [], SL = G.SLOTS || ['weapon', 'ability', 'armor', 'ring'];
+    const add = (g, who) => { if (g && g.u > seen && (g.q || g.r >= 3)) all.push({ g, who }); };
+    for (const g of h.bag) add(g, null);
+    for (const sl of SL) add(h.eq && h.eq[sl], -1);
+    (S0.party || []).forEach((m, i) => { for (const sl of SL) add(m && m.eq && m.eq[sl], i); });
+    const rank = g => (g.q ? 9 : g.r);
+    all.sort((a, b) => rank(b.g) - rank(a.g) || b.g.u - a.g.u);
+    const great = all.filter(x => x.g.q || x.g.r >= 4);
+    return great.length ? { list: great.slice(0, 3), n: great.length } : { list: all.slice(0, 1), n: Math.min(1, all.length) };
+  }
+  function lootKey() { const l = lootNew(); return l.list.map(x => x.g.u).join(',') + '/' + l.n; }
   // the slots the memorial statues take: the empty band under the front row (wide), else the walk under the back row
   function statueSlots(rw) {
     const cx = W / 2, out = [];
@@ -3377,7 +3406,10 @@
     // props that used to be baked into the ground: lamps, barrels, crates, banners, stalls, benches
     prop('tw_lamp', cx - 34, wy + 2); prop('tw_lamp', cx + 34, wy + 2);
     prop('tw_barrel', W * 0.4, rw.r2 + 3); prop('tw_crate', W * 0.2, wy + 6); prop('tw_barrel', W * 0.8, wy + 6); prop('tw_crate', W * 0.6, rw.r2 + 3);
-    prop('tw_banner', W * 0.43, rw.r1 + 2); prop('tw_banner', W * 0.57, rw.r1 + 2);
+    const fest = townFest(), loot = TW.loot = lootNew();
+    prop('tw_banner', W * 0.43, rw.r1 + 2);
+    // the loot cart stands where the right banner did while something new and great waits in the bag
+    if (loot.list.length && SPR.defs.tw_cart) L.push({ k: 'cart', items: loot.list, n: loot.n, x: cx + 36, y: rw.r1 + 6 }); else prop('tw_banner', W * 0.57, rw.r1 + 2);
     if (!narrowTown()) { prop('tw_stall', cx - 62, wy + 8); prop('tw_stall2', cx + 62, wy + 8); }
     prop('tw_bench', cx - 22, wy + 18); prop('tw_bench', cx + 22, wy + 18);
     L.push({ k: 'well', x: cx, y: wy + 4 });
@@ -3386,6 +3418,7 @@
       L.push({ k: 'bld', t, q, open, lv, x: q.x, y: q.y });
       if (!open) continue;
       if (t.npc && SPR.defs[t.npc]) { const n = SPR.get(t.npc); L.push({ k: 'npc', t, q, id: t.npc, x: Math.round(q.x + q.w / 2 - n.width / 2 + 2), y: q.y + 2 }); }
+      if (fest === 'harvest' && t.id !== 'portal' && SPR.defs.tw_pumpkin) L.push({ k: 'pumpkin', i: L.length, x: Math.round(t.id === 'tavern' ? q.x0 - 4 : q.x0 + 13), y: q.y + 3 });
       if (t.id === 'alch' && SPR.defs.tw_cauldron) L.push({ k: 'cauldron', q, x: Math.round(q.x0 + q.w - 28), y: q.y + 3 });
       if (t.id === 'forge' && SPR.defs.tw_anvil) L.push({ k: 'prop', id: 'tw_anvil', x: Math.round(q.x0 + q.w + 2), y: q.y + 4 });
       if (t.id === 'tavern') {
@@ -3554,6 +3587,8 @@
     if (ping('quests') && bubble({ k: 'npc', id: 'quests' }, G.t('twBubQuest'), () => G.UI.townOpen('quests'), true)) return;
     if (ping('pets') && bubble({ k: 'npc', id: 'pets' }, G.t('twBubEggs'), () => G.UI.townOpen('pets'), true)) return;
     if (UIx && UIx.bldCanBuild) { const t = TOWN.find(x => x.id !== 'portal' && townOpen(x) && UIx.bldCanBuild(x.id)); if (t && townOpen(TOWN[0]) && bubble({ k: 'npc', id: 'barracks' }, G.t('twBubBuild'), () => G.UI.townOpen(t.id), true)) return; }
+    const cart = TW.statics.find(z => z.k === 'cart'), wi = TW.heroes.findIndex(h => h.who < 0 && h.st !== 'wait');
+    if (cart && wi >= 0 && cart.items.some(e => e.g.q || e.g.r >= 5) && bubble({ k: 'hero', i: wi }, G.t('twBubLoot'), () => tapCart(cart), true)) return;
     // idle chatter only when nothing has been up for 20 s
     if (time - TW.stateAt < 20 || Math.random() < 0.5) return;
     if (Math.random() < 0.55 && TW.heroes.length) {
@@ -3579,8 +3614,19 @@
       if (it.k === 'pedestal' && Math.abs(p.x - it.x) <= 9 && p.y >= it.y - 24 && p.y <= it.y + 1) return it;
       if (it.k === 'plinth' && Math.abs(p.x - it.x) <= 7 && p.y >= it.y - 26 && p.y <= it.y + 1) return it;
       if (it.k === 'banner' && Math.abs(p.x - it.x) <= 9 && p.y >= it.q.y0 - 8 && p.y <= it.q.y0 + 18) return it;
+      if (it.k === 'cart' && Math.abs(p.x - it.x) <= 13 && p.y >= it.y - 44 && p.y <= it.y + 1) return it;
     }
     return null;
+  }
+  // the cart: the Forge opens on its best item (for whoever wears it, else its best wearer), and the cart counts it seen
+  function tapCart(it) {
+    const best = it.items[0]; if (!best) return;
+    const S0 = G.S; S0.rec = S0.rec || {}; S0.rec.townSeenU = Math.max(S0.rec.townSeenU | 0, ...it.items.map(e => e.g.u)); TW.key = '';
+    let who = best.who; if (who == null) { const ups = G.UI.bagUps ? G.UI.bagUps() : null; who = ups && ups.whoFor && ups.whoFor.get(best.g.u) != null ? ups.whoFor.get(best.g.u) : -1; }
+    if (G.UI.townSel) { try { G.UI.townSel(best.g.u, who); } catch (e) { /* older UI */ } }
+    openFor('forge', who);
+    // (an older UI without townSel: the Forge's own hero button and bag tile take the click; harmless when absent)
+    if (!G.UI.townSel && typeof document !== 'undefined') setTimeout(() => { try { const w = document.getElementById('townWin'); if (!w || w.hidden) return; const wb = w.querySelector('[data-twwho="' + who + '"]'); if (wb && !wb.classList.contains('on')) wb.click(); const tile = w.querySelector('[data-twg="' + best.g.u + '"]'); if (tile) tile.click(); } catch (e) { /* no window */ } }, 0);
   }
   function townPress(p) {
     const a = hitActors(p);
@@ -3592,6 +3638,7 @@
       if (a.k === 'pedestal') { G.UI.townOpen('temple', 'buttons'); return 'town'; }
       if (a.k === 'plinth') { G.UI.townOpen('museum', 'codex'); return 'town'; }
       if (a.k === 'banner') { G.leaveTown(); return 'town'; }
+      if (a.k === 'cart') { tapCart(a); return 'town'; }
     }
     const t = hitTown(p);
     if (t) { if (G.Audio && G.Audio.buy) G.Audio.buy(); if (t.id === 'portal') G.leaveTown(); else G.UI.townOpen(t.id); return 'town'; }
@@ -3636,18 +3683,42 @@
     }
     maskCache.set(id, c); return c;
   }
+  // winter: a snow cap on every upward face of a building (a pixel with nothing above it turns white, the one under it
+  // pale), built once per sprite id from the def rows and drawn over the building
+  const snowCache = new Map();
+  function snowCap(id) {
+    if (snowCache.has(id)) return snowCache.get(id);
+    const d = SPR.defs[id]; let c = null;
+    if (d && id !== 'tw_build') {
+      const w = d.w + 2, h = d.h + 2, cv2 = SPR.makeCanvas(w, h), x = cv2.getContext('2d'), img = x.createImageData(w, h), px = new Uint32Array(img.data.buffer), top = u32('#ffffff'), under = u32('#d8e4f0');
+      let n = 0;
+      for (let xx = 0; xx < d.w; xx++) {
+        let run = 0;
+        for (let y = 0; y < d.h; y++) {
+          const on = d.px[y][xx] !== '.';
+          if (!on) { run = 0; continue; }
+          run++;
+          if (run === 1 && (y === 0 || xx === 0 || xx === d.w - 1 || d.px[y - 1][xx - 1] === '.' || d.px[y - 1][xx + 1] === '.')) { px[(y + 1) * w + xx + 1] = top; n++; }
+          else if (run === 2 && px[y * w + xx + 1] === top) px[(y + 1) * w + xx + 1] = under;
+        }
+      }
+      if (n) { x.putImageData(img, 0, 0); c = cv2; }
+    }
+    snowCache.set(id, c); return c;
+  }
   function lightSpots(statics) {
     const out = [];
     for (const it of statics) {
       if (it.k === 'prop' && it.id === 'tw_lamp') out.push({ x: it.x, y: it.y - 14, r: 20 });
       if (it.k === 'well') out.push({ x: it.x, y: it.y - 10, r: 22 });
+      if (it.k === 'pumpkin') out.push({ x: it.x, y: it.y - 3, r: 10 });
       if (it.k === 'bld' && it.open && it.lv >= 1) { out.push({ x: it.q.x0, y: it.y - 15, r: 16 }); if (it.lv >= 2) out.push({ x: it.q.x0 + it.q.w, y: it.y - 15, r: 16 }); }
       if (it.k === 'bld' && it.open && (it.t.id === 'portal' || it.t.id === 'rift')) out.push({ x: it.x, y: it.y - it.q.h * 0.5, r: 22 });
     }
     return out;
   }
   function phaseOverlay(phase, statics) {
-    const key = phase + W + 'x' + H + ':' + townRows().r1 + ':' + Q.tier + ':' + (G.townLvl ? G.townLvl() : 0);
+    const key = phase + W + 'x' + H + ':' + townRows().r1 + ':' + Q.tier + ':' + (G.townLvl ? G.townLvl() : 0) + ':' + townFest();
     let c = overlays[phase]; if (c && c.key === key) return c;
     c = overlays[phase] = SPR.makeCanvas(W, H); c.key = key;
     const x = c.getContext('2d');
@@ -3684,6 +3755,7 @@
     lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(Math.round(q.x0 + 2), q.y - 1, q.w - 4, 2);
     if (c) lctx.drawImage(c, Math.round(q.x0), q.y0);
     else { lctx.fillStyle = '#6a4a30'; lctx.fillRect(Math.round(q.x0), q.y0, q.w, q.h); }
+    if (twSeason === 'winter' && open && c) { const id = townSpr(t), sn = id && snowCap(id); if (sn) lctx.drawImage(sn, Math.round(q.x0), q.y0); }
     // a build-up: the scaffolding flashes over the new look
     if (TW.build[t.id] > 0) { TW.build[t.id] -= dt; const s = sprOr('tw_build'); if (s) { lctx.globalAlpha = Math.max(0, Math.min(1, TW.build[t.id] / 0.8)); lctx.drawImage(s, Math.round(q.x - s.width / 2), q.y - s.height); lctx.globalAlpha = 1; } }
     if (townHover === t) { lctx.globalAlpha = 0.18 + 0.08 * Math.sin(time * 8); lctx.fillStyle = '#ffe27a'; lctx.fillRect(Math.round(q.x0) - 1, q.y0 - 1, q.w + 2, q.h + 2); lctx.globalAlpha = 1; }
@@ -3765,6 +3837,59 @@
     if (lord && lord.canvas) { const c = lord.canvas, k = Math.min(12 / c.width, 12 / c.height), w = Math.max(4, Math.round(c.width * k)), h = Math.max(4, Math.round(c.height * k)); lctx.drawImage(c, 0, 0, c.width, c.height, Math.round(it.x - w / 2), y + 10 - Math.round(h / 2), w, h); }
     if (TW.hover === it) { lctx.globalAlpha = 0.25; lctx.fillStyle = '#ffe27a'; lctx.fillRect(x - 1, y - 1, b.width + 2, b.height + 2); lctx.globalAlpha = 1; }
   }
+  // the loot cart: each item floats over the straw on its rarity's beam (a 3px rainbow one for the ultra-rares)
+  function drawCart(it, dt) {
+    const c = sprOr('tw_cart'), x = it.x, y = it.y, n = it.items.length, top = y - (c ? c.height : 16) + 4;
+    tshadow(x, y, 20);
+    if (c) lctx.drawImage(c, Math.round(x - c.width / 2), y - c.height);
+    for (let i = 0; i < n; i++) {
+      const g = it.items[i].g, s = sprOr(G.gearSpr ? G.gearSpr(g) : 'it_' + g.id), ix = Math.round(x + (i - (n - 1) / 2) * 10), ultra = !!g.q || g.r >= 5;
+      const col = g.q ? (G.isRelic && G.isRelic(g) ? G.RELIC_COL || '#ffffff' : G.UNIQUE_COL || '#e8903a') : (G.RARITIES[g.r] || {}).color || '#ffffff';
+      const bob = Math.sin(time * 2 * Math.PI * 2 + i * 2) > 0 ? 1 : 0;
+      if (ultra) { lctx.globalAlpha = 0.45; lctx.fillStyle = 'hsl(' + ((time * 120 + i * 40) % 360) + ',90%,65%)'; lctx.fillRect(ix - 1, top - 26, 3, 24); lctx.globalAlpha = 1; if (every('cart' + i, 0.8, dt)) part(ix + rand(-4, 4), top - 12 + rand(-8, 8), pick(['#ffffff', '#ffe27a', '#c890ff', '#7fe9ff']), { vx: 0, vy: -rand(4, 8), grav: 0, life: 0.6, plus: true }); }
+      else { lctx.globalAlpha = 0.35; lctx.fillStyle = col; lctx.fillRect(ix, top - 26, 1, 24); lctx.globalAlpha = 1; }
+      tglow(ix, top - 7, 5, col, ultra ? 0.3 : 0.2);
+      if (s) lctx.drawImage(s, Math.round(ix - s.width / 2), top - 6 - s.height - bob);
+    }
+    if (TW.hover === it) { lctx.globalAlpha = 0.25; lctx.fillStyle = '#ffe27a'; lctx.fillRect(x - 13, y - 44, 26, 45); lctx.globalAlpha = 1; }
+  }
+  // a harvest pumpkin: the face lit after dusk, flickering
+  function drawPumpkin(it, phase) {
+    const lit = isDark(phase), id = lit ? ['tw_pumpkin2', 'tw_pumpkin3', 'tw_pumpkin2', 'tw_pumpkin'][Math.floor(time * 7 + it.i) % 4] : 'tw_pumpkin', c = sprOr(id); if (!c) return;
+    lctx.drawImage(c, Math.round(it.x - c.width / 2), it.y - c.height);
+    // (its pool of light is punched into the night overlay (lightSpots): no glow sprite per pumpkin per frame)
+  }
+  // summer butterflies: two of them flit from flower to flower by day (none at tier 2+)
+  function stepBflies(dt, phase, season) {
+    const want = season === 'summer' && Q.tier < 2 && !isDark(phase) && TW.flowers.length > 0 && SPR.defs.tw_bfly ? 2 : 0;
+    while (TW.bflies.length > want) TW.bflies.pop();
+    while (TW.bflies.length < want) { const f = pick(TW.flowers); TW.bflies.push({ x: f.x, y: f.y - 4, tx: f.x, ty: f.y - 4, t: rand(0.5, 2), i: TW.bflies.length, face: 1 }); }
+    for (const b of TW.bflies) {
+      if (b.t > 0) { b.t -= dt; if (b.t <= 0) { const f = pick(TW.flowers); b.tx = f.x + rand(-2, 2); b.ty = f.y - 4; } continue; }
+      const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy);
+      if (d < 1.5) { b.x = b.tx; b.y = b.ty; b.t = rand(1.5, 4); continue; }
+      const k = Math.min(1, 14 * dt / d); b.x += dx * k; b.y += dy * k + Math.sin(time * 9 + b.i * 3) * 10 * dt; b.face = dx >= 0 ? 1 : -1;
+    }
+  }
+  function drawBflies() {
+    for (const b of TW.bflies) {
+      const fr = b.t > 0 ? (Math.floor(time * 3 + b.i) % 2) : (Math.floor(time * 10) % 2), id = (b.i % 2 ? 'tw_bflyb' : 'tw_bfly') + (fr ? '2' : ''), c = SPR.defs[id] ? SPR.get(id, { noOutline: true }) : null;
+      if (c) lctx.drawImage(c, Math.round(b.x - c.width / 2), Math.round(b.y - c.height / 2));
+    }
+  }
+  // yule: a string of lights slung between the lamps (and out to the stalls on a wide square); the bulbs cycle at 2 Hz
+  function yuleLights(rw) {
+    const cx = Math.round(W / 2), ly = rw.wellY + 2 - 13, pts = [];
+    const span = (x0, y0, x1, y1, sag) => { const n = Math.max(2, Math.round(Math.hypot(x1 - x0, y1 - y0) / 4)); for (let i = 0; i <= n; i++) { const u = i / n; pts.push({ x: Math.round(x0 + (x1 - x0) * u), y: Math.round(y0 + (y1 - y0) * u + sag * 4 * u * (1 - u)), s: i === 0 }); } };
+    span(cx - 34, ly, cx + 34, ly, 6);
+    if (!narrowTown()) { span(cx - 62, rw.wellY + 8 - 22, cx - 34, ly, 4); span(cx + 34, ly, cx + 62, rw.wellY + 8 - 22, 4); }
+    return pts;
+  }
+  function drawYuleString(pts) { lctx.strokeStyle = '#2e2834'; lctx.lineWidth = 1; lctx.beginPath(); for (const p of pts) { if (p.s) lctx.moveTo(p.x + 0.5, p.y + 0.5); else lctx.lineTo(p.x + 0.5, p.y + 0.5); } lctx.stroke(); }
+  function drawYuleBulbs(pts, dark) {
+    const cols = ['#ff4f4f', '#4fd65b', '#ffe27a', '#4fa8ff'], k = Math.floor(time * 2);
+    for (let i = 0; i < pts.length; i++) { if (i % 2) continue; const p = pts[i], col = cols[(i / 2 + k) % 4]; lctx.fillStyle = col; lctx.fillRect(p.x, p.y + 1, 1, 1); if (dark && i % 6 === 0) tglow(p.x, p.y + 1, 3, col, 0.25); }
+  }
   function drawHero(h, i) {
     const u = unitOf(h.who); if (!u || h.st === 'wait') return;
     const moving = h.st === 'walk', bob = moving ? 0 : (Math.sin(time * 1.6 * Math.PI * 2 + i * 1.3) > 0 ? 1 : 0);
@@ -3784,7 +3909,7 @@
   function drawText2(nm, x, y, col) { ctx.strokeText(nm, x, y); ctx.fillStyle = col; ctx.fillText(nm, x, y); }
   // ---- the frame ----
   function drawTown(dt) {
-    const phase = townPhase(), season = townSeason(), rw = townRows(), cx = Math.round(W / 2), cy = rw.wellY;
+    const phase = townPhase(), season = twSeason = townSeason(), fest = townFest(), rw = townRows(), cx = Math.round(W / 2), cy = rw.wellY;
     const k = W + 'x' + H + (SPR.defs.tw_forge ? 'a' : '') + rw.r1 + ':' + season;
     if (k !== townKey || !townGround) { townKey = k; townGround = buildTownGround(); }
     lctx.imageSmoothingEnabled = false;
@@ -3793,7 +3918,7 @@
     TW.keyT = (TW.keyT || 0) - dt; if (TW.keyT <= 0 || !TW.key) { TW.keyT = 0.5; const sk = townStaticKey(); if (sk !== TW.key) { TW.key = sk; TW.statics = buildStatics(); } }
     syncHeroes(rw); syncFolk(rw); const tav = TOWN[8]; syncMates(townPlace(tav));
     TW.heroes.forEach((h, i) => stepHero(h, i, dt, rw));
-    stepFolk(dt, rw); stepBirds(dt, phase);
+    stepFolk(dt, rw); stepBirds(dt, phase); stepBflies(dt, phase, season);
     const items = TW.items; items.length = 0;
     for (const it of TW.statics) items.push(it);
     TW.heroes.forEach((h, i) => { if (h.st !== 'wait') items.push({ k: 'hero', h, i, x: h.x, y: h.y }); });
@@ -3823,6 +3948,8 @@
         case 'patron': { const ph = Math.floor((time + it.i * 1.1) / (1.4 + it.i * 0.6)) % 2, c = sprOr(ph ? it.id + '2' : it.id); if (c) { tshadow(it.x, it.y, 8); lctx.drawImage(c, Math.round(it.x - c.width / 2), it.y - c.height); } break; }
         case 'sign': { const c = sprOr(Math.sin(time * Math.PI * 2) > 0 ? 'tw_sign' : 'tw_sign2'); if (c) lctx.drawImage(c, it.x, it.y - c.height); break; }
         case 'banner': drawBanner(it); break;
+        case 'cart': drawCart(it, dt); break;
+        case 'pumpkin': drawPumpkin(it, phase); break;
         case 'plinth': drawPlinth(it, dt); break;
         case 'statue': drawStatue(it, phase); break;
         case 'pedestal': drawPedestal(it); break;
@@ -3842,6 +3969,9 @@
     }
     // 4) the sky's small life: birds by day, fireflies at dusk, the season's drift
     if (TW.birds.length) { const bc = sprOr(Math.floor(time * 6) % 2 ? 'tw_bird2' : 'tw_bird'); if (bc) for (const b of TW.birds) lctx.drawImage(bc, Math.round(b.x), Math.round(b.y)); }
+    if (TW.bflies.length) drawBflies();
+    const yule = fest === 'yule' ? (TW.lights && TW.lights.key === k ? TW.lights : (TW.lights = Object.assign(yuleLights(rw), { key: k }))) : null;
+    if (yule) drawYuleString(yule);
     if (isDark(phase)) for (let i = every('fire', 4, dt); i-- > 0;) part(rand(0, W), rand(rw.r1 - 30, H), pick(['#e8ff8a', '#ffe27a']), { vx: rand(-4, 4), vy: rand(-4, 4), grav: 0, life: rand(1.5, 3) });
     const sk2 = Q.tier >= 2 ? 0.4 : Q.tier === 1 ? 0.75 : 1;
     if (season === 'autumn') for (let i = every('leaf', 3 * sk2, dt); i-- > 0;) part(rand(0, W), rand(0, H * 0.4), pick(['#d8902a', '#f0c050', '#a85a1e']), { vx: rand(8, 20), vy: rand(10, 18), grav: 0, life: rand(3, 5), size: 1 });
@@ -3864,7 +3994,9 @@
         for (let i = 0; i < 30; i++) { lctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * 2 + i * 1.7); lctx.fillRect(Math.round((i * 73856093 % W + W) % W), Math.round(top + ((i * 19349663) % band + band) % band), 1, 1); }
         lctx.globalAlpha = 1;
       }
+      if (yule) drawYuleBulbs(yule, isDark(phase));
     } else if (Q.tier < 2) { // day: two cloud shadows drift over the square
+      if (yule) drawYuleBulbs(yule, false);
       lctx.fillStyle = '#000000';
       for (let i = 0; i < 2; i++) { const x = ((time * (6 + i * 2) + i * W * 0.45) % (W + 160)) - 80, y = H * (0.25 + i * 0.35); lctx.globalAlpha = 0.06; lctx.beginPath(); lctx.ellipse(x | 0, y | 0, 70 + i * 14, 24 + i * 6, 0, 0, 6.3); lctx.fill(); }
       lctx.globalAlpha = 1;
@@ -3902,8 +4034,12 @@
       else if (hv.k === 'pedestal') { nm = G.t('twButton', hv.b.name); y = hv.y - 27; }
       else if (hv.k === 'plinth') { nm = G.t('twKeepsake', hv.ks.name); y = hv.y - 30; }
       else if (hv.k === 'banner') { nm = G.t('twDeepLord', hv.R.lordName || hv.R.name); y = hv.q.y0 - 12; }
+      else if (hv.k === 'cart') { const g = hv.items[0].g; nm = G.t('twNewLoot', g.q && G.UNIQUES[g.q] ? G.UNIQUES[g.q].name : (G.ITEM_BY_ID[g.id] || {}).name || g.id); y = hv.y - 48; }
       if (nm) { ctx.font = crisp(3) + 'px ' + FONT; const w = measureW(nm); x = clamp(x, w / 2 + 2, W - w / 2 - 2); drawText2(nm, x, y, '#ffe27a'); }
     }
+    // the cart's '+N' when more new loot waits than it shows
+    const cart = TW.statics.find(z => z.k === 'cart');
+    if (cart && cart.n > cart.items.length) { ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1; drawText2(G.t('twMore', cart.n - cart.items.length), cart.x + 15, cart.y - 36, '#ffe27a'); }
     // the bubbles: a pale box with a tail toward the speaker's head
     ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1;
     for (const b of TW.bubbles) {

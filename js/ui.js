@@ -75,6 +75,7 @@
   const fmt = G.fmt, t = G.t, L = G.L;
   // ---------- 4.0: the meta screens' words (English; js/i18n_ru.js adds Russian) ----------
   G.tAdd({
+    setTownClock: 'Town clock', setTownClockHint: 'Dawn, day, dusk and night in the square follow your clock', setTownChat: 'Town chatter', setTownChatHint: 'Speech bubbles in the square',
     newSiege: 'NEW SIEGE', newSiegeShort: 'SIEGE', siegeOn: 'A Siege is on: finish it first (Settings: Abandon).', siegeFirst: 'Start from nothing: choose a Button, a Warden and go.',
     siegeLast: 'Last time: {0} Button · {1} · Heat {2}', todoSiege: 'Start a new Siege', dailyNeedsGate: 'Build the Rift Gate for the Daily Siege',
     chNextSiege: 'The road goes on from the doors.', seatOpenCamp: 'A seat is open: the next camp brings recruits.', seatCamp: 'Opens at Camp {0}', campShort: 'Camp {0}',
@@ -193,10 +194,11 @@
   const BLDS = {
     forge: { npc: 'npc_smith', subs: ['forge'] }, enchant: { npc: 'npc_witch', subs: ['enchant', 'gamble'] }, alch: { npc: 'npc_alch', subs: ['alch'] },
     tavern: { npc: 'npc_keeper', subs: ['tavern', 'hero', 'ladder'] },
-    barracks: { npc: 'npc_keeper', subs: ['heroes'], sub: 'twBarracksSub' }, museum: { npc: 'npc_sage', subs: ['codex', 'recipes', 'bestiary', 'coll'], sub: 'twMuseumSub', wide: 1 },
-    quests: { npc: 'npc_keeper', subs: ['deeds', 'quests'], sub: 'twBoardSub', wide: 1 }, stars: { npc: 'npc_sage', subs: ['stars'], sub: 'twObsSub' },
-    pets: { npc: 'npc_alch', subs: ['pets'], sub: 'twNestSub' }, temple: { npc: 'npc_sage', subs: ['hall', 'fallen', 'buttons'], sub: 'twTempleSub', wide: 1 },
-    rift: { npc: 'npc_witch', subs: ['rift'], sub: 'twRiftSub' },
+    // 4.0 (town): every building has its own keeper (art5: the sergeant, curator, crier, nester, priest and rift warden)
+    barracks: { npc: 'npc_sarge', subs: ['heroes'], sub: 'twBarracksSub' }, museum: { npc: 'npc_curator', subs: ['codex', 'recipes', 'bestiary', 'coll'], sub: 'twMuseumSub', wide: 1 },
+    quests: { npc: 'npc_crier', subs: ['deeds', 'quests'], sub: 'twBoardSub', wide: 1 }, stars: { npc: 'npc_sage', subs: ['stars'], sub: 'twObsSub' },
+    pets: { npc: 'npc_nester', subs: ['pets'], sub: 'twNestSub' }, temple: { npc: 'npc_priest', subs: ['hall', 'fallen', 'buttons'], sub: 'twTempleSub', wide: 1 },
+    rift: { npc: 'npc_riftwarden', subs: ['rift'], sub: 'twRiftSub' },
   };
   const BLD_ORDER = ['forge', 'enchant', 'alch', 'tavern', 'barracks', 'museum', 'quests', 'stars', 'pets', 'temple', 'rift'];
   const BLD_SPR = { forge: 'tw_forge', enchant: 'tw_tower', alch: 'tw_alch', tavern: 'tw_tavern', barracks: 'tw_barracks', museum: 'tw_museum', quests: 'tw_board', stars: 'tw_obs', pets: 'tw_nest', temple: 'tw_temple', rift: 'tw_rift' };
@@ -461,9 +463,10 @@
     $('#btnTown').addEventListener('click', () => { G.Audio.unlock(); if (G.R.town) G.leaveTown(); else if (!G.enterTown()) { G.Audio.error(); UI.toast(esc(t('townNo')), '', 'ic_tomb', { p: 2 }); } });
     G.on('town', on => {
       // QoL: leave town from inside a building and the next visit opens it again (not while the tutorial walks you)
-      if (!on) { PF().resume = tw.id || null; UI.townClose(true); }
+      // 4.0 (town): only within 90 s of leaving; a real return shows the square and the party stepping out of the portal
+      if (!on) { PF().resume = tw.id || null; PF().resumeAt = Date.now(); UI.townClose(true); }
       document.getElementById('app').classList.toggle('inTown', on); if (tab === 'set') tab = 'upg'; UI.render();
-      if (on && PF().resume && G.S.tut < 0 && bldOpen(PF().resume)) { const id = PF().resume; setTimeout(() => { if (G.R.town && !tw.id && $('#modal').hidden) UI.townOpen(id); }, 0); }
+      if (on && PF().resume && G.S.tut < 0 && bldOpen(PF().resume) && Date.now() - (PF().resumeAt || 0) < (UI.resumeMs || 90000)) { const id = PF().resume; setTimeout(() => { if (G.R.town && !tw.id && $('#modal').hidden) UI.townOpen(id); }, 0); }
     });
     bindSwipe();
     // a finger down on the panel: nothing there re-sorts or rebuilds under it
@@ -2458,6 +2461,8 @@
     pf.sub[id] = sub;
     if (tw.id && tw.id !== id && (tw.id === 'forge' || tw.id === 'enchant')) bagSeen();
     tw.id = id; tw.sub = sub; tw.sel = null;
+    // 4.0 (town): a selection asked for just before the open (UI.townSel: the loot cart) is kept, for 1 s
+    if (tw.pend && Date.now() - tw.pend.at < 1000 && (id === 'forge' || id === 'enchant')) tw.sel = tw.pend.u;
     if (tab === 'set') tab = 'upg';
     wtab = CUSTOM[sub] ? null : sub;
     G.S.seen.tabs[sub] = 1; pingT = 0;
@@ -2467,6 +2472,11 @@
     if (CUSTOM[sub]) renderTown();
     const sc = twEl().querySelector('.twTabBody'); if (sc) sc.scrollTop = 0;
   };
+  // 4.0 (town, the square's taps): the Forge opens on a given hero (-1 the Warden, i a party member) ...
+  UI.townWho = function (who) { who = who | 0; tw.who = who >= 0 && who < (G.S.party || []).length ? who : -1; tw.sel = null; tw.cmpWho = null; };
+  // ... and on one item (u) of theirs or of the bag, selected, with the comparison for that hero; opens the Forge itself
+  // when the town is on (a townOpen within the next second keeps the selection, so the stage may open it again)
+  UI.townSel = function (u, who) { UI.townWho(who); tw.pend = { u: +u, at: Date.now() }; if (G.R.town) UI.townOpen('forge'); };
   UI.townClose = function (quiet) {
     const had = !!wtab;
     if (tw.id === 'forge' || tw.id === 'enchant') bagSeen();
@@ -2669,8 +2679,24 @@
     for (let i = 0; i < (G.S.party || []).length; i++) for (const s of G.SLOTS) { const g = G.S.party[i].eq[s]; if (g && g.u === u) return { g, worn: s, who: i }; }
     return null;
   }
+  // 4.0 (town): the keeper in the header is alive: two idle frames (id, id+'2'), the smith's three hammer frames; one
+  // 150-ms timer only while a header is on the page, one src swap per tick, none under Reduce effects / reduced motion
+  const twFrames = npc => npc === 'npc_smith' ? ['npc_smith_w1', 'npc_smith_w2', 'npc_smith_w3'] : (G.SPR && G.SPR.defs && G.SPR.defs[npc + '2'] ? [npc, npc + '2'] : null);
+  let twAnimT = null, twAnimI = 0;
+  const twStill = () => (G.S.set && G.S.set.lowfx) || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function twAnimTick() {
+    const el = document.querySelector('#townWin:not([hidden]) .twHead > img[data-anim]');
+    if (!el) { clearInterval(twAnimT); twAnimT = null; return; }
+    if (document.hidden || twStill()) return;
+    twAnimI++;
+    const fr = twFrames(el.dataset.anim); if (!fr) return;
+    // (the smith strikes at 0.6 s a cycle: a frame each tick; a keeper breathes: a frame every 0.75 s)
+    const i = fr.length === 3 ? twAnimI % 3 : (twAnimI / 5 | 0) % 2;
+    const id = fr[i]; if (el.dataset.fr === id) return; el.dataset.fr = id; el.src = ic(id, 4);
+  }
   function twHeader(npc, title, sub) {
-    return `<header class="twHead">${img(npc, '', 4)}<div><b>${esc(title)}</b><small>${esc(sub)}</small></div><button class="twX" data-tw="close" aria-label="${esc(t('close'))}">✕</button></header>`;
+    if (!twAnimT && twFrames(npc) && !twStill()) twAnimT = setInterval(twAnimTick, 200);
+    return `<header class="twHead">${img(npc, '', 4).replace('<img ', twFrames(npc) ? `<img data-anim="${npc}" ` : '<img ')}<div><b>${esc(title)}</b><small>${esc(sub)}</small></div><button class="twX" data-tw="close" aria-label="${esc(t('close'))}">✕</button></header>`;
   }
   const whoName = w => (w < 0 ? myName() : L(G.CLASS_BY_ID[clsOf(w)].name));
   // QoL: what in the bag is an upgrade for whom: the count per member, the total, and for each item its best wearer.
@@ -3189,6 +3215,7 @@
         ${row(s.autoInvest !== 0, 'data-t="autoInvest"', t('autoInvest'), t('autoInvestHint'))}
         ${autoRunRow()}
         ${tg('lowfx', t('lowfx'), t('lowfxHint'))}
+        ${row(s.townClock !== 0, 'data-t="townClock"', t('setTownClock'), t('setTownClockHint'))}${row(s.townChat !== 0, 'data-t="townChat"', t('setTownChat'), t('setTownChatHint'))}
         <div class="setRow"><span>${esc(t('autoSalv'))}</span><span class="seg" data-hsalv>${[0, 1, 2, 3].map(r => `<button data-r="${r}" class="${(h.salv || 0) === r ? 'on' : ''}">${r === 0 ? esc(t('off')) : esc(L(G.RARITIES[r].name))}</button>`).join('')}</span></div>
         <div class="setRow"><span>${esc(t('numFmt'))}<small>${esc(fmt0Demo())}</small></span><span class="seg" data-nf>${[0, 1].map(v => `<button data-v="${v}" class="${(s.sci ? 1 : 0) === v ? 'on' : ''}">${esc(t('numFmt' + v))}</button>`).join('')}</span></div>
       </div>
@@ -3217,7 +3244,7 @@
       const arC = e.target.closest('[data-arcamp] [data-c]');
       if (arC && G.autoRun) { G.autoRun(null, +arC.dataset.c); UI.render(); return; }
       const tgB = e.target.closest('[data-t]');
-      if (tgB) { const k = tgB.dataset.t; s[k] = k === 'autoInvest' ? (s[k] === 0 ? 1 : 0) : s[k] ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.render(); return; }
+      if (tgB) { const k = tgB.dataset.t; s[k] = (k === 'autoInvest' || k === 'townClock' || k === 'townChat') ? (s[k] === 0 ? 1 : 0) : s[k] ? 0 : 1; G.Audio.unlock(); G.Audio.apply(); UI.render(); return; }
       const lb = e.target.closest('[data-lang] [data-v]');
       if (lb && G.setLang) { G.setLang(lb.dataset.v); buildTabs(); UI.render(); return; }
       const ab = e.target.closest('[data-abandon]');

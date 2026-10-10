@@ -175,7 +175,6 @@ function schoolsOf(G) {
   for (const k of G.cardSlotsUsed ? G.cardSlotsUsed() : []) if (G.PERK_SCHOOL && G.PERK_SCHOOL[k]) set.add(G.PERK_SCHOOL[k]);
   return set;
 }
-const classSchools = G => new Set((G.CLASS_SCHOOLS && G.S.hero && G.CLASS_SCHOOLS[G.S.hero.cls]) || []);
 // the card to pick (its index) under the policy; -1: leave it to the game
 function cardChoice(G, pol) {
   const v = G.cardView ? G.cardView() : null;
@@ -185,18 +184,20 @@ function cardChoice(G, pol) {
   const ev = v.cards.findIndex(c => c.evo);
   if (ev >= 0) return ev;
   if (mode === 'first') return 0;
-  const own = schoolsOf(G), mine = classSchools(G), used = v.slots ? v.slots.used : 0;
+  const own = schoolsOf(G), used = v.slots ? v.slots.used : 0;
+  // (measured, g1: a class-school pull (wizard -> fire/storm, knight -> bastion) lost every no-meta Heat-0 run for those
+  // classes while the blades builds (might, frenzy, blades: the top of PERK_PRIORITY) won; so the strongest perks lead, the
+  // build's own school and the ranks already held concentrate the rest, and the class's schools don't count)
   const score = c => {
     if (c.boon) { const i = BOON_PREF.indexOf(String(c.id).slice(5)); return 10 - (i < 0 ? 9 : i); }
     const pr = PERK_PRIORITY.indexOf(c.id);
-    let s = 40 - (pr < 0 ? 35 : pr);
-    if (c.school && own.has(c.school)) s += 15;
-    if (c.school && mine.has(c.school)) s += 8;
-    if (c.own > 0) s += 20;                               // concentrate the ranks: six slots
-    if (c.evoWith && c.evoWith.have) s += 25;             // toward the evolution whose item is worn
-    if (c.evoWith && c.evoWith.have && c.toEff >= c.max) s += 15;
-    s += 6 * (c.tier | 0);                               // Empowered / Golden
-    if (c.isNew && used >= 4 && !(c.school && own.has(c.school))) s -= 25; // the last slots go to the build's schools
+    let s = 2 * (40 - (pr < 0 ? 35 : pr));
+    if (c.school && own.has(c.school)) s += 8;
+    if (c.own > 0) s += 12;                               // concentrate the ranks: six slots
+    if (c.evoWith && c.evoWith.have) s += 20;             // toward the evolution whose item is worn
+    if (c.evoWith && c.evoWith.have && c.toEff >= c.max) s += 12;
+    s += 5 * (c.tier | 0);                               // Empowered / Golden
+    if (c.isNew && used >= 4 && !(c.school && own.has(c.school))) s -= 20; // the last slots go to the build's schools
     if (c.id === 'glass' && G.S.hero && G.D.heroHp && G.S.hero.hp < G.D.heroHp * 0.5) s -= 30;
     return s;
   };

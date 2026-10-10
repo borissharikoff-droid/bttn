@@ -1192,6 +1192,23 @@
     // a mug for a companion's hand (3x3)
     def('tw_mug', TP({ f: '#fff6c8' }), ['fWw', 'WWw', 'WWw']);
 
+    // ---------- 4.0 continuation (map §8 + §6): the loot cart by the gate, festival props, summer butterflies ----------
+    // the cart (24x16): a plank bed on two iron-shod wheels, straw on top; the newest great loot floats over it
+    def('tw_cart', TP(STRAW), fit(24, [
+      '........................', '....nnnnnnnnnnnnnnnnnn..', '...nNnnNnnnNnnnNnnNnnNn.', '..WWWWWWWWWWWWWWWWWWWWWw', '..WwwwwwwwwwwwwwwwwwwwBw',
+      '..WwbwwwbwwwbwwwbwwwbwBw', '..WwbwwwbwwwbwwwbwwwbwBw', '..WwwwwwwwwwwwwwwwwwwwBw', '..WwbwwwbwwwbwwwbwwwbwBw', 'BBWBBBBBBBBBBBBBBBBBBBBB',
+      'B..iiI.........iiI......', '..IiiII.......IiiII.....', '.IiiiiiI.....IiiiiiI....', '.Iii.iiI.....Iii.iiI....', '.IiiiiiI.....IiiiiiI....', '..IiiII.......IiiII.....']));
+    // a harvest pumpkin by every door (7x6): its carved face dark by day, candle-lit (two flicker frames) after dusk
+    {
+      const pal = TP({ g: '#5aa84e', G: '#3a7a3a', f: '#ff9a3a' });
+      def('tw_pumpkin', pal, fit(7, ['..gG...', '.oooOO.', 'ookoOkO', 'oooooOO', 'ookkkOO', '.ooooO.']));
+      def('tw_pumpkin2', pal, fit(7, ['..gG...', '.oooOO.', 'ooyoOyO', 'oooooOO', 'ooyyyOO', '.ooooO.']));
+      def('tw_pumpkin3', pal, fit(7, ['..gG...', '.oooOO.', 'oofoOfO', 'oooooOO', 'ooffhOO', '.ooooO.']));
+    }
+    // summer butterflies (3x2, wings open / folded; drawn without an outline): a yellow and a blue one
+    two('tw_bfly', { p: '#ffd84a', P: '#ff9a3a' }, 3, ['p.p', 'PpP'], ['.p.', '.P.']);
+    two('tw_bflyb', { p: '#7fc8ff', P: '#4fa8ff' }, 3, ['p.p', 'PpP'], ['.p.', '.P.']);
+
     // ---------- seasons: the square's trees recoloured (the same pixels) ----------
     if (SPR.defs.tw_tree) {
       const px = SPR.defs.tw_tree.px, base = SPR.defs.tw_tree.pal;
