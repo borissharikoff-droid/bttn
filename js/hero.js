@@ -31,9 +31,10 @@
     // worn gear is a rarity lower than before (RMUL 3.2 against 4.3 / 4.3 against 5.8: x0.74 party power at the Void), and the
     // active no-meta bot fell from 79% to ~50% with 39-s lord fights; 1.60^17 / 1.62^17 = 0.81 of the Void's Horde health
     // gives it back. Inside DESIGN §14's band 1.58-1.64; re-measured in tests/fix1/out (notes/gates.md))
-    // (1.60 read the active 65% / wall 19.9 but the attentive casual 9% / 42% / 48% at no / third / full meta (bands >= 10 / 30 / 40:
-    // the casual personas live on their gear more than the active's micro): 1.59, the next notch; tests/fix1/out/g6, g7)
-    mobBase: 10, mobGrowth: 1.59, mobAtkBase: 5, mobAtkGrowth: 1.22,
+    // (1.59 was tried for the attentive casual (9% at 1.60, band >= 10%): it flipped other rows instead - a seed with no win, the
+    // Heat ladder's top to 8, the wall over 20 - and the casual read 4%: the 6-seed cells' chaos swamps a 0.01 step; 1.60 stays,
+    // the casual rows are the balance owner's with a lever of their own (notes/gates.md). tests/fix1/out/g6 (1.60), g7 (1.59))
+    mobBase: 10, mobGrowth: 1.60, mobAtkBase: 5, mobAtkGrowth: 1.22,
     mobWalk: 5, opFrom: 2.5, opHpPow: 0.8, kbPush: 0.045, kbEvery: 0.6, hordeRate: 0.6, hordeRef: 2.2, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
