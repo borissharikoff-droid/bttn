@@ -30,7 +30,7 @@
     function unlock() {
       try {
         if (!ac) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; ac = new AC(); out = ac.createGain(); out.connect(ac.destination); }
-        if (ac.state === 'suspended') ac.resume();
+        if (ac.state === 'suspended') { const r = ac.resume(); if (r && r.catch) r.catch(() => { }); }
       } catch (e) { ac = null; }
     }
     const level = () => { const s = G.S && G.S.set; return s && s.sound ? (s.vol == null ? 0.6 : s.vol) * 0.5 : 0; };

@@ -23,7 +23,11 @@
     // won 42% at 1.66 (two seeds never won in 90 min), 74% at 1.64 (first win on run 1 for every seed), 86% at 1.62; the
     // attentive casual 5% / 19% / 29%. DESIGN §14 wants 50-80% and >= 10%: 1.64. The PAIR with game.js heatHp 1.36 /
     // heatBite 1.19 (the full-meta Heat ladder: notes/gates.md)
-    mobBase: 10, mobGrowth: 1.64, mobAtkBase: 5, mobAtkGrowth: 1.22,
+    // 4.0 (bots C1): 1.64 -> 1.62. The personas now land ~2.5 weak-point taps a second (the old loop landed 4.5 and broke every
+    // boss move, DOOM included); with that the active no-meta Heat-0 bot won 55% at 1.64 with seeds that never won in 90 min,
+    // 79-83% at 1.62 (12 seeds, first win by run 3 on every seed, the win's wall 17-19.4 min), 68% at 1.63 (wall 22.7: a harder
+    // Horde is more wipes in a win, each ~1.2 min). DESIGN §15 puts real players 25-30 points under the bots: 1.62 (tests/bots/out/w3-w6b)
+    mobBase: 10, mobGrowth: 1.62, mobAtkBase: 5, mobAtkGrowth: 1.22,
     mobWalk: 5, opFrom: 2.5, opHpPow: 0.8, kbPush: 0.045, kbEvery: 0.6, hordeRate: 0.6, hordeRef: 2.2, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,

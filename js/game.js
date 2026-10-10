@@ -12,7 +12,10 @@
     bossGrowth: 2.5,        // boss hp growth per depth
     lordHp: 2.2, // 3.4: a lord every third depth now, so a little less of a wall (was 3)
     bossCall: 3,            // seconds of warning before a ready boss arrives on its own
-    marchTime: 2.4,         // 3.4: after a boss, the party marches on to the next zone for this long (no Horde meanwhile)
+    // 3.4: after a boss, the party marches on to the next zone for this long (no Horde meanwhile)
+    // (4.0, bots C1: 2.4 -> 1.6: a Siege marches 18-25 times; with zoneMinOld 8 it is ~0.6 min off the active win's wall time,
+    // DESIGN §14's 15-20 min; tests/bots/out/w1)
+    marchTime: 1.6,
     heroBossPct: 0.35,      // share of hero income dealt to bosses as dps
     comboTime: 1.25,
     // 2.5: the game is balanced for the Button held down (10 clicks a second); faster clicking, or an
@@ -48,7 +51,9 @@
     // 3.6: a zone is fought for at least this long (s of field time) before its boss comes: the clear bar can't
     // fill faster (it filled in a second or two after each march for a strong party); half that on ground already won
     // (4.0: 24 -> 20, DESIGN §15's own lever for a Siege won past 20 minutes: lords are full fights again)
-    zoneMin: 20, zoneMinOld: 12,
+    // (4.0, bots C1: zoneMinOld 12 -> 8: the zone fought again after a wipe's push-back is a formality - its loot was offered
+    // already - and a winning Siege has 3-5 of them; see marchTime)
+    zoneMin: 20, zoneMinOld: 8,
     // 4.0 attrition: a boss kill heals the Button and the party this share, a lord this share; Mend is charges (per land,
     // each heals mendHeal, mendLock s apart); DOOM takes this share of what it would (by Heat: 0-2, 3-5, 6+)
     healBoss: 0.1, healLord: 0.25, mendCharges: 2, mendHeal: 0.35, mendLock: 8, doomK: [0.64, 0.8, 1],

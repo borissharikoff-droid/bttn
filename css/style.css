@@ -754,7 +754,9 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .pmem.lock small { color: var(--dim); white-space: normal; text-align: center; }
 
 /* the party on the field: a chip per unit */
-.partyHud { display: flex; gap: 4px; pointer-events: auto; align-self: flex-start; }
+.partyHud { display: flex; gap: 4px; pointer-events: none; align-self: flex-start; }
+/* (4.0 uifix: the gaps between the chips give the field back to the finger; the chips and seats keep their taps) */
+.partyHud > * { pointer-events: auto; }
 .pchip { position: relative; width: 38px; padding: 1px 1px 3px; display: grid; justify-items: center; gap: 1px; cursor: pointer; background: rgba(12,11,18,.78); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--role, var(--line)); }
 .pchip img { width: 30px; height: 28px; image-rendering: pixelated; }
 .pchip i { display: block; width: 100%; height: 4px; background: #2a0f16; }
@@ -847,6 +849,13 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
 .tw { width: min(1040px, 100%); max-height: 100%; display: flex; flex-direction: column; background: rgba(20,18,30,.97); border: 3px solid var(--ink); box-shadow: 0 0 0 2px #ffd84a55, 0 10px 40px #000a; color: var(--text); font: 15px/1.25 var(--font-body); }
 .twHead { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #2a2214; border-bottom: 2px solid var(--ink); }
 .twHead > img { width: 44px; height: auto; image-rendering: pixelated; }
+/* 4.0 (town handoff): a spark at the anvil on the smith's strike frame (the keeper cycles data-fr in the header) */
+.twHead { position: relative; }
+.twHead:has(> img[data-fr="npc_smith_w3"])::before { content: ''; position: absolute; left: 40px; top: 14px; width: 14px; height: 14px; pointer-events: none;
+  background: radial-gradient(circle at 30% 60%, #fff6b0 0 1px, transparent 1.5px), radial-gradient(circle at 70% 30%, #ffd84a 0 1px, transparent 1.5px), radial-gradient(circle at 60% 80%, #ff9a3a 0 1px, transparent 1.5px), radial-gradient(circle at 20% 20%, #ffe27a 0 1px, transparent 1.5px);
+  animation: twSpark .2s steps(2) both; }
+@keyframes twSpark { from { transform: translate(0, 2px); opacity: 1; } to { transform: translate(2px, -3px); opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .twHead:has(> img[data-fr="npc_smith_w3"])::before { display: none; } }
 .twHead b { display: block; font: 12px/1.2 var(--font-display); color: #ffe27a; }
 .twHead small { display: block; color: var(--dim); font-size: 14px; }
 .twHead > div { flex: 1; }
