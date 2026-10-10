@@ -486,10 +486,13 @@
   // relic 60 and orbs 1/1/3/3/10 paid 1.6-2x the targets at every checkpoint (a first fall at depth 7 ~160 vs 60-100, an
   // Act II fall ~280 vs 120-200, an Act II extract ~700 vs 250-400, a Heat-0 win ~2,150 vs 1,200-1,500): the bag is full
   // by Act I and Temper raises every worn piece. Halved, they land in the bands; the kill Embers stay as designed)
-  G.EMBER_R = [0.5, 1, 1.5, 2.5, 4, 7.5, 15];
+  // (4.0 bots: x0.8 again - the personas take the ▲ loot and stash every legendary and unique, so a Heat-0 win burned ~1,610
+  // against the 1,200-1,500 band and an Act II extract ~405 against 250-400 (tests/bots/out/t2); the early fall (~90) and
+  // the Act II fall (~150) stay inside their bands. One-decimal values: the Furnace rounds each item to 0.1)
+  G.EMBER_R = [0.4, 0.8, 1.2, 2, 3.2, 6, 12];
   G.EMBERS = { uq: 10, relic: 30, shard: 25, orb: { whet: 0.5, flux: 0.5, ruin: 1.5, ascent: 1.5, grace: 5 }, key: 10,
     kill: { boss: 2, lord: 10, act: 25, final: 100 }, end: { fall: 0.5, abandon: 0.5, extract: 1, win: 1.5 }, heat: 0.15, card: 0.5 };
-  // Heat 0-10 (chosen at setup; Heat N opens with a win at N-1). Each level: Horde and boss health x1.22, bites x1.14 (game.js TUNE.heatHp / heatBite)
+  // Heat 0-10 (chosen at setup; Heat N opens with a win at N-1). Each level: Horde and boss health x1.36, bites x1.19 (game.js TUNE.heatHp / heatBite)
   // (game.js TUNE.heatHp / heatBite), Fame x(1+0.2n), Embers x(1+0.15n), rarity +n/3, drops +15%. And the named rules,
   // cumulative:
   G.HEAT_MAX = 10;

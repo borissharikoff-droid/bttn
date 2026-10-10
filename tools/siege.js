@@ -29,6 +29,9 @@ const CELLS = [
   { name: 'TF', title: 'attentive casual, full meta, Heat 0', persona: 'attentive', opts: { meta: 'full', heat: 0 } },
   { name: 'CF', title: 'half-attentive casual (duty 0.6), full meta, Heat 0', persona: 'casual', opts: { meta: 'full', heat: 0 } },
   { name: 'I', title: 'idle + Clockwork + Auto-Run, no meta, Heat 0', persona: 'idle', opts: { meta: 'none', heat: 0, clockwork: 1 } },
+  // (the §4.3 'first run 60-100 Embers' row: a weak persona's run 1 - the half-attentive casual with no meta falls in Act I-II;
+  // the attentive one (T0) extracts at Camp 4 or wins, and no active no-meta run fell before zone 9 in 4 seeds x 90 min)
+  { name: 'E1', title: 'half-attentive casual (duty 0.6), no meta, Heat 0 (the first-run Embers row)', persona: 'casual', opts: { meta: 'none', heat: 0 } },
 ];
 const med = a => { const s = a.filter(x => x != null && !Number.isNaN(x)).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const mean = a => { const s = a.filter(x => x != null); return s.length ? s.reduce((x, y) => x + y, 0) / s.length : null; };
@@ -130,7 +133,9 @@ const GATES = [
   // (the §4.3 rows read the no-meta Heat-0 cells: 'first run' = an early fall (Act I or the start of Act II, as §4.2's
   // first-run example at depth 7), 'Act II fall' = a fall at zones 6-11, 'Act II extract' = an extract at zones 6-12 (the
   // casual's Camp 4), 'win' = the active's Heat-0 wins)
-  { id: 'emb', gate: 'Embers (DESIGN §4.3): early fall / Act II fall / Act II extract / Heat-0 win', target: '60-100 / 120-200 / 250-400 / 1200-1500', cells: ['A0', 'T0', 'T3'], value: by => { const A = by.A0, T = by.T0 || by.T3; if (!A) return { v: null, pass: null }; const f1 = A.embers.early != null ? A.embers.early : T && T.embers.early, a2 = A.embers.act2fall != null ? A.embers.act2fall : T && T.embers.act2fall, ex = (T && T.embers.act2ext) || (by.T3 && by.T3.embers.act2ext) || (by.CF && by.CF.embers.act2ext), w = A.embers.win; const ps = [f1 == null ? null : inBand(f1, 60, 100), a2 == null ? null : inBand(a2, 120, 200), ex == null ? null : inBand(ex, 250, 400), inBand(w, 1200, 1500)]; return { v: `${fmt(f1)} / ${fmt(a2)} / ${fmt(ex)} / ${fmt(w)}`, pass: ps.every(p => p !== false) && ps.some(p => p === true) }; } },
+  // ('first run': the E1 cell's run-1 Embers (a half-attentive casual's first Siege, no meta), else an early fall (cleared <= 8)
+  // of any no-meta Heat-0 cell)
+  { id: 'emb', gate: 'Embers (DESIGN §4.3): first run / Act II fall / Act II extract / Heat-0 win', target: '60-100 / 120-200 / 250-400 / 1200-1500', cells: ['A0', 'T0', 'T3', 'E1'], value: by => { const A = by.A0, T = by.T0 || by.T3, E = by.E1; if (!A) return { v: null, pass: null }; const f1 = E && E.embers.first != null ? E.embers.first : A.embers.early != null ? A.embers.early : (T && T.embers.early != null ? T.embers.early : E && E.embers.early), a2 = A.embers.act2fall != null ? A.embers.act2fall : T && T.embers.act2fall, ex = (T && T.embers.act2ext) || (by.T3 && by.T3.embers.act2ext) || (by.CF && by.CF.embers.act2ext), w = A.embers.win; const ps = [f1 == null ? null : inBand(f1, 60, 100), a2 == null ? null : inBand(a2, 120, 200), ex == null ? null : inBand(ex, 250, 400), inBand(w, 1200, 1500)]; return { v: `${fmt(f1)} / ${fmt(a2)} / ${fmt(ex)} / ${fmt(w)}`, pass: ps.every(p => p !== false) && ps.some(p => p === true) }; } },
   { id: 'boom', gate: 'BOOM -> field', target: '<= 60 s', cells: [], value: () => ({ v: 'UI (not measured here)', pass: null }) },
   { id: 'frame', gate: 'Last Stand frame time, mid tier, 600 mobs', target: '<= 16 ms', cells: [], value: () => ({ v: 'stage (tests/runflow/ls_frame.js)', pass: null }) },
 ];

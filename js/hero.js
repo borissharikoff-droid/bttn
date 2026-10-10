@@ -18,7 +18,12 @@
     // won in 90 min), 72% at 1.66 (first win by run 1/1/1/2/1/1/1/1), 73% at 1.63: DESIGN §14 '50-80%, first win by run
     // <= 4' (tests/meta/bal out/g1, 8 seeds x 90 min). A PAIR with game.js TUNE.heatHp 1.22 / heatBite 1.14 (the full-meta
     // Heat ladder moved with it: out/h5, h6; notes/meta.md MEASUREMENTS 'PAIR')
-    mobBase: 10, mobGrowth: 1.66, mobAtkBase: 5, mobAtkGrowth: 1.22,
+    // 4.0 (bots): 1.66 -> 1.64. Measured with the real Siege personas (tools/bot.js SIEGE_POLICY: cards by school, the ▲ loot
+    // taken, shrines charged, Elite/Treasure doors; 6 seeds x 90 min, tests/bots/out/t1, t2): the active no-meta Heat-0 bot
+    // won 42% at 1.66 (two seeds never won in 90 min), 74% at 1.64 (first win on run 1 for every seed), 86% at 1.62; the
+    // attentive casual 5% / 19% / 29%. DESIGN §14 wants 50-80% and >= 10%: 1.64. The PAIR with game.js heatHp 1.36 /
+    // heatBite 1.19 (the full-meta Heat ladder: notes/gates.md)
+    mobBase: 10, mobGrowth: 1.64, mobAtkBase: 5, mobAtkGrowth: 1.22,
     mobWalk: 5, opFrom: 2.5, opHpPow: 0.8, kbPush: 0.045, kbEvery: 0.6, hordeRate: 0.6, hordeRef: 2.2, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,

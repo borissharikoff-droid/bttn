@@ -135,7 +135,8 @@
 #ru kbd{font:7px/1 var(--font-display);color:var(--dim);background:var(--ink);padding:2px 3px;border:1px solid var(--line)}
 #ru .ruChip{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;background:var(--slot);border:2px solid var(--ink);font:8px/1.3 var(--font-display);color:var(--text)}
 #ru .ruChip img{width:14px;height:14px}
-#ru .ruRbw{background:linear-gradient(90deg,#ff4f7e,#ffa033,#ffd84a,#56d45a,#4fd0ff,#b36bff,#ff4f7e);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent!important;animation:ruRbwT 2.2s linear infinite;text-shadow:none!important;filter:drop-shadow(2px 2px 0 var(--ink))}
+#ru .ruRbw{background:linear-gradient(90deg,#ff4f7e,#ffa033,#ffd84a,#56d45a,#4fd0ff,#b36bff,#ff4f7e);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent!important;animation:ruRbwT 2.6s linear infinite;text-shadow:none!important;-webkit-text-stroke:.35px rgba(12,11,18,.55);paint-order:stroke fill}
+#ru .lmSlam .ruRbw{-webkit-text-stroke:1px rgba(12,11,18,.8)}
 #ru .up{color:var(--good)}#ru .dn{color:var(--bad)}#ru .eq{color:var(--faint)}
 #ru .ruTimer{font:8px/1 var(--font-display);color:var(--faint);text-align:center}
 @keyframes ruFade{from{opacity:0}}
@@ -214,16 +215,28 @@
     s.el.className = 'ruScr ru-' + name + (o.cover ? ' cover' : '') + (o.cls ? ' ' + o.cls : '');
     if (o.html != null) s.el.innerHTML = o.html;
     if (s.stage) place(s.el);
+    bodyMarks();
     if (fresh) { try { G.emit('ruScreen', name, true); } catch (e) { /* listeners are optional */ } }
     return s;
+  }
+  // 4.0 (uifix): the page knows a run screen is up - body.ruUp while any is, body.ruStageUp while one sits over the field
+  // (the loot moment, a card, a boon, a pact): the desktop's side panel dims and stops taking taps under them (it stayed
+  // fully lit and clickable beside the rainbow sheet), and the 3.x chest/combo bar steps back under the loot hint.
+  function bodyMarks() {
+    const b = document.body; if (!b) return;
+    let up = false, st = false;
+    for (const k in SCR) { const s = SCR[k]; if (!s || s.closing) continue; up = true; if (s.stage) st = true; }
+    if (b.classList.contains('ruUp') !== up) b.classList.toggle('ruUp', up);
+    if (b.classList.contains('ruStageUp') !== st) b.classList.toggle('ruStageUp', st);
   }
   function close(name, ms) {
     const s = SCR[name];
     if (!s || s.closing) return;
     const i = STACK.indexOf(name); if (i >= 0) STACK.splice(i, 1);
     if (s.onClose) safe(() => s.onClose());
-    const done = () => { clearTimers(s); if (s.el) s.el.remove(); if (SCR[name] === s) delete SCR[name]; };
+    const done = () => { clearTimers(s); if (s.el) s.el.remove(); if (SCR[name] === s) delete SCR[name]; bodyMarks(); };
     if (ms > 0 && !reduced()) { s.closing = true; s.el.classList.add('out'); setTimeout(done, ms); } else done();
+    bodyMarks();
     try { G.emit('ruScreen', name, false); } catch (e) { /* listeners are optional */ }
   }
   const isOpen = name => !!(SCR[name] && !SCR[name].closing);
@@ -358,6 +371,8 @@
   const ultraRiser = sec => { if (G.Audio && typeof G.Audio.ultraRiser === 'function') sfx('ultraRiser', sec); else Snd.riser(sec); };
   // (audio.js's burn when it has one - fieldfx stream; it does not listen to 'lootBurn' itself, so no double)
   const burnSnd = () => { if (G.Audio && typeof G.Audio.burn === 'function') sfx('burn'); else Snd.burn(); };
+  // Embers in one decimal under 10 ('0.5', '2.3'), whole over (the Furnace rounds each item to 0.1)
+  const fmtE = v => { v = Math.round((+v || 0) * 10) / 10; return v < 10 && v % 1 !== 0 ? v.toFixed(1) : fmt(Math.round(v)); };
 
   // ---------- flying Embers (a burned card's '+N' into the pouch chip) ----------
   function rectOf(el) { if (!el || !el.getBoundingClientRect) return null; const r = el.getBoundingClientRect(); return r.width || r.height ? { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height } : null; }
@@ -491,8 +506,14 @@
     const ps = el.querySelectorAll('i');
     if (kind === 'lost' || kind === 'last') { const i = ps[pips | 0]; if (i) { i.classList.remove('crack'); void i.offsetWidth; i.classList.add('crack'); } toast(`<b>${esc(t(kind === 'last' ? 'pip_last' : 'pip_lost'))}</b>`, 'ach', 'ic_heart', { p: 2 }); }
     else if (kind === 'gain') { for (let k = Math.max(0, (pips | 0) - delta); k < (pips | 0); k++) { const i = ps[k]; if (i) { i.classList.remove('glow'); void i.offsetWidth; i.classList.add('glow'); } } toast(`<b>${esc(t('pip_back'))}</b>`, 'ach', 'ic_heart'); }
-    else if (kind === 'muster') toast(esc(t('pip_muster')), '', 'ic_heart', { k: 'muster', p: 0 });
+    else if (kind === 'muster') {
+      // (uifix: a new player who wipes every 20 s in land 1 read this line after every wipe, with the wipe tip under it:
+      // once a land is enough - the coach's 'Button broke' tip says why, and the pips on the HUD stay lit)
+      const r = run(), key = (r ? r.n + ':' + Math.floor((G.S.depth | 0) / (G.REALM_SIZE || 3)) : '0');
+      if (musterSaid !== key) { musterSaid = key; toast(esc(t('pip_muster')), '', 'ic_heart', { k: 'muster', p: 0 }); }
+    }
   });
+  let musterSaid = '';
   G.on('pouch', () => { if (!pouchHold) hudUpdate(); });
   let pouchHold = 0;
   ['key', 'mendCharge', 'relicPick', 'runStart', 'runResume', 'boon'].forEach(k => G.on(k, () => hudUpdate(true)));
@@ -844,6 +865,12 @@
         <span class="ckSlots"><span>${esc(t('ru_slotsTitle', slots.used, slots.max))}</span>${sl}</span><span class="ckChat" hidden></span></div>
       <p class="ckAuto" hidden></p><p class="ckHint">${esc(t('ru_pickKeys', Math.min(n, 9)))}</p></div>`;
     const s = open('cards', { stage: true, html, keys: cardKeys, def: null });
+    // (uifix: on a wide screen the sheet's title was printed through the Button sprite: the sheet sits under the Button line
+    // when the stage is tall enough for it; one layout read a render)
+    if (s.el.classList.contains('wide')) {
+      const w = s.el.querySelector('.ckWrap'), bp = btnPoint();
+      if (w && bp) { const r = w.getBoundingClientRect(), sr = s.el.getBoundingClientRect(), topMin = bp.y + 34 - sr.top; if (r.top - sr.top < topMin) { const nb = sr.height - topMin - r.height; if (nb >= 4) w.style.bottom = Math.round(nb) + 'px'; } }
+    }
     s.el.onclick = cardClick;
     s.el.onpointerdown = () => { if (G.cardTouch) G.cardTouch(); };
     s.view = view;
@@ -924,7 +951,9 @@
   // stat sheet, and emits 'lootUltra' (the field's pillar, the sting). What is left burns into Embers that fly to the pouch.
   CSS_PARTS.push(`
 #ru .ru-loot{pointer-events:auto}
-#ru .lmDim{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 70%,rgba(6,5,10,.35),rgba(6,5,10,.78));animation:ruFade .3s ease-out}
+#ru .lmDim{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 70%,rgba(6,5,10,.35),rgba(6,5,10,.78));animation:ruFade .3s ease-out;transition:opacity .25s}
+#ru .ru-loot.pillarUp .lmDim{opacity:.2}
+#ru .ru-loot.wide.reveal .lmSheetBox{visibility:hidden}
 #ru .lmWrap{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:min(97%,900px);max-height:calc(100% - 20px);display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:flex-end}
 #ru .lmWrap>*{flex:none}
 #ru .lmSheetBox{flex:0 1 auto!important;min-height:0;overflow-y:auto;overscroll-behavior:contain;width:100%;display:flex;justify-content:center}
@@ -969,10 +998,11 @@
 #ru .lmCard.ultra .lmFace::before{content:'';position:absolute;left:50%;top:50%;width:260%;height:260%;margin:-130% 0 0 -130%;background:conic-gradient(#ff4f7e,#ffa033,#ffd84a,#56d45a,#4fd0ff,#b36bff,#ff4f7e);animation:ruSpin 2.4s linear infinite;z-index:0;opacity:.95}
 #ru .lmCard.ultra .lmFace::after{content:'';position:absolute;inset:4px;background:linear-gradient(180deg,#2e2a3e,#16131f);z-index:0}
 #ru .lmFace>*{position:relative;z-index:1}
-#ru .lmTag{font:6px/1.3 var(--font-display);font-style:normal;color:#ffe27a;background:rgba(10,9,16,.8);padding:2px 4px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#ru .lmTag{font:6px/1.3 var(--font-display);font-style:normal;color:#ffe27a;background:rgba(10,9,16,.8);padding:2px 4px;max-width:100%;overflow:hidden;text-align:center;max-height:2.9em;overflow-wrap:anywhere}
 #ru .lmIco{width:52px;height:52px;margin:2px 0;filter:drop-shadow(0 0 6px var(--rc))}
 #ru .lmCard.ultra .lmIco{width:60px;height:60px;filter:drop-shadow(0 0 10px #fff)}
-#ru .lmName{font:8px/1.35 var(--font-display);color:var(--rc);text-align:center;max-height:3.2em;overflow:hidden;font-weight:normal}
+#ru .lmName{font:8px/1.3 var(--font-display);color:var(--rc);text-align:center;max-height:2.6em;overflow:hidden;font-weight:normal;overflow-wrap:anywhere;flex:none}
+#ru .lmCard.ultra .lmName{font-size:7px}
 #ru .lmRar{font-size:12px;color:var(--dim);line-height:1.1}
 #ru .lmUp{font:13px/1.1 var(--font-display);margin-top:auto;text-shadow:2px 2px 0 var(--ink)}
 #ru .lmWho{display:flex;align-items:center;gap:3px;font-size:12px;color:var(--dim);line-height:1}
@@ -991,13 +1021,12 @@
 @keyframes lmFlame{0%{opacity:0;transform:scaleY(.3)}30%{opacity:1}100%{opacity:0;transform:scaleY(1.4) translateY(-30%)}}
 #ru .lmBurst{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px;border-radius:50%;pointer-events:none;z-index:3;box-shadow:0 0 0 4px #fff,0 0 30px 10px #ffd84a;animation:lmBurst .7s ease-out forwards}
 @keyframes lmBurst{to{transform:scale(14);opacity:0}}
-#ru .lmSlam{position:fixed;z-index:4;left:50%;transform:translate(-50%,-50%);pointer-events:none;text-align:center;white-space:nowrap;animation:lmSlam 1.5s cubic-bezier(.2,1.5,.4,1) forwards}
-#ru .lmSlam b{display:block;font:30px/1.1 var(--font-display);letter-spacing:.06em}
-#ru .lmSlam small{display:block;margin-top:6px;font:10px/1.2 var(--font-display);color:#fff;text-shadow:2px 2px 0 var(--ink)}
+#ru .lmSlam{position:fixed;z-index:4;left:50%;transform:translate(-50%,-50%);pointer-events:none;text-align:center;white-space:nowrap;padding:8px 22px;background:rgba(6,5,10,.72);border:3px solid var(--ink);box-shadow:inset 0 0 0 2px #ffffff22,0 0 40px #000;animation:lmSlam 1.5s cubic-bezier(.2,1.5,.4,1) forwards}
+#ru .lmSlam b{display:block;font:48px/1.1 var(--font-display);letter-spacing:.06em;animation:ruRbwT 1.2s linear infinite}
+#ru .lmSlam small{display:block;margin-top:6px;font:12px/1.2 var(--font-display);color:#fff;text-shadow:2px 2px 0 var(--ink)}
+#ru .lmSlam.narrow b{font-size:32px}#ru .lmSlam.narrow small{font-size:10px}#ru .lmSlam.narrow{padding:6px 14px;max-width:94vw;white-space:normal}
 @keyframes lmSlam{0%{transform:translate(-50%,-50%) scale(3) rotate(-6deg);opacity:0}12%{transform:translate(-50%,-50%) scale(1) rotate(-3deg);opacity:1}75%{transform:translate(-50%,-50%) scale(1.05) rotate(-3deg);opacity:1}100%{transform:translate(-50%,-80%) scale(1.1) rotate(-3deg);opacity:0}}
 #ru .lmBit{position:fixed;z-index:4;width:6px;height:6px;pointer-events:none}
-#ru .lmRays{position:absolute;left:50%;top:50%;width:900px;height:900px;margin:-450px 0 0 -450px;pointer-events:none;z-index:-1;opacity:.5;
-  background:repeating-conic-gradient(from 0deg,#ffffff22 0 6deg,transparent 6deg 18deg);-webkit-mask-image:radial-gradient(circle,#000 0,#000 18%,transparent 60%);mask-image:radial-gradient(circle,#000 0,#000 18%,transparent 60%);animation:ruSpin 14s linear infinite}
 #ru .lmPillar{position:fixed;width:46px;margin-left:-23px;top:0;pointer-events:none;background:linear-gradient(90deg,transparent,#ff4f7e88,#ffd84acc,#ffffff,#4fd0ffcc,#b36bff88,transparent);filter:blur(1px);animation:lmPillar 1.4s ease-out forwards;mix-blend-mode:screen}
 @keyframes lmPillar{0%{transform:scaleX(.1);opacity:0}15%{transform:scaleX(1.4);opacity:1}100%{transform:scaleX(.6);opacity:0}}
 #ru .lmSheet{width:min(100%,600px);padding:8px 10px;background:rgba(18,16,26,.96);border:3px solid var(--ink);box-shadow:inset 0 0 0 2px var(--rc,var(--line-hi)),0 4px 0 var(--ink);display:grid;gap:5px;animation:ruFade .2s ease-out}
@@ -1008,9 +1037,10 @@
 #ru .shTop>img{width:40px;height:40px}
 #ru .lmSheet.big .shTop>img{width:64px;height:64px;filter:drop-shadow(0 0 8px #fff)}
 #ru .shTop b{display:block;font:9px/1.4 var(--font-display);color:var(--rc);font-weight:normal}
-#ru .lmSheet.big .shTop b{font-size:13px}
+#ru .lmSheet.big .shTop b{font-size:22px;line-height:1.2}
 #ru .shTop small{display:block;color:var(--dim);font-size:13px;line-height:1.2}
 #ru .shTop em{font:7px/1.4 var(--font-display);font-style:normal;color:#fff;letter-spacing:.1em}
+#ru .lmSheet.big .shTop em{font-size:13px;letter-spacing:.14em;margin-bottom:3px}
 #ru .shD{font:14px/1 var(--font-display);text-shadow:2px 2px 0 var(--ink);text-align:right}
 #ru .lmSheet.big .shD{font-size:20px}
 #ru .shD small{display:flex;align-items:center;gap:3px;justify-content:flex-end;font:12px/1 var(--font-body);color:var(--dim);margin-top:4px}
@@ -1021,9 +1051,10 @@
 #ru .shRows i{font-style:normal;color:var(--faint);text-align:right;font-variant-numeric:tabular-nums}
 #ru .shRows b{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 #ru .shRows em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums;min-width:60px}
-#ru .lmSheet.big .shRows{font-size:15px;gap:3px 14px}
-#ru .lmSheet.big .shRows b{font:11px/1.4 var(--font-display);color:#fff}
-#ru .lmSheet.big .shRows em{font:11px/1.4 var(--font-display)}
+#ru .lmSheet.big .shRows{font-size:16px;gap:4px 14px}
+#ru .lmSheet.big .shRows b{font:17px/1.3 var(--font-display);color:#fff;text-shadow:2px 2px 0 var(--ink)}
+#ru .lmSheet.big .shRows em{font:15px/1.3 var(--font-display)}
+#ru .lmSheet.big .shRows i{font-size:15px}
 #ru .shAff{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:1px 12px;font-size:12px}
 #ru .shAff span{display:flex;gap:5px;align-items:baseline;white-space:nowrap;overflow:hidden}
 #ru .shAff i{font-style:normal;color:var(--dim);flex:1;overflow:hidden;text-overflow:ellipsis}
@@ -1040,13 +1071,16 @@
 #ru .shActs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 #ru .lmFoot{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:13px;color:#d8dce8;text-shadow:1px 1px 0 var(--ink)}
 #ru .lmFoot .ruChip{font-size:7px}
+#ru .lmFoot .hint{background:rgba(10,9,16,.85);padding:3px 9px;border:2px solid var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+body.ruStageUp #panel{opacity:.35;pointer-events:none;transition:opacity .25s}
+body.ruStageUp .hud.bottom{opacity:.25;pointer-events:none;transition:opacity .25s}
 #ru .lmMsg{font:9px/1.4 var(--font-display);color:#ffb15a;text-shadow:2px 2px 0 var(--ink);min-height:1.4em;text-align:center}
 #ru .ru-loot.collapse .lmCard{height:120px;flex-basis:96px}
 #ru .ru-loot.collapse .lmUp,#ru .ru-loot.collapse .lmWho,#ru .ru-loot.collapse .lmTag,#ru .ru-loot.collapse .lmRar{display:none}
 #ru .ru-loot.collapse .lmIco{width:36px;height:36px}
 @media (max-width:860px){#ru .lmCards{flex-wrap:wrap;gap:6px}#ru .lmCard{flex:0 1 calc(33.3% - 6px);height:178px}#ru .lmIco{width:40px;height:40px}#ru .lmCard.ultra .lmIco{width:46px;height:46px}
   #ru .lmInfo{display:block}#ru .lmSheet{padding:6px 8px}#ru .shRows{font-size:12px}#ru .lmSheet.big .shRows{font-size:13px}#ru .lmSheet.big .shTop>img{width:48px;height:48px}
-  #ru .lmSheet.big .shTop b{font-size:10px}#ru .lmSheet.big .shD{font-size:15px}#ru .lmSheet.big .shRows b,#ru .lmSheet.big .shRows em{font-size:9px}#ru .lmHeroes button{min-width:36px}#ru .lmHeroes button img{width:20px;height:20px}
+  #ru .lmSheet.big .shTop b{font-size:16px}#ru .lmSheet.big .shTop em{font-size:9px}#ru .lmSheet.big .shD{font-size:16px}#ru .lmSheet.big .shRows b{font-size:12px}#ru .lmSheet.big .shRows em,#ru .lmSheet.big .shRows i{font-size:11px}#ru .lmSheet.big .shRows{font-size:13px;gap:2px 10px}#ru .lmHeroes button{min-width:36px}#ru .lmHeroes button img{width:20px;height:20px}
   #ru .lmTitle{font-size:11px}#ru .lmFoot .hint{display:none}#ru .shX{font-size:12px}#ru .lmSheet.big .shX{font-size:13px}}
 @media (max-width:380px){#ru .lmCard{height:166px}#ru .lmName{font-size:7px}#ru .lmUp{font-size:11px}}
 `);
@@ -1160,6 +1194,9 @@
   function lootRing() {
     const s = SCR.loot; if (!s || s.closing) return;
     s.raf = requestAnimationFrame(lootRing);
+    // (uifix: the ring is a clock in whole seconds: 8 updates a second are plenty - every frame it was 30-46 SVG attribute
+    // writes a second during the ultra moment)
+    const nowT = now(); if (s.ringT && nowT - s.ringT < 120) return; s.ringT = nowT;
     const L_ = run() && run().loot, ring = s.el.querySelector('.lmRing');
     if (!L_ || !ring || ring.hidden) return;
     const fg = ring.querySelector('.fg'), b = ring.querySelector('b');
@@ -1192,7 +1229,9 @@
       if (fast) { later('loot', () => lootFlip(i, true), at); at += 60; return; }
       // (the first one gets the whole beat of suspense; each one after it a shorter one)
       const charge = k ? 560 : 900;
-      later('loot', () => { const el = cardEl(i); if (el) el.classList.add('charge'); ultraRiser(charge / 1000); lootSelect(i); }, at);
+      // (uifix: the sheet of the card turned last stays up through the charge - selecting the face-down card emptied the
+      // sheet box for 0.6-0.9 s, a black upper screen on a phone; the flip selects it)
+      later('loot', () => { const el = cardEl(i); if (el) el.classList.add('charge'); ultraRiser(charge / 1000); }, at);
       at += charge;
       later('loot', () => lootFlip(i, true), at);
       at += k < ultras.length - 1 ? 700 : 900;
@@ -1226,11 +1265,22 @@
         if (wr) se.insertBefore(p, wr); else ensureRoot().appendChild(p);
         setTimeout(() => p.remove(), 1500);
       }
-      // the slam: the tier's name across the cards, rainbow; a burst of confetti; light rays behind the row
+      // the slam: the tier's name, rainbow, over the field half of the screen (uifix: it used to sit 130 px over the card,
+      // which is the sheet's WEAR/STASH row on every layout); a burst of confetti. The field's dims lift for the pillar's
+      // 1.5 s (class pillarUp; the stage lifts its own), and on a wide screen the sheet steps aside for the first second so
+      // the pillar's base and the Button show (class reveal). The old light rays (a 900 px spinning masked gradient) are
+      // gone: the stage draws god rays of its own, and that element alone cost ~6 fps.
       if (!reduced()) {
-        const sl = document.createElement('div'); sl.className = 'lmSlam'; sl.style.top = Math.max(60, at.y - 130) + 'px';
+        const se = SCR.loot && SCR.loot.el, wr = se && se.querySelector('.lmWrap'), wide = !!(se && se.classList.contains('wide'));
+        const wrTop = wr ? wr.getBoundingClientRect().top : window.innerHeight * 0.5;
+        const sl = document.createElement('div'); sl.className = 'lmSlam' + (wide ? '' : ' narrow');
+        sl.style.top = Math.round(wide ? Math.max(70, Math.min(wrTop - 56, window.innerHeight * 0.42)) : Math.max(60, window.innerHeight * 0.26)) + 'px';
         sl.innerHTML = `<b class="ruRbw">${esc(t('ru_tier_' + tier))}!</b><small>${esc(gname(c.g))}</small>`;
         ensureRoot().appendChild(sl); setTimeout(() => sl.remove(), 1600);
+        if (se) {
+          se.classList.add('pillarUp'); later('loot', () => se.classList.remove('pillarUp'), 1500);
+          if (wide) { se.classList.add('reveal'); later('loot', () => se.classList.remove('reveal'), 950); }
+        }
         const cols = ['#ff4f7e', '#ffa033', '#ffd84a', '#56d45a', '#4fd0ff', '#b36bff', '#ffffff'];
         for (let k = 0; k < 26; k++) {
           const bit = document.createElement('i'); bit.className = 'lmBit'; bit.style.left = at.x + 'px'; bit.style.top = at.y + 'px'; bit.style.background = cols[k % cols.length];
@@ -1239,8 +1289,6 @@
           bit.animate([{ transform: 'translate(-50%,-50%) scale(1.4)', opacity: 1 }, { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d + 60}px)) rotate(${(Math.random() * 720) | 0}deg) scale(.6)`, opacity: 0 }],
             { duration: 700 + Math.random() * 500, easing: 'cubic-bezier(.2,.7,.4,1)', fill: 'forwards' }).onfinish = () => bit.remove();
         }
-        const row = SCR.loot && SCR.loot.el.querySelector('.lmCards');
-        if (row && !row.querySelector('.lmRays')) { const ry = document.createElement('i'); ry.className = 'lmRays'; row.appendChild(ry); }
       }
       lootSelect(i); lootSheetOnly();
     } else {
@@ -1335,12 +1383,15 @@
     list.forEach((x, j) => {
       const el = cardEl(x.i), r = rectOf(el);
       setTimeout(() => {
+        // (uifix: not once the moment has gone - a stray '+0' used to float over the camp that came next)
+        if (SCR.loot !== s || s.closing) return;
         if (el) el.classList.add('burn');
-        if (r) { floatText(r.x, r.y - 10, '+' + fmt(Math.round(x.v * 10) / 10)); flyEmbers(r, Math.max(2, x.v), () => { if (--k <= 0) { pouchHold = 0; hudUpdate(true); } }); }
+        // (uifix: a run-1 common is worth 0.3-0.5 Ember: one decimal, never '+0')
+        if (r) { floatText(r.x, r.y - 10, '+' + fmtE(x.v)); flyEmbers(r, Math.max(2, x.v), () => { if (--k <= 0) { pouchHold = 0; hudUpdate(true); } }); }
         else if (--k <= 0) { pouchHold = 0; hudUpdate(true); }
       }, j * 90);
     });
-    const m = s.el.querySelector('.lmMsg'); if (m) { m.textContent = t('ru_burned', fmt(Math.round(total * 10) / 10)); }
+    const m = s.el.querySelector('.lmMsg'); if (m) { m.textContent = t('ru_burned', fmtE(total)); }
     setTimeout(() => { if (pouchHold) { pouchHold = 0; hudUpdate(true); } }, 2500);
   });
   G.on('lootDone', () => {

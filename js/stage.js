@@ -896,8 +896,11 @@
   }
   function hitButton(p) {
     const b = bossVis ? bossPos() : btnPos();
-    const rx = bossVis ? bossHalf().w + 4 : 20, ry = bossVis ? bossHalf().h + 4 : 18;
-    return Math.abs(p.x - b.x) <= rx && Math.abs(p.y - (b.y - 4)) <= ry;
+    if (bossVis) { const hf = bossHalf(); return Math.abs(p.x - b.x) <= hf.w + 4 && Math.abs(p.y - (b.y - 4)) <= hf.h + 4; }
+    // 4.0 (uifix): the whole drawn Button (drawButton blits the 39x36 sprite from b.y-32 to b.y+4) plus a finger's margin.
+    // The old box (b.y-22..b.y+14) missed the dome's top 10 px: a finger or pointer held on the top of the Button - and
+    // St.buttonPoint(), 24 px over the centre - never started the hold, so a 'held' Button clicked 0 times a minute.
+    return Math.abs(p.x - b.x) <= 23 && p.y >= b.y - 38 && p.y <= b.y + 15;
   }
   function hitReady(p) {
     if (!G.R.bossReady || G.R.boss || G.R.rift || G.R.inv) return false;
@@ -927,6 +930,14 @@
     if (hitButton(p)) { G.manualClick(p.x, p.y); return 'button'; }
     return null;
   }
+  // the click that trails a canvas press (pointerdown -> a window opened -> pointerup over it -> click on it) is dropped once
+  function swallowNextClick() {
+    const at = performance.now();
+    const h = e => { window.removeEventListener('click', h, true); if (e.target !== cv && performance.now() - at < 600) { e.stopPropagation(); e.preventDefault(); } };
+    window.addEventListener('click', h, true);
+    setTimeout(() => window.removeEventListener('click', h, true), 650);
+  }
+  St.swallowNextClick = swallowNextClick;
   function bindInput() {
     cv.addEventListener('pointerdown', e => {
       e.preventDefault();
@@ -934,6 +945,10 @@
       pointer.cx = e.clientX; pointer.cy = e.clientY;
       trailAt(p.x, p.y, 5);
       const what = doPress(p);
+      // 4.0 (uifix): a tap on the square opens a building's window on this pointerdown; the same tap's click then lands on
+      // whatever of that window stands under the finger (on a phone the Forge's full-width SIEGE button: the player was
+      // thrown out of the town). The one click that follows this press is swallowed unless it comes back to the canvas.
+      if (what === 'town') swallowNextClick();
       // 4.0: a shrine being charged keeps the pointer (a toast or a chip popping up under it must not end the hold)
       if (what === 'shrine' && FF.charge) { try { cv.setPointerCapture(e.pointerId); } catch (er) { /* fine */ } }
       // (holding repeats only once Steady Hand is bought, at its rate)
@@ -1836,7 +1851,9 @@
     });
     let blockT = 0;
     G.on('warded', who => { if (time - blockT < 0.35) return; blockT = time; const q = unitPos(who); text(q.x + rand(-6, 6), q.y - 26, G.t('blocked'), '#ffd84a', 3, { life: 0.6, max: 0.6, vy: -16 }); });
-    G.on('slotOpen', () => { cardText(0, G.t('slotOpen'), '#ffd84a', 6, { life: 3, vy: -2, big: true }); cardText(9, G.t('slotOpenSub'), '#ffffff', 3, { life: 3, vy: -2 }); if (G.Audio && G.Audio.levelUp) G.Audio.levelUp(); });
+    // (4.0, uifix: not inside a Siege - recruits come at the camp, and the lord's loot moment owns the field just then; ui.js
+    // guards its team card the same way)
+    G.on('slotOpen', () => { if (inSiege()) return; cardText(0, G.t('slotOpen'), '#ffd84a', 6, { life: 3, vy: -2, big: true }); cardText(9, G.t('slotOpenSub'), '#ffffff', 3, { life: 3, vy: -2 }); if (G.Audio && G.Audio.levelUp) G.Audio.levelUp(); });
     G.on('invasion', (r, V) => {
       St.flash(0.4, V.col); St.shake(4);
       cardText(0, V.name, V.col, 8, { life: 3, vy: -2, big: true });
@@ -3351,7 +3368,9 @@
     const tree = SPR.defs['tw_tree_' + { autumn: 'au', winter: 'w', spring: 'sp' }[season]] ? 'tw_tree_' + { autumn: 'au', winter: 'w', spring: 'sp' }[season] : 'tw_tree';
     TW.flowers.length = 0;
     for (let i = 0; i < 26; i++) { const fx = rnd() * W, fy = rnd() * H, dx = (fx - cx) / rx, dy = (fy - cy) / ry; if (dx * dx + dy * dy > 1.05 && season !== 'winter') { put('tw_flower', fx, fy); if (fy > townTop + 30) TW.flowers.push({ x: fx, y: fy }); } }
-    for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, tx = cx + Math.cos(a) * rx * k, ty = cy + Math.sin(a) * ry * k + 10; if (ty > 20) { put(tree, tx, ty); if (tx > 4 && tx < W - 4 && ty > townTop + 30 && ty < H + 6) TW.flowers.push({ x: tx, y: ty - 4 }); } } // (the trees' feet are the butterflies' haunts too: a narrow square has few flowers)
+    // (uifix: no tree in the Hall of the Fallen's band under the front row on a wide square: they stood over the statues)
+    const rw0 = townRows(), statueBand = !narrowTown() && H - rw0.r2 >= 26 ? rw0.r2 + 4 : H + 99;
+    for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, tx = cx + Math.cos(a) * rx * k, ty = cy + Math.sin(a) * ry * k + 10; if (ty > 20 && !(ty > statueBand && tx > W * 0.04 && tx < W * 0.96)) { put(tree, tx, ty); if (tx > 4 && tx < W - 4 && ty > townTop + 30 && ty < H + 6) TW.flowers.push({ x: tx, y: ty - 4 }); } } // (the trees' feet are the butterflies' haunts too: a narrow square has few flowers)
     return c;
   }
   // ---- the static part of the sorted list: buildings, props, the fountain, keepers, statues, plinths, pedestals, the banner ----
@@ -3388,7 +3407,9 @@
   // the slots the memorial statues take: the empty band under the front row (wide), else the walk under the back row
   function statueSlots(rw) {
     const cx = W / 2, out = [];
-    if (!narrowTown() && H - rw.r2 >= 26) { const n = 12, x0 = W * 0.06, x1 = W * 0.94; for (let i = 0; i < n; i++) out.push({ x: Math.round(x0 + (x1 - x0) * (i + 0.5) / n), y: H - 3 }); return out; }
+    // (uifix: the statue stands 17 px over its plinth's foot y and its plaque is drawn 20 px over it; the old y = H - 3 left
+    // the plinths' feet on the last 3 px of the canvas, cut: the band now sits a plinth's height inside the bottom edge)
+    if (!narrowTown() && H - rw.r2 >= 26) { const n = 12, x0 = W * 0.06, x1 = W * 0.94, y = Math.min(H - 8, Math.max(rw.r2 + 22, H - 14)); for (let i = 0; i < n; i++) out.push({ x: Math.round(x0 + (x1 - x0) * (i + 0.5) / n), y }); return out; }
     const y = rw.r1 + 28, n = narrowTown() ? 10 : 12, x0 = W * 0.04, x1 = W * 0.96;
     for (let i = 0; i < n; i++) { const x = Math.round(x0 + (x1 - x0) * (i + 0.5) / n); if (Math.abs(x - cx) < 44) continue; out.push({ x, y }); }
     return out;
@@ -4012,10 +4033,17 @@
     ctx.imageSmoothingEnabled = false;
     ctx.setTransform(kk, 0, 0, kk, 0, 0);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1.2; ctx.strokeStyle = '#0c0b12';
+    // (uifix: on a phone's square the names of the bottom row ran into each other, 'Quest boardHatchery': a label whose
+    // box overlaps one already placed steps up a line; the boxes are kept so the bubbles stay clear of them too)
+    const lboxes = TW.labelBoxes = [];
+    const lfree = (x, y, w, h) => !lboxes.some(r => x < r.x + r.w + 2 && x + w + 2 > r.x && y < r.y + r.h + 1 && y + h + 1 > r.y);
     for (const t of TOWN) {
       const q = townPlace(t), on = townHover === t, open = townOpen(t), lv = townLv(t), nm = G.t('town_' + t.id);
       ctx.font = crisp(on ? 4 : 3) + 'px ' + FONT;
-      const y = q.y0 - 5 - (t.id === 'portal' && TW.statics.some(z => z.k === 'banner') ? 9 : 0) + (on ? Math.sin(time * 6) : 0);
+      let y = q.y0 - 5 - (t.id === 'portal' && TW.statics.some(z => z.k === 'banner') ? 9 : 0) + (on ? Math.sin(time * 6) : 0);
+      const lw = measureW(nm) + 2, lh = crisp(on ? 4 : 3) + 1, lx = clamp(q.x - lw / 2, 1, W - lw - 1);
+      for (let k = 0; k < 3 && !lfree(lx, y - lh / 2, lw, lh); k++) y -= lh + 2;
+      lboxes.push({ x: lx, y: y - lh / 2, w: lw, h: lh });
       drawText2(nm, q.x, y, !open ? '#8a8494' : on ? '#ffe27a' : t.id === 'portal' ? '#7fe9ff' : lv >= G.BLD_MAX ? '#ffd84a' : '#ffffff');
       // what it wants from you: a red mark when there's something to do, a gold arrow when you can build it up
       const ping = open && G.UI && G.UI.bldPing && G.UI.bldPing(t.id), up = open && G.UI && G.UI.bldCanBuild && G.UI.bldCanBuild(t.id);
@@ -4030,7 +4058,16 @@
     if (hv && hv.k !== 'bubble') {
       let nm = '', x = hv.x, y = hv.y - 26;
       if (hv.k === 'hero') { const u = unitOf(hv.h.who); nm = u ? (G.CLASS_BY_ID[u.cls] || {}).name || u.cls : ''; if (hv.h.who < 0) nm += ' · ' + G.t('twWardenNow'); x = hv.h.x; y = hv.h.y - 28; }
-      else if (hv.k === 'statue') { const e = hv.e, B = G.BUTTON_BY_ID && G.BUTTON_BY_ID[e.btn], C = G.CLASS_BY_ID[e.cls]; nm = [(B ? B.name : e.btn), C ? C.name : e.cls, G.t('twHeat', e.heat | 0), e.land, e.win ? G.t('twFallenWon') : G.t('twFallenFell', e.cause || '?')].filter(Boolean).join(' · '); y = hv.y - 20; }
+      else if (hv.k === 'statue') {
+        // (uifix: two lines, each clamped to the canvas: the one line ran off both edges on a 1280 px square)
+        const e = hv.e, B = G.BUTTON_BY_ID && G.BUTTON_BY_ID[e.btn], C = G.CLASS_BY_ID[e.cls];
+        const l1 = [(B ? B.name : e.btn), C ? C.name : e.cls, G.t('twHeat', e.heat | 0)].filter(Boolean).join(' · '), l2 = [e.land, e.win ? G.t('twFallenWon') : G.t('twFallenFell', e.cause || '?')].filter(Boolean).join(' · ');
+        ctx.font = crisp(3) + 'px ' + FONT;
+        const w1 = measureW(l1), w2 = measureW(l2), lh = crisp(3) + 2, y2 = Math.max(lh / 2 + 2, hv.y - 22), y1 = y2 - lh;
+        ctx.fillStyle = 'rgba(12,11,18,0.75)'; const bw = Math.max(w1, w2) + 6, bx = clamp(hv.x - bw / 2, 1, W - bw - 1); ctx.fillRect(bx, y1 - lh / 2 - 1, bw, lh * 2 + 3);
+        drawText2(l1, clamp(hv.x, w1 / 2 + 2, W - w1 / 2 - 2), y1, '#ffe27a'); drawText2(l2, clamp(hv.x, w2 / 2 + 2, W - w2 / 2 - 2), y2, '#f4f0e4');
+        nm = '';
+      }
       else if (hv.k === 'pedestal') { nm = G.t('twButton', hv.b.name); y = hv.y - 27; }
       else if (hv.k === 'plinth') { nm = G.t('twKeepsake', hv.ks.name); y = hv.y - 30; }
       else if (hv.k === 'banner') { nm = G.t('twDeepLord', hv.R.lordName || hv.R.name); y = hv.q.y0 - 12; }
@@ -4047,7 +4084,9 @@
       if (b.who.k === 'hero') { const h = TW.heroes[b.who.i]; if (!h) continue; sx = h.x; sy = h.y - 24; }
       else { const it = TW.statics.find(z => z.k === 'npc' && z.t.id === b.who.id); if (!it) continue; sx = it.x; sy = it.y - 18; }
       const a = Math.min(1, b.t / 0.15, (b.T - b.t) / 0.3), w = measureW(b.text) + 4, h = crisp(3) + 4;
-      let bx = clamp(sx - w / 2, 2, W - w - 2); const by = Math.max(2, sy - 6 - h);
+      let bx = clamp(sx - w / 2, 2, W - w - 2); let by = Math.max(2, sy - 6 - h);
+      // (uifix: a bubble over a building's name steps up over it)
+      for (let k = 0; k < 2; k++) { const hit = (TW.labelBoxes || []).find(r => bx < r.x + r.w && bx + w > r.x && by < r.y + r.h + 7 && by + h + 6 > r.y); if (!hit) break; by = Math.max(2, hit.y - h - 7); }
       b.box = { x: bx, y: by, w, h: h + 6 };
       ctx.globalAlpha = a;
       ctx.fillStyle = '#0c0b12'; ctx.fillRect(bx - 1, by - 1, w + 2, h + 2);
@@ -4837,7 +4876,9 @@
   });
   function drawLootMoment(dt) {
     const L = FF.loot, on = runP() === 'loot';
-    FF.dim += ((on ? 0.42 : 0) - FF.dim) * Math.min(1, dt * (on ? 5 : 3));
+    // (uifix: while an ultra's pillar plays the dim lifts, so the spectacle is seen through it, not a faint stripe)
+    const lift = on && FF.pillars.some(p => p.t < 1.5);
+    FF.dim += ((on ? (lift ? 0.12 : 0.42) : 0) - FF.dim) * Math.min(1, dt * (on ? 5 : 3));
     if (FF.dim > 0.01) { lctx.globalAlpha = FF.dim; lctx.fillStyle = '#06040c'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; }
     if (!L) return;
     L.t += dt;

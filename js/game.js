@@ -73,7 +73,11 @@
     // H7 54%, H8 46%, H9 43% (top Heat >= 9, over DESIGN §14's 5-7); 1.22 / 1.14 H6 44%, H7 30%, H8 18% (top 6; first win
     // at H6 by seed 3/2/1/4/3/-/1/1); 1.24 / 1.15 H7 18%. Measured: bots, active, full meta, 8 seeds x 90 min, 31-34 runs
     // a cell (tests/meta/bal out/h5, h6). Neither half alone. The Daily (Heat 2) is x1.49 health / x1.30 bites
-    heatHp: 1.22, heatBite: 1.14,
+    // 4.0 (bots): 1.22 / 1.14 -> 1.36 / 1.19. The real full-meta persona (the Glass Button, two keepsakes, cards by school,
+    // charged shrines, pacts; tools/bot.js) won 100% at Heat 5, 82% at 6, 68% at 7 and 77% at 8 on 1.22 / 1.14 (tests/bots/
+    // out/g1); on 1.36 / 1.19 with hero.js mobGrowth 1.64: H6 74%, H7 29%, H8 24% (6 seeds x 90 min, out/t2) - the top
+    // Heat with 35%+ wins is 6, DESIGN §14's 5-7. Heat 0 is untouched (x1). notes/gates.md
+    heatHp: 1.36, heatBite: 1.19,
     // 4.0: the Barracks pays this share of the best run's Embers an hour away
     barracksRate: 0.03,
     // 4.0: Auto-invest (DESIGN §5.5): every autoEvery s of field time, the run's gold into the Hand upgrades and the

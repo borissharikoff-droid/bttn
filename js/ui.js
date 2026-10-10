@@ -619,8 +619,11 @@
       else if (boss) k = 'wipeWhy_boss';
       // (when the run is over the tip goes in its card instead: one place, not a toast behind it)
       UI._wipeTip = { k, at: performance.now() };
-      // (and in the tutorial the coach does the teaching)
-      if (!(G.S.tut >= 0)) setTimeout(() => { if (performance.now() - (UI._runOverAt || -1e9) > 4000) UI.toast(`<span><b>${esc(t('wipeWhy'))}</b> ${esc(t(k))}</span>`, '', 'ic_skull', { k: 'wipe' }); }, 1800);
+      // (and in the tutorial the coach does the teaching; 4.0 uifix: the same tip once a land, not after every wipe of a
+      // player learning land 1 - the pips on the HUD and the coach already say what happened)
+      const r = S.run, wk = (r && r.on ? r.n + ':' + Math.floor((from | 0) / (G.REALM_SIZE || 3)) : 'x') + ':' + k;
+      if (UI._wipeSaid === wk) return;
+      if (!(G.S.tut >= 0)) setTimeout(() => { if (performance.now() - (UI._runOverAt || -1e9) > 4000) { UI._wipeSaid = wk; UI.toast(`<span><b>${esc(t('wipeWhy'))}</b> ${esc(t(k))}</span>`, '', 'ic_skull', { k: 'wipe' }); } }, 1800);
     });
     G.on('pull', res => showPull(res));
     G.on('buy', (kind) => { if ((kind === 'hero' && curTab() === 'heroes') || (kind === 'upg' && curTab() === 'upg') || (kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'hall')) UI.update(true); if ((kind === 'node' && curTab() === 'stars') || (kind === 'legacy' && curTab() === 'hall')) UI.render(); });
@@ -3309,10 +3312,23 @@
     perkAuto: q => `<span>${esc(t('perkAutoDone'))} ×${q.n}</span>`,
   };
   const liveToasts = box => Array.prototype.filter.call(box.children, e => !e.classList.contains('out'));
+  // 4.0 (uifix): news that can wait (an achievement, an unlock, a journey step, a building opening) waits while a run screen
+  // (the loot moment, a card, camp...) is over the field, and in the first minutes of a Siege, when the field needs the
+  // player's eyes: a new player was getting 11-14 interruptions a minute. The summary lists the unlocks anyway; what is
+  // held keeps its place in the line (its clock is reset while held, see pumpToasts) and shows once the field is quiet.
+  const SOFT_K = { ach: 1, unl: 1, journey: 1, unlock: 1, quest: 1, new: 1, star: 1 };
+  function toastSoftHeld(q) {
+    if (q.p >= 2 || !SOFT_K[q.k]) return false;
+    const r = G.S && G.S.run;
+    if (r && r.on && G.runHeld && G.runHeld()) return true; // a run screen or a card holds the field
+    if (r && r.on && (r.n | 0) <= 3 && (r.field || 0) < 150 && r.phase === 'field' && !G.R.town) return true; // the first minutes of an early Siege
+    return false;
+  }
   function toastHeld(q) {
     if (q.p >= 2) return false;
     if (toastBlock) return true;
     if (G.uiBusy && G.uiBusy()) return true;
+    if (toastSoftHeld(q)) return true;
     if (q.p <= 0 && dirQuiet()) return true;
     // (a phone's field has room for one card at the top: a champion's waits nobody)
     if (narrowUI()) {
@@ -3326,7 +3342,7 @@
     clearTimeout(toastTm); toastTm = 0;
     const box = $('#toasts'); if (!box) return;
     const now = performance.now();
-    for (let i = toastQ.length - 1; i >= 0; i--) { const q = toastQ[i]; if (q.p < 2 && now - q.t0 > (q.p <= 0 ? 25000 : 45000)) toastQ.splice(i, 1); }
+    for (let i = toastQ.length - 1; i >= 0; i--) { const q = toastQ[i]; if (toastSoftHeld(q)) { q.t0 = now; continue; } if (q.p < 2 && now - q.t0 > (q.p <= 0 ? 25000 : 45000)) toastQ.splice(i, 1); }
     if (!toastQ.length) return;
     const live = liveToasts(box), cap = narrowUI() || G.R.boss || dirQuiet() ? 1 : 2;
     let best = -1;
