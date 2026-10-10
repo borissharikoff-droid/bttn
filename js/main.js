@@ -79,7 +79,7 @@
     if (cov) {
       // under a window: the field at a low rate (a full cover: not at all), with the time it missed
       coverDt += dt;
-      if (cov === 1 && coverDt >= 0.12) { const d = Math.min(coverDt, 0.25); coverDt = 0; G.Stage.frame(d); if (G.Stage.runFrameFns) G.Stage.runFrameFns(d, now); }
+      if (cov === 1 && coverDt >= 0.034) { const d = Math.min(coverDt, 0.25); coverDt = 0; G.Stage.frame(d); if (G.Stage.runFrameFns) G.Stage.runFrameFns(d, now); }
       else drew = false;
     } else {
       if (coverDt > 0) { coverDt = 0; }
