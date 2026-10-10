@@ -22,8 +22,8 @@
     parZone: 45, parCamp: 20, reaperAfter: 120, reaperPer: 0.1,
     // Integrity: pips at the start (Heat 10 and the Golden Button: 2), at most pipCap with the Hall's Second Wind
     pips: 3, pipCap: 4,
-    // DESIGN §14 lever 3: a LOST lord / act / Mad Button fight (not a wipe) cracks a pip only from this Heat up (0: at every
-    // Heat, the design's default; 1: Heat 0 forgives the fight - the summary still names it; the bots' --tune lever)
+    // DESIGN §14 lever 3: a LOST lord / act / Mad Button fight (fled, or the wipe inside it) cracks a pip only from this Heat
+    // up (0: at every Heat, the design's default; 1: Heat 0 forgives the fight - the summary still names it; the bots' --tune lever)
     lordPipHeat: 0,
     // the boss relic item drop (relic.js, 1/600 bosses, 1/200 lords) is off inside a Siege: relics come as belt choices
     // (a flag for relic.js, which is not this module's: skip the roll when G.inSiege() && !TUNE.siegeRelicItems)
@@ -463,8 +463,11 @@
     r.cause = causeOf(why, bd != null);
     r.causeAt = { d, why, boss: bd != null ? G.bossName(bd) : null, kind: bd != null ? G.bossKind(bd) : null, bd };
     if (d < SIZE()) { emit('pip', 0, r.pips, why, 'muster'); return 'muster'; }
-    // (lever 3: below TUNE.lordPipHeat a lost lord fight is forgiven - 'spared'; the cause is still recorded above)
-    if (why === 'lord' && (r.heat | 0) < (TUNE.lordPipHeat | 0)) { emit('pip', 0, r.pips, why, 'spared'); return 'spared'; }
+    // (lever 3: below TUNE.lordPipHeat a LOST LORD FIGHT is forgiven - 'spared'; the cause is still recorded above. A lord
+    // fight is lost by a wipe nearly always (the party dies to the lord: hero.js wipe() -> fleeBoss under R.wiping, the wipe's
+    // pip), so the lever reads the wipe inside a lord / act / Mad Button fight too; a wipe on the field or at a minion boss
+    // keeps its pip)
+    if ((why === 'lord' || (why === 'wipe' && bd != null && G.isLord(bd))) && (r.heat | 0) < (TUNE.lordPipHeat | 0)) { emit('pip', 0, r.pips, why, 'spared'); return 'spared'; }
     if ((r.pips | 0) > 0) {
       r.pips--;
       emit('pip', -1, r.pips, why, r.pips === 0 ? 'last' : 'lost');
