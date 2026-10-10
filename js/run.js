@@ -2093,7 +2093,7 @@
     if (TUNE.lsCull && R.mobs.length > TUNE.mobMax) cullCrowd(TUNE.mobMax);
   }
   // the farthest small fry over `cap` leave the field (not boss adds, invaders, goblins, the gilded, the named):
-  // 'crowdCull'(n, cap) once, 'mobFlee'(m) each. Returns how many left
+  // 'crowdCull'(n, cap) once, then 'mobFlee'(m) for each. Returns how many left
   function cullCrowd(cap) {
     const ms = R.mobs, over = ms.length - cap;
     if (over <= 0) return 0;
@@ -2104,8 +2104,9 @@
     const out = new Set(small.slice(0, over));
     // (in place: R.mobs keeps its identity, as hero.js's own sweeps keep it)
     let w = 0; for (let i = 0; i < ms.length; i++) if (!out.has(ms[i])) ms[w++] = ms[i]; ms.length = w;
-    for (const m of out) { m.dead = true; m.gone = true; if (R.focus === m.id) R.focus = null; emit('mobFlee', m); }
+    // ('crowdCull' first, so the stage can take the 'mobFlee's that follow as one parting of the Horde, not n bursts)
     emit('crowdCull', out.size, cap);
+    for (const m of out) { m.dead = true; m.gone = true; if (R.focus === m.id) R.focus = null; emit('mobFlee', m); }
     return out.size;
   }
   G.cullCrowd = cullCrowd;
@@ -2123,6 +2124,8 @@
     R.lastStand = { t: T, T, acc: 0, retry: r.lsDone ? 1 : 0, cap: G.lastStandCap(), every: TUNE.lsEvery, packs: 0 };
     R.bossReady = false; R.bossIn = null;
     r.lsN = (r.lsN | 0) + 1;
+    // (the tier's cap from its first moment, the field culled to it with it: not a tick later)
+    finaleCrowd();
     if (G.director) G.director.mark('finale', T);
     emit('lastStand', R.lastStand);
     return R.lastStand;

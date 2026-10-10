@@ -906,7 +906,7 @@
   }
   function doPress(p) {
     G.Audio && G.Audio.unlock();
-    if (G.R.town) { const t = hitTown(p); if (t) { if (G.Audio && G.Audio.buy) G.Audio.buy(); if (t.id === 'portal') G.leaveTown(); else G.UI.townOpen(t.id); return 'town'; } return null; }
+    if (G.R.town) return townPress(p); // 4.0: bubbles, the party, statues, pedestals, plinths, the banner, then the buildings
     if (hitWisp(p)) { G.catchWisp(); return 'wisp'; }
     if (hitWeak(p)) { G.tapBoss(); return 'weak'; }
     if (hitReady(p)) { G.startBoss(); return 'boss'; }
@@ -967,7 +967,7 @@
       if (time - FF.trailT > 0.03) { FF.trailT = time; trailAt(p.x, p.y, 1); }
       hoverChest = hitChest(p);
       hoverLoot = hitLoot(p);
-      if (G.R.town) { townHover = hitTown(p); cv.style.cursor = townHover ? 'pointer' : 'default'; return; }
+      if (G.R.town) { cv.style.cursor = townHoverAt(p) ? 'pointer' : 'default'; return; }
       cv.style.cursor = (hoverLoot || hitShrine(p) || hoverChest || hitMob(p) || hitButton(p) || hitWisp(p) || hitReady(p)) ? 'pointer' : 'default';
     });
     cv.addEventListener('contextmenu', e => e.preventDefault());
@@ -3199,37 +3199,83 @@
   let breachKills = 0;
 
   // ---------- Frame ----------
-  // ---------- The Town (2.4) ----------
-  // A square of cobbles round a well; each building opens its own window (see UI.townOpen). The field
-  // holds still meanwhile. Places are fractions of the view: bottom-centre of each building's sprite.
-  // 3.0: eleven buildings and the portal. A wide view has two rows; a narrow one (phones) three.
-  // w/n: [x as a fraction of the view, row] for the wide and the narrow layout.
+  // ---------- The Town (2.4; 4.0 "The Siege": the square alive) ----------
+  // A square of cobbles round a fountain; each building opens its own window (see UI.townOpen). The field
+  // holds still meanwhile. 3.0: eleven buildings and the portal; a wide view has two rows, a narrow one
+  // (phones) three. w/n: [x as a fraction of the view, row] for the wide and the narrow layout.
+  // 4.0 (ADDENDUM 5, DESIGN §4.5, maps/town.md): everything in the square is ONE y-sorted list (buildings,
+  // props, statues, pedestals, keepers, the party as its geared paper dolls, townsfolk, critters), the day has a
+  // clock (dawn/day/dusk/night from the local hour; Settings townClock 0 holds it at day), the keepers work, the
+  // folk talk in bubbles, and the meta shows in the square: the Hall of the Fallen (S.fallen12), the Museum's
+  // keepsakes, the unlocked Buttons on pedestals, the deepest lord's banner over the gate. Perf: the ground is one
+  // ImageData, overlays and glow masks are cached per phase+size, every emitter is rate*dt, the townsfolk persist
+  // across visits (no clump at the centre), and the whole scene stays under ~2.5 ms a frame.
   const TOWN = [
-    { id: 'barracks', spr: 'tw_barracks', w: [0.08, 0], n: [0.13, 1] },
+    { id: 'barracks', spr: 'tw_barracks', npc: 'npc_sarge', w: [0.08, 0], n: [0.13, 1] },
     { id: 'forge', spr: 'tw_forge', npc: 'npc_smith', w: [0.22, 0], n: [0.2, 0] },
     { id: 'enchant', spr: 'tw_tower', npc: 'npc_witch', w: [0.36, 0], n: [0.33, 1] },
     { id: 'portal', spr: 'tw_portal', w: [0.5, 0], n: [0.5, 0] },
     { id: 'stars', spr: 'tw_obs', npc: 'npc_sage', w: [0.64, 0], n: [0.67, 1] },
     { id: 'alch', spr: 'tw_alch', npc: 'npc_alch', w: [0.78, 0], n: [0.8, 0] },
-    { id: 'temple', spr: 'tw_temple', w: [0.92, 0], n: [0.87, 1] },
-    { id: 'museum', spr: 'tw_museum', w: [0.11, 1], n: [0.1, 2] },
+    { id: 'temple', spr: 'tw_temple', npc: 'npc_priest', w: [0.92, 0], n: [0.87, 1] },
+    { id: 'museum', spr: 'tw_museum', npc: 'npc_curator', w: [0.11, 1], n: [0.1, 2] },
     { id: 'tavern', spr: 'tw_tavern', npc: 'npc_keeper', w: [0.29, 1], n: [0.3, 2] },
-    { id: 'quests', spr: 'tw_board', w: [0.5, 1], n: [0.5, 2] },
-    { id: 'pets', spr: 'tw_nest', w: [0.71, 1], n: [0.7, 2] },
-    { id: 'rift', spr: 'tw_rift', w: [0.89, 1], n: [0.9, 2] },
+    { id: 'quests', spr: 'tw_board', npc: 'npc_crier', w: [0.5, 1], n: [0.5, 2] },
+    { id: 'pets', spr: 'tw_nest', npc: 'npc_nester', w: [0.71, 1], n: [0.7, 2] },
+    { id: 'rift', spr: 'tw_rift', npc: 'npc_riftwarden', w: [0.89, 1], n: [0.9, 2] },
   ];
   St.TOWN = TOWN;
-  G.on('town', on => { parts.length = 0; texts.length = 0; villagers.length = 0; critters.length = 0; townHover = null; hudRead = false; St.flash(0.6, '#0c0b12'); if (!on) { groundKey = ''; } });
-  G.on('build', id => { const t = TOWN.find(x => x.id === id); if (!t || !G.R.town) return; const q = townPlace(t); burst(q.x, q.y0 + q.h / 2, ['#ffd84a', '#ffffff', '#ffe27a'], 40, 90); ring(q.x, q.y - 4, 30, 14, '#ffd84a', 0.6); St.flash(0.15, '#ffe27a'); });
-  let townGround = null, townKey = '', townHover = null, townVig = null, townVigK = '';
+  G.tAdd({
+    twBubGear: '{0} upgrades for me!', twBubGear1: 'An upgrade for me!', twBubQuest: 'Reward to claim!', twBubEggs: 'Eggs are warm!', twBubBuild: 'We could build up!', twBubLook: 'Look at this!',
+    twBubCodex: 'A new entry for the Codex!', twFallenWon: 'won', twFallenFell: 'fell: {0}', twHeat: 'Heat {0}', twDeepLord: 'Deepest lord slain: {0}', twNoLord: 'No lord slain yet',
+    twKeepsake: 'Keepsake: {0}', twButton: 'Button: {0}', twHallTap: 'Hall of the Fallen', twWardenNow: 'the Warden',
+    twTalk_knight_1: 'Shield up, always.', twTalk_knight_2: 'Button holds. So do I.', twTalk_knight_3: 'One more Siege.', twTalk_knight_4: 'Who sharpened these?',
+    twTalk_knight_5: 'I miss the Shoreline.', twTalk_knight_6: 'Formation, people.', twTalk_knight_7: 'A plume is not vanity.', twTalk_knight_8: 'Stand fast.',
+    twTalk_archer_1: "Wind's from the east.", twTalk_archer_2: 'Three shots, three kills', twTalk_archer_3: 'I never miss. Mostly.', twTalk_archer_4: 'Quiet feet, loud bow.',
+    twTalk_archer_5: 'Eyes on the treeline.', twTalk_archer_6: 'Fletching day.', twTalk_archer_7: 'Tavern first, then work.', twTalk_archer_8: 'Did you see that shot?',
+    twTalk_wizard_1: 'Mana tastes like mint.', twTalk_wizard_2: 'Read the Codex. Twice.', twTalk_wizard_3: 'My hat is NOT crooked.', twTalk_wizard_4: 'Thunder is loud fire.',
+    twTalk_wizard_5: 'Stars tonight, maybe.', twTalk_wizard_6: 'A tome a day...', twTalk_wizard_7: 'Who moved my orb?', twTalk_wizard_8: 'Theory first, then fire.',
+    twTalk_cleric_1: 'Be well, friends.', twTalk_cleric_2: 'Light keeps the dark out', twTalk_cleric_3: 'Mend, then march.', twTalk_cleric_4: 'A prayer for the Fallen.',
+    twTalk_cleric_5: 'Potions are not snacks.', twTalk_cleric_6: 'The bell rings true.', twTalk_cleric_7: 'Faith and a good shield.', twTalk_cleric_8: 'Rest. Then rise.',
+    twTalk_rogue_1: 'Nobody saw me. Good.', twTalk_rogue_2: 'Shiny. Mine.', twTalk_rogue_3: 'Shadows beat armour.', twTalk_rogue_4: 'Daggers, not debates.',
+    twTalk_rogue_5: 'I know a shortcut.', twTalk_rogue_6: 'Watch your pouch.', twTalk_rogue_7: 'Sharp enough. Barely.', twTalk_rogue_8: 'Night work pays best.',
+    twTalk_npc_smith_1: 'Hot iron, cold beer.', twTalk_npc_smith_2: 'Bring me shards!', twTalk_npc_smith_3: 'Hear that ring? Steel.', twTalk_npc_smith_4: "Hammer's warm already.",
+    twTalk_npc_witch_1: 'Ruin? Never. Mostly.', twTalk_npc_witch_2: 'Enchant everything!', twTalk_npc_witch_3: 'The orb hums today.', twTalk_npc_witch_4: 'Hex? Who said hex?',
+    twTalk_npc_alch_1: 'Bubbling nicely.', twTalk_npc_alch_2: "Don't drink the green.", twTalk_npc_alch_3: 'Potions for the road?', twTalk_npc_alch_4: 'Mind the fumes.',
+    twTalk_npc_keeper_1: 'Mugs up!', twTalk_npc_keeper_2: 'Rooms for the brave.', twTalk_npc_keeper_3: 'Companions welcome.', twTalk_npc_keeper_4: "Last run's tales? Inside",
+    twTalk_npc_sage_1: 'The stars shift.', twTalk_npc_sage_2: 'Observe. Then act.', twTalk_npc_sage_3: 'A new node glows.', twTalk_npc_sage_4: 'Clear skies tonight.',
+    twTalk_npc_sarge_1: 'Drill at dawn!', twTalk_npc_sarge_2: 'Embers while you sleep.', twTalk_npc_sarge_3: 'Best Barracks in town.', twTalk_npc_sarge_4: 'Stand straight, recruit.',
+    twTalk_npc_curator_1: 'Mind the plinths.', twTalk_npc_curator_2: 'Every unique has a tale.', twTalk_npc_curator_3: 'Rank it up again!', twTalk_npc_curator_4: 'Keepsakes, this way.',
+    twTalk_npc_crier_1: 'Deeds! Fresh deeds!', twTalk_npc_crier_2: 'Hear ye! A reward!', twTalk_npc_crier_3: 'Daily deed pays double!', twTalk_npc_crier_4: 'Read the board!',
+    twTalk_npc_nester_1: 'Shh, the eggs sleep.', twTalk_npc_nester_2: 'Warm straw, warm hearts.', twTalk_npc_nester_3: 'One hatched last night!', twTalk_npc_nester_4: 'Golden egg? Dreams.',
+    twTalk_npc_priest_1: 'We remember the Fallen.', twTalk_npc_priest_2: 'Fame is a ladder.', twTalk_npc_priest_3: 'Heat tempers the soul.', twTalk_npc_priest_4: 'The bell calls.',
+    twTalk_npc_riftwarden_1: 'The Rift stirs.', twTalk_npc_riftwarden_2: 'Daily Siege awaits.', twTalk_npc_riftwarden_3: 'Push on, if you dare.', twTalk_npc_riftwarden_4: 'Something watches back.',
+  });
+  // the square's live state (St.town for the tests): the party's dolls, the folk, critters, birds, bubbles, timers
+  const TW = { heroes: [], folk: [], critters: [], birds: [], patrons: [], mates: [], bubbles: [], bubAt: -99, bubBy: {}, stateAt: -99, pick: 0,
+    acc: {}, build: {}, flock: 0, flockAt: 0, smithF: -1, anvilAt: 0, hover: null, force: null, key: '', folkKey: '', items: [], statics: [], warm: 0, hudBoxes: null };
+  St.town = TW;
+  G.on('town', on => {
+    parts.length = 0; texts.length = 0; townHover = null; TW.hover = null; TW.bubbles.length = 0; TW.bubAt = time - 2; hudRead = false; St.flash(0.6, '#0c0b12');
+    if (on) { TW.heroes.length = 0; TW.warm = 1; TW.key = ''; } else { groundKey = ''; }
+  });
+  // build-up juice: a gold burst, a ring, a scaffolding flash over the building, the keeper's word, a cheer
+  G.on('build', id => { const t = TOWN.find(x => x.id === id); if (!t || !G.R.town) return; const q = townPlace(t); TW.key = ''; TW.build[id] = 0.8; burst(q.x, q.y0 + q.h / 2, ['#ffd84a', '#ffffff', '#ffe27a'], 40, 90); ring(q.x, q.y - 4, 30, 14, '#ffd84a', 0.6); St.flash(0.15, '#ffe27a'); if (t.npc) bubble({ k: 'npc', id: t.id }, G.t('twBubLook'), null, true); for (const h of TW.heroes) { h.st = 'cheer'; h.t = 0.7; h.face = q.x >= h.x ? 1 : -1; } });
+  for (const ev of ['equip', 'equipBest', 'recruit']) G.on(ev, () => { if (G.R.town) for (const h of TW.heroes) if (h.st === 'idle' || h.st === 'visit') { h.st = 'cheer'; h.t = 0.6; } });
+  // the deepest lord slain (DESIGN §4.5: its banner over the gate), kept in the save's records
+  G.on('bossWin', (rew, b) => { try { if (!b || !b.lord || !G.runLand) return; const S0 = G.S; S0.rec = S0.rec || {}; const land = G.runLand(b.d); if (!land) return; if (!S0.rec.deepLord || b.d > S0.rec.deepLord.d) S0.rec.deepLord = { land: land.id, d: b.d }; } catch (e) { /* no record */ } });
+  let townGround = null, townKey = '', townHover = null;
   const sprOr = id => (SPR.defs[id] ? SPR.get(id) : null);
   const narrowTown = () => W < 400;
   // a building still to open stands as scaffolding; one built up three times or more takes its grander look
   const townOpen = t => t.id === 'portal' || !G.bldOpen || G.bldOpen(t.id);
   const townLv = t => (G.bldLvl ? G.bldLvl(t.id) : 0);
-  function townSpr(t) {
+  function townSpr(t, fr) {
     if (!townOpen(t) && SPR.defs.tw_build) return 'tw_build';
-    if (townLv(t) >= 3 && SPR.defs[t.spr + '_2']) return t.spr + '_2';
+    const grand = townLv(t) >= 3;
+    if (fr && t.id === 'rift') return grand && SPR.defs.tw_rift_2b ? 'tw_rift_2b' : SPR.defs.tw_rift2 ? 'tw_rift2' : null;
+    if (fr && t.id === 'portal' && SPR.defs.tw_portal2) return 'tw_portal2';
+    if (grand && SPR.defs[t.spr + '_2']) return t.spr + '_2';
     return SPR.defs[t.spr] ? t.spr : null;
   }
   // the town is laid out below the top HUD: the back row stands its tallest building's height under it
@@ -3249,80 +3295,309 @@
     const at = narrowTown() ? t.n : t.w, y = rw.rows[at[1]], x = Math.round(W * at[0]);
     return { x, y, w, h, c, x0: x - w / 2, y0: y - h };
   }
+  // ---- the clock and the calendar (local time; Settings townClock 0 = always day; St.town.force for the tests) ----
+  function townPhase() {
+    if (TW.force && TW.force.phase) return TW.force.phase;
+    if (G.S && G.S.set && G.S.set.townClock === 0) return 'day';
+    const h = new Date().getHours();
+    return h < 5 ? 'night' : h < 8 ? 'dawn' : h < 17 ? 'day' : h < 20 ? 'dusk' : 'night';
+  }
+  function townSeason() {
+    if (TW.force && TW.force.season) return TW.force.season;
+    const d = new Date(), m = d.getMonth();
+    return m <= 1 || m === 11 ? 'winter' : m <= 4 ? 'spring' : m <= 7 ? 'summer' : 'autumn';
+  }
+  St.townPhase = townPhase; St.townSeason = townSeason;
+  const isNight = p => p === 'night', isDark = p => p === 'night' || p === 'dusk';
+  // a rate*dt emitter: how many to spawn this frame (never a burst after a hitch)
+  function every(k, rate, dt) { const a = TW.acc; a[k] = (a[k] || 0) + rate * dt; let n = 0; while (a[k] >= 1 && n < 6) { a[k] -= 1; n++; } if (a[k] > 6) a[k] = 0; return n; }
+  // ---- the ground: grass, cobbles and the road as one ImageData, flowers and trees baked on it (4.0: was 51-99 ms of 1x1 fillRects) ----
+  const u32 = col => { const [r, g, b] = G.hexToRgb(col); return ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0; };
   function buildTownGround() {
-    const c = SPR.makeCanvas(W, H), x = c.getContext('2d'), rnd = G.seeded(4242);
-    // grass round the edge, cobbles in the square
-    x.fillStyle = '#3e6b34'; x.fillRect(0, 0, W, H);
-    for (let i = 0; i < W * H / 14; i++) { x.fillStyle = rnd() < 0.5 ? '#4b7d3e' : '#355d2d'; x.fillRect(Math.floor(rnd() * W), Math.floor(rnd() * H), 1, 1); }
+    const c = SPR.makeCanvas(W, H), x = c.getContext('2d'), rnd = G.seeded(4242), season = townSeason();
+    const img = x.createImageData(W, H), px = new Uint32Array(img.data.buffer);
+    const grass = season === 'winter' ? ['#dfe8f0', '#eef3f8', '#c9d6e2'] : season === 'autumn' ? ['#5a7a34', '#6a8a3e', '#4b6a2d'] : ['#3e6b34', '#4b7d3e', '#355d2d'];
+    const g0 = u32(grass[0]), g1 = u32(grass[1]), g2 = u32(grass[2]);
+    px.fill(g0);
+    for (let i = 0; i < W * H / 14; i++) px[Math.floor(rnd() * H) * W + Math.floor(rnd() * W)] = rnd() < 0.5 ? g1 : g2;
     const rw = townRows(), cx = W / 2, cy = rw.mid + 6, rx = W * (narrowTown() ? 0.46 : 0.37), ry = Math.max(H * 0.3, (rw.r2 - rw.r1) * 0.75 + 24);
-    for (let yy = 0; yy < H; yy++) for (let xx = 0; xx < W; xx++) {
-      const dx = (xx - cx) / rx, dy = (yy - cy) / ry, d = dx * dx + dy * dy;
-      if (d > 1 + (rnd() - 0.5) * 0.06) continue;
-      // stones: a 6x4 brick grid, each stone its own shade, dark seams between
-      const row = Math.floor(yy / 4), off = row % 2 ? 3 : 0, col = Math.floor((xx + off) / 6);
-      const seam = yy % 4 === 3 || (xx + off) % 6 === 5;
-      const v = ((col * 73856093) ^ (row * 19349663)) & 7;
-      x.fillStyle = seam ? '#4a4540' : ['#8a837a', '#7f786f', '#958d83', '#867f75', '#7a736a', '#8f877d', '#827b72', '#9a9288'][v];
-      x.fillRect(xx, yy, 1, 1);
+    const stones = ['#8a837a', '#7f786f', '#958d83', '#867f75', '#7a736a', '#8f877d', '#827b72', '#9a9288'].map(u32), seamC = u32('#4a4540');
+    for (let yy = 0; yy < H; yy++) {
+      const dy = (yy - cy) / ry, row = Math.floor(yy / 4), off = row % 2 ? 3 : 0, seamY = yy % 4 === 3, base = yy * W;
+      for (let xx = 0; xx < W; xx++) {
+        const dx = (xx - cx) / rx, d = dx * dx + dy * dy;
+        if (d > 1 + (rnd() - 0.5) * 0.06) continue;
+        // stones: a 6x4 brick grid, each stone its own shade, dark seams between
+        const col = Math.floor((xx + off) / 6), seam = seamY || (xx + off) % 6 === 5;
+        px[base + xx] = seam ? seamC : stones[((col * 73856093) ^ (row * 19349663)) & 7];
+      }
     }
+    x.putImageData(img, 0, 0);
     // the road to the portal
     x.fillStyle = 'rgba(60,50,40,0.18)'; x.fillRect(Math.round(cx - 10), Math.round(H * 0.4), 20, Math.round(H * 0.2));
-    // scatter: flowers on the grass, lamps, barrels and crates by the walls
-    const put = (id, px, py) => { const s = sprOr(id); if (s) x.drawImage(s, Math.round(px - s.width / 2), Math.round(py - s.height)); };
-    for (let i = 0; i < 26; i++) { const px = rnd() * W, py = rnd() * H, dx = (px - cx) / rx, dy = (py - cy) / ry; if (dx * dx + dy * dy > 1.05) put('tw_flower', px, py); }
-    // a ring of trees round the square, thicker at the back
-    for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, px = cx + Math.cos(a) * rx * k, py = cy + Math.sin(a) * ry * k + 10; if (py > 20) put('tw_tree', px, py); }
-    const wy = rw.wellY;
-    put('tw_lamp', cx - 34, wy + 2); put('tw_lamp', cx + 34, wy + 2);
-    put('tw_barrel', W * 0.4, rw.r2 + 3); put('tw_crate', W * 0.2, wy + 6); put('tw_barrel', W * 0.8, wy + 6); put('tw_crate', W * 0.6, rw.r2 + 3);
-    put('tw_banner', W * 0.43, rw.r1 + 2); put('tw_banner', W * 0.57, rw.r1 + 2);
-    // market stalls and benches round the fountain
-    if (!narrowTown()) { put('tw_stall', cx - 62, wy + 8); put('tw_stall2', cx + 62, wy + 8); }
-    put('tw_bench', cx - 22, wy + 18); put('tw_bench', cx + 22, wy + 18);
+    // scatter: flowers on the grass (none under snow), a ring of trees round the square in the season's colours
+    const put = (id, px_, py) => { const s = sprOr(id); if (s) x.drawImage(s, Math.round(px_ - s.width / 2), Math.round(py - s.height)); };
+    const tree = SPR.defs['tw_tree_' + { autumn: 'au', winter: 'w', spring: 'sp' }[season]] ? 'tw_tree_' + { autumn: 'au', winter: 'w', spring: 'sp' }[season] : 'tw_tree';
+    for (let i = 0; i < 26; i++) { const fx = rnd() * W, fy = rnd() * H, dx = (fx - cx) / rx, dy = (fy - cy) / ry; if (dx * dx + dy * dy > 1.05 && season !== 'winter') put('tw_flower', fx, fy); }
+    for (let i = 0; i < 46; i++) { const a = rnd() * Math.PI * 2, k = 1.08 + rnd() * 0.5, tx = cx + Math.cos(a) * rx * k, ty = cy + Math.sin(a) * ry * k + 10; if (ty > 20) put(tree, tx, ty); }
     return c;
   }
-  const villagers = [], critters = [];
-  // townsfolk: more of them the more the town is built up
-  function stepVillagers(dt, cx, cy) {
-    const ids = ['npc_sage', 'npc_keeper', 'npc_alch', 'npc_smith', 'npc_witch'], want = Math.min(16, 5 + Math.floor((G.townLvl ? G.townLvl() : 0) / 3));
-    while (villagers.length < want) villagers.push({ x: cx + rand(-60, 60), y: cy + rand(-20, 30), tx: cx, ty: cy, id: pick(ids), w: rand(0, 3) });
-    for (const v of villagers) {
-      if (v.w > 0) v.w -= dt;
-      else {
-        const dx = v.tx - v.x, dy = v.ty - v.y, d = Math.hypot(dx, dy);
-        if (d < 1) { v.w = rand(1, 4); const t = pick(TOWN), q = townPlace(t); v.tx = q.x + rand(-14, 14); v.ty = q.y + rand(2, 10); }
-        else { const sp = 12 * dt / d; v.x += dx * Math.min(1, sp); v.y += dy * Math.min(1, sp); v.face = dx >= 0 ? 1 : -1; }
+  // ---- the static part of the sorted list: buildings, props, the fountain, keepers, statues, plinths, pedestals, the banner ----
+  // (rebuilt only when the layout, the levels or the meta behind them change: TW.key)
+  function fallenList() { const f = G.S && Array.isArray(G.S.fallen12) ? G.S.fallen12 : []; return f.slice(-12); }
+  function buttonsOpen() { if (!G.BUTTONS) return []; return G.BUTTONS.filter(b => (G.btnOpen ? G.btnOpen(b.id) : b.id === 'classic')); }
+  function keepsakeList() { try { const all = G.keepsakes ? G.keepsakes() : []; const kept = all.filter(k => k.kept); return (kept.length ? kept : all).slice(0, 2); } catch (e) { return []; } }
+  function deepLord() {
+    const S0 = G.S; let land = S0 && S0.rec && S0.rec.deepLord ? S0.rec.deepLord.land : null;
+    if (!land && S0 && S0.lastRun && S0.lastRun.lords > 0 && Array.isArray(S0.lastRun.route)) { const R0 = G.REALMS[S0.lastRun.route[S0.lastRun.lords - 1]]; land = R0 ? R0.id : null; }
+    return land ? G.REALMS.find(r => r.id === land) || null : null;
+  }
+  function townStaticKey() {
+    const rw = townRows(), f = fallenList(), S0 = G.S;
+    return W + 'x' + H + ':' + rw.r1 + ':' + (G.townLvl ? G.townLvl() : 0) + ':' + TOWN.map(t => (townOpen(t) ? 1 : 0)).join('') + ':' + f.length + ':' + (f.length ? f[f.length - 1].at : 0) + ':' + buttonsOpen().length + ':' + keepsakeList().map(k => k.q).join(',') + ':' + (deepLord() || {}).id + ':' + (S0 && S0.lastRun ? (S0.lastRun.party || []).join('') : '') + ':' + townSeason();
+  }
+  // the slots the memorial statues take: the empty band under the front row (wide), else the walk under the back row
+  function statueSlots(rw) {
+    const cx = W / 2, out = [];
+    if (!narrowTown() && H - rw.r2 >= 26) { const n = 12, x0 = W * 0.06, x1 = W * 0.94; for (let i = 0; i < n; i++) out.push({ x: Math.round(x0 + (x1 - x0) * (i + 0.5) / n), y: H - 3 }); return out; }
+    const y = rw.r1 + 28, n = narrowTown() ? 10 : 12, x0 = W * 0.04, x1 = W * 0.96;
+    for (let i = 0; i < n; i++) { const x = Math.round(x0 + (x1 - x0) * (i + 0.5) / n); if (Math.abs(x - cx) < 44) continue; out.push({ x, y }); }
+    return out;
+  }
+  // the pedestals flank the road between the gate and the fountain, two columns (then two outer ones)
+  function pedestalSlots(rw, n) {
+    const cx = Math.round(W / 2), top = rw.r1 + 20, well = sprOr('tw_fountain'), bottom = rw.wellY - (well ? well.height : 20) + 4 - 6;
+    const rows = Math.max(1, Math.min(4, Math.floor((bottom - top) / 13) + 1)), out = [];
+    for (let i = 0; i < n; i++) { const col = i < rows * 2 ? i % 2 : 2 + (i % 2), row = i < rows * 2 ? (i >> 1) : ((i - rows * 2) >> 1) % rows; const dx = col < 2 ? 30 : 54; out.push({ x: cx + (col % 2 ? dx : -dx), y: top + row * 13 }); }
+    return out;
+  }
+  function buildStatics() {
+    const rw = townRows(), cx = Math.round(W / 2), wy = rw.wellY, L = [];
+    const prop = (id, x, y) => { if (SPR.defs[id]) L.push({ k: 'prop', id, x: Math.round(x), y: Math.round(y) }); };
+    // props that used to be baked into the ground: lamps, barrels, crates, banners, stalls, benches
+    prop('tw_lamp', cx - 34, wy + 2); prop('tw_lamp', cx + 34, wy + 2);
+    prop('tw_barrel', W * 0.4, rw.r2 + 3); prop('tw_crate', W * 0.2, wy + 6); prop('tw_barrel', W * 0.8, wy + 6); prop('tw_crate', W * 0.6, rw.r2 + 3);
+    prop('tw_banner', W * 0.43, rw.r1 + 2); prop('tw_banner', W * 0.57, rw.r1 + 2);
+    if (!narrowTown()) { prop('tw_stall', cx - 62, wy + 8); prop('tw_stall2', cx + 62, wy + 8); }
+    prop('tw_bench', cx - 22, wy + 18); prop('tw_bench', cx + 22, wy + 18);
+    L.push({ k: 'well', x: cx, y: wy + 4 });
+    for (const t of TOWN) {
+      const q = townPlace(t), open = townOpen(t), lv = townLv(t);
+      L.push({ k: 'bld', t, q, open, lv, x: q.x, y: q.y });
+      if (!open) continue;
+      if (t.npc && SPR.defs[t.npc]) { const n = SPR.get(t.npc); L.push({ k: 'npc', t, q, id: t.npc, x: Math.round(q.x + q.w / 2 - n.width / 2 + 2), y: q.y + 2 }); }
+      if (t.id === 'alch' && SPR.defs.tw_cauldron) L.push({ k: 'cauldron', q, x: Math.round(q.x0 + q.w - 28), y: q.y + 3 });
+      if (t.id === 'forge' && SPR.defs.tw_anvil) L.push({ k: 'prop', id: 'tw_anvil', x: Math.round(q.x0 + q.w + 2), y: q.y + 4 });
+      if (t.id === 'tavern') {
+        if (SPR.defs.tw_bench) L.push({ k: 'prop', id: 'tw_bench', x: Math.round(q.x0 + 14), y: q.y + 8 });
+        if (SPR.defs.npc_patron_a) { L.push({ k: 'patron', id: 'npc_patron_a', i: 0, x: Math.round(q.x0 + 9), y: q.y + 7 }); L.push({ k: 'patron', id: 'npc_patron_b', i: 1, x: Math.round(q.x0 + 20), y: q.y + 7 }); }
+        if (SPR.defs.tw_sign) L.push({ k: 'sign', x: Math.round(q.x0 + 3), y: q.y0 + 22 });
       }
-      const f = v.w > 0 || Math.floor(time * 5) % 2 ? v.id : v.id + '2', c = sprOr(f) || sprOr(v.id);
-      if (!c) continue;
-      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(Math.round(v.x) - 3, Math.round(v.y), 6, 1);
-      if (v.face < 0) { lctx.save(); lctx.translate(Math.round(v.x), 0); lctx.scale(-1, 1); lctx.drawImage(c, -(c.width >> 1), Math.round(v.y) - c.height); lctx.restore(); }
-      else lctx.drawImage(c, Math.round(v.x) - (c.width >> 1), Math.round(v.y) - c.height);
+      if (t.id === 'portal') { const R0 = deepLord(); if (R0 && SPR.defs.tw_lordbanner) L.push({ k: 'banner', R: R0, q, x: q.x, y: q.y + 1 }); }
+      if (t.id === 'museum' && lv >= 1 && SPR.defs.tw_plinth) keepsakeList().forEach((ks, i) => L.push({ k: 'plinth', ks, i, x: Math.round(q.x + (i ? 20 : -20)), y: q.y + 7 }));
+    }
+    // the Hall of the Fallen: the last 12 Wardens as statues, the newest nearest the middle
+    const fl = fallenList(), slots = statueSlots(rw), n = Math.min(fl.length, slots.length);
+    const order = []; for (let i = 0; i < slots.length; i++) order.push(i); order.sort((a, b) => Math.abs(a - (slots.length - 1) / 2) - Math.abs(b - (slots.length - 1) / 2));
+    for (let i = 0; i < n; i++) { const e = fl[fl.length - 1 - i], s = slots[order[i]]; L.push({ k: 'statue', e, i, x: s.x, y: s.y }); }
+    // the unlocked Buttons on their pedestals
+    const bts = buttonsOpen().slice(0, 9), ps = pedestalSlots(rw, bts.length);
+    bts.forEach((b, i) => L.push({ k: 'pedestal', b, i, x: ps[i].x, y: ps[i].y }));
+    return L;
+  }
+  // ---- the party in the square: their geared paper dolls (js/doll.js) walking between the doors ----
+  const unitOf = who => (who < 0 ? G.S.hero : (G.S.party || [])[who]);
+  function heroGoal(h) {
+    const ups = G.UI && G.UI.bagUps ? G.UI.bagUps() : null;
+    if (ups && ups.n && ups.n[h.who] > 0) return { bld: 'forge', why: 'gear' };
+    if (G.UI && G.UI.bldCanBuild) { const t = TOWN.find(x => x.id !== 'portal' && townOpen(x) && G.UI.bldCanBuild(x.id)); if (t) return { bld: t.id, why: 'build' }; }
+    const r = Math.random();
+    if (r < 0.3) return { bld: 'tavern', why: 'idle' };
+    if (r < 0.6) return { bld: null, why: 'fountain' };
+    const open = TOWN.filter(x => x.id !== 'portal' && townOpen(x)); const t = open.length ? pick(open) : null;
+    return { bld: t ? t.id : null, why: 'idle' };
+  }
+  function fountainSpot(i, rw) { const n = Math.max(1, TW.heroes.length), a = Math.PI * (0.1 + 0.8 * (n > 1 ? i / (n - 1) : 0.5)); return { x: W / 2 + Math.cos(a) * 42, y: rw.wellY + 14 + Math.sin(a) * 9 }; }
+  function doorSpot(id) { const t = TOWN.find(x => x.id === id); if (!t) return null; const q = townPlace(t); return { x: q.x + rand(-9, 9), y: q.y + 12 }; }
+  function syncHeroes(rw) {
+    const S0 = G.S, want = (S0.hero && S0.hero.cls ? 1 : 0) + (S0.party || []).length, portal = townPlace(TOWN[3]);
+    while (TW.heroes.length > want) TW.heroes.pop();
+    for (let i = TW.heroes.length; i < want; i++) {
+      const who = i - 1, fresh = TW.warm, at = fresh ? portal : townPlace(TOWN[8]), sp = fountainSpot(i, rw);
+      TW.heroes.push({ who, x: at.x + (fresh ? 0 : rand(-6, 6)), y: at.y + (fresh ? 4 : 12), tx: sp.x, ty: sp.y, face: 1, stride: 0, legs: 0, st: fresh ? 'wait' : 'walk', t: fresh ? 0.3 + i * 0.3 : 0, goal: null, spd: 22, cheer: 0 });
+    }
+    TW.warm = 0;
+  }
+  function stepHero(h, i, dt, rw) {
+    const u = unitOf(h.who); if (!u) return;
+    if (h.st === 'wait') { h.t -= dt; if (h.t <= 0) h.st = 'walk'; return; }
+    if (h.st === 'cheer') { h.t -= dt; if (h.t <= 0) { h.st = 'idle'; h.t = rand(2, 4); } return; }
+    if (h.st === 'walk') {
+      const dx = h.tx - h.x, dy = h.ty - h.y, d = Math.hypot(dx, dy);
+      if (d < 1.5) { h.x = h.tx; h.y = h.ty; h.st = h.goal && h.goal.bld ? 'visit' : 'idle'; h.t = h.st === 'visit' ? rand(4, 8) : rand(3, 7); h.legs = 0; h.stride = 0; h.spd = 16; if (h.goal && h.goal.bld) { const q = townPlace(TOWN.find(x => x.id === h.goal.bld)); h.face = q.x >= h.x ? 1 : -1; } return; }
+      const k = Math.min(1, h.spd * dt / d); h.x += dx * k; h.y += dy * k;
+      if (Math.abs(dx) > 1) h.face = dx > 0 ? 1 : -1;
+      h.stride += h.spd * dt / 2.4; h.legs = Math.floor(h.stride) % 4;
+      return;
+    }
+    // idle at the fountain or visiting a door: breathe, glance at a neighbour, then go somewhere
+    h.t -= dt;
+    if (h.t <= 0) {
+      const g = heroGoal(h); h.goal = g;
+      const sp = g.bld ? doorSpot(g.bld) : fountainSpot(i, rw);
+      if (sp) { h.tx = sp.x; h.ty = sp.y; h.st = 'walk'; h.spd = 16; } else { h.t = rand(3, 6); }
+    } else if (Math.random() < dt * 0.35 && TW.heroes.length > 1) { const o = TW.heroes[(i + 1 + Math.floor(Math.random() * (TW.heroes.length - 1))) % TW.heroes.length]; if (o && Math.abs(o.x - h.x) > 4) h.face = o.x > h.x ? 1 : -1; }
+  }
+  const mugUnits = new Map();
+  // the last run's companions drink at the Tavern (DESIGN §4.5): plain dolls of their classes, mugs up
+  function syncMates(q) {
+    // (the last run's party, whether or not a new Siege is already on: they're the Tavern's residents until the next summary)
+    const S0 = G.S, cls = S0 && S0.lastRun ? (S0.lastRun.party || []).slice(0, 3) : [];
+    if (TW.mates.length !== cls.length || TW.mates.some((m, i) => m.cls !== cls[i])) {
+      TW.mates = cls.map((c, i) => ({ cls: c, t: rand(0.5, 2.5), up: 0, x: 0, y: 0, face: i % 2 ? -1 : 1 }));
+    }
+    TW.mates.forEach((m, i) => { m.x = Math.round(q.x0 + q.w - 10 - i * 13); m.y = q.y + 10 - (i % 2) * 2; });
+  }
+  function mateUnit(cls) { let u = mugUnits.get(cls); if (!u) { u = { cls, eq: { weapon: null, ability: null, armor: null, ring: null }, lvl: 1 }; mugUnits.set(cls, u); } return u; }
+  // ---- the townsfolk: six faces that walk (not the keepers' clones), each with a home door; they persist between visits ----
+  const FOLK = ['npc_farmer', 'npc_maid', 'npc_kid', 'npc_guard', 'npc_merchant', 'npc_bard'];
+  function folkWant() { const lv = G.townLvl ? G.townLvl() : 0; if (Q.tier >= 3) return 0; const n = Math.min(Q.tier >= 2 ? 6 : 12, 3 + Math.floor(lv / 5)); return Q.tier === 1 ? Math.round(n * 0.75) : n; }
+  function folkTarget(v, rw) {
+    const cx = W / 2, cy = rw.wellY + 10;
+    const kind = v.leg = (v.leg + 1) % 4;
+    let p;
+    if (kind === 0) { const t = TOWN.find(x => x.id === v.home) || pick(TOWN); const q = townPlace(t); p = { x: q.x + rand(-14, 14), y: q.y + rand(4, 12) }; }
+    else if (kind === 1) p = { x: cx + rand(-30, 30), y: cy + rand(12, 24) };
+    else if (kind === 2) p = { x: cx + (Math.random() < 0.5 ? -1 : 1) * rand(44, 70), y: cy + rand(-4, 14) };
+    else { const t = pick(TOWN), q = townPlace(t); p = { x: q.x + rand(-16, 16), y: q.y + rand(6, 14) }; }
+    // never through the fountain: push the point out of a 26x14 ellipse round it
+    const dx = (p.x - cx) / 28, dy = (p.y - cy) / 16, d = dx * dx + dy * dy;
+    if (d < 1) { const k = 1.1 / Math.max(0.2, Math.sqrt(d)); p.x = cx + (p.x - cx) * k; p.y = cy + (p.y - cy) * k; }
+    v.tx = clamp(p.x, 8, W - 8); v.ty = clamp(p.y, rw.r1 - 20, H - 4);
+  }
+  function syncFolk(rw) {
+    const want = folkWant(), key = W + 'x' + H + ':' + rw.r1;
+    if (TW.folkKey !== key) {
+      // a new layout: the folk keep their relative places (no respawn at the centre)
+      const [ow, oh] = TW.folkKey ? TW.folkKey.split(':')[0].split('x').map(Number) : [W, H];
+      if (ow && oh && (ow !== W || oh !== H)) for (const v of TW.folk.concat(TW.critters)) { v.x = v.x * W / ow; v.y = v.y * H / oh; v.tx = v.tx * W / ow; v.ty = v.ty * H / oh; }
+      TW.folkKey = key;
+    }
+    while (TW.folk.length > want) TW.folk.pop();
+    while (TW.folk.length < want) {
+      const i = TW.folk.length, id = FOLK[i % FOLK.length], home = TOWN[(i * 5 + 1) % TOWN.length];
+      if (!SPR.defs[id]) break;
+      const q = townPlace(home), v = { id, home: home.id, x: q.x + rand(-16, 16), y: q.y + rand(6, 14), tx: 0, ty: 0, w: rand(0, 3), face: 1, leg: Math.floor(Math.random() * 4), spd: id === 'npc_kid' ? 18 : 12 };
+      folkTarget(v, rw); TW.folk.push(v);
+    }
+    // critters: a cat, a dog, chickens (more in a bigger town), none at the lightest tier
+    const cw = Q.tier >= 3 || !SPR.defs.tw_cat ? 0 : 4 + ((G.townLvl ? G.townLvl() : 0) >= 20 && Q.tier < 2 ? 2 : 0);
+    while (TW.critters.length > cw) TW.critters.pop();
+    if (TW.critters.length < cw) {
+      const cx = W / 2, cy = rw.wellY, seeds = [{ k: 'cat', x: cx - 40, y: cy + 14 }, { k: 'dog', x: cx + 30, y: cy + 20 }, { k: 'chicken', x: cx - 70, y: cy + 22 }, { k: 'chicken', x: cx + 74, y: cy + 24 }, { k: 'chicken', x: cx - 90, y: cy + 30 }, { k: 'chicken', x: cx + 92, y: cy + 32 }];
+      for (let i = TW.critters.length; i < cw; i++) { const s = seeds[i]; TW.critters.push({ k: s.k, x: s.x, y: s.y, tx: s.x, ty: s.y, w: rand(0, 2), face: 1, pk: 0, flee: 0 }); }
     }
   }
-  // a cat on the steps, a dog trotting about, chickens pecking by the stalls
-  function stepCritters(dt, cx, cy) {
-    if (!critters.length && SPR.defs.tw_cat) {
-      critters.push({ k: 'cat', x: cx - 40, y: cy + 14, w: 0 }, { k: 'dog', x: cx + 30, y: cy + 20, w: 1 }, { k: 'chicken', x: cx - 70, y: cy + 22, w: 0.5 }, { k: 'chicken', x: cx + 74, y: cy + 24, w: 2 });
-      critters.forEach(c => { c.tx = c.x; c.ty = c.y; c.face = 1; c.pk = 0; });
+  function stepFolk(dt, rw) {
+    for (const v of TW.folk) {
+      if (v.w > 0) { v.w -= dt; continue; }
+      const dx = v.tx - v.x, dy = v.ty - v.y, d = Math.hypot(dx, dy);
+      if (d < 1) { v.w = rand(1.5, 5); folkTarget(v, rw); }
+      else { const k = Math.min(1, v.spd * dt / d); v.x += dx * k; v.y += dy * k; if (Math.abs(dx) > 0.5) v.face = dx >= 0 ? 1 : -1; }
     }
-    for (const c of critters) {
-      const sp = c.k === 'dog' ? 22 : c.k === 'cat' ? 9 : 6;
-      if (c.w > 0) { c.w -= dt; if (c.k === 'chicken') c.pk = Math.random() < 0.04 ? 0.3 : Math.max(0, c.pk - dt); }
-      else {
-        const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
-        if (d < 1) { c.w = c.k === 'cat' ? rand(4, 10) : rand(1, 4); const r = c.k === 'dog' ? 90 : 30; c.tx = clamp(c.x + rand(-r, r), 10, W - 10); c.ty = clamp(c.y + rand(-r / 3, r / 3), cy - 30, H - 10); }
-        else { const k = Math.min(1, sp * dt / d); c.x += dx * k; c.y += dy * k; c.face = dx >= 0 ? 1 : -1; }
-      }
-      const id = c.k === 'cat' ? (Math.floor(time * 0.7) % 2 ? 'tw_cat2' : 'tw_cat') : c.k === 'chicken' ? (c.pk > 0 ? 'tw_chicken2' : 'tw_chicken') : 'tw_dog';
-      const im = sprOr(id); if (!im) continue;
-      const bob = c.k === 'dog' && c.w <= 0 ? Math.floor(time * 8) % 2 : 0;
-      const x = Math.round(c.x), y = Math.round(c.y) - bob;
-      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(x - 3, Math.round(c.y), 6, 1);
-      if (c.face < 0) { lctx.save(); lctx.translate(x, 0); lctx.scale(-1, 1); lctx.drawImage(im, -(im.width >> 1), y - im.height); lctx.restore(); }
-      else lctx.drawImage(im, x - (im.width >> 1), y - im.height);
+    for (const c of TW.critters) {
+      const sp = c.flee > 0 ? 40 : c.k === 'dog' ? 22 : c.k === 'cat' ? 9 : 6;
+      if (c.flee > 0) c.flee -= dt;
+      // chickens scatter from a hero's boots
+      if (c.k === 'chicken' && c.flee <= 0) for (const h of TW.heroes) { if (h.st === 'walk' && Math.abs(h.x - c.x) < 10 && Math.abs(h.y - c.y) < 8) { c.flee = 0.6; c.w = 0; const ax = c.x - h.x || 1, ay = c.y - h.y; const n = Math.hypot(ax, ay) || 1; c.tx = clamp(c.x + ax / n * 20, 8, W - 8); c.ty = clamp(c.y + ay / n * 12, rw.r1 - 10, H - 6); break; } }
+      if (c.w > 0 && c.flee <= 0) { c.w -= dt; if (c.k === 'chicken') c.pk = Math.random() < dt * 2.4 ? 0.3 : Math.max(0, c.pk - dt); continue; }
+      const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.hypot(dx, dy);
+      if (d < 1) { c.w = c.k === 'cat' ? rand(4, 10) : rand(1, 4); const r = c.k === 'dog' ? 90 : 30; c.tx = clamp(c.x + rand(-r, r), 10, W - 10); c.ty = clamp(c.y + rand(-r / 3, r / 3), rw.wellY - 30, H - 10); }
+      else { const k = Math.min(1, sp * dt / d); c.x += dx * k; c.y += dy * k; c.face = dx >= 0 ? 1 : -1; }
     }
   }
+  // birds by day: a flock in a V across the top of the square now and then (none at tier 2+)
+  function stepBirds(dt, phase) {
+    if (TW.birds.length) { for (const b of TW.birds) { b.x += b.vx * dt; b.y += Math.sin(time * 2 + b.i) * 2 * dt; } if (TW.birds.every(b => b.x < -10 || b.x > W + 10)) TW.birds.length = 0; return; }
+    if (Q.tier >= 2 || !(phase === 'day' || phase === 'dawn') || !SPR.defs.tw_bird) return;
+    TW.flock -= dt;
+    if (TW.flock > 0) return;
+    TW.flock = rand(20, 40);
+    const n = 3 + Math.floor(Math.random() * 3), dir = Math.random() < 0.5 ? 1 : -1, y0 = rand(townTop + 4, Math.max(townTop + 6, H * 0.3)), x0 = dir > 0 ? -12 : W + 12;
+    for (let i = 0; i < n; i++) { const k = Math.ceil(i / 2), side = i % 2 ? 1 : -1; TW.birds.push({ x: x0 - dir * k * 6, y: y0 + k * 3 * side, vx: dir * 30, i }); }
+    if (G.Audio && G.Audio.chirp && G.S.set.sound) { try { G.Audio.chirp(); } catch (e) { /* no sound */ } }
+  }
+  // ---- speech bubbles (the hi-res text layer): state first, chatter when nothing's up ----
+  function bubblesOk() {
+    const S0 = G.S;
+    if (!S0 || S0.tut >= 0 || (S0.set && S0.set.townChat === 0)) return false;
+    if (typeof document === 'undefined') return true;
+    const c = document.getElementById('coach'), tw = document.getElementById('townWin');
+    return !(c && !c.hidden) && !(tw && !tw.hidden) && !(G.uiBusy && G.uiBusy());
+  }
+  // who: { k: 'hero', i } | { k: 'npc', id (building) }; act: tap action; state: a state bubble (resets the chatter clock)
+  function bubble(who, text, act, state) {
+    if (!bubblesOk()) return false;
+    const max = W < 400 ? 1 : 2, sk = who.k + (who.i != null ? who.i : who.id);
+    if (TW.bubbles.length >= max || time - TW.bubAt < 4 || time - (TW.bubBy[sk] || -99) < 15) return false;
+    text = String(text || ''); if (text.length > 24) text = text.slice(0, 23) + '…';
+    TW.bubbles.push({ who, text, t: 0, T: 3.2, act: act || null });
+    TW.bubAt = time; TW.bubBy[sk] = time; if (state) TW.stateAt = time;
+    return true;
+  }
+  function pickBubble() {
+    const S0 = G.S, UIx = G.UI;
+    // state bubbles, each with an action on tap
+    const ups = UIx && UIx.bagUps ? UIx.bagUps() : null;
+    if (ups && ups.n) for (let i = 0; i < TW.heroes.length; i++) { const h = TW.heroes[i], n = ups.n[h.who] | 0; if (n > 0 && h.st !== 'wait' && bubble({ k: 'hero', i }, n === 1 ? G.t('twBubGear1') : G.t('twBubGear', n), () => openFor('forge', h.who), true)) return; }
+    const ping = id => UIx && UIx.bldPing && townOpen(TOWN.find(t => t.id === id)) && UIx.bldPing(id);
+    if (ping('quests') && bubble({ k: 'npc', id: 'quests' }, G.t('twBubQuest'), () => G.UI.townOpen('quests'), true)) return;
+    if (ping('pets') && bubble({ k: 'npc', id: 'pets' }, G.t('twBubEggs'), () => G.UI.townOpen('pets'), true)) return;
+    if (UIx && UIx.bldCanBuild) { const t = TOWN.find(x => x.id !== 'portal' && townOpen(x) && UIx.bldCanBuild(x.id)); if (t && townOpen(TOWN[0]) && bubble({ k: 'npc', id: 'barracks' }, G.t('twBubBuild'), () => G.UI.townOpen(t.id), true)) return; }
+    // idle chatter only when nothing has been up for 20 s
+    if (time - TW.stateAt < 20 || Math.random() < 0.5) return;
+    if (Math.random() < 0.55 && TW.heroes.length) {
+      const i = Math.floor(Math.random() * TW.heroes.length), h = TW.heroes[i], u = unitOf(h.who);
+      if (u && h.st !== 'wait' && h.st !== 'walk') { const k = 'twTalk_' + u.cls + '_' + (1 + Math.floor(Math.random() * 8)); const s = G.t(k); if (s && s !== k) bubble({ k: 'hero', i }, s, () => tapHero(h)); }
+      return;
+    }
+    const open = TOWN.filter(t => t.npc && townOpen(t)); if (!open.length) return;
+    const t = pick(open), k = 'twTalk_' + t.npc + '_' + (1 + Math.floor(Math.random() * 4)), s = G.t(k);
+    if (s && s !== k) bubble({ k: 'npc', id: t.id }, s, () => G.UI.townOpen(t.id));
+    void S0;
+  }
+  // the Forge for one hero (UI.townWho when the UI has it; else the Forge as it was left)
+  function openFor(bld, who) { if (G.UI.townWho) { try { G.UI.townWho(who); } catch (e) { /* older UI */ } } G.UI.townOpen(bld); }
+  function tapHero(h) { const ups = G.UI && G.UI.bagUps ? G.UI.bagUps() : null; if (ups && ups.n && ups.n[h.who] > 0) openFor('forge', h.who); else G.UI.townOpen('tavern', 'hero'); }
+  // ---- taps and hover in the square: bubbles, then the actors (clear of the doors), then the buildings ----
+  function hitActors(p) {
+    for (const b of TW.bubbles) if (b.box && p.x >= b.box.x && p.x <= b.box.x + b.box.w && p.y >= b.box.y && p.y <= b.box.y + b.box.h) return { k: 'bubble', b };
+    for (const t of TOWN) { const q = townPlace(t); if (Math.abs(p.x - q.x) <= 9 && p.y >= q.y - 22 && p.y <= q.y + 2) return null; } // a door's core: the building wins
+    for (let i = TW.heroes.length - 1; i >= 0; i--) { const h = TW.heroes[i]; if (h.st !== 'wait' && Math.abs(p.x - h.x) <= 7 && p.y >= h.y - 23 && p.y <= h.y + 1) return { k: 'hero', h }; }
+    for (const it of TW.statics) {
+      if (it.k === 'statue' && Math.abs(p.x - it.x) <= 6 && p.y >= it.y - 17 && p.y <= it.y + 1) return it;
+      if (it.k === 'pedestal' && Math.abs(p.x - it.x) <= 9 && p.y >= it.y - 24 && p.y <= it.y + 1) return it;
+      if (it.k === 'plinth' && Math.abs(p.x - it.x) <= 7 && p.y >= it.y - 26 && p.y <= it.y + 1) return it;
+      if (it.k === 'banner' && Math.abs(p.x - it.x) <= 9 && p.y >= it.q.y0 - 8 && p.y <= it.q.y0 + 18) return it;
+    }
+    return null;
+  }
+  function townPress(p) {
+    const a = hitActors(p);
+    if (a) {
+      if (G.Audio && G.Audio.buy) G.Audio.buy();
+      if (a.k === 'bubble') { TW.bubbles.splice(TW.bubbles.indexOf(a.b), 1); if (a.b.act) a.b.act(); return 'town'; }
+      if (a.k === 'hero') { tapHero(a.h); return 'town'; }
+      if (a.k === 'statue') { G.UI.townOpen('temple', 'fallen'); return 'town'; }
+      if (a.k === 'pedestal') { G.UI.townOpen('temple', 'buttons'); return 'town'; }
+      if (a.k === 'plinth') { G.UI.townOpen('museum', 'codex'); return 'town'; }
+      if (a.k === 'banner') { G.leaveTown(); return 'town'; }
+    }
+    const t = hitTown(p);
+    if (t) { if (G.Audio && G.Audio.buy) G.Audio.buy(); if (t.id === 'portal') G.leaveTown(); else G.UI.townOpen(t.id); return 'town'; }
+    return null;
+  }
+  function townHoverAt(p) { TW.hover = hitActors(p); townHover = TW.hover ? null : hitTown(p); return !!(TW.hover || townHover); }
   function hitTown(p) {
     // front to back, as they're drawn
     for (const t of townSorted(true)) { const q = townPlace(t); if (p.x >= q.x0 - 2 && p.x <= q.x0 + q.w + 2 && p.y >= q.y0 - 2 && p.y <= q.y + 6) return t; }
@@ -3336,62 +3611,267 @@
   }
   St.townHit = p => hitTown(p);
   St.townPoint = id => { const t = TOWN.find(x => x.id === id); if (!t) return null; const q = townPlace(t), r = stageRect(); return { x: r.left + q.x * S, y: r.top + q.y0 * S }; };
+  // where a party member stands (screen px; the tests tap them)
+  St.townActorPoint = who => { const h = TW.heroes.find(x => x.who === who); if (!h) return null; const r = stageRect(); return { x: r.left + h.x * S, y: r.top + (h.y - 10) * S }; };
+  // ---- cached looks: the greyed statue of a class, a building's lit windows, the phase overlay ----
+  const greyCache = new Map(), maskCache = new Map(), overlays = {};
+  function greySprite(id, gold) {
+    const key = id + (gold ? '|g' : ''); let c = greyCache.get(key); if (c) return c;
+    const s = gold ? SPR.get(id, { gold: true }) : SPR.get(id); if (!s) return null;
+    c = SPR.makeCanvas(s.width, s.height); const x = c.getContext('2d');
+    x.drawImage(s, 0, 0);
+    if (!gold) { x.globalCompositeOperation = 'saturation'; x.fillStyle = '#9a9aa8'; x.fillRect(0, 0, c.width, c.height); x.globalCompositeOperation = 'destination-in'; x.drawImage(s, 0, 0); }
+    greyCache.set(key, c); return c;
+  }
+  // every warm-glass pixel of a building (h, y, Y, o keys) as one pale mask, drawn over the night
+  const WARM = { h: 1, y: 1, Y: 1, o: 1 };
+  function windowMask(id) {
+    if (maskCache.has(id)) return maskCache.get(id);
+    const d = SPR.defs[id]; let c = null;
+    if (d && id !== 'tw_build') {
+      const w = d.w + 2, h = d.h + 2, cv2 = SPR.makeCanvas(w, h), x = cv2.getContext('2d'), img = x.createImageData(w, h), px = new Uint32Array(img.data.buffer), v = u32('#ffe9a0');
+      let n = 0;
+      for (let y = 0; y < d.h; y++) { const row = d.px[y]; for (let xx = 0; xx < d.w; xx++) if (WARM[row[xx]]) { px[(y + 1) * w + xx + 1] = v; n++; } }
+      if (n) { x.putImageData(img, 0, 0); c = cv2; }
+    }
+    maskCache.set(id, c); return c;
+  }
+  function lightSpots(statics) {
+    const out = [];
+    for (const it of statics) {
+      if (it.k === 'prop' && it.id === 'tw_lamp') out.push({ x: it.x, y: it.y - 14, r: 20 });
+      if (it.k === 'well') out.push({ x: it.x, y: it.y - 10, r: 22 });
+      if (it.k === 'bld' && it.open && it.lv >= 1) { out.push({ x: it.q.x0, y: it.y - 15, r: 16 }); if (it.lv >= 2) out.push({ x: it.q.x0 + it.q.w, y: it.y - 15, r: 16 }); }
+      if (it.k === 'bld' && it.open && (it.t.id === 'portal' || it.t.id === 'rift')) out.push({ x: it.x, y: it.y - it.q.h * 0.5, r: 22 });
+    }
+    return out;
+  }
+  function phaseOverlay(phase, statics) {
+    const key = phase + W + 'x' + H + ':' + townRows().r1 + ':' + Q.tier + ':' + (G.townLvl ? G.townLvl() : 0);
+    let c = overlays[phase]; if (c && c.key === key) return c;
+    c = overlays[phase] = SPR.makeCanvas(W, H); c.key = key;
+    const x = c.getContext('2d');
+    if (phase === 'dawn') {
+      const lg = x.createLinearGradient(0, 0, W * 0.8, H);
+      lg.addColorStop(0, 'rgba(255,196,120,0.28)'); lg.addColorStop(0.55, 'rgba(255,196,120,0.08)'); lg.addColorStop(1, 'rgba(120,140,220,0.12)');
+      x.fillStyle = lg; x.fillRect(0, 0, W, H);
+    } else if (phase === 'dusk') {
+      x.fillStyle = 'rgba(255,122,58,0.18)'; x.fillRect(0, 0, W, H);
+    } else if (phase === 'night') {
+      x.fillStyle = 'rgba(26,32,80,0.45)'; x.fillRect(0, 0, W, H);
+      // pools of light round every lamp, lantern, the fountain and the gates (none at the lightest tier)
+      if (Q.tier < 3) { x.globalCompositeOperation = 'destination-out'; for (const s of lightSpots(statics)) { const g = x.createRadialGradient(s.x, s.y, 2, s.x, s.y, s.r); g.addColorStop(0, 'rgba(0,0,0,0.85)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(s.x - s.r, s.y - s.r, s.r * 2, s.r * 2); } }
+    }
+    return c;
+  }
+  // a glow as one cached sprite (the field's glow() is r rows of fillRect: the square has ~30 of them a frame)
+  const glowCache = new Map();
+  function tglow(x, y, r, col, a) {
+    r = Math.round(r); const key = r + col; let c = glowCache.get(key);
+    if (!c) { const w = Math.round(r * 1.6) * 2 + 2, h = r + 2; c = SPR.makeCanvas(w, h); const g = c.getContext('2d'); g.fillStyle = col; for (let dy = -r; dy <= r; dy++) { const ww = Math.round(Math.sqrt(r * r - dy * dy) * 1.6); g.fillRect(Math.round(w / 2 - ww), Math.round(h / 2 + dy * 0.5), ww * 2, 1); } glowCache.set(key, c); }
+    lctx.globalAlpha = a; lctx.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height / 2)); lctx.globalAlpha = 1;
+  }
+  // ---- drawing one item of the sorted list ----
+  const flipDraw = (c, x, y, face) => { if (face < 0) { lctx.save(); lctx.translate(x, 0); lctx.scale(-1, 1); lctx.drawImage(c, -(c.width >> 1), y - c.height); lctx.restore(); } else lctx.drawImage(c, x - (c.width >> 1), y - c.height); };
+  const tshadow = (x, y, w) => { lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(Math.round(x - w / 2), Math.round(y), w, 1); };
+  function flagTop(id) { const d = SPR.defs[id]; if (!d) return null; for (let y = 0; y < d.h; y++) { const i = d.px[y].search(/[^.]/); if (i >= 0) return { x: i + 1, y: y + 1 }; } return null; }
+  function drawBuilding(it, dt, phase) {
+    const { t, q, open, lv } = it;
+    let c = q.c;
+    if (open && (t.id === 'portal' || t.id === 'rift') && Math.floor(time * 4) % 2) { const f = townSpr(t, true); if (f) c = SPR.get(f); }
+    // L5: a gold outline and a glow underneath
+    if (open && lv >= G.BLD_MAX && c && q.c) { const id = townSpr(t); if (id) c = SPR.get(id, { oc: '#ffd84a' }); tglow(q.x, q.y - q.h * 0.4, q.w * 0.6, '#ffd84a', 0.14 + 0.05 * Math.sin(time * 2 + q.x)); }
+    lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(Math.round(q.x0 + 2), q.y - 1, q.w - 4, 2);
+    if (c) lctx.drawImage(c, Math.round(q.x0), q.y0);
+    else { lctx.fillStyle = '#6a4a30'; lctx.fillRect(Math.round(q.x0), q.y0, q.w, q.h); }
+    // a build-up: the scaffolding flashes over the new look
+    if (TW.build[t.id] > 0) { TW.build[t.id] -= dt; const s = sprOr('tw_build'); if (s) { lctx.globalAlpha = Math.max(0, Math.min(1, TW.build[t.id] / 0.8)); lctx.drawImage(s, Math.round(q.x - s.width / 2), q.y - s.height); lctx.globalAlpha = 1; } }
+    if (townHover === t) { lctx.globalAlpha = 0.18 + 0.08 * Math.sin(time * 8); lctx.fillStyle = '#ffe27a'; lctx.fillRect(Math.round(q.x0) - 1, q.y0 - 1, q.w + 2, q.h + 2); lctx.globalAlpha = 1; }
+    if (!open) return;
+    // the tiers: L1 a lantern and a flower pot, L2 the second lantern and a door pennant, L3 the grand look, L4 a roof flag, L5 gold
+    const ln = sprOr('tw_lantern');
+    if (lv >= 1 && ln) { lctx.drawImage(ln, Math.round(q.x0) - 2, q.y - 22); const pot = sprOr('tw_pot'); if (pot) lctx.drawImage(pot, Math.round(q.x0) + 4, q.y - pot.height + 1); }
+    if (lv >= 2 && ln) { lctx.drawImage(ln, Math.round(q.x0 + q.w) - 4, q.y - 22); const pn = sprOr('tw_pennant'); if (pn && t.id !== 'quests') lctx.drawImage(pn, Math.round(q.x) - 12, q.y - 24); }
+    if (lv >= 4) { const f = sprOr(Math.floor(time * 3) % 2 ? 'tw_flag2' : 'tw_flag'), id = townSpr(t), top = id && flagTop(id); if (f && top) lctx.drawImage(f, Math.round(q.x0) + top.x - 1, q.y0 + top.y - f.height + 1); }
+    if (lv >= 1 && ln) { const a = 0.18 + 0.06 * Math.sin(time * 9 + q.x) + 0.03 * Math.sin(time * 23 + q.y); tglow(q.x0 + 1, q.y - 15, 6, '#ffd27a', isDark(phase) ? a + 0.1 : a); if (lv >= 2) tglow(q.x0 + q.w - 1, q.y - 15, 6, '#ffd27a', isDark(phase) ? a + 0.1 : a); }
+    // the smoke, the gate's motes, the rift's sparks, the temple's light, L5 sparkles: all rate-based
+    const dark = isDark(phase);
+    if (t.id === 'forge') for (let i = every('smoke_f', 2 + 0.5 * lv, dt); i-- > 0;) part(q.x0 + q.w * 0.75, q.y0 + 2, pick(dark ? ['#4a4a52', '#5a5a62'] : lv >= 3 ? ['#ff9a3a', '#ffd84a', '#6a6a72'] : ['#6a6a72', '#8a8a92', '#4a4a52']), { vx: rand(-3, 3), vy: -rand(8, 16), grav: 0, life: rand(1, 2) });
+    if (t.id === 'tavern') for (let i = every('smoke_t', 2, dt); i-- > 0;) part(q.x0 + q.w * 0.3, q.y0 + 2, pick(dark ? ['#4a4a52', '#5a5a62'] : ['#8a8a92', '#6a6a72']), { vx: rand(-2, 2), vy: -rand(6, 12), grav: 0, life: rand(1.2, 2) });
+    if (t.id === 'portal') for (let i = every('portal', 24, dt); i-- > 0;) part(q.x + rand(-8, 8), q.y0 + q.h * 0.5 + rand(-8, 8), pick(['#7fe9ff', '#4fa8ff', '#ffffff']), { vx: rand(-6, 6), vy: -rand(4, 12), grav: 0, life: 0.6 });
+    if (t.id === 'rift') for (let i = every('rift', 18, dt); i-- > 0;) part(q.x + rand(-6, 6), q.y0 + q.h * 0.5 + rand(-8, 8), pick(['#c88aff', '#ffffff', '#7a3aff']), { vx: rand(-8, 8), vy: -rand(4, 12), grav: 0, life: 0.6 });
+    if (t.id === 'temple') for (let i = every('temple', 8, dt); i-- > 0;) part(q.x + rand(-10, 10), q.y0 + rand(0, 10), pick(['#fff4c0', '#ffd84a']), { vx: rand(-2, 2), vy: -rand(4, 10), grav: 0, life: 1.2 });
+    if (t.id === 'enchant') for (let i = every('ench', 6, dt); i-- > 0;) part(q.x + rand(-6, 6), q.y0 + 4, pick(['#c88aff', '#ffffff']), { vx: rand(-4, 4), vy: -rand(4, 10), grav: 0, life: 1 });
+    if (lv >= G.BLD_MAX) for (let i = every('gold' + t.id, 4, dt); i-- > 0;) part(q.x + rand(-q.w / 2, q.w / 2), q.y0 + rand(0, q.h), '#ffe27a', { vx: 0, vy: -rand(4, 10), grav: 0, life: 0.8 });
+  }
+  function drawKeeper(it, dt) {
+    const { t, q } = it; let id = it.id, x = it.x, y = it.y;
+    const idle = Math.floor(time * 1.6 + q.x * 0.1) % 2 && SPR.defs[id + '2'] ? id + '2' : id;
+    if (t.id === 'forge' && Q.tier < 3 && SPR.defs.npc_smith_w1) {
+      // the smith's hammer: up, at the shoulder, struck (0.6 s a cycle); sparks fly on the strike
+      const f = Math.floor((time % 0.6) / 0.2);
+      id = ['npc_smith_w1', 'npc_smith_w2', 'npc_smith_w3'][f];
+      if (f === 2 && TW.smithF !== 2) { const sx = x + 6, sy = y - 4; for (let i = 0; i < 6 + Math.floor(Math.random() * 4); i++) part(sx + rand(-1, 1), sy, pick(['#ffd84a', '#ff9a3a', '#ffffff']), { vx: rand(-26, 26), vy: -rand(20, 50), grav: 90, life: rand(0.25, 0.5) }); if (G.Audio && G.Audio.anvil && G.S.set.sound && time - TW.anvilAt > 0.55) { TW.anvilAt = time; try { G.Audio.anvil(); } catch (e) { /* no sound */ } } }
+      TW.smithF = f;
+    } else if (t.id === 'stars') id = (time % 3) < 0.6 && SPR.defs[id + '2'] ? id + '2' : id; // the sage eyes the sky every 3 s
+    else id = idle;
+    const c = sprOr(id) || sprOr(it.id); if (!c) return;
+    tshadow(x, y, 6);
+    lctx.drawImage(c, Math.round(x - c.width / 2), y - c.height);
+    // the witch's orb orbits her hand
+    if (t.id === 'enchant') { const a = time * 1.2 * Math.PI * 2, ox = Math.round(x + 4 + Math.cos(a) * 4), oy = Math.round(y - 9 + Math.sin(a) * 2); lctx.fillStyle = '#0c0b12'; lctx.fillRect(ox - 1, oy - 1, 3, 3); lctx.fillStyle = Math.floor(time * 6) % 2 ? '#f4e2ff' : '#c890ff'; lctx.fillRect(ox - 1, oy, 1, 1); lctx.fillRect(ox, oy - 1, 1, 3); lctx.fillRect(ox + 1, oy, 1, 1); }
+  }
+  function drawStatue(it, phase) {
+    const e = it.e, C = G.CLASS_BY_ID[e.cls], spr = C && C.spr && SPR.defs[C.spr] ? C.spr : 'h_knight';
+    const B = (G.BUTTON_BY_ID && G.BUTTON_BY_ID[e.btn]) || null, lk = SPR.BTN_LOOKS && B && SPR.BTN_LOOKS[B.skin];
+    let base = (lk && lk.base) || (B && B.base) || '#e8413c'; if (base === 'rainbow') base = 'hsl(' + ((time * 90 + it.i * 40) % 360) + ',80%,60%)';
+    const x = it.x, y = it.y;
+    // the plinth in the Button's colour, a plaque (gold for a win)
+    tshadow(x, y, 12);
+    lctx.fillStyle = '#2e2834'; lctx.fillRect(x - 6, y - 5, 12, 5);
+    lctx.fillStyle = base; lctx.fillRect(x - 5, y - 5, 10, 1); lctx.fillRect(x - 6, y - 4, 1, 3);
+    lctx.fillStyle = e.win ? '#ffd84a' : '#8a7a50'; lctx.fillRect(x - 2, y - 3, 4, 2);
+    const s = greySprite(spr, !!e.win); if (s) lctx.drawImage(s, Math.round(x - s.width / 2), y - 5 - s.height + 1);
+    if (TW.hover === it) { lctx.globalAlpha = 0.25 + 0.1 * Math.sin(time * 8); lctx.fillStyle = '#ffe27a'; lctx.fillRect(x - 7, y - 17, 14, 18); lctx.globalAlpha = 1; }
+    void phase;
+  }
+  function drawPedestal(it) {
+    const x = it.x, y = it.y, p = sprOr('tw_pedestal');
+    tshadow(x, y, 14);
+    if (p) lctx.drawImage(p, Math.round(x - p.width / 2), y - p.height);
+    const B = it.b, lk = (SPR.BTN_LOOKS && SPR.BTN_LOOKS[B.skin]) || { base: B.base }, fr = Math.floor(time * 3);
+    const c = SPR.buttonLook ? SPR.buttonLook(lk, false, (time * 120 + it.i * 50) % 360, fr) : null;
+    if (c) { const w = Math.round(c.width / 2), h = Math.round(c.height / 2); lctx.drawImage(c, 0, 0, c.width, c.height, Math.round(x - w / 2), y - 6 - h + 4, w, h); }
+    const cur = G.S && (G.S.lastSetup && G.S.lastSetup.btn || G.S.skin);
+    if (cur && (cur === B.id || cur === B.skin)) tglow(x, y - 8, 7, lk.glow || '#ffe27a', 0.12 + 0.05 * Math.sin(time * 3));
+    if (TW.hover === it) { lctx.globalAlpha = 0.25; lctx.fillStyle = '#ffe27a'; lctx.fillRect(x - 9, y - 24, 18, 25); lctx.globalAlpha = 1; }
+  }
+  function drawPlinth(it, dt) {
+    const x = it.x, y = it.y, p = sprOr('tw_plinth'), s = sprOr('u_' + it.ks.q);
+    tshadow(x, y, 12);
+    if (p) lctx.drawImage(p, Math.round(x - p.width / 2), y - p.height);
+    const bob = Math.round(Math.sin(time * 2 * Math.PI * 2 / 2 + it.i) * 1);
+    // a rainbow beam under the keepsake, sparkles now and then
+    lctx.globalAlpha = 0.35; lctx.fillStyle = 'hsl(' + ((time * 120 + it.i * 40) % 360) + ',90%,65%)'; lctx.fillRect(x - 1, y - 30, 3, 24); lctx.globalAlpha = 1;
+    if (s) lctx.drawImage(s, Math.round(x - s.width / 2), y - 12 - s.height + bob);
+    if (every('plinth' + it.i, 0.8, dt)) part(x + rand(-5, 5), y - 14 + rand(-6, 6), pick(['#ffffff', '#ffe27a', '#c890ff']), { vx: 0, vy: -rand(4, 8), grav: 0, life: 0.6, plus: true });
+    if (TW.hover === it) { lctx.globalAlpha = 0.25; lctx.fillStyle = '#ffe27a'; lctx.fillRect(x - 7, y - 26, 14, 27); lctx.globalAlpha = 1; }
+  }
+  function drawBanner(it) {
+    const b = sprOr('tw_lordbanner'); if (!b) return;
+    const x = Math.round(it.x - b.width / 2), y = it.q.y0 - 8 + Math.round(Math.sin(time * 1.5) * 0.5);
+    lctx.drawImage(b, x, y);
+    let lord = null; try { lord = SPR.boss ? SPR.boss(it.R.lord, true) : null; } catch (e) { lord = null; }
+    if (lord && lord.canvas) { const c = lord.canvas, k = Math.min(12 / c.width, 12 / c.height), w = Math.max(4, Math.round(c.width * k)), h = Math.max(4, Math.round(c.height * k)); lctx.drawImage(c, 0, 0, c.width, c.height, Math.round(it.x - w / 2), y + 10 - Math.round(h / 2), w, h); }
+    if (TW.hover === it) { lctx.globalAlpha = 0.25; lctx.fillStyle = '#ffe27a'; lctx.fillRect(x - 1, y - 1, b.width + 2, b.height + 2); lctx.globalAlpha = 1; }
+  }
+  function drawHero(h, i) {
+    const u = unitOf(h.who); if (!u || h.st === 'wait') return;
+    const moving = h.st === 'walk', bob = moving ? 0 : (Math.sin(time * 1.6 * Math.PI * 2 + i * 1.3) > 0 ? 1 : 0);
+    const pose = h.st === 'cheer' ? 'up' : 'rest', w = u.eq && u.eq.weapon;
+    tshadow(h.x, h.y, 10);
+    try { G.Doll.draw(lctx, u, Math.round(h.x), Math.round(h.y), { face: h.face, legs: moving ? h.legs : 0, pose, bob, ang: w ? G.Doll.restAngle(G.ITEM_TYPE[w.id]) : 0, time: time + i }); } catch (e) { const sp = sprOr((G.CLASS_BY_ID[u.cls] || {}).spr); if (sp) flipDraw(sp, Math.round(h.x), Math.round(h.y), h.face); }
+    if (TW.hover && TW.hover.k === 'hero' && TW.hover.h === h) { lctx.globalAlpha = 0.2 + 0.08 * Math.sin(time * 8); lctx.fillStyle = '#ffe27a'; lctx.fillRect(Math.round(h.x) - 8, Math.round(h.y) - 24, 16, 26); lctx.globalAlpha = 1; }
+  }
+  function drawMate(m, dt) {
+    m.t -= dt; if (m.t <= 0) { m.up = m.up ? 0 : 1; m.t = rand(1.4, 2.6); }
+    const u = mateUnit(m.cls); tshadow(m.x, m.y, 10);
+    try {
+      const r = G.Doll.draw(lctx, u, m.x, m.y, { face: m.face, legs: 0, pose: m.up ? 'up' : 'rest', bob: 0, ang: 0, time });
+      const mug = sprOr('tw_mug'); if (mug && r) lctx.drawImage(mug, Math.round(r.hx) - 2, Math.round(r.hy) - 4);
+    } catch (e) { /* no doll */ }
+  }
+  function drawText2(nm, x, y, col) { ctx.strokeText(nm, x, y); ctx.fillStyle = col; ctx.fillText(nm, x, y); }
+  // ---- the frame ----
   function drawTown(dt) {
-    const k = W + 'x' + H + (SPR.defs.tw_forge ? 'a' : '') + townRows().r1;
+    const phase = townPhase(), season = townSeason(), rw = townRows(), cx = Math.round(W / 2), cy = rw.wellY;
+    const k = W + 'x' + H + (SPR.defs.tw_forge ? 'a' : '') + rw.r1 + ':' + season;
     if (k !== townKey || !townGround) { townKey = k; townGround = buildTownGround(); }
     lctx.imageSmoothingEnabled = false;
     lctx.drawImage(townGround, 0, 0);
-    const rw = townRows(), cx = Math.round(W / 2), cy = rw.wellY;
-    // the fountain in the middle (the well, without the art), the party round it
-    const fid = SPR.defs.tw_fountain ? (Math.floor(time * 3.5) % 2 ? 'tw_fountain2' : 'tw_fountain') : 'tw_well', well = sprOr(fid);
-    if (well) lctx.drawImage(well, cx - (well.width >> 1), cy - well.height + 4);
-    if (Math.random() < 0.3) part(cx + rand(-4, 4), cy - (well ? well.height : 16) + 6, pick(['#bfe8ff', '#ffffff', '#7fc8ff']), { vx: rand(-8, 8), vy: -rand(10, 20), grav: 60, life: 0.5 });
-    const S0 = G.S, units = [S0.hero && S0.hero.cls].concat((S0.party || []).map(m => m.cls)).filter(Boolean);
-    units.forEach((cls, i) => {
-      const C = G.CLASS_BY_ID[cls], sp = C && sprOr(C.spr); if (!sp) return;
-      const a = Math.PI * 0.75 + i * Math.PI * 0.5, px = Math.round(cx + Math.cos(a) * 24), py = Math.round(cy + 10 + Math.sin(a) * 9 + (Math.floor(time * 2 + i) % 2));
-      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(px - 4, py, 8, 1);
-      lctx.drawImage(sp, px - (sp.width >> 1), py - sp.height);
-    });
-    stepCritters(dt, cx, cy);
-    // buildings, back to front
-    for (const t of townSorted()) {
-      const q = townPlace(t), open = townOpen(t), lv = townLv(t);
-      let c = q.c;
-      if (open && t.id === 'portal' && Math.floor(time * 4) % 2 && SPR.defs.tw_portal2) c = SPR.get('tw_portal2');
-      if (open && t.id === 'rift' && Math.floor(time * 4) % 2 && SPR.defs.tw_rift2) c = SPR.get('tw_rift2');
-      lctx.fillStyle = 'rgba(0,0,0,0.25)'; lctx.fillRect(Math.round(q.x0 + 2), q.y - 1, q.w - 4, 2);
-      // a fully built one glows gold underneath
-      if (lv >= G.BLD_MAX) glow(q.x, q.y - q.h * 0.4, q.w * 0.6, '#ffd84a', 0.14 + 0.05 * Math.sin(time * 2 + q.x));
-      if (c) lctx.drawImage(c, Math.round(q.x0), q.y0);
-      else { lctx.fillStyle = '#6a4a30'; lctx.fillRect(Math.round(q.x0), q.y0, q.w, q.h); }
-      if (townHover === t) { lctx.globalAlpha = 0.18 + 0.08 * Math.sin(time * 8); lctx.fillStyle = '#ffe27a'; lctx.fillRect(Math.round(q.x0) - 1, q.y0 - 1, q.w + 2, q.h + 2); lctx.globalAlpha = 1; }
-      if (!open) continue;
-      // lanterns by the door once it's built up
-      if (lv >= 1) { const ln = sprOr('tw_lantern'); if (ln) { lctx.drawImage(ln, Math.round(q.x0) - 2, q.y - 22); if (lv >= 2) lctx.drawImage(ln, Math.round(q.x0 + q.w) - 4, q.y - 22); glow(q.x0 + 1, q.y - 15, 6, '#ffd27a', 0.2 + 0.05 * Math.sin(time * 3 + q.x)); } }
-      // its keeper at the door, idling on two frames
-      if (t.npc) { const f = Math.floor(time * 1.6 + q.x * 0.1) % 2 && SPR.defs[t.npc + '2'] ? t.npc + '2' : t.npc, n = sprOr(f); if (n) lctx.drawImage(n, Math.round(q.x + q.w / 2 - n.width + 2), q.y - n.height + 2); }
-      if (t.id === 'forge' && Math.random() < 0.3 + 0.1 * lv) part(q.x0 + q.w * 0.75, q.y0 + 2, pick(lv >= 3 ? ['#ff9a3a', '#ffd84a', '#6a6a72'] : ['#6a6a72', '#8a8a92', '#4a4a52']), { vx: rand(-3, 3), vy: -rand(8, 16), grav: 0, life: rand(1, 2) });
-      if (t.id === 'tavern' && Math.random() < 0.15) part(q.x0 + q.w * 0.3, q.y0 + 2, pick(['#8a8a92', '#6a6a72']), { vx: rand(-2, 2), vy: -rand(6, 12), grav: 0, life: rand(1.2, 2) });
-      if (t.id === 'portal' && Math.random() < 0.5) part(q.x + rand(-8, 8), q.y0 + q.h * 0.5 + rand(-8, 8), pick(['#7fe9ff', '#4fa8ff', '#ffffff']), { vx: rand(-6, 6), vy: -rand(4, 12), grav: 0, life: 0.6 });
-      if (t.id === 'rift' && Math.random() < 0.4) part(q.x + rand(-6, 6), q.y0 + q.h * 0.5 + rand(-8, 8), pick(['#c88aff', '#ffffff', '#7a3aff']), { vx: rand(-8, 8), vy: -rand(4, 12), grav: 0, life: 0.6 });
-      if (t.id === 'temple' && Math.random() < 0.2) part(q.x + rand(-10, 10), q.y0 + rand(0, 10), pick(['#fff4c0', '#ffd84a']), { vx: rand(-2, 2), vy: -rand(4, 10), grav: 0, life: 1.2 });
-      if (t.id === 'enchant' && Math.random() < 0.15) part(q.x + rand(-6, 6), q.y0 + 4, pick(['#c88aff', '#ffffff']), { vx: rand(-4, 4), vy: -rand(4, 10), grav: 0, life: 1 });
-      if (lv >= G.BLD_MAX && Math.random() < 0.1) part(q.x + rand(-q.w / 2, q.w / 2), q.y0 + rand(0, q.h), '#ffe27a', { vx: 0, vy: -rand(4, 10), grav: 0, life: 0.8 });
+    // 1-2) the static list (rebuilt when anything behind it changes) and the live one
+    TW.keyT = (TW.keyT || 0) - dt; if (TW.keyT <= 0 || !TW.key) { TW.keyT = 0.5; const sk = townStaticKey(); if (sk !== TW.key) { TW.key = sk; TW.statics = buildStatics(); } }
+    syncHeroes(rw); syncFolk(rw); const tav = TOWN[8]; syncMates(townPlace(tav));
+    TW.heroes.forEach((h, i) => stepHero(h, i, dt, rw));
+    stepFolk(dt, rw); stepBirds(dt, phase);
+    const items = TW.items; items.length = 0;
+    for (const it of TW.statics) items.push(it);
+    TW.heroes.forEach((h, i) => { if (h.st !== 'wait') items.push({ k: 'hero', h, i, x: h.x, y: h.y }); });
+    for (const v of TW.folk) items.push({ k: 'folk', v, x: v.x, y: v.y });
+    for (const c of TW.critters) items.push({ k: 'crit', c, x: c.x, y: c.y });
+    if (townOpen(tav)) for (const m of TW.mates) items.push({ k: 'mate', m, x: m.x, y: m.y });
+    // 3) y-sorted, then by x: whoever stands lower is drawn in front
+    items.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    for (const it of items) {
+      switch (it.k) {
+        case 'bld': drawBuilding(it, dt, phase); break;
+        case 'prop': { const c = sprOr(it.id); if (c) lctx.drawImage(c, Math.round(it.x - c.width / 2), it.y - c.height); break; }
+        case 'well': {
+          const fid = SPR.defs.tw_fountain ? (Math.floor(time * 3.5) % 2 ? 'tw_fountain2' : 'tw_fountain') : 'tw_well', well = sprOr(fid);
+          if (well) lctx.drawImage(well, cx - (well.width >> 1), it.y - well.height);
+          for (let i = every('drops', 18, dt); i-- > 0;) part(cx + rand(-4, 4), cy - (well ? well.height : 16) + 6, pick(['#bfe8ff', '#ffffff', '#7fc8ff']), { vx: rand(-8, 8), vy: -rand(10, 20), grav: 60, life: 0.5 });
+          if (isNight(phase)) tglow(cx, it.y - 8, 10, '#7fc8ff', 0.1 + 0.04 * Math.sin(time * 3));
+          break;
+        }
+        case 'npc': drawKeeper(it, dt); break;
+        case 'cauldron': {
+          const c = sprOr(['tw_cauldron', 'tw_cauldron2', 'tw_cauldron3'][Math.floor(time * 2.5) % 3]); if (c) lctx.drawImage(c, Math.round(it.x - c.width / 2), it.y - c.height);
+          for (let i = every('bubbles', 1.5, dt); i-- > 0;) part(it.x + rand(-3, 3), it.y - 9, pick(['#4fd65b', '#c8fff0']), { vx: rand(-2, 2), vy: -rand(6, 10), grav: -4, life: rand(0.6, 1), plus: Math.random() < 0.3 });
+          if (G.Audio && G.Audio.bubble && G.S.set.sound && every('bubSnd', 0.35, dt)) { try { G.Audio.bubble(); } catch (e) { /* no sound */ } }
+          break;
+        }
+        case 'patron': { const ph = Math.floor((time + it.i * 1.1) / (1.4 + it.i * 0.6)) % 2, c = sprOr(ph ? it.id + '2' : it.id); if (c) { tshadow(it.x, it.y, 8); lctx.drawImage(c, Math.round(it.x - c.width / 2), it.y - c.height); } break; }
+        case 'sign': { const c = sprOr(Math.sin(time * Math.PI * 2) > 0 ? 'tw_sign' : 'tw_sign2'); if (c) lctx.drawImage(c, it.x, it.y - c.height); break; }
+        case 'banner': drawBanner(it); break;
+        case 'plinth': drawPlinth(it, dt); break;
+        case 'statue': drawStatue(it, phase); break;
+        case 'pedestal': drawPedestal(it); break;
+        case 'hero': drawHero(it.h, it.i); break;
+        case 'mate': drawMate(it.m, dt); break;
+        case 'folk': {
+          const v = it.v, moving = v.w <= 0, id = moving && Math.floor(time * 6) % 2 && SPR.defs[v.id + '_w'] ? v.id + '_w' : v.id, c = sprOr(id);
+          if (c) { tshadow(v.x, v.y, 6); flipDraw(c, Math.round(v.x), Math.round(v.y), v.face); }
+          break;
+        }
+        case 'crit': {
+          const c = it.c, id = c.k === 'cat' ? (Math.floor(time * 0.7) % 2 ? 'tw_cat2' : 'tw_cat') : c.k === 'chicken' ? (c.pk > 0 || c.flee > 0 ? 'tw_chicken2' : 'tw_chicken') : 'tw_dog', im = sprOr(id);
+          if (im) { const bob = (c.k === 'dog' && c.w <= 0) || c.flee > 0 ? Math.floor(time * 8) % 2 : 0; tshadow(c.x, c.y, 6); flipDraw(im, Math.round(c.x), Math.round(c.y) - bob, c.face); }
+          break;
+        }
+      }
     }
-    // townsfolk strolling between the doors, fireflies in the dusk
-    stepVillagers(dt, cx, cy);
-    if (Math.random() < 0.08) part(rand(0, W), rand(rw.r1 - 30, H), pick(['#e8ff8a', '#ffe27a']), { vx: rand(-4, 4), vy: rand(-4, 4), grav: 0, life: rand(1.5, 3) });
+    // 4) the sky's small life: birds by day, fireflies at dusk, the season's drift
+    if (TW.birds.length) { const bc = sprOr(Math.floor(time * 6) % 2 ? 'tw_bird2' : 'tw_bird'); if (bc) for (const b of TW.birds) lctx.drawImage(bc, Math.round(b.x), Math.round(b.y)); }
+    if (isDark(phase)) for (let i = every('fire', 4, dt); i-- > 0;) part(rand(0, W), rand(rw.r1 - 30, H), pick(['#e8ff8a', '#ffe27a']), { vx: rand(-4, 4), vy: rand(-4, 4), grav: 0, life: rand(1.5, 3) });
+    const sk2 = Q.tier >= 2 ? 0.4 : Q.tier === 1 ? 0.75 : 1;
+    if (season === 'autumn') for (let i = every('leaf', 3 * sk2, dt); i-- > 0;) part(rand(0, W), rand(0, H * 0.4), pick(['#d8902a', '#f0c050', '#a85a1e']), { vx: rand(8, 20), vy: rand(10, 18), grav: 0, life: rand(3, 5), size: 1 });
+    if (season === 'winter') for (let i = every('snow', 6 * sk2, dt); i-- > 0;) part(rand(0, W), -2, '#ffffff', { vx: rand(-4, 6), vy: rand(10, 18), grav: 0, life: rand(4, 7) });
+    if (season === 'spring') for (let i = every('petal', 2 * sk2, dt); i-- > 0;) part(rand(0, W), rand(0, H * 0.5), pick(['#ffb0d0', '#ffffff']), { vx: rand(6, 14), vy: rand(6, 12), grav: 0, life: rand(3, 5) });
     stepDrawParts(dt);
-    // warm evening light, darker at the edges (3.6: painted once per size)
-    const vk = W + 'x' + H + '@' + cx + ',' + cy;
-    if (vk !== townVigK) {
-      townVigK = vk; townVig = SPR.makeCanvas(W, H);
-      const x = townVig.getContext('2d'), vgl = x.createRadialGradient(cx, cy, 30, cx, cy, Math.max(W, H) * 0.7);
-      vgl.addColorStop(0, 'rgba(255,210,140,0.06)'); vgl.addColorStop(1, 'rgba(10,8,20,0.45)');
-      x.fillStyle = vgl; x.fillRect(0, 0, W, H);
+    // 5) the time of day over everything, then the lights that cut through it
+    if (phase !== 'day') {
+      const ov = phaseOverlay(phase, TW.statics);
+      if (phase === 'dawn') lctx.drawImage(ov, 0, 0);
+      else { lctx.globalCompositeOperation = 'multiply'; lctx.drawImage(ov, 0, 0); lctx.globalCompositeOperation = 'source-over'; }
+      if (isDark(phase)) {
+        const a = (Q.tier >= 2 ? 0.58 : 0.55 + 0.08 * Math.sin(time * 2.2));
+        lctx.globalAlpha = a;
+        for (const it of TW.statics) if (it.k === 'bld' && it.open) { const id = townSpr(it.t), m = id && windowMask(id); if (m) lctx.drawImage(m, Math.round(it.q.x0), it.q.y0); }
+        lctx.globalAlpha = 1;
+      }
+      if (isNight(phase)) { // stars in the top band
+        lctx.fillStyle = '#ffffff'; const top = Math.max(2, rw.r1 - 60), band = Math.max(8, rw.r1 - 48 - top);
+        for (let i = 0; i < 30; i++) { lctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * 2 + i * 1.7); lctx.fillRect(Math.round((i * 73856093 % W + W) % W), Math.round(top + ((i * 19349663) % band + band) % band), 1, 1); }
+        lctx.globalAlpha = 1;
+      }
+    } else if (Q.tier < 2) { // day: two cloud shadows drift over the square
+      lctx.fillStyle = '#000000';
+      for (let i = 0; i < 2; i++) { const x = ((time * (6 + i * 2) + i * W * 0.45) % (W + 160)) - 80, y = H * (0.25 + i * 0.35); lctx.globalAlpha = 0.06; lctx.beginPath(); lctx.ellipse(x | 0, y | 0, 70 + i * 14, 24 + i * 6, 0, 0, 6.3); lctx.fill(); }
+      lctx.globalAlpha = 1;
     }
-    lctx.drawImage(townVig, 0, 0);
+    // 6) bubbles: one pick a second
+    for (let i = TW.bubbles.length - 1; i >= 0; i--) { const b = TW.bubbles[i]; b.t += dt; if (b.t >= b.T) TW.bubbles.splice(i, 1); }
+    TW.pick -= dt; if (TW.pick <= 0) { TW.pick = 1; if (bubblesOk()) pickBubble(); else TW.bubbles.length = 0; }
     // the pixel layer is on screen as it is; then the names on the hi-res layer
     setShift(0, 0); setFx(0, flash);
     if (flash > 0) flash = Math.max(0, flash - dt * 1.8);
@@ -3403,8 +3883,8 @@
     for (const t of TOWN) {
       const q = townPlace(t), on = townHover === t, open = townOpen(t), lv = townLv(t), nm = G.t('town_' + t.id);
       ctx.font = crisp(on ? 4 : 3) + 'px ' + FONT;
-      const y = q.y0 - 5 + (on ? Math.sin(time * 6) : 0);
-      ctx.strokeText(nm, q.x, y); ctx.fillStyle = !open ? '#8a8494' : on ? '#ffe27a' : t.id === 'portal' ? '#7fe9ff' : lv >= G.BLD_MAX ? '#ffd84a' : '#ffffff'; ctx.fillText(nm, q.x, y);
+      const y = q.y0 - 5 - (t.id === 'portal' && TW.statics.some(z => z.k === 'banner') ? 9 : 0) + (on ? Math.sin(time * 6) : 0);
+      drawText2(nm, q.x, y, !open ? '#8a8494' : on ? '#ffe27a' : t.id === 'portal' ? '#7fe9ff' : lv >= G.BLD_MAX ? '#ffd84a' : '#ffffff');
       // what it wants from you: a red mark when there's something to do, a gold arrow when you can build it up
       const ping = open && G.UI && G.UI.bldPing && G.UI.bldPing(t.id), up = open && G.UI && G.UI.bldCanBuild && G.UI.bldCanBuild(t.id);
       if (ping || up) {
@@ -3413,13 +3893,41 @@
         ctx.fillStyle = ping ? '#ff4f4f' : '#ffd84a'; ctx.fillRect(bx - 1.5, by - 1.5, 3, 3);
       }
     }
+    // the hovered actor's name
+    const hv = TW.hover;
+    if (hv && hv.k !== 'bubble') {
+      let nm = '', x = hv.x, y = hv.y - 26;
+      if (hv.k === 'hero') { const u = unitOf(hv.h.who); nm = u ? (G.CLASS_BY_ID[u.cls] || {}).name || u.cls : ''; if (hv.h.who < 0) nm += ' · ' + G.t('twWardenNow'); x = hv.h.x; y = hv.h.y - 28; }
+      else if (hv.k === 'statue') { const e = hv.e, B = G.BUTTON_BY_ID && G.BUTTON_BY_ID[e.btn], C = G.CLASS_BY_ID[e.cls]; nm = [(B ? B.name : e.btn), C ? C.name : e.cls, G.t('twHeat', e.heat | 0), e.land, e.win ? G.t('twFallenWon') : G.t('twFallenFell', e.cause || '?')].filter(Boolean).join(' · '); y = hv.y - 20; }
+      else if (hv.k === 'pedestal') { nm = G.t('twButton', hv.b.name); y = hv.y - 27; }
+      else if (hv.k === 'plinth') { nm = G.t('twKeepsake', hv.ks.name); y = hv.y - 30; }
+      else if (hv.k === 'banner') { nm = G.t('twDeepLord', hv.R.lordName || hv.R.name); y = hv.q.y0 - 12; }
+      if (nm) { ctx.font = crisp(3) + 'px ' + FONT; const w = measureW(nm); x = clamp(x, w / 2 + 2, W - w / 2 - 2); drawText2(nm, x, y, '#ffe27a'); }
+    }
+    // the bubbles: a pale box with a tail toward the speaker's head
+    ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1;
+    for (const b of TW.bubbles) {
+      let sx, sy;
+      if (b.who.k === 'hero') { const h = TW.heroes[b.who.i]; if (!h) continue; sx = h.x; sy = h.y - 24; }
+      else { const it = TW.statics.find(z => z.k === 'npc' && z.t.id === b.who.id); if (!it) continue; sx = it.x; sy = it.y - 18; }
+      const a = Math.min(1, b.t / 0.15, (b.T - b.t) / 0.3), w = measureW(b.text) + 4, h = crisp(3) + 4;
+      let bx = clamp(sx - w / 2, 2, W - w - 2); const by = Math.max(2, sy - 6 - h);
+      b.box = { x: bx, y: by, w, h: h + 6 };
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#0c0b12'; ctx.fillRect(bx - 1, by - 1, w + 2, h + 2);
+      ctx.fillStyle = '#f4f0e4'; ctx.fillRect(bx, by, w, h);
+      const tx = clamp(sx, bx + 3, bx + w - 3); ctx.fillStyle = '#0c0b12'; ctx.fillRect(tx - 2, by + h, 4, 1); ctx.fillRect(tx - 1, by + h + 1, 2, 1); ctx.fillRect(tx - 1, by + h + 2, 1, 1);
+      ctx.fillStyle = '#f4f0e4'; ctx.fillRect(tx - 1, by + h, 2, 1);
+      ctx.fillStyle = '#1e1a24'; ctx.fillText(b.text, bx + w / 2, by + h / 2 + 0.5);
+      ctx.globalAlpha = 1;
+    }
     // (the town's name only where the HUD leaves room for it)
     if (W >= 320) {
-    ctx.font = crisp(6) + 'px ' + FONT; const ty = H * 0.13;
-    ctx.lineWidth = 2; ctx.strokeText(G.t('townTitle'), W / 2, ty); ctx.fillStyle = '#ffe27a'; ctx.fillText(G.t('townTitle'), W / 2, ty);
+    ctx.font = crisp(6) + 'px ' + FONT; const ty = H * 0.13; ctx.lineWidth = 2;
+    drawText2(G.t('townTitle'), W / 2, ty, '#ffe27a');
     ctx.font = crisp(3) + 'px ' + FONT; ctx.lineWidth = 1;
     const sub = G.townLvl ? G.t('dirLvl', G.townLvl()) + ' · ' + G.t('townSub') : G.t('townSub');
-    ctx.strokeText(sub, W / 2, ty + 9); ctx.fillStyle = '#e8e0d0'; ctx.fillText(sub, W / 2, ty + 9);
+    drawText2(sub, W / 2, ty + 9, '#e8e0d0');
     }
     drawTexts(dt);
     endText();
@@ -4364,6 +4872,36 @@
     }
     lctx.globalAlpha = 1;
   }
+
+  // ---------- a shrine under the HUD: on a phone the party seats and the HUD pills sit over the field's lower band, and a
+  // shrine spawned under one (spawnShrine: a 0.2-0.8 at p 0.5; measured 5 of 40 at 360x740) could never take the Hand -
+  // the DOM eats the press before the canvas sees it. At the spawn (one DOM read, never per frame) it steps round the
+  // rim, nearest clear spot first; the a/p stay the world's (world.js keeps the object, this only moves it) ----------
+  function hudOver(q) {
+    const r = stageRect(); if (!r.width || !document.elementFromPoint) return false;
+    for (const dy of [-8, 2, -18]) { // the hit box's centre, its foot, its crown (hitShrine: y - 7 +- 11)
+      const x = r.left + q.x * S, y = r.top + (q.y + dy) * S;
+      if (x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight) continue;
+      const el = document.elementFromPoint(x, y);
+      if (el && el !== cv && !el.contains(cv)) return true;
+    }
+    return false;
+  }
+  St.shrineClear = () => { const q = shrinePos(); return q ? !hudOver(q) : null; };
+  FF.shrineMoved = 0;
+  G.on('shrine', s => {
+    if (!s || !cv || s.a == null) return;
+    const q0 = shrinePos(); if (!q0 || !hudOver(q0)) return;
+    const a0 = s.a;
+    for (let i = 1; i <= 8; i++) for (const sg of [1, -1]) {
+      const a = a0 + sg * i * 0.05;
+      if (a < 0.2 || a > 0.8) continue;
+      s.a = a;
+      const q = shrinePos();
+      if (q && !hudOver(q)) { FF.shrineMoved++; ring(q.x, q.y - 3, 20, 10, (G.SHRINES[s.k] || {}).col || '#ffffff', 0.6); return; }
+    }
+    s.a = a0;
+  });
 
   // ---------- the shrine: hold the Hand on it for 2 s (DESIGN §5.8); its ring fills, the light gathers in ----------
   function shrineChargeStep(dt) {

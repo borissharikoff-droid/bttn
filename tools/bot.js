@@ -1,18 +1,21 @@
-// Shared pieces for headless play: load the game logic into a sandbox and a
-// simple shopping brain. Used by tools/playtest.js.
+// Shared pieces for headless play: load the game logic into a sandbox, a simple shopping brain, and (4.0) the Siege
+// personas' policies: what a kind of player does at the setup, with a card, at the loot moment, a shrine, the camp, the
+// doors, a relic, a pact. Used by tools/playtest.js (the personas' loop), tools/siege.js (the measurement CLI) and the
+// streams' balance harnesses (tests/*/bal/cell.js wrap makeWorld and tools/playtest.js run()).
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+
+// the logic modules, in the page's order (DOM-free: no ui/stage/fx/audio)
+const FILES = ['util.js', 'data.js', 'game.js', 'hero.js', 'ach.js', 'journey.js', 'world.js', 'events.js', 'perks2.js', 'casino.js', 'relic.js', 'powers.js', 'overdrive.js', 'champions.js', 'mobs2.js', 'blessings.js', 'spells.js', 'rare.js', 'run.js'];
 
 function makeWorld(seed) {
   const clock = { now: 0 };
   const ctx = { console, Math, JSON, Date, performance: { now: () => clock.now * 1000 }, Object, Array, Number, String, Infinity, NaN, isFinite };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
-  for (const f of ['util.js', 'data.js', 'game.js', 'hero.js', 'ach.js', 'journey.js', 'world.js', 'events.js', 'perks2.js', 'casino.js', 'relic.js', 'powers.js', 'overdrive.js', 'champions.js', 'mobs2.js', 'blessings.js', 'spells.js', 'rare.js', 'run.js']) {
-    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx, { filename: f });
-  }
+  for (const f of FILES) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx, { filename: f });
   const G = ctx.G;
   if (seed != null) G.useSeed(seed);
   G.S = G.newState();
@@ -21,10 +24,19 @@ function makeWorld(seed) {
   // 4.0: bots play Sieges to their end (a fall or a win) and never abandon one: the 3.x Ascend shim (fameGain > 0 means
   // 'abandon now for this much Fame') reads 0 for them. A class pick with no Siege on starts one (hero.js chooseClass).
   G.fameGain = () => 0;
+  // 4.0: what the persona decided (choices) against what the game did for it (autos): tools/playtest.js's two counts
+  // (DESIGN §14: real choices a minute >= 3, automatic actions a minute < 30)
+  G.botStats = { choices: 0, autos: 0 };
   // 4.0: the persona's own answers at the camp and the doors (G.botPolicy, below): a hold left to the game (no run UI)
-  // is resolved through G.beatAuto, so the policy steps in there, before the game's own auto()
+  // is resolved through G.beatAuto, so the policy steps in there, before the game's own auto(); a hold the game resolves
+  // itself (a persona too slow for it, the idle one) counts as an automatic action
   const beatAuto0 = G.beatAuto;
-  if (beatAuto0) G.beatAuto = function () { return siegeBeat(G) || beatAuto0.apply(this, arguments); };
+  if (beatAuto0) G.beatAuto = function () { if (siegeBeat(G)) return true; G.botStats.autos++; return beatAuto0.apply(this, arguments); };
+  // the game's own picks and pickups are automatic actions too (the persona's hand-picked ones go through G.botStats.choices)
+  G.on('cardPick', (id, rank, tier, how) => { if (how === 'auto') G.botStats.autos++; });
+  G.on('pickup', (e, how) => { if (how !== 'hand') G.botStats.autos++; });
+  G.on('gear', (g, eq) => { if (eq) G.botStats.autos++; });
+  G.on('lootCollapse', () => { G.botStats.autos++; });
   return { G, clock };
 }
 
@@ -70,25 +82,62 @@ function tryBuy(G, cps) {
   if (best.kind === 'upg') G.buyUpgrade(best.id); else G.buyHero(best.id, 1);
   return true;
 }
-// 4.0: per-persona Siege policies (DESIGN §13 item 16). G.botPolicy is the persona's (a test or tools/playtest.js sets it:
-// G.botPolicy = SIEGE_POLICY[name]; shop() infers one from the click rate when nothing set it; null: the game's own auto()
-// for every hold, as the 3.x page with no run UI does):
-//   camp: Rest under rest (50%) of the Button's health, else Temper (the game's campAuto then recruits the missing role,
-//     buys what helps and enchants); extract: at Camp extract.camp with fewer than extract.pips pips, bank the run (x1);
-//   doors: the first door whose reward tag is in tags (active: Elite, then Treasure), else whose map mod is in mods (casual:
-//     Calm), else the one with the mildest twist (MOD_RISK); vault: spend a Key on the Vault when holding one;
+
+// ---------- 4.0: the Siege personas' policies (DESIGN §13 item 16) ----------
+// G.botPolicy is the persona's (tools/playtest.js sets it from SIEGE_POLICY[name]; a test may set its own; shop() infers
+// one from the click rate when nothing set it; null: the game's own auto() for every hold, as the 3.x page with no run UI
+// does - the idle persona). A policy:
+//   setup: { btn: [Button ids by preference; the first open one], heat: 'max' (heatWon + 1: the hardcore climbs) | n | null
+//     (the last setup's, else 0), keeps: how many keepsakes (relics first, then the highest Codex rank), cls: a class id or
+//     null (the seed's rotation among the open classes) }
+//   card: 'school' (concentrate: an evolution first, then a card of a school the build owns toward the evolution whose item
+//     is worn, PERK_PRIORITY among equals, a rarer card first) | 'first' (the first card, an evolution apart) | 'auto'
+//   loot: 'best' (the biggest ▲, a unique ▲ before it; nothing ▲: stash a legendary+/unique, else burn) | 'glance' (the
+//     biggest ▲ lootSee of the time, else the first card as it comes) | 'auto'
+//   shrine: the chance a shrine is charged (the Hand held on it for 2 s, the Button let go meanwhile)
+//   boon: 'build' | 'steady' (BOON_PREF; 'build' takes health when the Button is under half)
+//   pact: 'bold' (Blood / Greed / Hunt with 2+ pips and the Button over 60%; never Glass) | 'no'
+//   relic: 'school' (a rule of a school the build owns, then a true relic, then the first) | 'first'
+//   camp: Rest under rest of the Button's health, else Temper; recruits the missing role (healer, tank, damage);
+//     market 'all' (every ware that helps, as the game's campAuto) | 'one' (the first by MARKET_PREF) | 'none'
+//   doors: the first door whose reward tag is in tags (active: Elite, then Treasure), else whose map mod is in mods
+//     (casual: Calm), else the mildest twist (MOD_RISK); vault: spend a Key on the Vault when holding one
+//   extract: { camp, pips }: at Camp extract.camp with fewer than extract.pips pips, bank the run (x1); null: never
+//   delay: s before the persona answers each hold (card, loot, boon, pact, camp, doors, relic); holdAuto: s after which the
+//     game answers an unanswered hold for them (TUNE.beatAutoNoUI; a card after TUNE.cardAuto 10 s anyway)
 //   Continue: never (no G.fallAsk: a fall ends the run at once).
 const SIEGE_POLICY = {
-  active: { name: 'active', rest: 0.5, tags: ['elite', 'treasure'], mods: null, vault: 1, extract: null },
-  casual: { name: 'casual', rest: 0.5, tags: null, mods: ['calm'], vault: 0, extract: { camp: 4, pips: 2 } },
+  active: { name: 'active', rest: 0.5, tags: ['elite', 'treasure'], mods: null, vault: 1, extract: null, market: 'all',
+    card: 'school', loot: 'best', shrine: 1, boon: 'build', pact: 'bold', relic: 'school',
+    setup: { btn: ['glass', 'prism', 'storm', 'classic'], heat: null, keeps: 2, cls: null },
+    delay: { card: 1, loot: 1.5, boon: 1, pact: 1, camp: 2, doors: 1, relic: 1 }, holdAuto: 10 },
+  casual: { name: 'casual', rest: 0.5, tags: null, mods: ['calm'], vault: 0, extract: { camp: 4, pips: 2 }, market: 'one',
+    card: 'first', loot: 'glance', lootSee: 0.5, shrine: 0.3, boon: 'steady', pact: 'no', relic: 'first',
+    setup: { btn: ['iron', 'classic'], heat: null, keeps: 1, cls: null },
+    delay: { card: 5, loot: 4, boon: 3, pact: 3, camp: 6, doors: 4, relic: 3 }, holdAuto: 14 },
   idle: null,
 };
-SIEGE_POLICY.hardcore = SIEGE_POLICY.active;
+// the attentive casual (DESIGN §9.1: duty 1, events 0.6): the casual's choices, made on time, the ▲ on a loot card seen
+SIEGE_POLICY.attentive = Object.assign({}, SIEGE_POLICY.casual, { name: 'attentive', loot: 'best', shrine: 0.6,
+  delay: { card: 3, loot: 2.5, boon: 2, pact: 2, camp: 4, doors: 3, relic: 2 }, holdAuto: 12 });
+// the hardcore climbs the Heat as wins come
+SIEGE_POLICY.hardcore = Object.assign({}, SIEGE_POLICY.active, { name: 'hardcore', setup: Object.assign({}, SIEGE_POLICY.active.setup, { heat: 'max' }) });
 SIEGE_POLICY.returner = SIEGE_POLICY.casual;
+// the idle Clockwork (the game's own auto for every hold; the setup takes the Clockwork Button when it is open)
+SIEGE_POLICY.clockwork = { name: 'clockwork', setup: { btn: ['clockwork', 'classic'], heat: null, keeps: 0, cls: null }, auto: 1 };
 // a casual shopper's first pick at the market
 const MARKET_PREF = ['pip', 'mend', 'item', 'potion'];
+// the game's own market order (every ware that helps)
+const MARKET_ALL = ['pip', 'mend', 'item', 'reroll', 'potion', 'orbs', 'key'];
 // how much a map mod hurts a casual party (the door policy's tie-break: the mildest)
 const MOD_RISK = { calm: 0, treasure: 1, thick: 2, elite: 3, swift: 4, nomend: 5, armored: 6, hexed: 7 };
+// the steadiest boons first (a Power shrine's 1 of 3, a complete build's boon cards)
+const BOON_PREF = ['dmg', 'spd', 'crit', 'hp', 'boss', 'reroll', 'xp', 'gold', 'luck', 'od', 'orbs'];
+// (4.0: Plunder is in: rares, champions and Hoarders drop a chest)
+const PERK_PRIORITY = ['might', 'frenzy', 'momentum', 'nova', 'blades', 'corpse', 'multi', 'overkill', 'aura', 'glass', 'chain', 'burn', 'execute', 'laststand', 'cleave', 'crush', 'thunder', 'mark', 'ricochet', 'bulwark', 'aegis', 'thorns', 'secondwind', 'warband', 'frost', 'souls', 'greed', 'avarice', 'reach', 'fortress', 'leech', 'loot', 'plunder'];
+const CLASS_ROTATION = ['knight', 'archer', 'wizard', 'rogue', 'cleric'];
+const choice = G => { if (G.botStats) G.botStats.choices++; };
+
 function doorPick(G, pol, opts) {
   let i = -1;
   if (pol.tags) for (const t of pol.tags) { i = opts.findIndex(o => o.tag === t && !o.cursed); if (i >= 0) return i; }
@@ -97,49 +146,210 @@ function doorPick(G, pol, opts) {
   i = 0; opts.forEach((o, k) => { if (risk(o) < risk(opts[i])) i = k; });
   return i;
 }
-// the persona's answer to the hold on screen (G.beatAuto's wrapper): true when it took care of it
+// the Run Setup (DESIGN §2.1) as the persona fills it: Button, class, Heat, keepsakes, first door. opts: { heat, cls, btn,
+// keeps (false: none) } from the caller (a test's or a measurement cell's fixed choices) win over the policy
+function botSetup(G, pol, seed, opts) {
+  const S = G.S, P = (pol && pol.setup) || {}, o = opts || {}, last = S.lastSetup || {};
+  const so = G.setupOptions ? G.setupOptions() : null;
+  const open = (so && so.buttons) || ['classic'], classes = (so && so.classes) || ['knight', 'archer', 'wizard'];
+  // the Button: the first open one of the preference list (a locked one would play as the Classic anyway)
+  let btn = o.btn || (P.btn || ['classic']).find(b => open.includes(b)) || 'classic';
+  // the class: the seed's rotation among the open ones (the 3.x bots' knight/archer/wizard/rogue by seed % 4)
+  let cls = o.cls || P.cls;
+  if (!cls || !classes.includes(cls)) { const rot = CLASS_ROTATION.filter(c => classes.includes(c)); cls = rot.length ? rot[(seed | 0) % rot.length] : classes[0]; }
+  // the Heat: fixed by the caller, 'max' for the climber, else the last setup's
+  let heat = o.heat != null ? o.heat : P.heat === 'max' ? (G.tormentMax ? G.tormentMax() : 0) : P.heat != null ? P.heat : last.heat | 0;
+  heat = Math.max(0, Math.min(G.tormentMax ? G.tormentMax() : 0, heat | 0));
+  // keepsakes: relics first (a rule on the belt from the start), then the highest Codex rank
+  let keeps = [];
+  const nk = o.keeps === false ? 0 : Math.min(P.keeps | 0, (so && so.keepSlots) | 0);
+  if (nk > 0 && so && so.keepsakes) keeps = so.keepsakes.slice().sort((a, b) => (b.relic - a.relic) || (b.rank - a.rank)).slice(0, nk).map(k => k.q);
+  // the first land: the door the door policy would take (the setup previews the next run's own doors)
+  const doors = (so && so.firstDoors) || [];
+  const door = doors.length && pol && (pol.tags || pol.mods) ? doorPick(G, pol, doors) : 0;
+  return { btn, cls, heat, keeps, door };
+}
+// the owned schools: the perks picked this run, plus the class's own
+function schoolsOf(G) {
+  const S = G.S, set = new Set();
+  for (const k of G.cardSlotsUsed ? G.cardSlotsUsed() : []) if (G.PERK_SCHOOL && G.PERK_SCHOOL[k]) set.add(G.PERK_SCHOOL[k]);
+  return set;
+}
+const classSchools = G => new Set((G.CLASS_SCHOOLS && G.S.hero && G.CLASS_SCHOOLS[G.S.hero.cls]) || []);
+// the card to pick (its index) under the policy; -1: leave it to the game
+function cardChoice(G, pol) {
+  const v = G.cardView ? G.cardView() : null;
+  if (!v || !v.cards.length) return -1;
+  const mode = pol ? pol.card : 'auto';
+  if (mode === 'auto') return -1;
+  const ev = v.cards.findIndex(c => c.evo);
+  if (ev >= 0) return ev;
+  if (mode === 'first') return 0;
+  const own = schoolsOf(G), mine = classSchools(G), used = v.slots ? v.slots.used : 0;
+  const score = c => {
+    if (c.boon) { const i = BOON_PREF.indexOf(String(c.id).slice(5)); return 10 - (i < 0 ? 9 : i); }
+    const pr = PERK_PRIORITY.indexOf(c.id);
+    let s = 40 - (pr < 0 ? 35 : pr);
+    if (c.school && own.has(c.school)) s += 15;
+    if (c.school && mine.has(c.school)) s += 8;
+    if (c.own > 0) s += 20;                               // concentrate the ranks: six slots
+    if (c.evoWith && c.evoWith.have) s += 25;             // toward the evolution whose item is worn
+    if (c.evoWith && c.evoWith.have && c.toEff >= c.max) s += 15;
+    s += 6 * (c.tier | 0);                               // Empowered / Golden
+    if (c.isNew && used >= 4 && !(c.school && own.has(c.school))) s -= 25; // the last slots go to the build's schools
+    if (c.id === 'glass' && G.S.hero && G.D.heroHp && G.S.hero.hp < G.D.heroHp * 0.5) s -= 30;
+    return s;
+  };
+  let best = 0;
+  v.cards.forEach((c, i) => { if (score(c) > score(v.cards[best])) best = i; });
+  return best;
+}
+// the loot moment: { i, who } to take, 'burn' when nothing is worth it, null with no moment open
+function lootChoice(G, pol, rnd) {
+  const st = G.lootState ? G.lootState() : null;
+  if (!st || !st.cards) return null;
+  const open = st.cards.filter(c => !c.taken && !c.burned);
+  if (!open.length || st.left <= 0) return 'burn';
+  const mode = pol ? pol.loot : 'auto';
+  const ups = open.filter(c => c.up).sort((a, b) => b.pct - a.pct);
+  // (a glance: the ▲ seen lootSee of the time; otherwise the first card as it comes, worn if it fits, else stashed)
+  if (mode === 'glance' && (rnd ? rnd() : Math.random()) >= (pol.lootSee == null ? 0.5 : pol.lootSee)) {
+    const c = open[0];
+    return { i: c.i, who: c.up ? c.who : 'bag' };
+  }
+  if (ups.length) { const uq = ups.find(c => c.unique); const c = uq && uq.pct >= ups[0].pct * 0.6 ? uq : ups[0]; return { i: c.i, who: c.who }; }
+  // nothing ▲: a legendary or better (or a unique) into the bag, the most valuable first; else burn
+  const keep = open.filter(c => c.unique || c.r >= 4).sort((a, b) => b.v - a.v)[0];
+  return keep ? { i: keep.i, who: 'bag' } : 'burn';
+}
+function boonChoice(G, pol) {
+  const r = G.S.run, o = r && r.boonOffer;
+  if (!o) return null;
+  const ids = o.ids;
+  if (pol && pol.boon === 'build' && G.S.hero && G.D.heroHp && G.S.hero.hp < G.D.heroHp * 0.5 && ids.includes('hp')) return 'hp';
+  return BOON_PREF.find(k => ids.includes(k)) || ids[0];
+}
+function pactChoice(G, pol) {
+  const r = G.S.run, o = r && r.pactOffer;
+  if (!o) return null;
+  if (!pol || pol.pact !== 'bold') return false;
+  const hpOk = G.S.hero && G.D.heroHp && G.S.hero.hp >= G.D.heroHp * 0.6, pips = (r.pips | 0) >= 2;
+  return o.id !== 'glass' && hpOk && pips;
+}
+function relicChoice(G, pol) {
+  const r = G.S.run, o = r && r.relicOffer;
+  if (!o || !o.ids.length) return -1;
+  if (!pol || pol.relic !== 'school') return 0;
+  const own = schoolsOf(G);
+  let i = o.ids.findIndex(id => G.UQ_THEME && G.UQ_THEME[id] && own.has(G.PERK_SCHOOL[G.UQ_THEME[id]]));
+  if (i < 0) i = o.ids.findIndex(id => G.RELICS && G.RELICS[id]);
+  return i < 0 ? 0 : i;
+}
+// the camp under the policy (one action, the recruit, the market, Enchant All, the Train card, on to the doors)
+function campDo(G, pol) {
+  const S = G.S, r = S.run, c = r && r.camp;
+  if (!c) return false;
+  if (pol.extract && c.n === pol.extract.camp && (r.pips | 0) < pol.extract.pips && G.runExtract) { choice(G); G.runExtract(); return true; }
+  if (!c.act && pol.rest != null) { G.campAct(S.hero.hp < (G.D.heroHp || 1) * pol.rest ? 'rest' : 'temper'); choice(G); }
+  if (c.recruits && !c.hired) {
+    const roles = [S.hero.cls].concat(S.party.map(m => m.cls)).map(k => G.ROLES[k]);
+    const want = !roles.includes('heal') ? 'heal' : !roles.includes('tank') ? 'tank' : 'dps';
+    const i = c.recruits.findIndex(x => G.ROLES[x.cls] === want);
+    if (G.campRecruit(i < 0 ? 0 : i)) choice(G);
+  }
+  let bought = 0;
+  const buy = (w, i) => { if (!w.sold && (w.k !== 'item' || G.bestWearer(w.g).up) && G.campBuy(i)) bought++; };
+  if (pol.market === 'one') { for (const k of MARKET_PREF) { if (bought) break; c.wares.forEach((w, i) => { if (!bought && w.k === k) buy(w, i); }); } }
+  else if (pol.market !== 'none') for (const k of MARKET_ALL) c.wares.forEach((w, i) => { if (w.k === k) buy(w, i); });
+  if (bought) choice(G);
+  if (G.D.enchantAll && G.enchantAll) G.enchantAll();
+  // (a Train card on screen over the camp: the persona's own card policy)
+  let g = 0;
+  while (r.offer && g++ < 5) { const i = cardChoice(G, pol); if (i >= 0) { G.cardPick(i); choice(G); } else G.cardAuto(); }
+  G.campDone();
+  return true;
+}
+// the persona's answer to the hold on screen (G.beatAuto's wrapper: the game asks it before its own auto); true when it
+// took care of it
 function siegeBeat(G) {
   const S = G.S, r = S && S.run, pol = G.botPolicy;
-  if (!pol || !r || !r.on || !r.beat || !r.beat.id) return false;
-  if (r.beat.id === 'camp' && r.camp) {
-    const c = r.camp;
-    if (pol.extract && c.n === pol.extract.camp && (r.pips | 0) < pol.extract.pips && G.runExtract) { G.runExtract(); return true; }
-    if (!c.act && pol.rest != null) G.campAct(S.hero.hp < (G.D.heroHp || 1) * pol.rest ? 'rest' : 'temper');
-    // the market: 'all' (what helps: the game's campAuto), 'one' (the first that helps, by MARKET_PREF), 'none'
-    if (!pol.market || pol.market === 'all') return false;
-    if (c.recruits && !c.hired) {
-      const roles = [S.hero.cls].concat(S.party.map(m => m.cls)).map(k => G.ROLES[k]);
-      const want = !roles.includes('heal') ? 'heal' : !roles.includes('tank') ? 'tank' : 'dps';
-      const i = c.recruits.findIndex(x => G.ROLES[x.cls] === want);
-      G.campRecruit(i < 0 ? 0 : i);
-    }
-    if (pol.market === 'one') {
-      let done = false;
-      for (const k of MARKET_PREF) { if (done) break; c.wares.forEach((w, i) => { if (!done && w.k === k && !w.sold && (k !== 'item' || G.bestWearer(w.g).up) && G.campBuy(i)) done = true; }); }
-    }
-    if (G.D.enchantAll && G.enchantAll) G.enchantAll();
-    if (r.offer) { let g = 0; while (r.offer && g++ < 5) G.cardAuto(); }
-    G.campDone();
-    return true;
-  }
+  if (!pol || pol.auto || !r || !r.on || !r.beat || !r.beat.id) return false;
+  if (r.beat.id === 'camp' && r.camp) return campDo(G, pol);
   if (r.beat.id === 'doors' && r.doors && r.doors.opts.length) {
     const D_ = r.doors;
+    choice(G);
     return G.runDoor(doorPick(G, pol, D_.opts), !!(pol.vault && D_.vault && (r.keys | 0) > 0));
   }
+  if (r.beat.id === 'relic' && r.relicOffer) { const i = relicChoice(G, pol); choice(G); return G.relicPick(i, r.belt.length >= r.beltMax ? 0 : undefined) || G.relicSkip(); }
+  if (r.beat.id === 'loot' && G.lootNow && G.lootNow()) return lootDo(G, pol);
   return false;
 }
-// 4.0: the Siege, minimal policy (the bots stream improves it): no run on -> AGAIN (the last setup); a fall -> no Continue,
-// the run ends; a post-boss beat on screen (the loot moment, a card, camp, doors...) -> its own auto() (the best loot, the
-// best card, the default door), so the field never waits on a bot that checks in once a minute
+// the loot moment under the policy: the picks (one, two at the Mad Button), then the burn
+function lootDo(G, pol, rnd) {
+  const L0 = G.lootNow();
+  let g = 0;
+  while (G.lootNow() === L0 && g++ < 6) {
+    const c = lootChoice(G, pol, rnd);
+    if (!c) return false;
+    if (c === 'burn') { G.lootAuto(); break; }
+    if (!G.lootTake(c.i, c.who)) { G.lootAuto(); break; }
+    choice(G);
+  }
+  return true;
+}
+// what is open for the persona to answer: 'card' | 'boon' | 'pact' | 'loot' | 'camp' | 'doors' | 'relic' | 'push' | null,
+// and the object behind it (a new one restarts the persona's delay)
+function holdOpen(G) {
+  const r = G.S.run;
+  if (!r || !r.on) return null;
+  if (r.offer) return { kind: 'card', ref: r.offer };
+  if (r.boonOffer) return { kind: 'boon', ref: r.boonOffer };
+  if (r.pactOffer) return { kind: 'pact', ref: r.pactOffer };
+  const L = G.lootNow && G.lootNow();
+  if (r.phase === 'loot' && L) return { kind: 'loot', ref: L };
+  if (r.phase === 'camp' && r.camp) return { kind: 'camp', ref: r.camp };
+  if (r.phase === 'doors' && r.doors) return { kind: 'doors', ref: r.doors };
+  if (r.phase === 'relic' && r.relicOffer) return { kind: 'relic', ref: r.relicOffer };
+  if (r.pushAsk) return { kind: 'push', ref: r.pushAsk };
+  return null;
+}
+// the persona's turn at a hold: st keeps its clock ({kind, ref, t}); after the policy's delay it answers. Returns the
+// kind answered, 'wait' while the delay runs, null with nothing open. rnd: the persona's own random stream.
+function botHold(G, pol, dt, st, rnd) {
+  const h = holdOpen(G);
+  if (!h) { st.kind = null; st.ref = null; st.t = 0; return null; }
+  if (st.ref !== h.ref) { st.kind = h.kind; st.ref = h.ref; st.t = 0; }
+  st.t += dt;
+  if (!pol || pol.auto) return 'wait';
+  const delay = (pol.delay && pol.delay[h.kind]) || 0;
+  if (st.t < delay) return 'wait';
+  const r = G.S.run;
+  let ok = false;
+  switch (h.kind) {
+    case 'card': { const i = cardChoice(G, pol); if (i < 0) return 'wait'; ok = G.cardPick(i); break; }
+    case 'boon': ok = G.boonPick(boonChoice(G, pol)); break;
+    case 'pact': ok = G.pactAnswer(pactChoice(G, pol)); break;
+    case 'loot': ok = lootDo(G, pol, rnd); break;
+    case 'camp': ok = campDo(G, pol); break;
+    case 'doors': ok = G.runDoor(doorPick(G, pol, r.doors.opts), !!(pol.vault && r.doors.vault && (r.keys | 0) > 0)); break;
+    case 'relic': ok = G.relicPick(relicChoice(G, pol), r.belt.length >= r.beltMax ? 0 : undefined) || G.relicSkip(); break;
+    case 'push': ok = !!G.runReturn(); break; // (never Push On in a measurement: the win is the end)
+  }
+  if (ok && h.kind !== 'push' && h.kind !== 'loot' && h.kind !== 'camp') choice(G);
+  st.kind = null; st.ref = null; st.t = 0;
+  return h.kind;
+}
+// 4.0: the Siege, the minimal policy for a bot without the personas' loop (a test calling shop() alone): no run on -> AGAIN
+// (the last setup); a fall -> no Continue, the run ends; a hold on screen -> the policy (siegeBeat) or the game's own auto
 function siegeAct(G) {
   const S = G.S;
   if (S.fallen) { G.runGiveUp(); return 'fall'; }
   if (!S.run || !S.run.on) { if (G.runAgain && S.hero && S.hero.cls && G.runAgain()) return 'again'; return null; }
-  // (a card on screen is the persona's own to pick: tools/playtest.js reads h.offer; idle ones leave it to the timer)
+  // (the personas' loop (tools/playtest.js) answers every hold with its own delays: nothing to do here then)
+  if (G.botLoop) return null;
   if (S.run.offer) return null;
-  // a shrine's choice: the steadiest boon; a pact declined
-  if (S.run.boonOffer && G.boonPick) { const ids = S.run.boonOffer.ids; G.boonPick(['dmg', 'spd', 'crit', 'hp'].find(k => ids.includes(k)) || ids[0]); return 'boon'; }
-  if (S.run.pactOffer && G.pactAnswer) { G.pactAnswer(false); return 'pact'; }
+  if (S.run.boonOffer && G.boonPick) { G.boonPick(boonChoice(G, G.botPolicy)); return 'boon'; }
+  if (S.run.pactOffer && G.pactAnswer) { G.pactAnswer(pactChoice(G, G.botPolicy)); return 'pact'; }
   if (S.run.phase !== 'field' && G.beatAuto && G.beatAuto()) return 'beat';
   return null;
 }
@@ -163,14 +373,15 @@ function shop(G, cps) {
     const worn = G.SLOTS.map(s => G.S.hero.eq[s]).filter(g => g && g.e < G.ENCHANT_MAX).sort((a, b) => G.enchantCost(a).shards - G.enchantCost(b).shards);
     if (!worn.length || !G.enchant(worn[0])) break;
   }
-  // (4.0: no Constellation, town or Hall of Fame buys: those are the meta, the 'no meta' baseline of DESIGN §9.1; and no
-  // run blessing: the cards are retired, their effects become Button rules and Power-shrine boons)
+  // (4.0: no Constellation, town or Hall of Fame buys here: those are the meta, bought between runs by the personas' loop
+  // when a measurement asks (buyMeta); and no run blessing: the cards are retired, their effects are Button rules and
+  // Power-shrine boons)
   if (G.S.eggs >= 1) G.pull(G.S.eggs >= 9 ? 10 : 1);
   G.S.quests.forEach((q, i) => { if (q.done) G.claimQuest(i); });
   if (G.dailyAvailable()) G.claimDaily();
 }
-// the Hall of Fame (G.HALL, 4.0: capped ranks for Fame), cheapest first: only when a test asks (the personas play
-// with no meta; the bots stream adds the meta tiers)
+// the Hall of Fame (G.HALL, 4.0: capped ranks for Fame), cheapest first: only when a measurement asks (the gate cells play
+// with a fixed meta tier)
 function buyLegacy(G) {
   const H = G.HALL || G.LEGACY;
   let n = 0;
@@ -209,7 +420,24 @@ function metaFill(G, k, o) {
   G.dirty(); G.recalc();
   return G.metaPower ? G.metaPower() : null;
 }
-// (4.0: Plunder is in: rares, champions and Hoarders drop a chest)
-const PERK_PRIORITY = ['might', 'frenzy', 'momentum', 'nova', 'blades', 'corpse', 'multi', 'overkill', 'aura', 'glass', 'chain', 'burn', 'execute', 'laststand', 'cleave', 'crush', 'thunder', 'mark', 'ricochet', 'bulwark', 'aegis', 'thorns', 'secondwind', 'warband', 'frost', 'souls', 'greed', 'avarice', 'reach', 'fortress', 'leech', 'loot', 'plunder'];
+// the measurement cells' meta tiers (DESIGN §14): 'none' (a fresh save), 'third' (Hall / Town / Star Chart at a third, a
+// Codex with the Crab King's Pincer for a keepsake, the Deeds as earned) and 'full' (everything maxed, every unlock open, a
+// Codex with the start pool's uniques at rank 2 and the three starting relics for keepsakes). A number is a share.
+const META_TIERS = { none: 0, third: 0.33, full: 1 };
+function metaMode(G, mode) {
+  const k = typeof mode === 'number' ? mode : META_TIERS[mode] || 0;
+  if (!(k > 0)) return 0;
+  const full = k >= 1;
+  metaFill(G, k, { unlock: full });
+  if (G.codexAdd) {
+    if (full) {
+      for (const q of ['pincer', 'goldgrin', 'windripper', 'cleaver', 'sporeheart', 'stormcaller', 'nightfang', 'headhunter']) if (G.UNIQUES[q]) G.codexAdd(q, 2, false);
+      for (const q of ['unbroken', 'hundredkings', 'lastword']) if (G.UNIQUES[q]) G.codexAdd(q, 1, true);
+    } else if (G.UNIQUES.pincer) G.codexAdd('pincer', 1, false);
+  }
+  G.dirty(); G.recalc();
+  return k;
+}
 
-module.exports = { makeWorld, metric, tryBuy, shop, siegeAct, siegeBeat, doorPick, buyLegacy, buyHall: buyLegacy, buyMeta, metaFill, PERK_PRIORITY, SIEGE_POLICY };
+module.exports = { makeWorld, FILES, metric, tryBuy, shop, siegeAct, siegeBeat, doorPick, botSetup, cardChoice, lootChoice, lootDo, boonChoice, pactChoice, relicChoice, campDo, holdOpen, botHold,
+  buyLegacy, buyHall: buyLegacy, buyMeta, metaFill, metaMode, META_TIERS, PERK_PRIORITY, BOON_PREF, SIEGE_POLICY, MOD_RISK };

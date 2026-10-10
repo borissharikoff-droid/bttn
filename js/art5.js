@@ -1037,4 +1037,233 @@
     '...dd...',
     '........',
   ]);
+  // ================= 4.0 "The Siege": THE TOWN ALIVE (ADDENDUM 5, maps/town.md) =================
+  // Six townsfolk who walk (id + '_w' is the stride frame), six more keepers (id + '2' idles), the smith's three
+  // hammer frames, the alchemist's cauldron, tavern patrons and sign, birds, a roof flag, a door pennant, a flower
+  // pot, the Museum plinth, the Button pedestal, the lord banner, seasonal trees and the eight grand ('_2') looks
+  // the 3.0 buildings never had. Same rules as above: no outline in the grids, light from the top-left.
+  {
+    const SKIN = { s: '#f2c6a0', S: '#d49b72', e: '#1a1a22' };
+    const NP = (o) => Object.assign({}, TOWN, SKIN, o);
+    // rows fitted to one width (a short row is padded with '.', a long one cut): no 'row width mismatch' on load
+    const fit = (w, rows) => rows.map(r => (r.length >= w ? r.slice(0, w) : r + '.'.repeat(w - r.length)));
+    const two = (id, pal, w, a, b, suf) => { def(id, pal, fit(w, a)); def(id + (suf || '2'), pal, fit(w, b)); };
+
+    // ---------- walkers (11x15; legs together / legs apart) ----------
+    // farmer: straw hat, green tunic, brown trousers, a pitchfork
+    {
+      const pal = NP({ H: '#e8c060', h: '#b88a30', t: '#5aa84e', T: '#3a7a3a', n: '#7a5a3a', N: '#5a3e26', i: '#8a90a0', I: '#4e5262' });
+      const top = ['....HHHH...', '..hHHHHHHh.', '...sesesS..', '...sssSsS..', '..ttttTTT..', '.sttttTTTs.', '.sttttTTTsi', '..ttttTTT.i', '..ttttTTT.i', '..nnnnNNN.i'];
+      two('npc_farmer', pal, 11, top.concat(['..nn...NN.i', '..nn...NN.i', '..nn...NN.i', '..BB...BB.i', '..BB...BB.I']),
+        top.concat(['.nnn..NNN.i', '.nn....NN.i', '.nn....NN.i', '.BB....BB.i', 'BB......BBI']), '_w');
+    }
+    // maid: red dress, white apron, a basket on her arm
+    {
+      const pal = NP({ H: '#7a4a24', r: '#d0483a', R: '#8a2a26', a: '#f4f0e4', A: '#c8c0b0', w: '#a86e38', W: '#d09a5c' });
+      const top = ['...HHHHH...', '..HHHHHHH..', '..HsesesH..', '..HsssSsH..', '...rrrRR...', '..srrrRRs..', '..srrrRRsW.', '...raaAR.wW', '...raaARWwW', '...raaAR.W.', '..rraaARR..'];
+      two('npc_maid', pal, 11, top.concat(['..rraaARR..', '.rrraaARRR.', '.rrrrrRRRR.', '...BB.BB...']),
+        top.concat(['.rrraaARRR.', '.rrraaARRR.', 'rrrrrrRRRRR', '..BB...BB..']), '_w');
+    }
+    // kid: a cap, short trousers, runs about (8x11)
+    {
+      const pal = NP({ c: '#4f8ae0', C: '#2f5aa8', t: '#ffe27a', T: '#d0a040', n: '#7a5a3a', N: '#5a3e26' });
+      const top = ['..cccc..', '.cccccCC', '.sesesS.', '..sssS..', '.tttTT..', 'stttTTs.', '.tttTT..', '.nnnNN..'];
+      two('npc_kid', pal, 8, top.concat(['.nn.NN..', '.BB.BB..', '........']), top.concat(['nn..NN..', 'BB...BB.', '........']), '_w');
+    }
+    // guard: iron helm, blue tabard, a spear
+    {
+      const pal = NP({ j: '#d8dee8', i: '#8a90a0', I: '#4e5262', u: '#3f63d9', U: '#2a44a0', n: '#6b7484', N: '#4f5664' });
+      const top = ['...jjjjj..j', '..jjjjjjjii', '..jsesesj.i', '..IsssSsI.i', '...uuuUU..i', '..iuuuUUi.i', '..iuuuUUi.i', '...uuuUUs.i', '...uuyUU..i', '...nnnNN..i'];
+      two('npc_guard', pal, 11, top.concat(['...nn.NN..i', '...nn.NN..i', '...nn.NN..i', '...BB.BB..i', '...BB.BB..I']),
+        top.concat(['..nnn.NNN.i', '..nn...NN.i', '..nn...NN.i', '..BB...BB.i', '.BB.....BBI']), '_w');
+    }
+    // merchant: purple coat, a fat coin sack
+    {
+      const pal = NP({ H: '#3a2a1a', m: '#8a4ad0', M: '#5e2e9a', y: '#ffe27a', Y: '#ffb347', n: '#4a3222', N: '#2e1e14', c: '#d09a5c', C: '#a86e38' });
+      const top = ['...HHHHH...', '..HHHHHHH..', '..HsesesH..', '...sssSs...', '..mmmmMMM..', '.smmymMMMs.', '.smmymMMMcc', '..mmymMMcCC', '..mmymMM.cC', '..mmmmMMM..'];
+      two('npc_merchant', pal, 11, top.concat(['..nnnnNNN..', '..nn...NN..', '..nn...NN..', '..BB...BB..', '...........']),
+        top.concat(['..nnnnNNN..', '.nnn..NNN..', '.nn....NN..', '.BB....BB..', '...........']), '_w');
+    }
+    // bard: green hat with a feather, a lute
+    {
+      const pal = NP({ g: '#4fb83e', G: '#2d7a28', f: '#ff5a7a', t: '#8a5a2e', T: '#6b4420', w: '#d09a5c', W: '#a86e38', y: '#ffe27a', n: '#4a3222', N: '#2e1e14' });
+      const top = ['f..ggggg...', '.fggggggG..', '..gsesesG..', '...sssSs...', '..tttTTT...', '.stttTTTww.', '.stttTTwWWw', '..tttTTwyWw', '..tttTT.wWw', '..nnnNNN.w.'];
+      two('npc_bard', pal, 11, top.concat(['..nn..NN...', '..nn..NN...', '..nn..NN...', '..BB..BB...', '...........']),
+        top.concat(['.nnn.NNN...', '.nn...NN...', '.nn...NN...', '.BB...BB...', '...........']), '_w');
+    }
+
+    // ---------- the new keepers (11x15, two idles) ----------
+    // sergeant (Barracks): iron helm with a red plume, blue tabard, a red sash; frame 2 salutes with the sword
+    {
+      const pal = NP({ j: '#d8dee8', i: '#8a90a0', I: '#4e5262', u: '#3f63d9', U: '#2a44a0', a: '#e8413c', n: '#6b7484', N: '#4f5664' });
+      const legs = ['...nn.NN...', '...nn.NN...', '..BBB.BBB..'];
+      two('npc_sarge', pal, 11, ['....aa.....', '..jjjjjjj..', '..jjjjjjjI.', '..jsesesI..', '..IsssSsI..', '..iuuuUUi..', '.siuaauUis.', '.siuuaaUis.', '..iuuuaUi.j', '..iuuuUUi.j', '...uuuUU.ij', '..........i'].concat(legs),
+        ['....aa...j.', '..jjjjjjjj.', '..jjjjjjjj.', '..jsesesIj.', '..IsssSsIj.', '..iuuuUUis.', '.siuaauUSs.', '.siuuaaUi..', '..iuuuaUi..', '..iuuuUUi..', '...uuuUU...', '...........'].concat(legs));
+    }
+    // curator (Museum): green coat, a monocle, a magnifier he raises
+    {
+      const pal = NP({ H: '#e8e8f0', c: '#2d7a28', C: '#1c5a20', y: '#ffe27a', g: '#bff0ff', w: '#a86e38', n: '#4a3222', N: '#2e1e14' });
+      const head = ['...HHHHH...', '..HHHHHHH..', '..HsesyyH..', '...sssSsy..', '..ccccCCC..'];
+      const legs = ['...nn.NN...', '...nn.NN...', '..BBB.BBB..'];
+      two('npc_curator', pal, 11, head.concat(['.sccyyCCCs.', '.scccyCCCs.', '..ccyyCCC.g', '..cccyCCCgg', '..ccccCCCww', '..ccccCCC..']).concat(legs),
+        head.concat(['.sccyyCCCgg', '.scccyCCCgg', '..ccyyCCCw.', '..cccyCCCw.', '..ccccCCC..', '..ccccCCC..']).concat(legs));
+    }
+    // crier (Quest Board): a red feathered cap, a brass bell he rings
+    {
+      const pal = NP({ a: '#e8413c', A: '#a82a26', f: '#ffffff', t: '#4f8ae0', T: '#2f5aa8', y: '#ffe27a', Y: '#d0a040', n: '#4a3222', N: '#2e1e14' });
+      const legs = ['...nn.NN...', '...nn.NN...', '..BBB.BBB..'];
+      two('npc_crier', pal, 11, ['..f.aaaa...', '.faaaaaaA..', '..aaaaaaAA.', '..asesesA..', '...sssSs...', '..tttTTT...', '.stttTTTs..', '.stttTTTs.y', '..tttTTT.yY', '..tttTTT.yY', '..tttTTT..w', '...........'].concat(legs),
+        ['..f.aaaa.yY', '.faaaaaaAyY', '..aaaaaaAAw', '..asesesAs.', '...sssSsS..', '..tttTTTs..', '.stttTTT...', '.stttTTT...', '..tttTTT...', '..tttTTT...', '..tttTTT...', '...........'].concat(legs));
+    }
+    // nester (Hatchery): straw hat, apron, an egg she holds up
+    {
+      const pal = NP({ H: '#e8c060', h: '#b88a30', r: '#5aa84e', R: '#3a7a3a', a: '#f4f0e4', A: '#c8c0b0', p: '#fff4d8', P: '#d8c8a0', n: '#7a5a3a', N: '#5a3e26' });
+      const head = ['....HHHH...', '..hHHHHHHh.', '...sesesS..', '...sssSsS..'];
+      const legs = ['..rrrrRRR..', '...nn.NN...', '..BBB.BBB..'];
+      two('npc_nester', pal, 11, head.concat(['..rrrrRRR..', '.srraaaRRs.', '.srraaaRR..', '..rraaaRpP.', '..rraaaRPP.', '..rraaaRR..', '..rraaaRR..', '..rrrrRRR..']).concat(legs),
+        head.concat(['..rrrrRRRpP', '.srraaaRRPP', '.srraaaRRs.', '..rraaaRR..', '..rraaaRR..', '..rraaaRR..', '..rraaaRR..', '..rrrrRRR..']).concat(legs));
+    }
+    // priest (Temple): white robe with gold, a halo of light; frame 2 lifts both hands
+    {
+      const pal = NP({ m: '#fbf8f0', M: '#e4ddcc', n: '#c2b9a6', y: '#ffe27a', z: '#c0841e', H: '#e8e8f0' });
+      const legs = ['..mmmmMMM..', '.mmmmmMMMM.', '..BB...BB..'];
+      two('npc_priest', pal, 11, ['...yyyyy...', '..HHHHHHH..', '..HsesesH..', '...sssSs...', '..mmmmMMM..', '.smmyzmMMs.', '.smmyzmMMs.', '..mmyzmMM..', '..mmyzmMM..', '..mmyzmMM..', '..mmmmMMM..', '..mmmmMMM..'].concat(legs),
+        ['...yyyyy...', '..HHHHHHH..', '.sHsesesHs.', '.s.sssSs.s.', '.mmmmmMMMM.', '.mmmyzmMMM.', '..mmyzmMM..', '..mmyzmMM..', '..mmyzmMM..', '..mmyzmMM..', '..mmmmMMM..', '..mmmmMMM..'].concat(legs));
+    }
+    // rift warden (Rift Gate): a dark hood, a violet lantern swinging
+    {
+      const pal = NP({ x: '#3a3050', X: '#241c34', v: '#e09cff', V: '#a656f0', n: '#f4e2ff', i: '#8a90a0' });
+      const legs = ['..xxxxXXX..', '.xxxxxXXXX.', '..BB...BB..'];
+      two('npc_riftwarden', pal, 11, ['...xxxxx...', '..xxxxxxX..', '..xXesesX..', '..xXXsSXX..', '..xxxxXXX..', '.sxxxxXXXs.', '.sxxxxXXXsi', '..xxxxXXX.v', '..xxxxXXXvn', '..xxxxXXX.V', '..xxxxXXX..', '..xxxxXXX..'].concat(legs),
+        ['...xxxxx...', '..xxxxxxX..', '..xXesesX..', '..xXXsSXX..', '..xxxxXXX.i', '.sxxxxXXXsv', '.sxxxxXXXvn', '..xxxxXXX.V', '..xxxxXXX..', '..xxxxXXX..', '..xxxxXXX..', '..xxxxXXX..'].concat(legs));
+    }
+    // the smith at work (12x15): hammer high / at the shoulder / struck down (the strike sparks on the stage)
+    if (SPR.defs.npc_smith && SPR.defs.npc_smith2) {
+      const pal = SPR.defs.npc_smith.pal;
+      def('npc_smith_w1', pal, SPR.defs.npc_smith2.px);
+      def('npc_smith_w2', pal, fit(12, ['....sssS....', '...sssssS...', '...sesesS...', '...sssSsSji.', '..HHHHHHHHI.', '.ssHHHHHHSb.', 'sssaHHHHaAb.', 'ss.aaaaaaASS', 'ss.aaaaaaASS', 'Ss.aaWaaaA..', '...aaaaaaA..', '...AAAAAAA..', '...tt..tt...', '...tt..tt...', '..BBB..BBB..']));
+      def('npc_smith_w3', pal, SPR.defs.npc_smith.px);
+    }
+    // tavern patrons, sitting (11x11): mug down / mug up
+    {
+      const pa = NP({ H: '#7a4a24', t: '#4f8ae0', T: '#2f5aa8', m: '#d09a5c', M: '#a86e38', f: '#fff6c8', n: '#4a3222', N: '#2e1e14' });
+      const pb = NP({ H: '#e8c060', t: '#d0483a', T: '#8a2a26', m: '#d09a5c', M: '#a86e38', f: '#fff6c8', n: '#4a3222', N: '#2e1e14' });
+      const sit = (mugUp) => mugUp
+        ? ['...HHHHH.fm', '..HHHHHHHmM', '..HsesesHmM', '...sssSsSs.', '..tttTTTs..', '.stttTTT...', '.stttTTT...', '..tttTTT...', '.nnnnnNNN..', '.nn....NN..', '.BB....BB..']
+        : ['...HHHHH...', '..HHHHHHH..', '..HsesesH..', '...sssSs...', '..tttTTT...', '.stttTTTs..', '.stttTTTsfm', '..tttTTT.mM', '.nnnnnNNN.M', '.nn....NN..', '.BB....BB..'];
+      two('npc_patron_a', pa, 11, sit(false), sit(true));
+      two('npc_patron_b', pb, 11, sit(false), sit(true));
+    }
+
+    // ---------- props ----------
+    // the alchemist's cauldron (12x10, 3 frames: bubbles rising, the fire licking)
+    {
+      const pal = TP({ t: '#4fd65b', T: '#2e9a3a', E: '#c8fff0' });
+      const body = ['.kkkkkkkkkk.', 'kKttttTTEttk', 'kKtttttTTttk', 'kKKKKKKKKKKk', '.kKKKKKKKKk.', '..kKKKKKKk..'];
+      def('tw_cauldron', pal, fit(12, ['............', '....E.......'].concat(body, ['..k.oYYo.k..', '..k.YooY.k..'])));
+      def('tw_cauldron2', pal, fit(12, ['....E...E...', '..E.........'].concat(body, ['..k.YooY.k..', '..k.oYYo.k..'])));
+      def('tw_cauldron3', pal, fit(12, ['..E.........', '......E.E...'].concat(body, ['..k.oYoY.k..', '..k.YoYo.k..'])));
+    }
+    // the tavern's hanging sign (8x8, swinging), a mug painted on it
+    {
+      const pal = TP({ f: '#fff6c8' });
+      def('tw_sign', pal, fit(8, ['iiii....', '...i....', '..WwwwW.', '..WyyfW.', '..Wyyfw.', '..WwwwW.', '..bbbbb.', '........']));
+      def('tw_sign2', pal, fit(8, ['iiii....', '...i....', '...WwwwW', '...WyyfW', '...Wyyfw', '...WwwwW', '...bbbbb', '........']));
+    }
+    // a bird in flight (5x3, two flaps; drawn without an outline)
+    def('tw_bird', { K: '#2e2834' }, ['K...K', '.KKK.', '..K..']);
+    def('tw_bird2', { K: '#2e2834' }, ['.....', 'KKKKK', '..K..']);
+    // a roof flag (6x7, two frames of wave) and a door pennant (5x9)
+    def('tw_flag', TP({ a: '#e8413c', A: '#a82a26' }), ['iaaaa.', 'iaAaaa', 'iaaaa.', 'i.....', 'i.....', 'i.....', 'I.....']);
+    def('tw_flag2', TP({ a: '#e8413c', A: '#a82a26' }), ['iaaa..', 'iaAaa.', 'iaaaaa', 'i.....', 'i.....', 'i.....', 'I.....']);
+    def('tw_pennant', TP({ a: '#e8413c', A: '#a82a26' }), ['iiiii', 'aaaaA', 'aayaA', 'aayaA', 'aaaaA', '.aaA.', '.aaA.', '..A..', '..A..']);
+    // a flower pot by the door (5x5)
+    def('tw_pot', TP({ r: '#ff5a7a', u: '#b682f0' }), ['r.u.r', 'lglgl', '.WwW.', '.Www.', '.bbb.']);
+    // the Museum's plinth (14x8, marble) and the square's Button pedestals (16x7, stone)
+    def('tw_plinth', TP(Object.assign({}, MARBLE, GOLD)), fit(14, ['.mmmmmmmmmmmM.', '.MnnnnnnnnnnN.', '..mmmmmmmmMM..', '..mzmmmmmmzM..', '..mmmmmmmmMM..', '..MnnnnnnnnN..', '.mmmmmmmmmmmM.', '.NNNNNNNNNNNN.']));
+    def('tw_pedestal', TOWN, fit(16, ['..SSSSSSSSSSss..', '..sddddddddddD..', '...SssssssssdD..', '...SssssssssdD..', '...sddddddddDD..', '.SSSSSSSSSSSSss.', '.DDDDDDDDDDDDDD.']));
+    // the lord banner over the gate (18x24): a dark cloth with gold trim; the stage paints the lord into the middle
+    def('tw_lordbanner', TP({ a: '#5a1a2e', A: '#3a1020', q: '#2a0c18' }), fit(18, [
+      'iiiiiiiiiiiiiiiiii', 'IaaaaaaaaaaaaaaaaI', '.yaaaaaaaaaaaaaay.', '.yaAAAAAAAAAAAAay.', '.yaAAAAAAAAAAAAay.', '.yaAAAAAAAAAAAAay.', '.yaAAAAAAAAAAAAay.',
+      '.yaAAAAAAAAAAAAay.', '.yaAAAAAAAAAAAAay.', '.yaAAAAAAAAAAAAay.', '.yaAAAAAAAAAAAAay.', '.yaAAAAAAAAAAAAay.', '.yaAAAAAAAAAAAAay.', '.yaAAAAAAAAAAAAay.', '.yaAAAAAAAAAAAAay.',
+      '.yaAAAAAAAAAAAAay.', '.yaaaaaaaaaaaaaay.', '.yyyyyyyyyyyyyyyy.', '.qaaaaaaaaaaaaaaq.', '..qaaaaaaaaaaaaq..', '...qaaaaaaaaaaq...', '....qaaaaaaaaq....', '......qaaaaq......', '........qq........']));
+    // the smith's anvil by the Forge door (8x6)
+    def('tw_anvil', TOWN, ['jjjjjjjj', '.jiiiiI.', '...iiI..', '...iiI..', '..iiiII.', '.IIIIIII']);
+    // a mug for a companion's hand (3x3)
+    def('tw_mug', TP({ f: '#fff6c8' }), ['fWw', 'WWw', 'WWw']);
+
+    // ---------- seasons: the square's trees recoloured (the same pixels) ----------
+    if (SPR.defs.tw_tree) {
+      const px = SPR.defs.tw_tree.px, base = SPR.defs.tw_tree.pal;
+      def('tw_tree_au', Object.assign({}, base, { g: '#d8902a', G: '#a85a1e', l: '#f0c050', m: '#7a3a14', a: '#c8461a' }), px);
+      def('tw_tree_w', Object.assign({}, base, { g: '#e6eef5', G: '#9fb4c8', l: '#ffffff', m: '#6c8296', a: '#ff4f4f' }), px);
+      def('tw_tree_sp', Object.assign({}, base, { g: '#5fc04a', G: '#2a7a28', l: '#a0e880', m: '#1c5a20', a: '#ffb0d0' }), px);
+    }
+
+    // ---------- the grand looks (L3), each the 3.0 building with an addition on top, anchored bottom-centre ----------
+    // (the building keeps its width and its door: the stage places every look at the same feet)
+    const base = id => SPR.defs[id];
+    const grow = (id, extra, fn, palExtra) => {
+      const b = base(id); if (!b) return;
+      const c = grid(b.w, b.h + extra);
+      c.s(0, extra, b.px);
+      fn(c, extra, b);
+      def(id + '_2', Object.assign({}, b.pal, palExtra || {}), c.rows());
+    };
+    // barracks: a watchtower on the left with a lit window and a flag, a training dummy by the wall
+    grow('tw_barracks', 18, (c, o) => {
+      c.r(2, 4, 12, o + 2, 'S').f((x, y) => ((x + y * 2) % 5 === 0 ? 'd' : x > 11 ? 's' : ''), 3, 5, 13, o + 5);
+      c.r(1, 4, 14, 2, 'd').f((x) => (x % 3 === 0 ? 'S' : 'j'), 1, 4, 14, 4);
+      c.r(6, 9, 4, 4, 'k').r(7, 10, 2, 2, 'y');
+      c.r(13, 6, 1, o, 'D');
+      c.r(8, 0, 1, 4, 'i').s(9, 0, ['aaa', 'aAa', 'aa.']);
+      c.s(46, o + 24, ['.ZZ.', 'ZnnZ', '.ZZ.', '.ww.', 'wwww', '.ww.', '.ww.', '.ww.']);
+    });
+    // enchanter's tower: a ring of runes floating over the spire
+    grow('tw_tower', 8, (c) => {
+      c.s(6, 1, ['..v..vv..v..vv....', 'v.n.v..n.v..n..v..', '..v..vv..v..vv....']);
+      c.s(10, 5, ['.u.n.u.', 'n.....n']);
+    }, { v: '#c890ff', n: '#f4e2ff', u: '#b682f0' });
+    // observatory: a bigger brass dome and a telescope out of its slit
+    grow('tw_obs', 8, (c, o) => {
+      dome(c, 17, o + 8, 14, 12, ['a', 'A', 'z', 'z'], [-0.5, 0.5]);
+      c.f((x, y) => (x > 14 && x < 20 ? 'k' : ''), 15, o + 2, 19, o + 7);
+      c.s(16, 0, ['...jj', '..jjI', '.jjI.', 'jjI..', 'kI...']);
+      c.p(13, o + 1, 'h').p(20, o + 3, 'h');
+    });
+    // museum: a gold dome on the roof, a banner by the door
+    grow('tw_museum', 12, (c, o) => {
+      dome(c, 27, o + 2, 16, 12, ['y', 'Y', 'z', 'z'], [-0.6, 0, 0.6]);
+      c.r(26, 0, 3, 2, 'y').p(27, 0, 'h');
+      c.r(11, o + 2, 32, 1, 'z');
+    });
+    // quest board: a shingled roof over it and a lantern
+    grow('tw_board', 6, (c, o) => {
+      roof(c, 0, 6, 9, 12, 1.6, ['r', 'R', 'q', 'Q']);
+      c.r(0, 5, 22, 1, 'B').r(0, 6, 22, 1, 'w');
+      c.s(19, o + 3, ['IiI', 'IyI', 'III']);
+    }, { r: '#d0604a', R: '#a63e34', q: '#7a2a28', Q: '#541a1e' });
+    // hatchery: a great cracked egg hatching in the nest, a warm glow
+    grow('tw_nest', 10, (c, o) => {
+      c.s(11, 0, ['....uuuu....', '..uuccccuu..', '.uccccccccu.', '.ucccckcccu.', 'uccccckkcccu', 'ucccckccccUu', 'uccccccccUUu', '.uccccccUUu.', '.uUccccUUUu.', '..uUUUUUUu..']);
+      c.p(16, 3, 'y').p(17, 4, 'y');
+    }, { c: '#e8f6ff', u: '#9fd8ff', U: '#5a9ad0' });
+    // temple: a gold bell in an arch at the top
+    grow('tw_temple', 10, (c) => {
+      c.s(16, 0, ['...mmmmmm...', '..mMMMMMMm..', '.mM......Mm.', '.mM.zyyz.Mm.', '.mM.yyyy.Mm.', '.mMzyyyyzMm.', '.mM.zYYz.Mm.', '.mM..yy..Mm.', '.mMMMMMMMMm.', 'nNNNNNNNNNNn']);
+    });
+    // rift gate: two crystal pylons flanking the arch, both frames
+    if (base('tw_rift') && base('tw_rift2')) {
+      const pal = base('tw_rift').pal;
+      const pylons = (px) => {
+        const c = grid(34, 44); c.s(0, 4, px);
+        c.s(0, 0, ['..v.', '.vVu', 'vVuU', 'VuUU', 'vVuU', 'VuUU', 'vVuU', 'VuUU', 'VuUU', 'VuUU']);
+        c.s(30, 0, ['.v..', 'uVv.', 'UuVv', 'UUuV', 'UuVv', 'UUuV', 'UuVv', 'UUuV', 'UUuV', 'UUuV']);
+        c.p(1, 0, 'n').p(32, 0, 'n');
+        return c.rows();
+      };
+      def('tw_rift_2', pal, pylons(base('tw_rift').px));
+      def('tw_rift_2b', pal, pylons(base('tw_rift2').px));
+    }
+  }
 })(globalThis.G = globalThis.G || {});

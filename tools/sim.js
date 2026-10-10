@@ -1,156 +1,60 @@
-// Headless balance simulator: a bot plays BTTN and prints a pacing timeline.
-// Usage: node tools/sim.js [minutes=180] [cps=6]
+// Headless balance simulator (4.0, the Siege): one persona plays one or more Sieges and prints a pacing timeline, a
+// line a game-minute (depth, zone, Integrity, the Button's health, level, party, gold, Embers in the pouch, the Horde's
+// size, boss fights) plus every run's end. For the broad numbers use tools/siege.js; this is the magnifying glass.
+//   node tools/sim.js [minutes=60] [persona=active] [seed=1] [optsJSON]      opts as tools/playtest.js's
+//   env DBG=1: a damage line a minute (hero dps, mob and boss health, the clear-bar floor, hordeScale)
 'use strict';
-const fs = require('fs');
-const path = require('path');
-const vm = require('vm');
+const pt = require('./playtest');
+const bot = require('./bot');
 
-const ctx = { console, Math, JSON, Date, performance: { now: () => simNow * 1000 }, Object, Array, Number, String, Infinity, NaN, isFinite };
-let simNow = 0;
-ctx.globalThis = ctx;
-vm.createContext(ctx);
-for (const f of ['util.js', 'data.js', 'game.js', 'hero.js', 'ach.js', 'journey.js', 'world.js']) {
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'), ctx, { filename: f });
-}
-const G = ctx.G;
-const MIN = +(process.argv[2] || 180);
-const CPS = +(process.argv[3] || 6);
-const QUIET = process.argv.includes('-q');
-let botSeed = 12345; const botRnd = () => ((botSeed = (botSeed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-
-if (process.env.SEED) G.useSeed(+process.env.SEED);
-G.S = G.newState();
-G.recalc();
-G.chooseClass(process.env.CLS || 'knight');
-G.fillQuests();
-
+const [minS = '60', persona = 'active', seedS = '1', optsS] = process.argv.slice(2);
+const MIN = +minS, seed = +seedS, opts = optsS ? JSON.parse(optsS) : {};
 const log = [];
-const events = {};
-function mark(k, t) { if (!(k in events)) events[k] = t; }
-G.on('bossWin', (r, b) => { mark('firstBoss', simNow); if (b.lord) mark('lord_d' + b.d, simNow); });
-G.on('ascend', g => { log.push(`  >> ASCEND at ${(simNow / 60).toFixed(1)}m: +${g} fame (total ${G.S.fameTotal})`); });
-G.on('achievement', a => { if (!QUIET) mark('ach_' + a.id, simNow); });
-
-function metric(D) {
-  const clickRate = CPS * 0.7;
-  const critEV = 1 + D.crit * (D.critMult - 1);
-  const combo = 1 + Math.min(D.comboCap, 40) * D.comboPer;
-  const clicksGold = D.click * clickRate * critEV * combo + D.click * (D.autoCps + D.petCps) * critEV;
-  const chestRate = (clickRate * D.chestProg + (D.autoCps + D.petCps) * D.chestProg * 0.1) / D.chestNeed + D.scout;
-  const avgSecs = 2.5; // rough common-heavy value
-  const chestGold = chestRate * D.incomeRef * avgSecs * D.itemMult;
-  return D.gps + clicksGold + chestGold;
-}
-
-function tryBuy() {
-  const S = G.S, D = G.D;
-  // Candidate: upgrades & heroes by payback
-  const base = metric(D);
-  let best = null;
-  const consider = (kind, id, cost, apply, undo) => {
-    if (cost > S.gold) return;
-    apply(); G.recalc();
-    const gain = metric(G.D) - base;
-    undo(); G.recalc();
-    const score = gain / cost;
-    if (!best || score > best.score) best = { kind, id, cost, score };
-  };
-  for (const u of G.UPGRADES) {
-    const L = S.upg[u.id] || 0;
-    if (u.max && L >= u.max) continue;
-    const cost = G.upgCost(u);
-    if (['hall', 'golem', 'clover', 'rhythm'].includes(u.id)) {
-      if (cost < S.gold * 0.3 && cost < base * 60) { G.buyUpgrade(u.id); return true; }
-      continue;
+let W = null;
+// (the timeline hooks ride on tools/playtest.js's world: makeWorld is wrapped for this process only)
+const orig = bot.makeWorld;
+bot.makeWorld = function (sd) {
+  W = orig(sd);
+  const { G, clock } = W;
+  const S = () => G.S;
+  let nextLog = 60, bossTries = 0, bossFails = 0, bossT0 = 0;
+  const bossDur = [];
+  G.on('bossStart', b => { bossTries++; bossT0 = clock.now; log.push(`${tm()} BOSS ${b.kind} d${b.d}${b.affix && b.affix.length ? ' [' + b.affix.join(',') + ']' : ''} floor ${Math.round(b.t)}s`); });
+  G.on('bossFail', b => { bossFails++; log.push(`${tm()}   lost (${(100 * Math.max(0, b.hp) / b.max).toFixed(0)}% left)`); });
+  G.on('bossWin', (rew, b) => { bossDur.push(clock.now - bossT0); log.push(`${tm()}   won in ${(clock.now - bossT0).toFixed(1)}s`); });
+  G.on('pip', (d, pips, why, kind) => log.push(`${tm()} PIP ${kind} (${why}) -> ${pips}`));
+  G.on('cardPicked', c => log.push(`${tm()} card ${c.id}${c.rank ? ' r' + c.rank : ''} (${c.tierName || ''}${c.evo ? ' EVOLUTION' : ''}, ${c.why}, ${c.how})`));
+  G.on('lootTake', (i, c, who, info, v) => log.push(`${tm()} loot ${v ? v.name : c.g.id} r${c.g.r} il${c.g.il}${c.g.q ? ' UNIQUE' : ''} -> ${who === 'bag' ? 'bag' : who === -1 ? 'Warden' : 'ally ' + who} ${v && v.up ? '▲' + Math.round(v.pct * 100) + '%' : ''}`));
+  G.on('lootBurn', (out, tot) => log.push(`${tm()}   burned ${out.length} -> +${tot.toFixed(1)} Embers`));
+  G.on('campAct', k => log.push(`${tm()} CAMP ${k}`));
+  G.on('campRecruit', x => log.push(`${tm()}   recruit ${x.cls} (${x.trait})`));
+  G.on('campBuy', w => log.push(`${tm()}   buy ${w.k}`));
+  G.on('door', (o, slot, vault) => log.push(`${tm()} DOOR ${o.name} (${o.mod || 'calm'} / ${o.tag || '-'})${vault ? ' via the Vault' : ''}`));
+  G.on('relicPick', id => log.push(`${tm()} RELIC ${id}`));
+  G.on('shrineUse', (s, how) => log.push(`${tm()} shrine ${s.kind}${s.kind === 'fury' ? ':' + s.k : ''} (${how})`));
+  G.on('boon', id => log.push(`${tm()}   boon ${id}`));
+  G.on('pact', (id, yes) => log.push(`${tm()}   pact ${id} ${yes ? 'ACCEPTED' : 'declined'}`));
+  G.on('evolve', e => log.push(`${tm()} EVOLUTION ${e}`));
+  G.on('deed', d => log.push(`${tm()} deed ${d.id || d}`));
+  G.on('lastStand', () => log.push(`${tm()} LAST STAND`));
+  G.on('madButton', () => log.push(`${tm()} THE MAD BUTTON`));
+  G.on('runStart', r => log.push(`${tm()} === SIEGE ${r.n}: ${r.btn} / ${r.cls} / Heat ${r.heat}${r.keeps.length ? ' / keepsakes ' + r.keeps.join(',') : ''} -> ${G.REALMS[r.route[0]].id}`));
+  G.on('runSummary', s => log.push(`${tm()} === ${s.kind.toUpperCase()} at zone ${s.cleared} (${s.land}): ${(s.secs / 60).toFixed(1)} min, Fame ${Math.round(s.fame.total)}, Embers ${Math.round(s.embers.total)}, lvl ${s.lvl}, evos ${s.evos.length}, cards ${s.cardsN}${s.cause ? ', cause ' + s.cause : ''}`));
+  const tm = () => String((clock.now / 60).toFixed(1)).padStart(5) + 'm';
+  const tk = G.tick;
+  G.tick = dt => {
+    const out = tk(dt);
+    if (clock.now >= nextLog) {
+      nextLog += 60;
+      const s = S(), r = s.run, D = G.D;
+      if (r && r.on) log.push(`${tm()} d${s.depth} zone ${r.cleared}/18 pips ${r.pips}/${r.pipMax} hp ${(100 * s.hero.hp / Math.max(1, D.heroHp)).toFixed(0)}% lvl ${s.hero.lvl} party ${s.party.length} gold ${G.fmt(s.gold)} pouch ${Math.round(r.pouch || 0)} mobs ${G.R.mobs.length} boss ${bossTries - bossFails}/${bossTries} ${r.phase !== 'field' ? '[' + r.phase + ']' : ''}`
+        + (process.env.DBG ? ` | dps ${G.fmt(D.heroDps)} mobHp ${G.fmt(G.mobHp(s.depth))} bossHp ${G.fmt(G.bossHp(s.depth))} hs ${G.hordeScale().toFixed(2)} fight ${bossDur.length ? (bossDur.slice(-6).reduce((a, b) => a + b, 0) / Math.min(6, bossDur.length)).toFixed(1) + 's' : '-'}` : ''));
     }
-    consider('upg', u.id, cost, () => S.upg[u.id] = L + 1, () => { if (L) S.upg[u.id] = L; else delete S.upg[u.id]; });
-  }
-  for (const h of G.HEROES) {
-    const n = S.heroes[h.id] || 0;
-    const cost = G.heroCost(h, 1);
-    consider('hero', h.id, cost, () => S.heroes[h.id] = n + 1, () => { if (n) S.heroes[h.id] = n; else delete S.heroes[h.id]; });
-  }
-  if (best) {
-    if (best.kind === 'upg') G.buyUpgrade(best.id); else G.buyHero(best.id, 1);
-    return true;
-  }
-  return false;
-}
-
-function enchantAll() { // enchant worn gear, cheapest first
-  let k = 0;
-  while (k++ < 10) {
-    const worn = G.SLOTS.map(s => G.S.hero.eq[s]).filter(g => g && g.e < G.ENCHANT_MAX).sort((a, b) => G.enchantCost(a).shards - G.enchantCost(b).shards);
-    if (!worn.length || !G.enchant(worn[0])) break;
-  }
-}
-function buyNodes() {
-  let bought = true;
-  while (bought) {
-    bought = false;
-    const avail = G.NODES.filter(n => (G.S.nodes[n.id] || 0) < n.max && G.nodeAvailable(n))
-      .sort((a, b) => G.nodeCost(a) - G.nodeCost(b));
-    for (const n of avail) { if (G.buyNode(n.id)) { bought = true; break; } }
-  }
-}
-function buyLegacy() {
-  let bought = true;
-  while (bought) {
-    bought = false;
-    const avail = G.LEGACY.filter(l => (G.S.legacy[l.id] || 0) < l.max).sort((a, b) => G.legacyCost(a) - G.legacyCost(b));
-    for (const l of avail) { if (G.buyLegacy(l.id)) { bought = true; break; } }
-  }
-}
-
-const dt = 0.2;
-let clickAcc = 0, nextLog = 0, bossFails = 0, bossTries = 0;
-G.on('bossFail', () => bossFails++);
-G.on('bossStart', () => { bossTries++; bossT0 = simNow; });
-let bossT0 = 0, bossDur = [];
-G.on('bossWin', () => { bossDur.push(simNow - bossT0); });
-let lastAscend = 0, lastDepth = 0, lastDepthT = 0;
-for (let t = 0; t < MIN * 60; t += dt) {
-  simNow = t;
-  clickAcc += CPS * dt;
-  while (clickAcc >= 1) {
-    clickAcc -= 1;
-    const S = G.S;
-    // 30% of clicks go to chests when there are chests on the field
-    if (S.chests.length && botRnd() < 0.3) G.clickChest(S.chests[S.chests.length - 1]);
-    else G.manualClick(0, 0);
-    if (G.R.wisp && botRnd() < 0.2) G.catchWisp();
-  }
-  G.tick(dt);
-  // level-up perks: an active player picks right away, by a simple priority
-  if (G.S.hero.offer && process.env.PERKS !== 'auto') {
-    const pr = ['might', 'frenzy', 'nova', 'blades', 'multi', 'aura', 'chain', 'cleave', 'thunder', 'bulwark', 'greed', 'reach', 'leech', 'loot'];
-    G.pickPerk(G.S.hero.offer.slice().sort((a, b) => pr.indexOf(a) - pr.indexOf(b))[0]);
-  }
-  if (G.R.bossReady && !G.R.boss) G.startBoss();
-  if (Math.round(t * 5) % 5 === 0) { enchantAll(); let k = 0; while (tryBuy() && k++ < 30); buyNodes(); }
-  if (G.S.eggs >= 1) G.pull(G.S.eggs >= 9 ? 10 : 1);
-
-  G.S.quests.forEach((q, i) => { if (q.done) G.claimQuest(i); });
-  // Ascend when fame gain would double total fame and at least 20 minutes passed
-  const fg = G.fameGain();
-  if (G.S.depth > lastDepth) { lastDepth = G.S.depth; lastDepthT = t; }
-  if (fg >= 10 && t - lastAscend > 10 * 60 && (fg >= G.S.fameTotal * 0.6 || t - lastDepthT > 6 * 60)) {
-    G.ascend(); lastAscend = t; buyLegacy(); G.chooseClass(process.env.CLS || 'knight'); lastDepth = G.S.depth; lastDepthT = t;
-  }
-  if (t >= nextLog) {
-    nextLog += (t < 1800 ? 60 : 600);
-    const S = G.S, D = G.D;
-    const heroes = G.HEROES.map(h => S.heroes[h.id] || 0).filter(Boolean).join('/');
-    if (process.env.DBG) { const w = S.hero.eq.weapon, c = D.hero; log.push(`   DBG d${S.depth} lv${S.hero.lvl} w ${w ? w.id + ' r' + w.r + ' il' + w.il + ' +' + w.e : '-'} main ${w ? G.fmt(G.mainStat(w)) : '-'} heroMult ${G.fmt(D.heroMult)} fame ${S.fameTotal} hit ${G.fmt(D.heroHit)} rate ${D.heroRate.toFixed(2)} crit ${c.crit.toFixed(2)}x${c.critMult.toFixed(1)} dps ${G.fmt(D.heroDps)} mobHp ${G.fmt(G.mobHp(S.depth))} bossHp ${G.fmt(G.bossHp(S.depth))} bossMult ${G.fmt(D.bossMult)} fight ${bossDur.length ? (bossDur.slice(-8).reduce((a, b) => a + b, 0) / Math.min(8, bossDur.length)).toFixed(1) + 's' : '-'} hs ${G.hordeScale().toFixed(2)}`); }
-    log.push(`${String((t / 60).toFixed(0)).padStart(4)}m gold ${G.fmt(S.gold).padStart(8)} run ${G.fmt(S.goldRun).padStart(8)} gps ${G.fmt(D.gps).padStart(8)} click ${G.fmt(D.click).padStart(7)} ` +
-      `d${S.depth} (best ${S.bestDepth}) chests ${S.st.chests} ess ${G.fmt(S.essence, 1)} nodes ${Object.values(S.nodes).reduce((a, b) => a + b, 0)} ` +
-      `lv ${S.hero.lvl} pow ${G.fmt(D.power)} eq ${G.SLOTS.map(s=>{const g=S.hero.eq[s];return g?g.r+'/'+g.il+'+'+g.e:'-'}).join(' ')} sh ${G.fmt(S.hero.shards)} pets ${Object.keys(S.pets).length} eggs ${S.eggs} fame ${G.fmt(G.fameGain())}/${S.fameTotal} ach ${Object.keys(S.ach).length} heroes ${heroes} boss ${bossTries - bossFails}/${bossTries} cap ${(D.heroDps / G.mobHp(S.depth)).toFixed(1)} kills ${S.hero.kills}`);
-  }
-}
+    return out;
+  };
+  return W;
+};
+const res = pt.run(persona, seed, MIN, opts);
 console.log(log.join('\n'));
-console.log('\nFirst events (min):');
-const ev = Object.entries(events).sort((a, b) => a[1] - b[1]).map(([k, v]) => `${k}@${(v / 60).toFixed(1)}`);
-console.log(ev.join('  '));
-console.log('\nUpgrades:', JSON.stringify(G.S.upg));
-console.log('Opened by tier:', G.S.opened.join(' '), ' divine', G.S.st.divine, ' merges', G.S.st.merges);
-console.log('Pots:', JSON.stringify(G.S.pots));
+console.log(`\n${res.runs.length} runs ended (${res.runs.filter(r => r.win).length} wins)` + (res.cur ? `; one on at zone ${res.cur.cleared}, ${res.cur.pips} pips, ${res.cur.min} min` : ''));
+console.log('choices/min ' + (res.runs.length ? res.runs.map(r => r.choicesPerMin).join(' ') : '-') + ' | autos/min ' + (res.runs.length ? res.runs.map(r => r.autosPerMin).join(' ') : '-') + ' | choices ' + res.stats.choices + ' autos ' + res.stats.autos);
