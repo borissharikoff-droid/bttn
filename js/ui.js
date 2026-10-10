@@ -388,7 +388,7 @@
     setHid(el, !(h && h.cls));
     if (el.hidden) return;
     if (!el.children.length) {
-      el.innerHTML = Object.keys(G.POWERS).map(id => { const P = G.POWERS[id]; return `<button class="pw" data-pw="${id}" title="${esc(t('pw_' + id) + ' (' + P.key + '): ' + t('pw_' + id + '_d'))}" aria-label="${esc(t('pw_' + id))}">${img(P.icon, '', 3)}<i></i><kbd>${P.key}</kbd></button>`; }).join('')
+      el.innerHTML = Object.keys(G.POWERS).map(id => { const P = G.POWERS[id]; return `<button class="pw" data-pw="${id}" title="${esc(t('pw_' + id) + ' (' + P.key + '): ' + t('pw_' + id + '_d'))}" aria-label="${esc(t('pw_' + id))}">${img(P.icon, '', 3)}<i></i><b class="pwT"></b><kbd>${P.key}</kbd></button>`; }).join('')
         + (G.overdrive ? `<button class="pw od" data-od title="${esc(t('odName') + ' (V): ' + t('odDesc'))}" aria-label="${esc(t('odName'))}">${img(G.SPR.defs.ic_bolt ? 'ic_bolt' : 'ic_star', '', 3)}<i></i><kbd>V</kbd></button>` : '');
       el.addEventListener('click', e => {
         if (e.target.closest('[data-od]')) { G.Audio.unlock(); if (!G.overdrive('tap')) G.Audio.error(); return; }
@@ -404,6 +404,10 @@
     for (const b of el._pw || (el._pw = el.querySelectorAll('[data-pw]'))) {
       const id = b.dataset.pw, cd = G.R.pw[id] || 0, tot = G.POWERS[id].cd;
       setHgt(b._i || (b._i = b.querySelector('i')), cd > 0 ? cd / tot * 100 : 0);
+      // (4.0 owner round 2: the seconds left, on the button itself)
+      const tt = b._t || (b._t = b.querySelector('.pwT'));
+      const secs = cd > 0 ? String(Math.ceil(cd)) : '';
+      if (tt.textContent !== secs) tt.textContent = secs;
       setClass(b, 'ready', !(cd > 0));
     }
   }

@@ -1816,6 +1816,7 @@ body.ruStageUp .hud.bottom{opacity:.25;pointer-events:none;transition:opacity .2
 #ru .flCause{margin:0;color:#ffb0a0;font-size:15px}
 #ru .flActs{display:grid;gap:8px;width:100%;justify-items:center}
 #ru .flActs .btn{min-width:240px}
+#ru .flFame{margin:6px 0 0;font:700 15px/1.3 var(--font-display);color:#ffd84a;text-align:center;text-shadow:2px 2px 0 var(--ink)}
 #ru .flActs .cost{display:inline-flex;align-items:center;gap:3px;margin-left:6px;color:#ffc8f0}
 #ru .flActs .cost img{width:14px;height:14px}
 #ru .flGems{display:flex;align-items:center;gap:6px;justify-content:center;color:var(--dim);font-size:14px}
@@ -1836,7 +1837,7 @@ body.ruStageUp .hud.bottom{opacity:.25;pointer-events:none;transition:opacity .2
     const html = `<div class="ruBox"><h2 class="ruH">${esc(t('ru_fallTitle'))}</h2>${cause && cause !== 'nm_cause_' + r.cause ? `<p class="flCause">${esc(cause)}</p>` : ''}
       <div class="flActs"><button class="btn gold ruBig" data-cont ${afford ? '' : 'disabled'}>${esc(t('ru_cont'))}<span class="cost">${cost ? img('ic_gem', 1) + fmt(cost) : esc(t('ru_contFree'))}</span></button>
         ${ad ? `<button class="btn" data-ad>${esc(t('ru_contAd'))}</button>` : ''}<small class="ruNote">${esc(t('ru_contNote'))}</small>
-        <button class="btn red" data-end>${esc(t('ru_end'))}</button><small class="ruNote">${esc(t('ru_endNote', fmt(fame), fmt(emb)))}</small></div>
+        <button class="btn red" data-end>${esc(t('ru_end'))}</button><p class="flFame">${esc(t('ru_endNote', fmt(fame), fmt(emb)))}</p></div>
       <p class="flGems">${esc(t('ru_gems', ''))}${img('ic_gem', 1)}<b>${fmt(gems)}</b>${shop && !afford ? ` <button class="btn" data-shop>${esc(t('ru_getGems'))}</button>` : ''}</p></div>`;
     const n = open('fall', { cover: true, html, def: () => { if (afford) fallCont(); else fallEnd(); }, keys: null });
     n.el.onclick = e => {

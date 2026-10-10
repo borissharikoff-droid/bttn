@@ -815,6 +815,7 @@ em.role { font: 8px/1.4 var(--font-display); font-style: normal; color: var(--ro
   background: var(--panel2); border: 2px solid var(--ink); box-shadow: inset 0 0 0 2px var(--line), 0 3px 0 var(--ink); }
 .pw img { width: 30px; height: 30px; position: relative; z-index: 1; }
 .pw i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: rgba(10,9,16,.72); z-index: 2; }
+.pw .pwT { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; font: 11px/1 var(--font-display); color: #fff; text-shadow: 1px 1px 0 var(--ink), 0 0 4px var(--ink); pointer-events: none; }
 .pw kbd { position: absolute; right: 1px; bottom: 0; z-index: 3; font: 7px/1 var(--font-display); color: #fff; text-shadow: 1px 1px 0 var(--ink); }
 .pw.ready { box-shadow: inset 0 0 0 2px var(--gold), 0 3px 0 var(--ink); }
 .pw:active { transform: translateY(1px); }

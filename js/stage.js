@@ -3106,12 +3106,8 @@
       if (G.Audio && G.Audio.boom) G.Audio.boom();
     });
     G.on('spitHit', () => { const b = btnPos(); btnHurtT = 0.12; burst(b.x + rand(-12, 12), b.y - 8, ['#b6ff5a', '#8ad83a', '#ffffff'], 6, 50, { life: 0.35 }); });
-    // (3.6: a wave is a word over the Button, not a title card; the boss row says it too)
-    G.on('wave', n => {
-      const b = btnPos();
-      if (cardT <= 0 && !bossVis) text(b.x, b.y - 54, G.t('waveN', n), '#ff9a3a', 5, { life: 1.3, max: 1.3, vy: -6, big: true });
-      St.shake(2);
-    });
+    // (4.0 owner round 2: no word floats over the Button between waves; the zone badge and the boss row say where we are)
+    G.on('wave', () => { St.shake(2); });
     G.on('landStar', (i, bit) => {
       const R_ = G.REALMS[i], b = btnPos();
       cardText(0, '\u2605 ' + G.t('landStar', R_.name).toUpperCase(), '#ffd84a', 7, { life: 3, max: 3, vy: -3, big: true, tag: 'land' });
