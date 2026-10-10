@@ -807,6 +807,8 @@
     for (const k in r.boons || {}) { const B = G.BOONS && G.BOONS[k]; if (B && B.fx && r.boons[k] > 0) B.fx(r.boons[k], d); }
     if (r.glass) { d.hpMult *= 0.6; d.heroMult *= 1.4; }
   });
+  // (a shrine's choice holds the field from 'field' only; world.js G.useShrine refuses a shrine while the field is held
+  // - a card, the loot moment, a camp - so the choice never opens under another hold and runs the field with it open)
   function shrineHold() { const r = runOf(); if (r && r.phase === 'field') G.runPhase('shrine'); }
   function shrineFree() { const r = runOf(); if (r && r.phase === 'shrine' && !r.boonOffer && !r.pactOffer) G.runPhase('field'); }
   // (runflow: each shrine of the run draws from its own offers' stream 'shrine:<n>')
@@ -892,10 +894,13 @@
   // (S.run.golden, the summary's golden) and names what each did for the screen: 'goldenClick'(id, effect, run)
   G.on('wispCatch', e => { const r = runOf(); if (!r || !r.on || !e) return; r.golden = (r.golden | 0) + 1; emit('goldenClick', e.id, e, r); });
   // left alone: a boon by the steady order; a pact declined
+  // (a window over the field - G.uiBusy: settings, a modal - stops every hold clock, as the card's and the loot moment's:
+  // nothing is decided for the player behind a window)
+  const winUp = () => !!(G.uiBusy && G.uiBusy());
   function shrineTick(dt) {
     const r = runOf(), o = r.boonOffer || r.pactOffer;
     if (!o) return;
-    if (!o.touch) o.t += dt;
+    if (!o.touch && !winUp()) o.t += dt;
     if (o.t >= (G.runUI ? G.beatAfter(TUNE.shrineAuto) : TUNE.beatAutoNoUI)) {
       if (r.boonOffer) { const ids = r.boonOffer.ids, k = BOON_PREF.find(x => ids.includes(x)) || ids[0]; G.boonPick(k); }
       else G.pactAnswer(false);
@@ -923,7 +928,9 @@
   // is shown for. The timer runs in real seconds while the phase is 'loot' (the hold's tick, never the field's).
   // R.loot is the open moment: the same object as S.run.loot (the save's), read through a getter so the two never drift.
   Object.assign(TUNE, { lootT: 5, lootTSlow: 8, lootSlowRuns: 3, lootCollapse: 1.5, lootCards: { boss: 3, lord: 4, act: 4, final: 5 },
-    lootW: [20, 50, 30], lootA: 0.7, lootUqBoss: 0.02, lootUqLord: 0.2, lootUqPity: 4, lootKey: 1 / 3, lootOrbs: [1, 2], lootUltraT: 1.2 });
+    // (fix1: lootW 20/50/30 -> 10/40/50 with game.js rarityAt mythic 13 / divine 16: the cap's rarity is the rare card again,
+    // ultra-rares ~1 in 4 late cards, 6-8 a Siege at Heat 0 - see the TUNE note at game.js rarityAt)
+    lootW: [10, 40, 50], lootA: 0.7, lootUqBoss: 0.02, lootUqLord: 0.2, lootUqPity: 4, lootKey: 1 / 3, lootOrbs: [1, 2], lootUltraT: 1.2 });
   const rpick = w => { let t = 0; for (const x of w) t += x; let v = G.runRng() * t; for (let i = 0; i < w.length; i++) { v -= w[i]; if (v < 0) return i; } return w.length - 1; };
   const clsOf = who => (who < 0 ? S_().hero.cls : S_().party[who] && S_().party[who].cls);
   // an item base of rarity r (or the best below it that exists for the slot), for a slot and a class's weapons
@@ -1376,7 +1383,7 @@
   G.campTouch = () => { const c = camp(); if (c) c.touch = 1; };
   G.runBeat({ id: 'camp', order: 40, fallback: 1,
     open(ctx) { if (!ctx.lord || ctx.final || !ctx.fresh) return false; G.campOpen(ctx); return true; },
-    tick(dt) { const c = camp(); if (!c) { G.beatDone('camp'); return; } if (!c.touch && !runOf().offer) c.t += dt; if (G.runUI && c.t >= G.beatAfter()) G.campAuto(); },
+    tick(dt) { const c = camp(); if (!c) { G.beatDone('camp'); return; } if (!c.touch && !runOf().offer && !winUp()) c.t += dt; if (G.runUI && c.t >= G.beatAfter()) G.campAuto(); },
     auto() { G.campAuto(); },
     resume() { if (!camp()) G.beatDone('camp'); },
   });
@@ -1458,7 +1465,7 @@
   });
   G.runBeat({ id: 'doors', order: 50, fallback: 1,
     open(ctx) { if (!ctx.lord || ctx.final || !ctx.fresh || (ctx.slot + 1 >= SG().lands && !runOf().push)) return false; return !!G.runDoorsOpen(ctx.slot + 1); },
-    tick(dt) { const D_ = runOf().doors; if (!D_) { G.beatDone('doors'); return; } if (!D_.touch) D_.t += dt; if (G.runUI && D_.t >= G.beatAfter()) G.runDoor(0); },
+    tick(dt) { const D_ = runOf().doors; if (!D_) { G.beatDone('doors'); return; } if (!D_.touch && !winUp()) D_.t += dt; if (G.runUI && D_.t >= G.beatAfter()) G.runDoor(0); },
     auto() { if (runOf().doors) G.runDoor(0); },
     resume() { if (!runOf().doors) G.beatDone('doors'); },
   });
@@ -1502,14 +1509,32 @@
     const c = G.forceChamp();
     if (c) emit('champEscort', c);
   });
+  // the Vault's secret land (rare.js keeps it in the runtime R.rare only): the land object itself is marked as the Vault's
+  // (land.vault), so only ITS end pays the Vault's loot moment - never a later Mystery door's or random secret land's
+  // (4.0 fix1: a stale S.run.vaultOn after a reload paid a free legendary-floor moment to the next secret land)
+  function vaultEnter(k) {
+    const r = runOf();
+    r.vaultOn = k;
+    const land = G.forceRare ? G.forceRare('land', k) : null;
+    if (land) land.vault = 1; else r.vaultOn = null;
+    return land;
+  }
   G.on('marchEnd', () => {
     const r = runOf();
     if (!r || !r.on) return;
-    if (r.vaultGo && G.forceRare) { const k = r.vaultGo; r.vaultGo = null; r.vaultOn = k; G.forceRare('land', k); }
+    if (r.vaultGo && G.forceRare) { const k = r.vaultGo; r.vaultGo = null; vaultEnter(k); }
+  });
+  // a reload inside the Vault: the secret land lived in the runtime, so the detour the Key paid for starts over (its full
+  // time; the Key is not refunded, the Vault is). 'vaultResume'(kind)
+  G.on('runResume', r => {
+    if (!r || !r.on || !r.vaultOn || (R.rare && R.rare.land) || !G.forceRare) return;
+    const k = r.vaultOn;
+    if (vaultEnter(k)) emit('vaultResume', k);
   });
   G.on('rareLandEnd', (land, why) => {
     const S = S_(), r = runOf();
     if (!r || !r.on || !r.vaultOn) return;
+    if (!(land && land.vault)) return; // not the Vault's land: its flag stays for the Vault's own end
     r.vaultOn = null;
     if (why !== 'time') return;
     // the Vault's own loot moment: 4 cards, a legendary floor (runflow: from the offers' stream 'vaultLoot:<slot>', items too)
@@ -1587,7 +1612,7 @@
     },
     // (runflow: left untouched, the first relic goes on the belt; a full belt is kept as it is - a timeout never throws
     // away a relic the player chose)
-    tick(dt) { const o = runOf().relicOffer; if (!o) { G.beatDone('relic'); return; } if (!o.touch) o.t += dt; if (G.runUI && o.t >= G.beatAfter() && !G.relicPick(0)) G.relicSkip(); },
+    tick(dt) { const o = runOf().relicOffer; if (!o) { G.beatDone('relic'); return; } if (!o.touch && !winUp()) o.t += dt; if (G.runUI && o.t >= G.beatAfter() && !G.relicPick(0)) G.relicSkip(); },
     auto() { const r = runOf(); if (r.relicOffer && !G.relicPick(0, r.belt.length >= r.beltMax ? 0 : undefined)) G.relicSkip(); },
     resume() { if (!runOf().relicOffer) G.beatDone('relic'); },
   });
@@ -1827,8 +1852,11 @@
     for (let i = 0; i < (G.D.startPots | 0); i++) if (G.givePotion) G.givePotion();
     if (G.D.startAlly) G.runRngIn('ally', () => { const cl = G.CLASSES.map(c => c.id), tr = G.TRAIT_IDS || []; G.recruit(cl[Math.floor(G.runRng() * cl.length)], tr[Math.floor(G.runRng() * tr.length)]); }, true);
     keepsakes(r);
-    // (land 1's Land Champion: drawn now, as every later land's is at its march)
-    champDecide(0);
+    // (land 1 is entered now: its Land Champion drawn, and its door's reward tag delivered - the Treasure door's golden
+    // chest, the Shrine door's Power shrine, the Elite door's champion, the Merchant's / Mystery's mid-land visitor - as
+    // every later land's is at its march. 4.0 fix1: runStart never emits 'realm', so the first door's prize was shown at
+    // setup and never paid)
+    landEnter();
     // the meta adds its part here (the Hall's Second Wind, rerolls and banishes, keepsakes, the Alchemist's potions, the
     // Tavern V companion, the Button's rule and starting card): change r (pipMax, rerolls, banish, beltMax, mendBonus, belt)
     emit('runSetup', r, setup);
@@ -2186,6 +2214,24 @@
   // a Siege carries on from the start of the zone it was in: the clear bar from zero, no boss up, no march; a beat that
   // was on screen is asked to come back (its resume), or skipped if no module claims it. A summary nobody will show
   // (no run UI) goes straight into the next run.
+  // a saved run's fields given their defaults (4.0 fix1: a save written by an earlier 4.0 build, or a truncated one, lacking
+  // run.keeps / fame / deeds / pouchLog / belt... threw at the run's end; every field of the run object newRun builds is
+  // filled in when missing, and the typed ones (objects, arrays) are put back to their type when the save holds junk)
+  function runDefaults(r) {
+    const S = S_(), cls = (G.CLASS_BY_ID[r.cls] && r.cls) || (S.hero && G.CLASS_BY_ID[S.hero.cls] && S.hero.cls) || 'knight';
+    const def = newRun({ btn: typeof r.btn === 'string' ? r.btn : 'classic', cls, heat: r.heat, keeps: Array.isArray(r.keeps) ? r.keeps : [], seed: r.seed >>> 0, day: typeof r.day === 'string' ? r.day : '', replay: r.replay }, r.n | 0 || 1);
+    if (!G.CLASS_BY_ID[r.cls]) r.cls = cls;
+    for (const k in def) {
+      const d = def[k], v = r[k];
+      if (v === undefined || v === null) { if (d != null && typeof d === 'object') r[k] = d; else if (v === undefined) r[k] = d; continue; }
+      if (Array.isArray(d)) { if (!Array.isArray(v)) r[k] = d; }
+      else if (d && typeof d === 'object') { if (!v || typeof v !== 'object' || Array.isArray(v)) r[k] = d; }
+      else if (typeof d === 'number' && typeof v !== 'number') r[k] = typeof v === 'string' && isFinite(+v) ? +v : d;
+    }
+    for (const k of ['mods', 'tags']) while (r[k].length < SG().lands) r[k].push(null);
+    return r;
+  }
+  G.runDefaults = runDefaults;
   G.runResume = function () {
     const S = S_();
     let r = S.run;
@@ -2194,10 +2240,12 @@
       if (r.phase === 'summary' && (TUNE.runAgainAuto || r.autoAgain) && !G.runUI && S.hero && S.hero.cls && !S.fallen) G.runAgain();
       return;
     }
+    runDefaults(r);
     S.bossMeter = 0; R.zoneT = 0; R.march = null; R.boss = null; R.bossReady = false; R.bossIn = null;
-    if (!Array.isArray(r.route) || r.route.length < SG().lands) r.route = defaultRoute();
+    if (!Array.isArray(r.route) || r.route.length < SG().lands || r.route.some(i => !G.REALMS[i])) r.route = defaultRoute();
     if (!Array.isArray(r.cardQ)) r.cardQ = [];
     if (!Array.isArray(r.cardLog)) r.cardLog = [];
+    if (typeof r.phase !== 'string') r.phase = 'field';
     if (r.phase !== 'field') {
       const bt = r.beat, B = bt && bt.id ? BEAT_BY_ID[bt.id] : null;
       // (the beats this page has may differ from the saving page's: carry on after the one on screen, by its order)
@@ -2285,14 +2333,15 @@
     gift.embers.shards = Math.floor(num(oh.shards) / G.EMBERS.shard);
     const orbs = obj(oh.orbs) || {};
     for (const k in G.EMBERS.orb) gift.embers.orbs += Math.floor(num(orbs[k])) * G.EMBERS.orb[k];
-    gift.embers.items = Math.round(gift.embers.items);
+    // (4.0 fix1: whole Embers, as every other Embers path pays - G.EMBERS.orb has half values)
+    gift.embers.items = Math.round(gift.embers.items); gift.embers.orbs = Math.round(gift.embers.orbs);
     gift.embers.gear = Math.min(F.gear, gift.embers.items + gift.embers.shards + gift.embers.orbs);
     // ---- the town: its levels
     const bld = obj(old.bld) || {};
     for (const id in bld) gift.embers.townLvls += Math.max(0, Math.min(G.BLD_MAX || 5, bld[id] | 0));
     gift.embers.town = gift.embers.townLvls * F.town;
-    gift.embers.total = Math.min(F.cap, gift.embers.gear + gift.embers.town);
-    s.embers = (s.embers || 0) + gift.embers.total; s.emberTotal = (s.emberTotal || 0) + gift.embers.total;
+    gift.embers.total = Math.round(Math.min(F.cap, gift.embers.gear + gift.embers.town));
+    s.embers = Math.round((s.embers || 0) + gift.embers.total); s.emberTotal = Math.round((s.emberTotal || 0) + gift.embers.total);
     // ---- Fame (old Hall of Fame levels are covered by this)
     gift.fame = Math.min(F.fameCap, Math.floor(num(old.fameTotal) * F.fameK));
     s.fame = (s.fame || 0) + gift.fame; s.fameTotal = (s.fameTotal || 0) + gift.fame;

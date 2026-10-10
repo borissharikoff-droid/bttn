@@ -304,6 +304,10 @@
 
   // ---------- Done, progress, the next unlock ----------
   G.deedDone = id => { const S = G.S; return !!((S.ach && S.ach[id]) || (S.deeds && S.deeds[id])); };
+  // 4.0 (fix1): how many of today's Deeds are done (achievements + run deeds whose id exists in G.DEEDS; a save's retired 3.6
+  // ids - G.ACH_RETIRED, kept for their +1% gold - and unknown ids don't count). The Journey's 'Complete N Deeds' steps and
+  // any 'N of M Deeds' readout read this; G.DEEDS.length is M
+  G.deedCount = S => { S = S || G.S; let n = 0; for (const k in S.ach || {}) if (G.DEED_BY_ID[k]) n++; for (const k in S.deeds || {}) if (G.DEED_BY_ID[k]) n++; return n; };
   G.deedProgress = function (id) {
     const d = G.DEED_BY_ID[id], S = G.S;
     if (!d) return null;

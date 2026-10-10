@@ -27,7 +27,11 @@
     // boss move, DOOM included); with that the active no-meta Heat-0 bot won 55% at 1.64 with seeds that never won in 90 min,
     // 79-83% at 1.62 (12 seeds, first win by run 3 on every seed, the win's wall 17-19.4 min), 68% at 1.63 (wall 22.7: a harder
     // Horde is more wipes in a win, each ~1.2 min). DESIGN §15 puts real players 25-30 points under the bots: 1.62 (tests/bots/out/w3-w6b)
-    mobBase: 10, mobGrowth: 1.62, mobAtkBase: 5, mobAtkGrowth: 1.22,
+    // (fix1: 1.62 -> 1.60. game.js rarityAt moved mythic to depth 13 and divine to 16 (ultra-rares are rare again): Act III's
+    // worn gear is a rarity lower than before (RMUL 3.2 against 4.3 / 4.3 against 5.8: x0.74 party power at the Void), and the
+    // active no-meta bot fell from 79% to ~50% with 39-s lord fights; 1.60^17 / 1.62^17 = 0.81 of the Void's Horde health
+    // gives it back. Inside DESIGN §14's band 1.58-1.64; re-measured in tests/fix1/out (notes/gates.md))
+    mobBase: 10, mobGrowth: 1.60, mobAtkBase: 5, mobAtkGrowth: 1.22,
     mobWalk: 5, opFrom: 2.5, opHpPow: 0.8, kbPush: 0.045, kbEvery: 0.6, hordeRate: 0.6, hordeRef: 2.2, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,
@@ -231,7 +235,7 @@
   G.PERKS = {
     might:   { max: 5, icon: 'ic_sword', name: 'Might', desc: '+12% damage, bosses too' },
     frenzy:  { max: 5, icon: 'ic_clock', name: 'Frenzy', desc: '+12% attack speed' },
-    plunder: { max: 3, icon: 'pk_plunder', name: 'Plunder', desc: 'Kills open a chest: 0.2% per level' },
+    plunder: { max: 3, icon: 'pk_plunder', name: 'Plunder', desc: 'Rare, champion and Hoarder kills drop a chest: 20% a rank' },
     multi:   { max: 3, icon: 'it_short_bow', name: 'Multistrike', desc: '+1 target per attack' },
     cleave:  { max: 4, icon: 'it_blood_scythe', name: 'Cleave', desc: '+30% splash radius' },
     reach:   { max: 3, icon: 'it_hunter_bow', name: 'Long Reach', desc: '+20% attack range' },
@@ -2118,8 +2122,11 @@
     const snap = {
       // the best level reached, so ascending (which starts the level over) doesn't sink you on the ladder
       // v2: 2.0 and later, where depths 65-74 are the Moon and the Star Sea
-      v: 2, ss: G.WIPE || 1, name: (S.profile.name || '').slice(0, 16), cls: br ? br.cls : h.cls, lvl: br ? br.lvl | 0 || 1 : Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
+      // v3 (4.0, DESIGN §12): the Siege's snapshot - the best run's Heat (heat) and the Heat won (hw) travel with it, and
+      // verifySnapshot v3 bounds the gear's level and rarity by the run's depth and Heat
+      v: 3, ss: G.WIPE || 1, name: (S.profile.name || '').slice(0, 16), cls: br ? br.cls : h.cls, lvl: br ? br.lvl | 0 || 1 : Math.max(h.lvl, Math.min(S.rec.maxLevel || 1, 60 + 2 * Math.max(S.bestDepth, G.riftDepth(rf.best | 0)))),
       depth: S.bestDepth, asc: S.ascensions, fame: S.fameTotal, mad: Math.round(S.rec.madTime || 0), gear, ts: Date.now(),
+      heat: br ? br.heat | 0 : 0, hw: S.heatWon == null ? -1 : S.heatWon | 0,
       rift: rf.best | 0, rt: Math.round(rf.bestT || 0), rd: today, uq: Object.keys(S.uq || {}).length, kills: h.kills | 0, ls: G.starCount ? G.starCount() : 0,
       ev: (S.feed || []).slice(-6), fs: Object.assign({}, S.rec.firsts || {}), cr,
     };
@@ -2157,10 +2164,26 @@
     if (typeof snap.name !== 'string' || snap.name.length > 16) bad.push('name');
     if (snap.uq != null && !int(snap.uq, 0, G.UNIQUE_IDS.length)) bad.push('uniques');
     if (snap.kills != null && !int(snap.kills, 0, 1e12)) bad.push('kills');
-    // land stars: three per land, and only in lands this Warden has reached
-    if (snap.ls != null && !(int(snap.ls, 0, 3 * G.REALMS.length) && snap.ls <= 3 * Math.min(G.REALMS.length, Math.floor(reach / G.REALM_SIZE) + 1))) bad.push('stars');
+    // land stars: three per land. (4.0 fix1: a Siege puts any land in any slot and a founder keeps the 3.6 stars, so the
+    // old bound by the best depth - 3 lands per 3 depths - is gone; the count of lands is the bound)
+    if (snap.ls != null && !int(snap.ls, 0, 3 * G.REALMS.length)) bad.push('stars');
     if (snap.rd != null && (typeof snap.rd !== 'object' || typeof snap.rd.k !== 'string' || snap.rd.k.length > 12 || !int(snap.rd.l, 0, snap.rift | 0) || (snap.rd.t != null && !int(snap.rd.t, 0, 600)))) bad.push('today');
-    if (snap.mad != null && snap.mad !== 0 && !(int(snap.mad, 60, 1e9) && (snap.depth | 0) >= 40)) bad.push('mad');
+    // the Mad Button's time: a kill at the Void's depth (4.0: the Siege's final zone, G.SIEGE.final; the 3.x campaign's 40)
+    const madAt = G.SIEGE && G.SIEGE.final != null ? G.SIEGE.final : 40;
+    if (snap.mad != null && snap.mad !== 0 && !(int(snap.mad, 60, 1e9) && (snap.depth | 0) >= madAt)) bad.push('mad');
+    // v3 (DESIGN §12): the run's Heat is one the player could have played (at most the Heat won + 1), and the gear's rarity
+    // is within the cap that depth and Heat open (TUNE.rarityAt + Heat/3), with room for the run's own bonuses (an Armored
+    // door, a Blood Pact, the Golden Button, a Chance shrine: +1 each; uniques keep their base's rarity)
+    const v3 = (snap.v | 0) >= 3;
+    const heat = v3 ? snap.heat | 0 : 0;
+    if (v3) {
+      const hmax = G.TORMENT_MAX || 10;
+      if (!int(snap.heat, 0, hmax)) bad.push('heat');
+      if (snap.hw != null && !int(snap.hw, -1, hmax)) bad.push('heat');
+      // (the Daily Siege is played at its own fixed Heat (run.js G.DAILY_SIEGE.heat, 2) before any win: that much is always open)
+      else if (snap.hw != null && (snap.heat | 0) > Math.max((snap.hw | 0) + 1, (G.DAILY_SIEGE && G.DAILY_SIEGE.heat) || 2)) bad.push('heat');
+    }
+    const capAt = d => { let c = 0; (G.TUNE.rarityAt || []).forEach((at, r) => { if (d >= at) c = r; }); return Math.min(6, c + Math.floor(heat / 3)); };
     const numMap = (o, n) => o == null || (typeof o === 'object' && !Array.isArray(o) && Object.keys(o).length <= n && Object.keys(o).every(k => k.length <= 8 && typeof o[k] === 'number' && o[k] > 0));
     // firsts: known milestones only, dated after the release and not in the future, and actually reached
     const FS = { boss: 0, d5: 0, d10: 0, d20: 0, d30: 0, d40: 0, d50: 0, d60: 0, d65: 0, d75: 0, d80: 0, uq: 0, r4: 0, r5: 0, r6: 0, asc: 0, evo: 0, all14: 0,
@@ -2185,6 +2208,7 @@
       if (!it || G.slotOf(g.id) !== s || g.r !== it.r) { bad.push(s + ':item'); continue; }
       if (!int(g.il, 0, lootReach + 3 + (g.c ? 3 : 0))) bad.push(s + ':ilvl');
       if (!int(g.e, 0, G.ENCHANT_MAX)) bad.push(s + ':enchant');
+      if (v3 && g.q == null && g.r > Math.min(6, capAt(lootReach) + 3)) bad.push(s + ':rarity');
       if (g.q != null) {
         const U = G.UNIQUES[g.q];
         // (4.0: a Codex rank raises its fixed affixes: every value the base x the same rank's factor, ranks 1-4)

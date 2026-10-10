@@ -97,9 +97,12 @@
   G.uniqueFor = uniqueFor;
   // Bad-luck protection for uniques: the 25th chance in a row without one is a sure thing
   const UQ_PITY = 25;
+  // (4.0 fix1: inside a Siege the ground's pity is off - a Siege has ~70 rare / Hoarder / champion / guardian showers, so the
+  // 25-shower pity forced ~2.8 ground uniques a run on top of the loot moment's (DESIGN §5.3: lords 20% with their own pity,
+  // boss cards 2%, Hoarders 3%, champions 5%: 'about 1.5 a run before the finale'); the per-source chances alone remain)
   function uqChance_(p, src) {
-    const st = S_().st;
-    if (src === 'rift') return chance(p);
+    const S = S_(), st = S.st;
+    if (src === 'rift' || (S.run && S.run.on)) return chance(p);
     st.dryQ = (st.dryQ || 0) + 1;
     return st.dryQ >= UQ_PITY || chance(p);
   }
@@ -275,6 +278,9 @@
     const S = S_(), h = S.hero;
     const i = R.ground.indexOf(e);
     if (i < 0) return null;
+    // (4.0 fix1: the Hand's own pickup - a label tap - is refused while the Siege holds the field or the Button is in pieces,
+    // as every other input is; the game's own pickups ('auto': the looter, runEnd's burn, pickupAll) go through)
+    if (how === 'hand' && ((G.runHeld && G.runHeld()) || S.fallen)) return null;
     R.ground.splice(i, 1);
     let res = null;
     if (e.k === 'gear') res = G.lootItem(e.it, 'ground', e.g || gearOf(e));
@@ -502,9 +508,13 @@
   G.spawnShrine = spawnShrine;
   // the Hand on the shrine (the UI calls it every frame the Hand rests there and the Button isn't held): it charges, and
   // at TUNE.shrineCharge s it's used. Returns the charge 0-1. G.shrineLeave(): the Hand moved off (the charge drains)
+  // (4.0 fix1: while the Siege holds the field - a card, the loot moment, a camp - or the Button is in pieces, a shrine
+  // can't be charged or claimed, as the Button, the chests and the powers can't be: a boon choice opened under a card would
+  // run the field with the choice still open)
+  const shrineHeld = () => !!((G.runHeld && G.runHeld()) || S_().fallen);
   G.shrineHold = function (dt) {
     const s = R.shrine;
-    if (!s) return 0;
+    if (!s || shrineHeld()) return 0;
     s.ch = (s.ch || 0) + dt;
     if (s.ch >= TUNE.shrineCharge) { G.useShrine('hand'); return 1; }
     emit('shrineCharge', s, s.ch / TUNE.shrineCharge);
@@ -515,7 +525,7 @@
   // pact). (G.useShrine('hand') claims it at once: the 3.x tap and the bots)
   G.useShrine = function (how) {
     const s = R.shrine;
-    if (!s) return false;
+    if (!s || shrineHeld()) return false;
     R.shrine = null;
     if (s.kind && s.kind !== 'fury' && G.shrineEffect) G.shrineEffect(s.kind, s, how);
     else R.shr = { k: s.k, t: TUNE.shrineDur, T: TUNE.shrineDur };

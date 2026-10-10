@@ -23,7 +23,9 @@
   const wins = S => S.st.siegeWins | 0;
   const heatWon = S => Math.max(0, (S.heatWon == null ? -1 : S.heatWon) + 1);
   const lords = S => S.st.lordKills | 0;
-  const deeds = S => Object.keys(S.ach || {}).length + Object.keys(S.deeds || {}).length;
+  // (4.0 fix1: Deeds that exist today only - a founder's save keeps the 3.6 achievements retired in 4.0 (ach.js
+  // G.ACH_RETIRED, for their +1% gold), which would inflate the count; js/ach.js G.deedCount is the one reader)
+  const deeds = S => (G.deedCount ? G.deedCount(S) : Object.keys(S.ach || {}).length + Object.keys(S.deeds || {}).length);
   const town = S => (G.townLvl ? G.townLvl() : 0);
   const hall = S => Object.values(S.legacy || {}).reduce((a, v) => a + (v | 0), 0);
   const STEPS = [

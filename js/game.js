@@ -38,9 +38,12 @@
     scarHeal: 0.3, scarHealLord: 0.8,
     // boss affixes from this depth; a Shield cracked stays down this long; Regenerating heals this share a second
     affixFrom: 8, shieldDown: 10, bossRegen: 0.008,
-    // 4.0: rarity opens with this run's depth (not the lifetime best): rare from depth 2, epic 4, legendary 7, mythic 10,
-    // divine 13 (+ Heat/3). (ascFrom is gone with the voluntary ascension; kept for old readers)
-    rarityAt: [0, 0, 2, 4, 7, 10, 13], ascFrom: 15,
+    // 4.0: rarity opens with this run's depth (not the lifetime best): rare from depth 2, epic 4, legendary 7, mythic 13,
+    // divine 16 (+ Heat/3). (ascFrom is gone with the voluntary ascension; kept for old readers)
+    // (fix1: mythic 10 / divine 13 made every Act III loot card an 'ultra-rare' - card A sits at the cap, and at cap 6 the
+    // cap and the cap below are both ultra: 20-40 rainbow cards a Siege, 100% of the late moments. At 13 / 16 with
+    // run.js lootW [10, 40, 50] a Heat-0 Siege shows ~6-8 ultra cards, Act III's; Heat adds its +1 per 3 levels)
+    rarityAt: [0, 0, 2, 4, 7, 13, 16], ascFrom: 15,
     smallChestK: 0.1,       // the little chests the Horde drops are worth a tenth of a real one
     smallItem: 0.05,        // and hold an item one time in twenty
     overflowK: 0.5,         // a full field: the lowest chest bursts and half of it is lost
@@ -97,6 +100,13 @@
     // (siegeChestGold of its worth, 'chestCoin'): the event keeps its moment, a few chests and a shower of gold
     // (measured, 10 seeds x 90 min, Heat 0: 0.5 / 3 gave the active bot 4.1 a field minute; 0.4 / 2 keeps it under 4)
     siegeChestRate: 0.4, siegeChestCap: 2, siegeChestGold: 0.3,
+    // 4.0 (fix1): inside a Siege the holding meter's chest-find bonus (Treasure Sense, Keen Nose, Scouts, the run boon:
+    // D.chestProg) is compressed to this share of itself (1 + (chestProg - 1) x K): the meter's chests were outside the
+    // budget above, and at full meta (chestProg 2.55) a 10-cps hold alone gave 5.1 chests a minute (6.2 with the budget's
+    // and Plunder's; measured over 6 seeds x 90 min, every full-meta cell 6.1-6.5 against DESIGN §14's 2-4). At 0.35 the
+    // full-meta hold reads ~2.6 + ~1 a minute, and Treasure Sense still buys chests (the owner's upgradable find rate)
+    // (0.35 read AF5 4.23 / AF6 4.08 chests a minute over 6 seeds x 90 min - still over 4; 0.2 is the next notch)
+    siegeChestProgK: 0.2,
   };
 
   // ---------- State ----------
@@ -541,7 +551,7 @@
     addGold(gain, 'click');
     const dmg = R.boss ? D.heroHit * TUNE.clickVolley * hk : 0;
     if (G.heroVolley && !(R.stun > 0)) G.heroVolley(TUNE.clickVolley * hk, 'click');
-    S.chestMeter += D.chestProg * hk;
+    S.chestMeter += chestProg() * hk;
     spawnFromMeter();
     questProgress('clicks', 1);
     questProgress('combo', R.combo, true);
@@ -560,7 +570,7 @@
     addGold(gain, 'auto');
     const petN = n * D.petCps / Math.max(1e-9, D.autoCps + D.petCps);
     if (G.heroVolley && petN > 0) G.heroVolley(TUNE.petVolley * petN, 'pet');
-    G.S.chestMeter += D.chestProg * TUNE.autoChestFactor * n;
+    G.S.chestMeter += chestProg() * TUNE.autoChestFactor * n;
     emit('autoClicks', n, gain);
   }
 
@@ -686,6 +696,9 @@
   }
   G.spawnChest = spawnChest;
 
+  // the holding meter's progress a click (4.0 fix1: inside a Siege the chest-find bonus is compressed, TUNE.siegeChestProgK)
+  function chestProg() { const p = D.chestProg || 1; return inSiege() && p > 1 ? 1 + (p - 1) * TUNE.siegeChestProgK : p; }
+  G.chestProgNow = chestProg;
   function spawnFromMeter() {
     const S = G.S;
     let guard = 0;
@@ -1127,7 +1140,16 @@
     // (4.0: Heat 3+ gives lords one more; the Mad Button one more; G.bossAffixAdd(d): more from a map mod, e.g. an Elite lord)
     const n = (d >= TUNE.affixFrom ? 1 : 0) + (d >= 30 ? 1 : 0) + (isLord(d) && d >= 14 ? 1 : 0) + (isLord(d) ? torment().lordAffix : 0)
       + (bossKind(d) === 'final' ? 1 : 0) + (G.bossAffixAdd ? G.bossAffixAdd(d) | 0 : 0);
-    const rnd = G.seeded(d * 7919 + 13), pool = AFFIXES.slice(), out = [];
+    // (4.0 fix1: inside a Siege the draw is the run's - from its offers' stream 'affix:<depth>', once a depth (S.run.affixSeed),
+    // so every Siege rolls its own lords and a Daily's are everyone's; seeded by depth alone, every Mad Button was
+    // Regenerating + Shielded + Hasted and every Act III lord Vampiric + Hasted)
+    let seed = d * 7919 + 13;
+    if (inSiege() && G.runRngIn) {
+      const r = G.S.run, m = r.affixSeed && typeof r.affixSeed === 'object' ? r.affixSeed : (r.affixSeed = {});
+      if (!(m[d] > 0)) m[d] = Math.floor(G.runRngIn('affix:' + d, () => G.runRng()) * 2147483646) + 1;
+      seed = m[d];
+    }
+    const rnd = G.seeded(seed), pool = AFFIXES.slice(), out = [];
     for (let i = 0; i < Math.min(n, pool.length); i++) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
     return out;
   }

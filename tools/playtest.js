@@ -113,7 +113,7 @@ function run(name, seed, minutes, opts) {
   const fresh = () => {
     c = { t0: clock.now, choices0: G.botStats.choices, autos0: G.botStats.autos, chests: 0, labels: 0, n: 0, low: 0, crit: 0, fails: 0, lordFails: 0,
       loots: 0, lootT: [], lootOpen: null, lootUltra: 0, cardsT: [], cardOpen: null, camps: 0, campT: [], campOpen: null, shrines: 0, shrinesSeen: 0, charged: 0,
-      bossT: [], lordT: [], b0: 0, wisps: 0, powers: 0, taps: 0, od: 0, chestClicks: 0, picks: 0, relics: 0, doors: 0, pacts: 0, boons: 0, keys: 0, uniques: 0, deeds: 0 };
+      bossT: [], lordT: [], b0: 0, wisps: 0, powers: 0, taps: 0, od: 0, chestClicks: 0, picks: 0, boonCards: 0, ultraWait: 0, lootUltraPre: 0, relics: 0, doors: 0, pacts: 0, boons: 0, keys: 0, uniques: 0, deeds: 0 };
   };
   fresh();
   G.on('runStart', () => fresh());
@@ -123,9 +123,13 @@ function run(name, seed, minutes, opts) {
   // (the jackpot's rain of chests is one in hours, by design: not counted)
   G.on('chestSpawn', () => { if (!(G.R.ev && G.R.ev.k === 'jackpot')) c.chests++; });
   G.on('drop', e => { if ((e.k === 'gear' && e.r >= 2) || e.k === 'uq') c.labels++; });
-  G.on('perk', (id, rank, how) => { if (how !== 'button') c.picks++; });
-  G.on('evolve', () => c.picks++);
-  G.on('lootMoment', L => { c.loots++; c.lootOpen = clock.now; if (L && L.ultra) c.lootUltra += L.ultra; });
+  // (fix1: a pick is any card taken - a perk rank, an evolution, or a run boon dealt to a complete build (run.js cardBoons:
+  // 'boon_<id>' cards emit neither 'perk' nor 'evolve'); boon cards are counted apart so the balance owner sees how early
+  // a full-meta build completes. The Button's starting card ('perk' how 'button') is not a pick)
+  G.on('cardPick', id => { c.picks++; if (typeof id === 'string' && id.startsWith('boon_')) c.boonCards++; });
+  // (fix1: an ultra-rare's slow-motion pillar holds the moment's clock lootUltraT s each, up to 3 a moment (run.js pillarT):
+  // the wall model counts those seconds too)
+  G.on('lootMoment', L => { c.loots++; c.lootOpen = clock.now; if (L && L.ultra) { c.lootUltra += L.ultra; if (L.kind !== 'final') c.lootUltraPre += L.ultra; c.ultraWait += (G.TUNE.lootUltraT || 0) * Math.min(3, L.ultra); } });
   G.on('lootDone', () => { if (c.lootOpen != null) c.lootT.push(r2(clock.now - c.lootOpen)); c.lootOpen = null; });
   G.on('cardOffer', () => { if (c.cardOpen == null) c.cardOpen = clock.now; });
   G.on('cardPick', () => { if (c.cardOpen != null) c.cardsT.push(r2(clock.now - c.cardOpen)); c.cardOpen = null; });
@@ -156,17 +160,17 @@ function run(name, seed, minutes, opts) {
       min: r2(s.secs / 60), field: r2(s.field / 60),
       // the wall time a person would take (DESIGN §8: loot moment ~4 s, card ~3 s, camp and doors ~28 s, relic ~5 s) on top
       // of the field: the bots answer faster than that
-      wall: r2((s.field + 4 * c.loots + 3 * (s.cardsN || 0) + 28 * c.camps + 5 * c.relics) / 60),
+      wall: r2((s.field + 4 * c.loots + c.ultraWait + 3 * (s.cardsN || 0) + 28 * c.camps + 5 * c.relics) / 60), ultraWait: r2(c.ultraWait),
       cleared: s.cleared, depth: s.depth, lvl: s.lvl, party: (s.party || []).length, lords: s.lords, acts: s.acts,
       cause: s.cause || null, fallKind: s.kind === 'fall' ? nm.bossKind || 'zone' : null, fallSlot: s.kind === 'fall' ? Math.floor(s.depth / 3) : null, land: nm.landId || s.land || null,
       pips: s.pips, pipMax: s.pipMax, wipes: s.wipes, fails: c.fails, lordFails: c.lordFails,
-      evos: (s.evos || []).length, cards: s.cardsN | 0, picks: c.picks, top: (s.cards || []).map(x => x.id), belt: (s.belt || []).length, relics: c.relics,
+      evos: (s.evos || []).length, cards: s.cardsN | 0, picks: c.picks, boonCards: c.boonCards, top: (s.cards || []).map(x => x.id), belt: (s.belt || []).length, relics: c.relics,
       fame: Math.round(s.fame.total), embers: Math.round(s.embers.total), pouch: Math.round(s.embers.pouch || 0),
       chests: c.chests, labels: c.labels, chestsPerMin: r2(c.chests / fmin), labelsPerMin: r2(c.labels / fmin),
       low: c.n ? r2(c.low / c.n) : 0, crit: c.n ? r2(c.crit / c.n) : 0,
       choices: G.botStats.choices - c.choices0, autos: G.botStats.autos - c.autos0,
       choicesPerMin: r2((G.botStats.choices - c.choices0) / mins), autosPerMin: r2((G.botStats.autos - c.autos0) / mins),
-      loots: c.loots, lootSecs: med(c.lootT), lootSecsMax: c.lootT.length ? Math.max(...c.lootT) : null, lootUltra: c.lootUltra,
+      loots: c.loots, lootSecs: med(c.lootT), lootSecsMax: c.lootT.length ? Math.max(...c.lootT) : null, lootUltra: c.lootUltra, lootUltraPre: c.lootUltraPre,
       cardSecs: med(c.cardsT), camps: c.camps, campSecs: med(c.campT), doors: c.doors,
       shrines: c.shrines, shrinesSeen: c.shrinesSeen, charged: c.charged, boons: c.boons, pacts: c.pacts, keys: c.keys, uniques: c.uniques, deeds: c.deeds,
       wisps: c.wisps, powers: c.powers, taps: c.taps, od: c.od, bossMed: med(c.bossT), lordMed: med(c.lordT), at: r2(clock.now / 60) };

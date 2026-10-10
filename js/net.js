@@ -116,11 +116,10 @@
         // Hold all uploads until the player decides, so a fresh device never overwrites a real save
         let cs = null;
         try { cs = JSON.parse(cloud.data); } catch (e) { cs = null; }
-        // a cloud save from an earlier season is nothing to go back to
-        if (cs && G.oldSeason(cs)) cs = null;
-        const more = cs && (cs.goldTotal || 0) > (G.S.goldTotal || 0) * 1.01 + 100;
+        // (4.0 fix1: a cloud save from an earlier season is NOT dropped any more - deserialize converts it (the founders'
+        // gift, game.js), so it is offered like any other; the 2.3/3.1 wipes threw such saves away, 4.0 keeps the meta)
         const newer = (cloud.ts || 0) > (G.S.lastSave || 0) + 60e3;
-        if (cs && (more || newer) && cloud.data !== G.serialize()) { Net.hold = true; G.emit('cloudNewer', cloud); }
+        if (cs && (cloudMore(cs) || newer) && cloud.data !== G.serialize()) { Net.hold = true; G.emit('cloudNewer', cloud); }
       }
       G.emit('net');
       Net.tick(true);
@@ -129,6 +128,18 @@
     }
   };
 
+  // is the cloud save worth asking about, against what this browser holds? More gold earned (the 3.x rule), or - season-
+  // aware - an earlier season's save while this browser never received the founders' gift (a new device, cleared
+  // storage: the gift is in that save), or any save at all while this browser's state is fresh (nothing played, no gift):
+  // a fresh newState never goes up over a cloud save nobody has looked at
+  function cloudMore(cs) {
+    if (!cs || typeof cs !== 'object') return false;
+    const S = G.S, fresh = !((S.st && S.st.playTime) > 30) && !S.founders && !(S.goldTotal > 0);
+    if (fresh) return true;
+    if (G.oldSeason(cs)) return !S.founders;
+    return (cs.goldTotal || 0) > (S.goldTotal || 0) * 1.01 + 100;
+  }
+  Net.cloudMore = cloudMore;
   function prepare(list) {
     // (rows from an earlier season don't show: everyone starts the new one from nothing)
     return list.filter(e => e && typeof e === 'object' && (e.ss || 1) >= (G.WIPE || 1)).map(e => {
@@ -153,7 +164,7 @@
   // the account behind a row, shown next to the hero name so nobody can pass as someone else
   Net.accountName = e => nameCache[e.uid] || '';
 
-  function ladderKey(s) { return JSON.stringify([s.name, s.cls, s.lvl, s.depth, s.power, s.asc, s.gear, s.rift, s.rt, s.rd, s.uq, s.ev, s.fs, s.cr, s.ls]); }
+  function ladderKey(s) { return JSON.stringify([s.name, s.cls, s.lvl, s.depth, s.power, s.asc, s.gear, s.rift, s.rt, s.rd, s.uq, s.ev, s.fs, s.cr, s.ls, s.heat, s.hw, s.mad]); }
 
   // Rivalry: who went past whom since the last ladder update
   const CATS = { depth: 'Depth', rift: 'Rift', power: 'Gear score' };
@@ -214,8 +225,8 @@
           const cloud = await backend.loadSave().catch(() => null);
           let cs = null;
           if (cloud && cloud.dev && cloud.dev !== DEV && (cloud.ts || 0) > lastPushTs) { try { cs = JSON.parse(cloud.data); } catch (e) { cs = null; } }
-          if (cs && G.oldSeason(cs)) cs = null;
-          if (cs && (cs.goldTotal || 0) > (G.S.goldTotal || 0) * 1.01 + 100) {
+          // (4.0 fix1: an earlier season's save counts too: see cloudMore)
+          if (cs && cloudMore(cs)) {
             Net.cloud = cloud; Net.hold = true; busy = false; G.emit('cloudNewer', cloud); G.emit('net'); return;
           }
           await backend.pushSave({ data: str, ts: G.S.lastSave, v: 1, dev: DEV }); lastSaveStr = str; lastPushTs = G.S.lastSave;
