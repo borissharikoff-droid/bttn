@@ -13,7 +13,12 @@
     // the bag kept by the party), gear ranks counting in perks2 and the Marks made the party stronger: the active bot
     // (no meta, Heat 0) won 93% at 1.65 (gate 50-80%; 69% before them), 74% at 1.68, 65% at 1.70 - bots, 8-10 seeds x
     // 90 min, notes/cardsloot.md)
-    mobBase: 10, mobGrowth: 1.70, mobAtkBase: 5, mobAtkGrowth: 1.22,
+    // 4.0 (meta): 1.70 -> 1.66. The Deeds' locks (DESIGN §4.8: 11 perks, 5 relics, 9 uniques, 2 shrines are earned) cost a fresh
+    // save ~25 perk points that 1.70 was tuned with: the active bot, no meta, Heat 0 won 33% at 1.70 (two of 8 seeds never
+    // won in 90 min), 72% at 1.66 (first win by run 1/1/1/2/1/1/1/1), 73% at 1.63: DESIGN §14 '50-80%, first win by run
+    // <= 4' (tests/meta/bal out/g1, 8 seeds x 90 min). A PAIR with game.js TUNE.heatHp 1.22 / heatBite 1.14 (the full-meta
+    // Heat ladder moved with it: out/h5, h6; notes/meta.md MEASUREMENTS 'PAIR')
+    mobBase: 10, mobGrowth: 1.66, mobAtkBase: 5, mobAtkGrowth: 1.22,
     mobWalk: 5, opFrom: 2.5, opHpPow: 0.8, kbPush: 0.045, kbEvery: 0.6, hordeRate: 0.6, hordeRef: 2.2, hordeMax: 6, hordeCap: 12, surgeEvery: 26, surgeLen: 5, surgeMul: 3,
     bossHpMobs: 400, bagMax: 30, clickVolley: 0.6, petVolley: 0.25, smiteR: 0.12, smiteReach: 0.55, addRate: 0.5,
     mobGold: 0.6, mobChest: 0.1, baseHp: 50,

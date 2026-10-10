@@ -681,6 +681,10 @@
 .stSet .stCodeV b{font:8px/1.4 var(--font-display);color:var(--gold);overflow-wrap:anywhere;-webkit-user-select:text;user-select:text}
 .stSet .stCodeV .btn{flex:none}
 body.stHideMe #heroName:not(:focus),body.stHideMe #bdNameIn:not(:focus){color:transparent;text-shadow:0 0 7px var(--text)}
+/* (room for run_ui's tally bars while chat votes - a state only this module creates: above 860 px the bars and their
+   counts sit 12 + 7 px above a card (.ckVote top -12, its count above that), so the boon row makes room under the
+   'Choose a boon' title and the loot row under the compare sheet; under run_ui's 860-px rule the bar is inside the card) */
+@media (min-width:861px){#ru .ru-boon.voting .bnRow{padding-top:20px}#ru .ru-loot.voting .lmCards{padding-top:22px}}
 `;
   const st = document.createElement('style');
   st.id = 'stCss'; st.textContent = css;

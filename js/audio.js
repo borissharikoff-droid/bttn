@@ -477,6 +477,27 @@
     for (let i = 0; i < 6; i++) { voice(1320 + i * 90, 0.05, { type: 'triangle', vol: 0.04, when: 0.25 + i * 0.05 }); voice(1760 + i * 90, 0.07, { type: 'triangle', vol: 0.035, when: 0.28 + i * 0.05 }); }
     bellAt(36, 1.2, 0.07, 0.25);
   };
+  // a vault key: found, a bright little jingle and a bell (a thing worth keeping); 'vault', the key turning in the gate
+  A.key = function (src) {
+    if (!ac) return;
+    if (src === 'vault') {
+      // two clicks of the mechanism, the bolt drawn, a low thunk as the gate gives
+      for (let i = 0; i < 2; i++) { voice(2200 - i * 300, 0.03, { type: 'square', vol: 0.07, when: i * 0.13, att: 0.002, rel: 0.02 }); hiss(0.04, 0.08, i * 0.13, 'highpass', 4000, 3000, 0.002); }
+      hiss(0.25, 0.05, 0.3, 'bandpass', 700, 1800, 0.01, 3);
+      thud(0.3, 0.24, 0.5, 350); voice(90, 0.35, { type: 'triangle', vol: 0.09, when: 0.5, slide: 60 });
+      return;
+    }
+    [0, 7, 12, 19].forEach((s, i) => voice(note(29 + s), 0.1, { type: i % 2 ? 'triangle' : 'square', vol: 0.07, when: i * 0.045 }));
+    bellAt(41, 0.9, 0.09, 0.2);
+    hiss(0.3, 0.025, 0.2, 'highpass', 6000, 9000, 0.01);
+  };
+  // the Hunt pact's champion comes: two low horn notes, a snare
+  A.hunt = function () {
+    if (!ac) return;
+    voice(note(-7), 0.5, { type: 'sawtooth', vol: 0.07, lp: 900, att: 0.03 }); voice(note(-5), 0.4, { type: 'sawtooth', vol: 0.07, lp: 900, when: 0.45, att: 0.03 });
+    voice(note(5), 0.45, { type: 'sawtooth', vol: 0.045, lp: 1200, when: 0.45, att: 0.03 });
+    snare(0.12, 0.42); snare(0.1, 0.9);
+  };
   // the doors: a heavy gate swings, then the march's drums
   A.door = function () {
     if (!ac) return;
@@ -638,6 +659,8 @@
   G.on('shrineCharge', (s, k) => A.shrineCharge(k));
   G.on('pact', (id, yes) => A.pact(yes));
   G.on('goldenClick', () => A.goldenClick());
+  G.on('key', (n, src) => A.key(src));
+  G.on('huntChamp', () => A.hunt());
   G.on('door', () => A.door());
   G.on('lastStand', () => A.lastStand());
   G.on('lastStandEnd', () => A.drum(false));

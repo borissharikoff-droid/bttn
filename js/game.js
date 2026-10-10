@@ -68,7 +68,12 @@
     // 1.24 / 1.15 the same bot's top Heat with 35%+ wins fell to 4 (H5 30%, H7 8%). Measured on the budgeted meta (bots,
     // active, full meta, 8 seeds x 90 min, ~35 runs a cell; tests/meta/bal out/h3, h4): H5 63%, H6 47%, H7 40%, H8 9%:
     // top Heat 7 (DESIGN §14: 5-7)
-    heatHp: 1.15, heatBite: 1.1,
+    // 4.0 (meta, the PAIR with hero.js TUNE.mobGrowth 1.70 -> 1.66): 1.15 / 1.10 -> 1.22 / 1.14. The Heat-0 gate needed
+    // mobGrowth 1.66 (the Deeds' locks; hero.js), which lifts the full-meta ladder too: at 1.66 the shipped 1.15 / 1.10 made
+    // H7 54%, H8 46%, H9 43% (top Heat >= 9, over DESIGN §14's 5-7); 1.22 / 1.14 H6 44%, H7 30%, H8 18% (top 6; first win
+    // at H6 by seed 3/2/1/4/3/-/1/1); 1.24 / 1.15 H7 18%. Measured: bots, active, full meta, 8 seeds x 90 min, 31-34 runs
+    // a cell (tests/meta/bal out/h5, h6). Neither half alone. The Daily (Heat 2) is x1.49 health / x1.30 bites
+    heatHp: 1.22, heatBite: 1.14,
     // 4.0: the Barracks pays this share of the best run's Embers an hour away
     barracksRate: 0.03,
     // 4.0: Auto-invest (DESIGN §5.5): every autoEvery s of field time, the run's gold into the Hand upgrades and the
@@ -408,8 +413,8 @@
   G.recalc = recalc;
 
   // ---------- Heat (4.0; the 2.3 Torment re-made): the Siege's difficulty ladder ----------
-  // Chosen at setup only, 0..heatWon+1 (Heat N opens with a win at N-1). Each level: Horde and boss health x1.15, bites
-  // x1.10 (TUNE.heatHp / heatBite), Fame x(1+0.2n), Embers x(1+0.15n), rarity +n/3, drops +15%, and the named rules
+  // Chosen at setup only, 0..heatWon+1 (Heat N opens with a win at N-1). Each level: Horde and boss health x1.22, bites
+  // x1.14 (TUNE.heatHp / heatBite), Fame x(1+0.2n), Embers x(1+0.15n), rarity +n/3, drops +15%, and the named rules
   // (data.js G.HEAT_RULES).
   // The table keeps the Torment's field names (mobHp, bite, bossHp, n, drop, rarity...): champions, events, rare
   // visitors and relics read them as G.torment().
@@ -433,8 +438,8 @@
   function tormentMax() { return Math.max(0, Math.min(TORMENT_MAX, (G.S.heatWon == null ? -1 : G.S.heatWon) + 1)); }
   G.torment = torment; G.tormentMax = tormentMax;
   G.heat = torment; G.heatMax = tormentMax;
-  // 4.0 (cardsloot): what the setup screen's Heat dial says, read from the TUNE so its text follows a retune (x1.15 health /
-  // x1.10 bites a level today): G.heatInfo(n) -> { n, row (the level's table, as G.heat()), hp, bite (x at n), perLevel
+  // 4.0 (cardsloot): what the setup screen's Heat dial says, read from the TUNE so its text follows a retune (x1.22 health /
+  // x1.14 bites a level today): G.heatInfo(n) -> { n, row (the level's table, as G.heat()), hp, bite (x at n), perLevel
   // {hp, bite}, fame, embers, rarity, drop, cards, rules [G.HEAT_RULES in force at n], added (the rule n adds, or null),
   // open (n <= G.heatMax()) }. String heat_each: 'Each Heat: Horde health ×{0}, bites ×{1}'
   G.heatInfo = function (n) {

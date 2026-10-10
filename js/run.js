@@ -28,6 +28,9 @@
   });
 
   const S_ = () => G.S;
+  // 4.0 (meta): the Hall of Fame's run knobs (Second Wind, Reroll, Banish, Third Door, Belt, Heirloom, Quartermaster ranks) by
+  // their reader G.hall(id) (game.js; the ranks live in S.legacy, where a 3.x save keeps them)
+  const hallRank = id => (G.hall ? G.hall(id) : (S_().legacy || {})[id]) | 0;
   const runOf = () => (G.S && G.S.run) || null;
   const on = () => { const r = runOf(); return !!(r && r.on); };
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -782,8 +785,9 @@
   // lord (G.PACTS; S.run.pact {id, slot}; Glass is for the rest of the run: S.run.glass). Fury: world.js's 15-s buffs.
   // (4.0 runflow, continuation 3: a declined Pact leaves the shrine's own gift, a Power shrine's 1-of-3 boons
   // (pactNoBoon): the Pact shrine is a Power shrine with a wager on top, so the Deed that unlocks it ('reach Act II') adds
-  // a choice instead of thinning the run's boons - measured: with Pact + Chance shrines open and every pact declined a
-  // fresh save's first run won 34% against 57% with them locked, tests/runflow/bal/out/shr*)
+  // a choice instead of thinning the run's boons - measured on fresh saves' first runs (active bot, Heat 0, 24 seeds a
+  // cell): Pact shrines open and every pact declined 46% against 58% with them locked; with the boons on a decline 58%;
+  // Chance shrines alone cost nothing (58%); a 60-s cadence instead was worse (38%): tests/runflow/bal/out/shr2.*)
   Object.assign(TUNE, { shrineAuto: 10, chanceCost: 0.15, chanceOdds: [0.45, 0.3], pactNoBoon: 1 });
   const BOON_PREF = ['dmg', 'spd', 'crit', 'hp', 'reroll', 'xp', 'gold'];
   function boonApply(id) {
@@ -1215,8 +1219,8 @@
     return w;
   }
   function wareRoll(c, keep) {
-    const r = runOf(), hall = S_().legacy || {};
-    const n = TUNE.campOffers + (hall.hf_qm | 0) + (G.D.marketPlus | 0);
+    const r = runOf();
+    const n = TUNE.campOffers + hallRank('hf_qm') + (G.D.marketPlus | 0);
     const kinds = Object.keys(G.WARES).filter(k => !(k === 'gamble' && !G.D.gambleWare) && !(k === 'pip' && r.pipBought) && !(keep && keep.k === k));
     const out = keep ? [keep] : [];
     while (out.length < n && kinds.length) {
@@ -1412,7 +1416,7 @@
     if (ctx.cursed && opts.length > 1) { const o = opts[opts.length - 1]; o.cursed = 1; let g = 0; while (o.mod === 'calm' && g++ < 20) o.mod = wpick(G.MAP_MODS); }
     return opts;
   }
-  const doorCtx = (r, slot) => ({ route: r.route, n: r.n, cursed: !!G.heat().cursed, extra: (S_().legacy && S_().legacy.hf_door) | 0,
+  const doorCtx = (r, slot) => ({ route: r.route, n: r.n, cursed: !!G.heat().cursed, extra: hallRank('hf_door'),
     first: slot === 0 && (r.n | 0) <= 1 && !r.day && !r.replay });
   G.runDoorsOpen = function (slot) {
     const r = runOf();
@@ -1779,7 +1783,10 @@
     const seeded = setup.seed != null;
     if (!seeded && !setup.day && S.nextSeed != null) setup.seed = S.nextSeed >>> 0;
     S.nextSeed = null;
-    if (!G.CLASS_BY_ID[setup.cls]) setup.cls = (S.hero && G.CLASS_BY_ID[S.hero.cls] && S.hero.cls) || (G.CLASS_BY_ID[last.cls] && last.cls) || 'knight';
+    // (4.0 meta: a locked class (the Deeds', G.classOpen) is refused too: the setup screen offers G.setupOptions().classes, so only
+    // a bot or an odd path asks for one; the Daily Siege's class is its own, open or not)
+    const clsOk = c => !!G.CLASS_BY_ID[c] && (!!setup.day || !G.classOpen || G.classOpen(c));
+    if (!clsOk(setup.cls)) setup.cls = (S.hero && clsOk(S.hero.cls) && S.hero.cls) || (clsOk(last.cls) && last.cls) || 'knight';
     // (the Daily Siege is fixed at its own Heat, open or not; no keepsakes)
     setup.heat = setup.day ? clamp(setup.heat | 0, 0, G.TORMENT_MAX) : clamp(setup.heat | 0, 0, G.tormentMax());
     if (setup.day) setup.keeps = [];
@@ -1807,11 +1814,11 @@
       const ds = S.dailySiege && S.dailySiege.day === setup.day ? S.dailySiege : (S.dailySiege = { day: setup.day, tries: 0 });
       r.ranked = ds.tries === 0 ? 1 : 0; ds.tries++;
     }
-    const T = G.heat(), hall = S.legacy || {};
+    const T = G.heat();
     r.pipMax = T.pips || TUNE.pips; r.pips = r.pipMax;
     // the Hall of Fame's run knobs: Second Wind (+1 pip, not at Heat 10), Reroll, Banish, Relic Belt
-    if (!T.pips) r.pipMax += hall.hf_wind | 0;
-    r.rerolls += hall.hf_reroll | 0; r.banish += hall.hf_banish | 0; r.beltMax += hall.hf_belt | 0;
+    if (!T.pips) r.pipMax += hallRank('hf_wind');
+    r.rerolls += hallRank('hf_reroll'); r.banish += hallRank('hf_banish'); r.beltMax += hallRank('hf_belt');
     // the Warden: the class's starter weapon at item level 0 (and a welcome pack of Horde on the field)
     G.chooseClass(setup.cls);
     // the town's part (DESIGN §4.5): the Alchemist's potions and its Mend charge, the Tavern V companion; the keepsakes
@@ -1838,7 +1845,7 @@
   // the keepsakes (DESIGN §4.7): up to G.keepSlots() Codex entries (Museum I, the Hall's Heirloom Shelf). A unique starts
   // worn by the Warden at item level 0 and attunes (g.att: its level follows the run's depth after each boss; its rarity
   // counts at most the run's cap until legendary opens); a relic puts its rule on the belt
-  G.keepSlots = () => (G.D.keepSlots | 0) + ((S_().legacy && S_().legacy.hf_keep) | 0);
+  G.keepSlots = () => (G.D.keepSlots | 0) + hallRank('hf_keep');
   function keepsakes(r) {
     const S = S_(), h = S.hero;
     r.keeps = (r.keeps || []).filter(q => S.codex && S.codex[q] && G.UNIQUES[q]).slice(0, G.keepSlots());
@@ -1870,7 +1877,7 @@
     const heat = o.heat != null ? o.heat | 0 : (S.lastSetup && S.lastSetup.heat) | 0;
     const row = G.heatInfo ? G.heatInfo(Math.max(0, Math.min(G.TORMENT_MAX || 10, heat))).row : null;
     const n = (S.st.sieges | 0) + 1;
-    return doorDeal(0, { route: [], n, cursed: !!(row && row.cursed), extra: (S.legacy && S.legacy.hf_door) | 0, first: own && n <= 1 }, G.runRngPeek(own ? S.nextSeed : o.seed >>> 0, 'door:0'));
+    return doorDeal(0, { route: [], n, cursed: !!(row && row.cursed), extra: hallRank('hf_door'), first: own && n <= 1 }, G.runRngPeek(own ? S.nextSeed : o.seed >>> 0, 'door:0'));
   };
   G.setupOptions = function (o) {
     const S = S_(), fc = (S.founders && S.founders.classes) || [];
@@ -2055,7 +2062,7 @@
   // R.lastStand = { t (s left), T, acc, retry, cap, every, packs }. Events: 'lastStand'(L), 'lastStandEnd'(L | null: a
   // wipe), 'madButton'(boss) when it enters after the Last Stand
   // (lsKeep: the Mad Button enters into the Horde still standing, DESIGN §2.3; 0: the field is swept as for any boss)
-  Object.assign(TUNE, { lastStand: 75, lastStandRetry: 30, lsEvery: 0.45, lsCaps: [850, 600, 400], lsKeep: 1 });
+  Object.assign(TUNE, { lastStand: 75, lastStandRetry: 30, lsEvery: 0.45, lsCaps: [850, 600, 400], lsKeep: 1, lsCull: 1 });
   G.lastStandCap = function () {
     const Q = G.Quality, t = Q && Q.tier != null ? Q.tier | 0 : 0, k = t <= 0 ? 0 : t >= 3 ? 2 : 1;
     return Math.max(40, Math.min(TUNE.lsCaps[k] || TUNE.lsCaps[0], mobMax0() || 850));
@@ -2077,7 +2084,31 @@
     const cap = G.lastStandCap();
     if (R.lastStand) R.lastStand.cap = cap;
     TUNE.mobMax = R.lsMobSet = Math.min(R.lsMobMax, cap);
+    // (runflow, continuation 4: the bodies ALREADY on the field when the cap comes are held by no spawner's guard - the last
+    // zone's crowd stands at the page's own mobMax, up to 850 on a desktop stuck at a low tier - and a party at the Void
+    // kills them too slowly to thin them (measured on the page: 454-492 bodies through the Stand's whole first 30 s at a
+    // 400 cap). So the farthest small fry over the cap leave the field at once (lsCull; 'mobFlee', as a champion's or a
+    // herd's leaving: the stage drops them, no loot): the bigger kinds and whatever stands near the Button stay, and the
+    // Golden Horde's packs come to the cap from there. The same when the governor steps down mid-Stand)
+    if (TUNE.lsCull && R.mobs.length > TUNE.mobMax) cullCrowd(TUNE.mobMax);
   }
+  // the farthest small fry over `cap` leave the field (not boss adds, invaders, goblins, the gilded, the named):
+  // 'crowdCull'(n, cap) once, 'mobFlee'(m) each. Returns how many left
+  function cullCrowd(cap) {
+    const ms = R.mobs, over = ms.length - cap;
+    if (over <= 0) return 0;
+    const small = [];
+    for (const m of ms) if (G.SMALL && G.SMALL[m.kind] && !m.dead && !m.add && !m.gob && !m.gild && !m.inv && !m.champ && !m.name) small.push(m);
+    if (!small.length) return 0;
+    small.sort((a, b) => a.p - b.p);
+    const out = new Set(small.slice(0, over));
+    // (in place: R.mobs keeps its identity, as hero.js's own sweeps keep it)
+    let w = 0; for (let i = 0; i < ms.length; i++) if (!out.has(ms[i])) ms[w++] = ms[i]; ms.length = w;
+    for (const m of out) { m.dead = true; m.gone = true; if (R.focus === m.id) R.focus = null; emit('mobFlee', m); }
+    emit('crowdCull', out.size, cap);
+    return out.size;
+  }
+  G.cullCrowd = cullCrowd;
   function finaleCrowdOff() {
     if (R.lsMobMax == null) return;
     if (TUNE.mobMax === R.lsMobSet) TUNE.mobMax = R.lsMobMax;

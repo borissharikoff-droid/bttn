@@ -4167,6 +4167,7 @@
     ff_twist: 'Twist: {0}', ff_prize: 'Prize: {0}', ff_cursed: 'CURSED ×2', ff_vault: 'THE VAULT', ff_ls: 'LAST STAND',
     ff_lsSub: 'Hold {0} s: the whole Horde, from every side', ff_lsHeld: 'THE HORDE HELD', ff_pact: 'PACT SEALED', ff_pactDone: 'PACT FULFILLED',
     ff_relic: 'R E L I C', ff_holdKey: 'HOLD · H', ff_beltN: 'BELT {0}/{1}', ff_golden: 'GOLDEN CLICK', ff_camp: 'CAMP', ff_reap: 'REAP', ff_phoenix: 'PHOENIX', ff_echo: 'ECHO', ff_break: 'ARMOUR BROKEN', ff_engine: 'ENGINE +{0}%',
+    ff_key: 'KEY', ff_keyN: 'VAULT KEYS ×{0}', ff_keyUsed: 'THE KEY TURNS', ff_hunt: 'HUNT',
   });
   const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
 
@@ -4736,6 +4737,78 @@
     void b;
   });
 
+  // ---------- a vault key (run.js 'key': a lord's drop, an elite land, the market, a Hunt pact; 'vault' spends one at the door),
+  // the Hunt pact's champion (a red reticle on it while it lives), a shrine or the wisp fading away unclaimed ----------
+  FF.keys = []; FF.huntAt = 0;
+  G.on('key', (n, src) => {
+    const b = btnPos();
+    if (src === 'vault') {
+      // the key turns in the gate: it rises from the Button and bursts into gold
+      if (FF.keys.length < 6) FF.keys.push({ x: b.x, y: b.y - 14, vx: 0, vy: -26, t: 0, life: 0.55, spin: 5, used: true });
+      ring(b.x, b.y - 4, 22, 12, '#ffd84a', 0.4);
+      cardText(0, G.t('ff_keyUsed'), '#ffd84a', 4, { life: 1.4, vy: -3 });
+      return;
+    }
+    // found: it springs up (from the fallen lord, else the Button), hangs in the light a moment, then floats off up
+    const q = src === 'lord' ? bossPos() : b;
+    if (FF.keys.length < 6) FF.keys.push({ x: q.x, y: q.y - 10, vx: rand(-6, 6), vy: -70, t: 0, life: 1.9, spin: 3, used: false });
+    ring(q.x, q.y - 4, 26, 14, '#ffd84a', 0.5); ring(q.x, q.y - 4, 12, 7, '#ffffff', 0.3);
+    burst(q.x, q.y - 10, ['#ffd84a', '#fff3a0', '#ffffff'], 16, 80, { grav: 120, life: 0.5 });
+    cardText(0, G.t('ff_key'), '#ffd84a', 6, { life: 1.6, vy: -3, big: true });
+    if ((n | 0) > 1) cardText(9, G.t('ff_keyN', n | 0), '#fff3a0', 3, { life: 1.6, vy: -3 });
+  });
+  function drawKeys(dt) {
+    const spr = SPR.get('ic_key');
+    for (let i = FF.keys.length - 1; i >= 0; i--) {
+      const k = FF.keys[i]; k.t += dt;
+      if (k.t >= k.life) {
+        FF.keys.splice(i, 1);
+        if (k.used) { burst(k.x, k.y, ['#ffd84a', '#fff3a0', '#ffffff'], 18, 90, { grav: 60, life: 0.45 }); ring(k.x, k.y, 16, 9, '#ffffff', 0.3); }
+        continue;
+      }
+      // found: up, a hang (the gravity eases it to a stop), then it floats off and fades; used: a steady climb
+      if (!k.used) { k.vy += (k.t < 0.9 ? 95 : -30) * dt; k.vx *= 1 - 2 * dt; }
+      k.x += k.vx * dt; k.y += k.vy * dt;
+      const a = k.used ? 1 : clamp((k.life - k.t) / 0.5, 0, 1);
+      const w = Math.abs(Math.cos(k.t * k.spin)); // it turns on its axis: a thin flash at the edge-on frames
+      glow(k.x, k.y, 7, '#ffd84a', 0.25 * a);
+      if (spr) { lctx.globalAlpha = a; lctx.drawImage(spr, Math.round(k.x - spr.width * w / 2), Math.round(k.y - spr.height), Math.max(1, Math.round(spr.width * w)), spr.height); lctx.globalAlpha = 1; }
+      if (w < 0.25) { lctx.globalAlpha = a; lctx.fillStyle = '#ffffff'; lctx.fillRect(Math.round(k.x) - 1, Math.round(k.y) - 4, 2, 8); lctx.globalAlpha = 1; }
+      if (Math.random() < 0.6) part(k.x + rand(-3, 3), k.y + rand(-3, 3), pick(['#fff3a0', '#ffd84a', '#ffffff']), { vx: rand(-10, 10), vy: rand(4, 16), grav: 20, life: 0.45 });
+    }
+  }
+  G.on('huntChamp', c => {
+    FF.huntAt = 0;
+    const m = c && c.m, q = (m && mpos(m)) || null;
+    if (q) { ring(q.x, q.y - 6, 30, 16, '#ff4f4f', 0.6); text(q.x, q.y - 30, G.t('ff_hunt'), '#ff4f4f', 6, { life: 1.6, max: 1.6, vy: -8, big: true }); }
+  });
+  // the reticle: four brackets closing round the hunted champion, breathing red
+  function drawHunt(dt) {
+    const c = G.R.champ;
+    if (!c || !c.hunt || !c.m) return;
+    const q0 = mpos(c.m); if (!q0) return;
+    const q = onField(q0.x, q0.y); // (still marching in from the edge: the brackets wait for it at the field's rim)
+    FF.huntAt += dt;
+    // (wide: the champion's own sprite sits on champions_fx's layer above this one, about twice a mob's size)
+    const k = Math.min(1, FF.huntAt / 0.5), r = Math.round(34 - 10 * k + Math.sin(time * 5) * 1.5), y = q.y - 12, L = 5;
+    lctx.globalAlpha = 0.55 + 0.3 * Math.sin(time * 7); lctx.fillStyle = Math.floor(time * 8) % 4 === 0 ? '#ffffff' : '#ff4f4f';
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+      const x0 = Math.round(q.x + sx * r), y0 = Math.round(y + sy * r * 0.75);
+      lctx.fillRect(sx < 0 ? x0 : x0 - L + 1, y0, L, 1); lctx.fillRect(x0, sy < 0 ? y0 : y0 - L + 1, 1, L);
+    }
+    lctx.globalAlpha = 1;
+    if (Math.random() < 0.15) part(q.x + rand(-r, r), y + rand(-4, 4), '#ff4f4f', { vx: 0, vy: -12, grav: 0, life: 0.4 });
+  }
+  // unclaimed: a shrine's time runs out (a grey puff where it stood), the wisp slips away (a wink of gold)
+  G.on('shrineFade', s0 => {
+    if (!s0 || s0.a == null) return;
+    const q0 = arenaXY(s0.a, s0.p || 0.5, 0.5), q = onField(q0.x, q0.y);
+    const col = (G.SHRINES && G.SHRINES[s0.k] && G.SHRINES[s0.k].col) || '#c8c8d4';
+    ring(q.x, q.y - 2, 14, 7, col, 0.35);
+    for (let i = 0; i < 10; i++) part(q.x + rand(-5, 5), q.y - rand(2, 12), pick(['#6e6e7c', '#c8c8d4', col]), { vx: rand(-12, 12), vy: rand(-20, -6), grav: -10, life: 0.7 });
+  });
+  G.on('wispGone', () => { const w = St._wispPos; if (!w) return; for (let i = 0; i < 8; i++) part(w.x + rand(-3, 3), w.y - 4 + rand(-3, 3), pick(['#fff3a0', '#ffffff']), { vx: rand(-20, 20), vy: rand(-20, 10), grav: 0, life: 0.5 }); });
+
   // ---------- the hooks the frame calls ----------
   // under the crowd (after the ground and the zone's light): the finale's sky, the camp, the door's gate
   function siegeUnder(dt, vdt) {
@@ -4751,6 +4824,7 @@
   function siegeOver(dt, vdt) {
     if (St.ffOff) return;
     drawEdges(dt);
+    drawKeys(dt); drawHunt(dt);
     drawLootMoment(dt);
     drawPillars(vdt > 0 ? Math.max(vdt, dt * 0.3) : dt);
   }
@@ -4764,7 +4838,7 @@
     drawPipFx(b, fdt);
   }
   // a resize or a new run forgets the moment's leftovers
-  G.on('ascend', () => { FF.loot = null; FF.pillars.length = 0; FF.shimmer.length = 0; FF.edges.length = 0; FF.cracks = 0; FF.heal = null; FF.pipFx = null; FF.evo = null; FF.pact = null; FF.charge = null; FF.light = false; });
+  G.on('ascend', () => { FF.loot = null; FF.keys.length = 0; FF.pillars.length = 0; FF.shimmer.length = 0; FF.edges.length = 0; FF.cracks = 0; FF.heal = null; FF.pipFx = null; FF.evo = null; FF.pact = null; FF.charge = null; FF.light = false; });
   G.on('runStart', () => { FF.cracks = 0; FF.heal = null; FF.light = false; });
 
   // ---------- Hi-res text layer (drawn in logical coords, crisp font) ----------
