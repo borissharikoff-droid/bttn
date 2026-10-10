@@ -10,21 +10,43 @@
   // it in streamer mode; others' names come through G.Net.displayName / accountName, which that module wraps itself)
   const myName = () => { const n = G.S.profile.name || G.t('wardenName'); return G.nameShown ? (G.nameShown(n, true) || n) : n; };
   const ic = (id, sc, o) => G.SPR.url(id, sc || 4, o);
+  // uifix: window.innerWidth / innerHeight force a layout on a phone (the layout viewport is a layout result): the
+  // HUD's per-frame paths read them from this cache, refreshed on resize
+  let VW = window.innerWidth, VH = window.innerHeight;
+  const readVp = () => { VW = window.innerWidth; VH = window.innerHeight; };
+  window.addEventListener('resize', readVp); window.addEventListener('orientationchange', readVp);
+  UI.vw = () => VW; UI.vh = () => VH;
   // each icon carries its sprite's size, so it can be shown at a whole multiple of it (see snapPixels)
   const sprW = id => { try { const c = G.SPR.get(id); return c ? c.width + 'x' + c.height : ''; } catch (e) { return ''; } };
   const img = (id, cls, sc, o) => `<img src="${ic(id, sc, o)}" alt="" class="${cls || ''}" data-b="${typeof id === 'string' ? sprW(id) : ''}" draggable="false">`;
+  // uifix: the page's layout is read at the start of a frame, before anything writes to it (js/stage.js St.readLayout
+  // calls UI.preFrame right after its own reads): a read job returns the writes it wants as a closure, every job's
+  // reads run first, then every job's writes, so one frame lays out once (not once per read after a write)
+  const preJobs = [], lateJobs = [];
+  // (late: a job that reads and writes (the tutorial's update) runs after the pure readers)
+  UI.onPreFrame = (fn, late) => { const q = late ? lateJobs : preJobs; if (typeof fn === 'function' && q.indexOf(fn) < 0) q.push(fn); return fn; };
+  UI.offPreFrame = fn => { for (const q of [preJobs, lateJobs]) { const i = q.indexOf(fn); if (i >= 0) q.splice(i, 1); } };
+  UI.preFrame = function () {
+    if (!preJobs.length && !lateJobs.length) return;
+    const now = performance.now(), ws = [];
+    for (let i = 0; i < preJobs.length; i++) { try { const w = preJobs[i](now); if (w) ws.push(w); } catch (e) { if ((preJobs[i]._err = (preJobs[i]._err || 0) + 1) < 3) console.error(e); } }
+    for (let i = 0; i < ws.length; i++) { try { ws[i](); } catch (e) { console.error(e); } }
+    for (let i = 0; i < lateJobs.length; i++) { try { lateJobs[i](now); } catch (e) { if ((lateJobs[i]._err = (lateJobs[i]._err || 0) + 1) < 3) console.error(e); } }
+  };
   // Pixel art only looks right at whole multiples: snap every icon's CSS size to the nearest one that fits
   // (measured by layout, not by the screen box, so an icon caught mid-animation isn't snapped at its scaled size;
-  // all the reads come before all the writes, so a tab full of icons lays out once, not once per icon)
-  function snapPixels(root) {
-    const ims = [...(root || document).querySelectorAll('img[data-b]:not([data-snap])')];
-    if (!ims.length) return;
-    for (const im of ims) { im.style.width = ''; im.style.height = ''; }
+  // all the reads come before all the writes, so a tab full of icons lays out once, not once per icon).
+  // An icon that lays out at no size (hidden with its tab) is marked pending (data-snap="0") and measured again by the
+  // once-a-second pass, not by every new node on the page.
+  const SNAP_SEL = 'img[data-b]:not([data-snap])';
+  function snapMeasure(ims) {
+    if (!ims.length) return null;
     const dpr = window.devicePixelRatio || 1;
     const ws = ims.map(im => im.offsetParent ? parseFloat(getComputedStyle(im).width) || 0 : 0);
-    ims.forEach((im, i) => {
+    return () => ims.forEach((im, i) => {
       const [bw, bh] = (im.dataset.b || '').split('x').map(Number), w = ws[i];
-      if (!bw || !bh || !w) return;
+      if (!bw || !bh) return;
+      if (!w) { if (im.dataset.snap !== '0') im.dataset.snap = '0'; return; }
       // whole screen pixels per art pixel, so no pixel comes out wider than its neighbour
       const wd = w * dpr;
       let k = Math.round(wd / bw);
@@ -34,6 +56,10 @@
       im.dataset.snap = '1';
     });
   }
+  function snapPixels(root, all) {
+    const w = snapMeasure([...(root || document).querySelectorAll(all ? SNAP_SEL + ', img[data-b][data-snap="0"]' : SNAP_SEL)]);
+    if (w) w();
+  }
   // a new layout (a turned phone, a resized window, another screen) sizes icons afresh
   function resnap() {
     for (const im of document.querySelectorAll('img[data-snap]')) { im.style.width = ''; im.style.height = ''; delete im.dataset.snap; }
@@ -41,10 +67,15 @@
   }
   let resnapT = 0;
   window.addEventListener('resize', () => { clearTimeout(resnapT); resnapT = setTimeout(resnap, 150); });
-  // new icons are snapped before they're painted, not a moment later
-  let snapQ = false;
-  if (typeof MutationObserver !== 'undefined') new MutationObserver(() => { if (!snapQ) { snapQ = true; requestAnimationFrame(() => { snapQ = false; snapPixels(); }); } })
-    .observe(document.documentElement, { childList: true, subtree: true });
+  // new icons are snapped before they're painted (at the next frame's read phase), the pending ones once a second
+  let snapQ = false, snapT = 0;
+  if (typeof MutationObserver !== 'undefined') new MutationObserver(() => { snapQ = true; }).observe(document.documentElement, { childList: true, subtree: true });
+  UI.onPreFrame(now => {
+    const all = now - snapT > 1000;
+    if (!snapQ && !all) return null;
+    snapQ = false; if (all) snapT = now;
+    return snapMeasure([...document.querySelectorAll(all ? SNAP_SEL + ', img[data-b][data-snap="0"]' : SNAP_SEL)]);
+  });
   UI.snapPixels = snapPixels;
   // (4.0: the Torment dial is gone: Heat is chosen at the Run Setup, between Sieges)
   // 4.0: the Embers' own icon (the Furnace's currency: town, Star Chart), drawn here when no art module has one
@@ -285,7 +316,8 @@
       const R = G.R, St = G.Stage || {}, waited = performance.now() - t0;
       // (4.0: a run screen or a card offer holds it; with no Siege on G.runHeld() is true too, but nothing of a run is up
       // then, so it no longer keeps the card waiting for good)
-      const run = G.S.run, hard = !$('#modal').hidden || !$('#intro').hidden || (G.relicShow && G.relicShow()) || R.boss || !(G.S.hero && G.S.hero.cls) || !!(run && run.on && ((G.runHeld && G.runHeld()) || run.offer));
+      // (uifix: nor during the Last Stand - a chapter card froze the finale at 'Hold out: 1:15')
+      const run = G.S.run, hard = !$('#modal').hidden || !$('#intro').hidden || (G.relicShow && G.relicShow()) || R.boss || !!R.lastStand || !(G.S.hero && G.S.hero.cls) || !!(run && run.on && ((G.runHeld && G.runHeld()) || run.offer));
       let soft = false;
       try { soft = !!(R.march || (St.marching && St.marching()) || (St.cardBusy && St.cardBusy()) || bannerBusy || (o.dir && G.director && G.director.can && !G.director.can('card', 2))); } catch (e) { soft = false; }
       if (hard || (soft && waited < (o.maxWait || 20000))) { setTimeout(go, 400); return; }
@@ -295,6 +327,34 @@
     setTimeout(go, o.delay || 0);
   }
   UI.whenFree = whenFree;
+  // ---------- Season 3 welcome (the founders' gift, DESIGN §11) ----------
+  G.tAdd({
+    fdTitle: 'Season 3: The Siege', fdLead: 'Welcome back, founder. The game starts from zero now: every Siege is one run, the Button falls, and what you carried burns into Embers for the town. Your old progress came along, converted:',
+    fdEmbers: 'Embers', fdEmbersGear: '{0} items, shards and orbs', fdEmbersTown: '{0} town levels × {1}', fdEmbersCap: '(gift cap {0})', fdFame: 'Fame', fdFameLine: '{0} → {1}', fdGems: 'Gems kept', fdCodex: 'Codex entries',
+    fdClasses: 'Classes unlocked', fdResidents: 'Your companions now drink at the Tavern', fdSkin: 'The Founder Button skin', fdGo: 'To the Siege',
+  });
+  UI.foundersWelcome = function () {
+    const S = G.S, f = S && S.founders;
+    if (!f || f.shown) return false;
+    // (the intro, a modal or the cloud save's question first; then this, once)
+    if (!$('#intro').hidden || !$('#modal').hidden) { setTimeout(UI.foundersWelcome, 600); return false; }
+    const E = f.embers || {}, F = G.FOUNDERS || {};
+    const nm = q => (G.UNIQUES && G.UNIQUES[q] ? L(G.UNIQUES[q].name) : q), cn = c => (G.CLASS_BY_ID && G.CLASS_BY_ID[c] ? L(G.CLASS_BY_ID[c].name) : c);
+    const row = (ico, label, val, sub) => `<div class="fdRow">${img(ico, '', 2)}<span><b>${esc(label)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</span><em>${val}</em></div>`;
+    const rows = [
+      row('ic_ember', t('fdEmbers'), '+' + fmt(E.total | 0), [t('fdEmbersGear', E.itemsN | 0), E.townLvls ? t('fdEmbersTown', E.townLvls, F.town || 40) : '', E.total >= (F.cap || 6000) ? t('fdEmbersCap', fmt(F.cap || 6000)) : ''].filter(Boolean).join(' · ')),
+      row('ic_fame', t('fdFame'), '+' + fmt(f.fame | 0), t('fdFameLine', fmt(f.fameOld | 0), fmt(f.fame | 0))),
+      f.gems ? row('ic_gem', t('fdGems'), fmt(f.gems | 0)) : '',
+      f.codex && f.codex.length ? row('ic_scroll', t('fdCodex'), String(f.codex.length), f.codex.map(c => nm(c.q) + (c.rank > 1 ? ' ' + t('ru_codexRank', c.rank) : '')).join(', ')) : '',
+      f.classes && f.classes.length ? row('h_knight', t('fdClasses'), String(f.classes.length), f.classes.map(cn).join(', ')) : '',
+      f.residents && f.residents.length ? row('ic_tomb', t('fdResidents'), String(f.residents.length), f.residents.map(cn).join(', ')) : '',
+      f.skin ? row('ic_star', t('fdSkin'), '✓') : '',
+    ].filter(Boolean).join('');
+    f.shown = 1; if (G.save) G.save();
+    UI.modal(t('fdTitle'), `<p class="fdLead">${esc(t('fdLead'))}</p><div class="fdRows">${rows}</div>`, [{ label: t('fdGo'), cls: 'gold' }], true);
+    if (G.Audio && G.Audio.achievement) G.Audio.achievement();
+    return true;
+  };
   // the chapter card (3.6: after the march and the new land's title card, never on top of them)
   UI.chapter = function (li, slot) {
     if (slot == null) slot = li;
@@ -465,10 +525,16 @@
       // QoL: leave town from inside a building and the next visit opens it again (not while the tutorial walks you)
       // 4.0 (town): only within 90 s of leaving; a real return shows the square and the party stepping out of the portal
       if (!on) { PF().resume = tw.id || null; PF().resumeAt = Date.now(); UI.townClose(true); }
+      // (uifix: where the player is between runs is remembered: a reload in the town comes back to the square, not NEW SIEGE)
+      PF().place = on ? 'town' : '';
       document.getElementById('app').classList.toggle('inTown', on); if (tab === 'set') tab = 'upg'; UI.render();
       if (on && PF().resume && G.S.tut < 0 && bldOpen(PF().resume) && Date.now() - (PF().resumeAt || 0) < (UI.resumeMs || 90000)) { const id = PF().resume; setTimeout(() => { if (G.R.town && !tw.id && $('#modal').hidden) UI.townOpen(id); }, 0); }
     });
     bindSwipe();
+    // 4.0 (uifix, DESIGN §11): a save from an earlier season was converted at load (G.foundersGift): the one-time
+    // 'Season 3: The Siege' welcome lists what was kept and what became Embers, before the first setup (RunUI.setup waits
+    // while #modal is up)
+    setTimeout(UI.foundersWelcome, 700);
     // a finger down on the panel: nothing there re-sorts or rebuilds under it
     $('#panel').addEventListener('pointerdown', () => { UI._panelDown = true; });
     window.addEventListener('pointerup', () => { UI._panelDown = false; });
@@ -606,7 +672,10 @@
       if (rew && rew.lord && !G.R.rift) {
         const li = G.realmIndex(rew.d), sn = G.S.seen = G.S.seen || {}; sn.ch = sn.ch || {};
         const slot = G.runSlot && G.inSiege() ? G.runSlot(rew.d) : li;
-        if (!sn.ch[li]) { sn.ch[li] = 1; whenFree(() => UI.chapter(li, slot), { dir: true, secs: 5, delay: 2000 }); }
+        // (uifix: not for the Void's lord of a Siege - the card would queue into the Last Stand and the Mad Button; that
+        // land's chapter stays unread until a run where it is not the finale)
+        const finale = !!(G.inSiege() && G.SIEGE && typeof G.SIEGE.final === 'number' && rew.d >= G.SIEGE.final - (G.REALM_SIZE || 3));
+        if (!sn.ch[li] && !finale) { sn.ch[li] = 1; whenFree(() => UI.chapter(li, slot), { dir: true, secs: 5, delay: 2000 }); }
       }
     });
     // 3.0: a wipe says why, in one line, and what to do about it
@@ -663,16 +732,21 @@
         <p>${esc(t('holdWhy'))}</p></div>`;
       $('#stageWrap').appendChild(el);
       let held = 0, life = 0, n = 0, lastT = performance.now();
+      // (its spot is looked for at the frame's read phase, three times a second (every frame while held), so the
+      // plate's timer never forces a layout after the HUD's writes)
+      let spotT = 0, spotOn = false;
+      const spotJob = UI.onPreFrame(now => { if (!el.isConnected) return null; if (spotOn || now - spotT >= 330) { spotT = now; el._spot = holdSpot(el); el._spotT = now; } return null; });
       const iv = setInterval(() => {
-        if (!el.isConnected) { clearInterval(iv); return; }
+        if (!el.isConnected) { clearInterval(iv); UI.offPreFrame(spotJob); return; }
         // (real seconds: a busy frame stretches the ticks, not the plate's time)
         const nowT = performance.now(), dt = Math.min(1, (nowT - lastT) / 1000); lastT = nowT;
-        if (S.seen && S.seen.hold) { el.classList.add('out'); clearInterval(iv); setTimeout(() => el.remove(), 600); return; }
+        if (S.seen && S.seen.hold) { el.classList.add('out'); clearInterval(iv); UI.offPreFrame(spotJob); setTimeout(() => el.remove(), 600); return; }
         const on = (G.Stage.isHolding && G.Stage.isHolding()) || performance.now() - (UI._holdKeyT || 0) < 250;
         held = on ? held + dt : Math.max(0, held - dt / 2);
         // where it may sit, looked at three times a second
-        let spot = el._spot;
-        if (n++ % 3 === 0 || on) spot = el._spot = holdSpot(el);
+        spotOn = !!on;
+        if (el._spot === undefined) el._spot = holdSpot(el);
+        const spot = el._spot; n++;
         // (4.0: and while a run screen holds the field: the loot moment, a card, the camp, the doors)
         const away = !!(!spot || G.uiBusy() || G.R.town || G.S.fallen || (G.inSiege() && G.runHeld && G.runHeld()));
         if (away !== el.classList.contains('away')) { el.classList.toggle('away', away); if (!away && !el._popped) { el._popped = 1; el.classList.add('pop'); } }
@@ -683,7 +757,7 @@
         // (12 s on screen at most; one that found no free spot for a minute tries again next session)
         if (held >= 1.5 || life > 12 || (n > 600 && life < 1)) {
           if (held >= 1.5) { S.seen.hold = 1; G.dirty && G.dirty(); G.Audio && G.Audio.levelUp && G.Audio.levelUp(); el.classList.add('done'); }
-          el.classList.add('out'); clearInterval(iv); setTimeout(() => el.remove(), 600);
+          el.classList.add('out'); clearInterval(iv); UI.offPreFrame(spotJob); setTimeout(() => el.remove(), 600);
         }
       }, 100);
     };
@@ -920,7 +994,10 @@
   const E = {};
   const $id = id => { let e = E[id]; if (!e || !e.isConnected) e = E[id] = document.getElementById(id); return e; };
   const setPct = (e, prop, v) => { if (!e) return; v = Math.round(Math.max(0, Math.min(100, v)) * 10) / 10; const k = '_' + prop; if (e[k] !== v) { e[k] = v; e.style[prop] = v + '%'; } };
-  const setW = (e, v) => setPct(e, 'width', v), setHgt = (e, v) => setPct(e, 'height', v);
+  // (uifix: a meter's fill is scaled (transform: scaleX, compositor only; css .meter > i etc. are width 100%), not
+  // widened: each width transition laid the page out on every frame it ran, 30-40 layouts a second in a fight)
+  const setW = (e, v) => { if (!e) return; v = Math.round(Math.max(0, Math.min(100, v)) * 10) / 10; if (e._width !== v) { e._width = v; e.style.transform = 'scaleX(' + v / 100 + ')'; } };
+  const setHgt = (e, v) => setPct(e, 'height', v);
   const setHid = (e, h) => { if (e && e.hidden !== !!h) e.hidden = !!h; };
   const setTitle = (e, s) => { if (e && e.title !== s) e.title = s; };
   const pulse = (e, kf, ms) => { if (e && e.animate) e.animate(kf, { duration: ms || 200, easing: 'ease-out' }); };
@@ -946,16 +1023,19 @@
     else hudObs = setInterval(put, 500);
     put();
   }
-  let snapT = 0, lastFull = 0;
+  let lastFull = 0, tutDue = false;
+  // (uifix: the coach (js/tutorial.js) reads the page's layout to point and to place itself: it updates at the frame's
+  // read phase, before the HUD writes, at UI.update's cadence; it used to run inside UI.update after the writes, where
+  // each of its reads forced a layout)
+  UI.onPreFrame(() => { if (!tutDue) return; tutDue = false; if (G.Tut) G.Tut.update(); }, true);
   UI.update = function (force) {
     const S = G.S, D = G.D, R = G.R;
     const now = performance.now();
     // under a window the HUD behind it only needs a slow refresh
     const covered = !$id('modal').hidden || !$id('intro').hidden;
-    if (covered && !force && now - lastFull < 450) { if (G.Tut) G.Tut.update(); return; }
+    if (covered && !force && now - lastFull < 450) { tutDue = true; return; }
     lastFull = now;
-    // (new icons are snapped by the MutationObserver; this catches the ones laid out late)
-    if (now - snapT > 1000) { snapT = now; snapPixels(); }
+    // (icons are snapped at the frame's read phase: UI.onPreFrame above)
     sampleGold();
     watchHud();
     // Settings → Reduce effects: the page's own pulses and glows rest (the field reads S.set.lowfx too)
@@ -1011,7 +1091,7 @@
     const h = S.hero, on = !!(h && h.cls);
     // the field's HUD: hidden in town (the town has its own), so it rests there
     if (!R.town || force) updateField(S, D, R, h, on, force);
-    if (G.Tut) G.Tut.update();
+    tutDue = true;
     setClass($id('btnSound'), 'off', !S.set.sound);
     setClass($id('btnMusic'), 'off', !S.set.music);
     // the panel's page (a phone's folded panel shows none of it)
@@ -1031,9 +1111,12 @@
     navC.dot = navC.town ? navC.town.querySelector('.dot') : null;
     return navC;
   }
+  // (the tutorial's arrow: its box is read at the frame's read phase for the toasts' step-down above)
+  UI._ptRect = null;
+  UI.onPreFrame(() => { const pt = $id('pointer'), ts = $id('toasts'); UI._ptRect = pt && !pt.hidden && ts && (ts.children.length || toastQ.length) ? pt.getBoundingClientRect() : null; return null; });
   function updateField(S, D, R, h, on, force) {
     // in a Rift the HUD names the Rift's land, not the campaign's
-    const hd = R.rift ? R.rift.d : S.depth, narrow = innerWidth < 600;
+    const hd = R.rift ? R.rift.d : S.depth, narrow = VW < 600;
     setText($id('realmName'), G.realmName(hd));
     // where you are in this land: its zones, the last one the lord's
     const li = G.realmIndex(hd), z = G.zoneOf(hd);
@@ -1056,7 +1139,7 @@
     const comboK = R.combo / (D.comboCap || 1);
     setW($id('comboMeter'), comboK * 100);
     setClass($id('comboWrap'), 'hot', comboK >= 1);
-    const narrowBar = innerWidth <= 700;
+    const narrowBar = VW <= 700;
     setText($id('comboText'), t(narrowBar ? 'comboLineShort' : 'comboLine', Math.floor(R.combo), (1 + R.combo * D.comboPer).toFixed(2)));
     setText($id('chestText'), t(narrowBar ? 'chestLineShort' : 'chestLine', Math.floor(S.chestMeter / D.chestNeed * 100), S.chests.length, D.slots));
     setClass($id('stageWrap'), 'fighting', !!R.boss);
@@ -1115,12 +1198,12 @@
     if (br && br.hidden && br._arm) disarmRetreat(br);
     toastsYield();
     // the toasts step down out of the way of the boss bar, and of the tutorial's arrow, when they reach their corner
-    { const ts = $id('toasts'), bb = R.boss ? bossBarRect() : null, pt = $id('pointer'); let top = '', block = false;
-      if (ts && (bb || (pt && !pt.hidden))) {
+    { const ts = $id('toasts'), bb = R.boss ? bossBarRect() : null, pt = $id('pointer'), ptr = pt && !pt.hidden ? UI._ptRect : null; let top = '', block = false;
+      if (ts && (bb || ptr)) {
         const wr = G.Stage.wrapRect ? G.Stage.wrapRect() : $id('stageWrap').getBoundingClientRect(), x0 = wr.right - 12 - Math.min(wr.width * (narrowUI() ? 0.6 : 0.7), narrowUI() ? 250 : 320);
         let y = 0;
         if (bb && bb.right > x0) y = bb.bottom - wr.top + 6;
-        if (pt && !pt.hidden) { const a = pt.getBoundingClientRect(); if (a.right > x0 && a.left < wr.right && a.top - wr.top < (narrowUI() ? 50 : 54) + 80 && a.bottom > wr.top) y = Math.max(y, a.bottom - wr.top + 4); }
+        if (ptr) { const a = ptr; if (a.right > x0 && a.left < wr.right && a.top - wr.top < (narrowUI() ? 50 : 54) + 80 && a.bottom > wr.top) y = Math.max(y, a.bottom - wr.top + 4); }
         // (stepped down that far it would sit on the Button: then the news waits for the arrow to go instead)
         const b = y ? btnRect(4) : null;
         if (b && b.right > x0 && b.left < wr.right && b.top - wr.top < y + 64 && b.bottom - wr.top > y) { block = true; y = 0; }
@@ -3293,7 +3376,7 @@
   // two show at once (one on a phone, or in a boss fight or a big moment), each a beat after the last. The small
   // ones (p 0) wait out a boss fight or a big moment (G.director.quiet()) and are dropped once stale; under a
   // window only the answers to what you just did (p 2) show.
-  const narrowUI = () => innerWidth <= 860;
+  const narrowUI = () => VW <= 860;
   const dirQuiet = () => { try { return !!(G.director && G.director.quiet && G.director.quiet()); } catch (e) { return false; } };
   const toastQ = [];
   let toastLast = 0, toastTm = 0, toastBlock = false;

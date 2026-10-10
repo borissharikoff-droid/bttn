@@ -27,8 +27,10 @@
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const now = () => performance.now();
   const reduced = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) || !!(G.S && G.S.set && G.S.set.calm); } catch (e) { return false; } };
-  const narrow = () => window.innerWidth <= 600;
-  const wideStage = () => window.innerWidth > 860 || (window.innerHeight <= 520 && window.innerWidth > window.innerHeight);
+  // (uifix: the viewport from js/ui.js's resize-time cache: window.innerWidth forces a layout on a phone)
+  const vw = () => (G.UI && G.UI.vw ? G.UI.vw() : window.innerWidth), vh = () => (G.UI && G.UI.vh ? G.UI.vh() : window.innerHeight);
+  const narrow = () => vw() <= 600;
+  const wideStage = () => vw() > 860 || (vh() <= 520 && vw() > vh());
   const mmss = s => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   const pctTxt = v => (v >= 0 ? '+' : '-') + (Math.abs(v) >= 9.995 ? fmt(Math.round(Math.abs(v) * 100)) : Math.round(Math.abs(v) * 100)) + '%';
   // the run's own auto clock for a camp, the doors, a relic, a shrine (run.js G.beatAfter: Clockwork's 4 s; else the TUNE's)
@@ -99,6 +101,7 @@
     ru_embers: 'EMBERS', ru_fame: 'FAME', ru_unlocked: 'Unlocked', ru_next: 'Next', ru_town: 'TOWN', ru_codexNew: 'NEW', ru_codexRank: 'RANK {0}', ru_dailyRank: 'Daily Siege: rank #{0}',
     ru_dailyPosting: 'Daily Siege: posting your run to the board…', ru_dailyUnranked: 'Daily Siege: unranked (a repeat or an assisted run)', ru_dailyDone: 'Daily Siege: {0} zones in {1}',
     ru_stats: '{0} zones · {1} · level {2} · {3} cards', ru_skip: 'Tap to skip', ru_base: 'Burned', ru_heatX: 'Heat {0}', ru_extraX: 'Bonus', ru_pushBank: 'The win was banked before the Push',
+    ru_sum_pushfall: 'WON · THE PUSH FELL', ru_banked: 'Banked', ru_pushFellLine: 'The Mad Button is slain. The Push held {0} corrupted lands; its pouch burns at half.', ru_pushPouch: 'Below: the Push pouch only',
     ru_unl_heat: 'Heat {0}', ru_bank: 'Banked',
     ru_hudPips: 'Integrity: a wipe or a lost lord fight cracks one; a lord gives one back', ru_hudPouch: 'Embers in the pouch', ru_hudPace: 'Pace against par',
     ru_onPace: 'on pace', ru_hudMend: 'Mend charges', ru_hudKeys: 'Keys', ru_hudHeat: 'Heat', ru_hudBelt: 'Relic belt', ru_newSiegeBtn: 'NEW SIEGE',
@@ -135,16 +138,18 @@
 #ru kbd{font:7px/1 var(--font-display);color:var(--dim);background:var(--ink);padding:2px 3px;border:1px solid var(--line)}
 #ru .ruChip{display:inline-flex;align-items:center;gap:4px;padding:2px 6px;background:var(--slot);border:2px solid var(--ink);font:8px/1.3 var(--font-display);color:var(--text)}
 #ru .ruChip img{width:14px;height:14px}
-#ru .ruRbw{background:linear-gradient(90deg,#ff4f7e,#ffa033,#ffd84a,#56d45a,#4fd0ff,#b36bff,#ff4f7e);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent!important;animation:ruRbwT 2.6s linear infinite;text-shadow:none!important;-webkit-text-stroke:.35px rgba(12,11,18,.55);paint-order:stroke fill}
+#ru .ruRbw{background:linear-gradient(90deg,#ff4f7e,#ffa033,#ffd84a,#56d45a,#4fd0ff,#b36bff,#ff4f7e);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent!important;animation:ruRbwT 2.6s steps(26) infinite;text-shadow:none!important;-webkit-text-stroke:.35px rgba(12,11,18,.55);paint-order:stroke fill}
 #ru .lmSlam .ruRbw{-webkit-text-stroke:1px rgba(12,11,18,.8)}
 #ru .up{color:var(--good)}#ru .dn{color:var(--bad)}#ru .eq{color:var(--faint)}
 #ru .ruTimer{font:8px/1 var(--font-display);color:var(--faint);text-align:center}
 @keyframes ruFade{from{opacity:0}}
 @keyframes ruOut{to{opacity:0}}
 @keyframes ruPop{from{transform:scale(.6);opacity:0}}
+/* (uifix: the rainbow steps 10 times a second, not every frame: a background-position animation on clipped text repaints the text each step) */
 @keyframes ruRbwT{to{background-position:200% 0}}
 @keyframes ruSpin{to{transform:rotate(1turn)}}
-@keyframes ruPulse{50%{filter:brightness(1.35)}}
+@keyframes ruPulse{50%{transform:scale(1.08)}}
+#ru .lmCard.best .lmUp{will-change:transform}
 @keyframes ruShake{0%,100%{transform:translate(0,0) rotate(0)}20%{transform:translate(-2px,1px) rotate(-1.5deg)}40%{transform:translate(2px,-1px) rotate(1.5deg)}60%{transform:translate(-2px,-1px) rotate(-1deg)}80%{transform:translate(2px,1px) rotate(1deg)}}
 @keyframes ruDrop{from{transform:translateY(-30px) scale(1.3);opacity:0}}
 @keyframes ruSlam{0%{transform:scale(2.4);opacity:0}60%{transform:scale(.92);opacity:1}100%{transform:scale(1)}}
@@ -995,10 +1000,10 @@
 #ru .lmCard.charge .lmBackF::after{content:'!';color:#fff;animation:ruPulse .2s steps(2) infinite}
 #ru .lmFace{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 6px 8px;overflow:hidden;background:linear-gradient(180deg,color-mix(in srgb,var(--rc) 22%,#1d1b26),#1d1b26 60%);box-shadow:inset 0 0 0 2px var(--rc),0 5px 0 var(--ink)}
 #ru .lmCard.ultra .lmFace{box-shadow:inset 0 0 0 2px #fff,0 5px 0 var(--ink)}
-#ru .lmCard.ultra .lmFace::before{content:'';position:absolute;left:50%;top:50%;width:260%;height:260%;margin:-130% 0 0 -130%;background:conic-gradient(#ff4f7e,#ffa033,#ffd84a,#56d45a,#4fd0ff,#b36bff,#ff4f7e);animation:ruSpin 2.4s linear infinite;z-index:0;opacity:.95}
+#ru .lmCard.ultra .lmFace::before{content:'';position:absolute;left:50%;top:50%;width:260%;height:260%;margin:-130% 0 0 -130%;background:conic-gradient(#ff4f7e,#ffa033,#ffd84a,#56d45a,#4fd0ff,#b36bff,#ff4f7e);animation:ruSpin 2.4s linear infinite;z-index:0;opacity:.95;will-change:transform}
 #ru .lmCard.ultra .lmFace::after{content:'';position:absolute;inset:4px;background:linear-gradient(180deg,#2e2a3e,#16131f);z-index:0}
 #ru .lmFace>*{position:relative;z-index:1}
-#ru .lmTag{font:6px/1.3 var(--font-display);font-style:normal;color:#ffe27a;background:rgba(10,9,16,.8);padding:2px 4px;max-width:100%;overflow:hidden;text-align:center;max-height:2.9em;overflow-wrap:anywhere}
+#ru .lmTag{font:6px/1.3 var(--font-display);font-style:normal;color:#ffe27a;background:rgba(10,9,16,.8);padding:2px 4px;max-width:100%;text-align:center;overflow-wrap:anywhere}
 #ru .lmIco{width:52px;height:52px;margin:2px 0;filter:drop-shadow(0 0 6px var(--rc))}
 #ru .lmCard.ultra .lmIco{width:60px;height:60px;filter:drop-shadow(0 0 10px #fff)}
 #ru .lmName{font:8px/1.3 var(--font-display);color:var(--rc);text-align:center;max-height:2.6em;overflow:hidden;font-weight:normal;overflow-wrap:anywhere;flex:none}
@@ -1022,7 +1027,7 @@
 #ru .lmBurst{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px;border-radius:50%;pointer-events:none;z-index:3;box-shadow:0 0 0 4px #fff,0 0 30px 10px #ffd84a;animation:lmBurst .7s ease-out forwards}
 @keyframes lmBurst{to{transform:scale(14);opacity:0}}
 #ru .lmSlam{position:fixed;z-index:4;left:50%;transform:translate(-50%,-50%);pointer-events:none;text-align:center;white-space:nowrap;padding:8px 22px;background:rgba(6,5,10,.72);border:3px solid var(--ink);box-shadow:inset 0 0 0 2px #ffffff22,0 0 40px #000;animation:lmSlam 1.5s cubic-bezier(.2,1.5,.4,1) forwards}
-#ru .lmSlam b{display:block;font:48px/1.1 var(--font-display);letter-spacing:.06em;animation:ruRbwT 1.2s linear infinite}
+#ru .lmSlam b{display:block;font:48px/1.1 var(--font-display);letter-spacing:.06em;animation:ruRbwT 1.2s steps(12) infinite}
 #ru .lmSlam small{display:block;margin-top:6px;font:12px/1.2 var(--font-display);color:#fff;text-shadow:2px 2px 0 var(--ink)}
 #ru .lmSlam.narrow b{font-size:32px}#ru .lmSlam.narrow small{font-size:10px}#ru .lmSlam.narrow{padding:6px 14px;max-width:94vw;white-space:normal}
 @keyframes lmSlam{0%{transform:translate(-50%,-50%) scale(3) rotate(-6deg);opacity:0}12%{transform:translate(-50%,-50%) scale(1) rotate(-3deg);opacity:1}75%{transform:translate(-50%,-50%) scale(1.05) rotate(-3deg);opacity:1}100%{transform:translate(-50%,-80%) scale(1.1) rotate(-3deg);opacity:0}}
@@ -1356,6 +1361,9 @@ body.ruStageUp .hud.bottom{opacity:.25;pointer-events:none;transition:opacity .2
     if (!L_) return;
     LM.L = L_; LM.ctx = ctx || null; LM.who = null; LM.rev = {}; LM.flipped = false; LM.msg = ''; LM.ultraSeen = {};
     LM.sel = L_.best >= 0 ? L_.best : 0;
+    // (uifix: the comparison rows read D: a keepsake attuned or gear moved at bossWin left D stale, so the same sheet read
+    // differently after a reload (Worn 448 before, 570 after). One recalc before the sheet is built.)
+    try { if (G.recalc) G.recalc(); } catch (e) { /* the sheet still reads what D holds */ }
     if (SCR.loot) { clearTimers(SCR.loot); SCR.loot.el.remove(); const k = STACK.indexOf('loot'); if (k >= 0) STACK.splice(k, 1); delete SCR.loot; }
     if (isOpen('cards')) close('cards');
     lootRender();
@@ -1858,6 +1866,7 @@ body.ruStageUp .hud.bottom{opacity:.25;pointer-events:none;transition:opacity .2
 #ru .sk-fall .smTitle,#ru .sk-abandon .smTitle{color:#ff5a4f!important}
 #ru .sk-win .ruBox,#ru .ru-summary.sk-win .ruBox{background:linear-gradient(180deg,#3a2e10,var(--panel) 40%)}
 #ru .sk-win .smTitle{color:#fff3a0!important}
+#ru .sk-pushfall .smTitle{color:#fff3a0!important}#ru .smBank{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap}#ru .smBank small{color:var(--dim);font-size:12px}
 #ru .sk-extract .smTitle{color:#8ae07a!important}
 #ru .smNear{display:grid;gap:3px;text-align:center}
 #ru .smNear p{margin:0;font-size:15px;color:var(--text)}
@@ -1964,9 +1973,14 @@ body.ruStageUp .hud.bottom{opacity:.25;pointer-events:none;transition:opacity .2
     const unl = (sum.unlocked || []).map(u => `<span class="ruChip">${esc(unlText(u))}</span>`).join('');
     const next = (sum.next || []).map(nextRow).join('');
     const daily = sum.daily ? `<div class="smDaily pend">${img('ic_trophy', 2)}<span class="dyTxt">${esc(t('ru_dailyDone', sum.daily.zones, mmss(sum.daily.secs)))} · ${esc(sum.daily.ranked && !sum.daily.assisted ? t('ru_dailyPosting') : t('ru_dailyUnranked'))}</span><span class="dyBtn"></span></div>` : '';
+    // (uifix: a fall inside the Push is still a WON Siege: the title says so, the banked pile is the headline and the
+    // near-miss line counts the Push lands, not 'zones from the Mad Button')
+    const pushFall = !!(kind === 'fall' && sum.push && sum.push.bank);
+    const nearLines = pushFall ? [t('ru_pushFellLine', sum.push.lands | 0)] : (nm.lines || []).map(l => line(l));
     const html = `<div class="ruBox">
-      <h2 class="ruH smTitle">${esc(t('ru_sum_' + kind))}</h2>
-      <div class="smNear pend">${(nm.lines || []).map(l => `<p>${esc(line(l))}</p>`).join('')}${sum.push && sum.push.bank ? `<p>${esc(t('ru_pushBank'))}: +${fmt(sum.push.bank.fame)} · +${fmt(sum.push.bank.embers)}</p>` : ''}</div>
+      <h2 class="ruH smTitle">${esc(pushFall ? t('ru_sum_pushfall') : t('ru_sum_' + kind))}</h2>
+      ${pushFall ? `<div class="smBank pend"><span class="ruChip">${img('ic_fame', 1)} ${esc(t('ru_banked'))} +${fmt(sum.push.bank.fame)}</span><span class="ruChip">${img('ic_ember', 1)} ${esc(t('ru_banked'))} +${fmt(sum.push.bank.embers)}</span><small>${esc(t('ru_pushPouch'))}</small></div>` : ''}
+      <div class="smNear pend">${nearLines.map(l => `<p>${esc(l)}</p>`).join('')}</div>
       <div class="smStats pend">${stats.map(s => `<span class="ruChip">${esc(s)}</span>`).join('')}${evos.map(e => `<span class="ruChip" style="color:#ffd84a">${esc(t('ru_evo'))}: ${esc(e)}</span>`).join('')}</div>
       <div class="smCols">
         <div class="smPan"><h3>${esc(t('ru_furnace'))}</h3>
@@ -1988,7 +2002,7 @@ body.ruStageUp .hud.bottom{opacity:.25;pointer-events:none;transition:opacity .2
       <div class="smActs"><button class="btn gold ruBig" data-again>${esc(t('ru_again'))}</button><button class="btn ruBig" data-town>${esc(t('ru_town'))}</button></div>
       <p class="smAuto" hidden><span></span> <button class="btn" data-stop>${esc(t('auto_stop'))}</button></p>
       <p class="smSkip">${esc(t('ru_skip'))}</p></div>`;
-    const s = open('summary', { cover: true, cls: 'sk-' + kind, html, keys: smKeys, def: () => { if (SM.anim) smSkip(); else smAgain(); } });
+    const s = open('summary', { cover: true, cls: 'sk-' + (pushFall ? 'pushfall' : kind), html, keys: smKeys, def: () => { if (SM.anim) smSkip(); else smAgain(); } });
     s.el.onclick = e => {
       const b = e.target.closest('button');
       if (b && b.dataset.again != null) { smAgain(); return; }
@@ -2154,8 +2168,11 @@ body.ruStageUp .hud.bottom{opacity:.25;pointer-events:none;transition:opacity .2
     for (const k of ['loot', 'cards', 'camp', 'doors', 'relic', 'boon', 'pact', 'won']) if (isOpen(k)) close(k);
     if (isOpen('setup') || isOpen('summary') || now() < summaryDue || G.R.town || otherWindow()) return;
     if (r && r.phase === 'summary' && S.lastRun) renderSummary(S.lastRun, false);
+    // (uifix: a page reloaded in the town comes back to the square (ui.js keeps set.ui.place), not to the setup)
+    else if (S.hero && S.set && S.set.ui && S.set.ui.place === 'town' && !townTried && G.enterTown) { townTried = true; if (!G.enterTown()) RU.setup(); }
     else if (S.hero) RU.setup();
   }
+  let townTried = false;
   RU.sync = () => safe(sync);
   // the Daily Siege (the Rift Gate page, ui.js's UI.dailySiege): its setup is fixed, so straight in
   RU.daily = function () { if (on() || G.S.fallen) return false; const r = G.runDaily ? G.runDaily() : null; if (r) sfx('levelUp'); return !!r; };

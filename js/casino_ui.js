@@ -293,7 +293,8 @@
     if (!G.S || !G.casino || !build()) return;
     const R = G.R;
     const away = R.town || !(G.S.hero && G.S.hero.cls) || (G.casinoHold && G.casinoHold('all'));
-    root.hidden = !!away;
+    // (4.0 uifix: written only when it changes - every frame it was the one DOM mutation of the idle town, 60/s)
+    if (root.hidden !== !!away) root.hidden = !!away;
     if (away) return;
     // (3.6: the layout is read only on a resize or while something is on screen to place, at most every 300 ms)
     const live = (G.bubbles && G.bubbles.length) || bubEls.size || chipKey || parts.length || (G.casinoBoosts && G.casinoBoosts().length);

@@ -24,12 +24,17 @@ const { shop, buyMeta, metaMode, botSetup, botHold, SIEGE_POLICY } = bot;
 const PERSONAS = {
   // bossDelay: s after the clear bar fills before the persona calls the boss in (⚔); null: the game's own call (0 s when
   // the party looks ready, else 12-25 s, 30 s after two losses: the idle one lets it farm the ground first)
-  active:    { tap: 5, cps: 10, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, events: 0.9, craft: 1, bossDelay: 0, pol: 'active' },
-  attentive: { tap: 3, cps: 10, duty: 1, shopEvery: 10, chests: 0.3, wisp: 0.5, events: 0.6, craft: 0, bossDelay: 3, pol: 'attentive' },
-  casual:    { tap: 3, cps: 10, duty: 0.6, shopEvery: 20, chests: 0.3, wisp: 0.3, events: 0.3, craft: 0, bossDelay: 10, pol: 'casual' },
-  idle:      { cps: 0, duty: 0, shopEvery: 60, chests: 0, wisp: 0, events: 0, craft: 0, bossDelay: null, pol: 'idle' },
-  hardcore:  { tap: 6, cps: 10, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, events: 0.9, craft: 1, bossDelay: 0, pol: 'hardcore' },
-  returner:  { tap: 3, cps: 10, duty: 0.7, shopEvery: 10, chests: 0.3, wisp: 0.5, events: 0.5, craft: 1, bossDelay: 5, pol: 'casual',
+  // tapBoss: weak-point taps a second that LAND during a boss's wind-up, after tapReact s of noticing it (bots C1: the old
+  // loop tapped events x 5 a second, 4.5 for the active one, every tap landing (G.tapBoss has no hit test: the UI has), so
+  // every telegraphed move - DOOM included, lords' too - was broken before it landed and the gates never saw a DOOM; a strong
+  // person lands maybe 2.5 a second on a point that opens round the boss: a boss's SLAM (3 taps in 2.2 s) mostly, a lord's
+  // DOOM (7 in 3.2 s) a third of the time, the rest is the Ward's)
+  active:    { tap: 5, cps: 10, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, events: 0.9, craft: 1, bossDelay: 0, pol: 'active', tapBoss: 2.5, tapReact: 0.4 },
+  attentive: { tap: 3, cps: 10, duty: 1, shopEvery: 10, chests: 0.3, wisp: 0.5, events: 0.6, craft: 0, bossDelay: 3, pol: 'attentive', tapBoss: 1.6, tapReact: 0.6 },
+  casual:    { tap: 3, cps: 10, duty: 0.6, shopEvery: 20, chests: 0.3, wisp: 0.3, events: 0.3, craft: 0, bossDelay: 10, pol: 'casual', tapBoss: 0.8, tapReact: 0.8 },
+  idle:      { cps: 0, duty: 0, shopEvery: 60, chests: 0, wisp: 0, events: 0, craft: 0, bossDelay: null, pol: 'idle', tapBoss: 0, tapReact: 0 },
+  hardcore:  { tap: 6, cps: 10, duty: 1, shopEvery: 1, chests: 0.3, wisp: 0.8, events: 0.9, craft: 1, bossDelay: 0, pol: 'hardcore', tapBoss: 3, tapReact: 0.3 },
+  returner:  { tap: 3, cps: 10, duty: 0.7, shopEvery: 10, chests: 0.3, wisp: 0.5, events: 0.5, craft: 1, bossDelay: 5, pol: 'casual', tapBoss: 1.2, tapReact: 0.6,
     days: 7, sessions: [[15, 8 * 3600], [15, 16 * 3600]] },
 };
 // "Big" moments are the ones a player would notice as progress
@@ -216,8 +221,9 @@ function run(name, seed, minutes, opts) {
         if (G.R.wisp && r() < P.wisp * dt) G.catchWisp();
       }
       if (!held) {
-        // a wind-up's weak point: attentive players hit it a few times a second, others now and then
-        if (on && P.events && G.R.boss && G.R.boss.move && G.tapBoss && r() < P.events * dt * 5) G.tapBoss();
+        // a wind-up's weak point: the persona lands tapBoss taps a second on it, once it has noticed the wind-up (tapReact s)
+        // (a persona without the fields - a harness's own - taps as the 3.x loop did: events x 5 a second)
+        { const b = G.R.boss, mv = b && b.move; if (on && mv && G.tapBoss && (P.tapBoss != null ? (mv.T - mv.t) >= (P.tapReact || 0) && r() < P.tapBoss * dt : P.events && r() < P.events * dt * 5)) G.tapBoss(); }
         // the Hand's powers, as a person would use them (active players well, casual ones now and then)
         if (on && P.events && G.usePower && r() < P.events * dt * 4) {
           const R_ = G.R, b = R_.boss, h = s.hero, low = h.hp < G.D.heroHp * 0.45 || (G.partyUnits && G.partyUnits().some(u => u.down > 0 || u.hp < u.max * 0.35));

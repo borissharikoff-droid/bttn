@@ -131,10 +131,14 @@
   St.wrapRect = () => { if (!cv) return null; if (!wrapC) wrapC = cv.parentElement.getBoundingClientRect(); return wrapC; };
   St.invalidateRect = () => { rectC = null; wrapC = null; layT = -9; };
   St.readLayout = function () {
-    if (!cv || (time - layT < 0.5 && time >= layT)) return;
-    layT = time;
-    rectC = cv.getBoundingClientRect(); rectT = time; wrapC = cv.parentElement.getBoundingClientRect();
-    readHud();
+    if (cv && !(time - layT < 0.5 && time >= layT)) {
+      layT = time;
+      rectC = cv.getBoundingClientRect(); rectT = time; wrapC = cv.parentElement.getBoundingClientRect();
+      readHud();
+    }
+    // (uifix: the page's other layout readers (icon snapping, the coach's place, the arrow's box, the hold plate's
+    // spot) run here too, reads before writes, so a frame lays out once)
+    if (G.UI && G.UI.preFrame) G.UI.preFrame();
   };
 
   const STAGE_CSS = `
@@ -2739,7 +2743,9 @@
         if (cy + h < H - 2 && free(cx, cy, w, h)) { x = cx; y = cy; ok = true; }
       }
       if (!ok) continue;
-      const pop = v.pop > 0 ? 1 + v.pop * 1.5 : 1;
+      // (uifix: a plate landing near an edge pops only as far as the canvas allows - it used to scale past the right edge)
+      let pop = v.pop > 0 ? 1 + v.pop * 1.5 : 1;
+      if (pop > 1) pop = Math.max(1, Math.min(pop, (x + w / 2 - 1) / (w / 2), (W - 1 - x - w / 2) / (w / 2)));
       labels.push({ x, y, w, h, e });
       // (a popped plate is drawn scaled: its box is noted as drawn, the wrappers only know the plain transform)
       if (pop > 1) mark(x + w / 2 - w * pop / 2 - 2, y + h / 2 - h * pop / 2 - 2, x + w / 2 + w * pop / 2 + 2, y + h / 2 + h * pop / 2 + 2);
@@ -4041,14 +4047,14 @@
       const q = townPlace(t), on = townHover === t, open = townOpen(t), lv = townLv(t), nm = G.t('town_' + t.id);
       ctx.font = crisp(on ? 4 : 3) + 'px ' + FONT;
       let y = q.y0 - 5 - (t.id === 'portal' && TW.statics.some(z => z.k === 'banner') ? 9 : 0) + (on ? Math.sin(time * 6) : 0);
-      const lw = measureW(nm) + 2, lh = crisp(on ? 4 : 3) + 1, lx = clamp(q.x - lw / 2, 1, W - lw - 1);
+      const lw = measureW(nm) + 2, lh = crisp(on ? 4 : 3) + 1, lx = clamp(q.x - lw / 2, 1, W - lw - 1), cx = lx + lw / 2; // (uifix: the text drawn at the clamped box, not q.x: 'Rift Gate' ran off a 360 px square)
       for (let k = 0; k < 3 && !lfree(lx, y - lh / 2, lw, lh); k++) y -= lh + 2;
       lboxes.push({ x: lx, y: y - lh / 2, w: lw, h: lh });
-      drawText2(nm, q.x, y, !open ? '#8a8494' : on ? '#ffe27a' : t.id === 'portal' ? '#7fe9ff' : lv >= G.BLD_MAX ? '#ffd84a' : '#ffffff');
+      drawText2(nm, cx, y, !open ? '#8a8494' : on ? '#ffe27a' : t.id === 'portal' ? '#7fe9ff' : lv >= G.BLD_MAX ? '#ffd84a' : '#ffffff');
       // what it wants from you: a red mark when there's something to do, a gold arrow when you can build it up
       const ping = open && G.UI && G.UI.bldPing && G.UI.bldPing(t.id), up = open && G.UI && G.UI.bldCanBuild && G.UI.bldCanBuild(t.id);
       if (ping || up) {
-        const w = measureW(nm), bx = q.x + w / 2 + 3, by = y - 1 + Math.sin(time * 5) * 0.8;
+        const w = measureW(nm), bx = cx + w / 2 + 3, by = y - 1 + Math.sin(time * 5) * 0.8;
         ctx.fillStyle = '#0c0b12'; ctx.fillRect(bx - 2, by - 2, 4, 4);
         ctx.fillStyle = ping ? '#ff4f4f' : '#ffd84a'; ctx.fillRect(bx - 1.5, by - 1.5, 3, 3);
       }
@@ -4876,9 +4882,10 @@
   });
   function drawLootMoment(dt) {
     const L = FF.loot, on = runP() === 'loot';
-    // (uifix: while an ultra's pillar plays the dim lifts, so the spectacle is seen through it, not a faint stripe)
+    // (uifix: while an ultra's pillar plays the dim lifts to .24 (the field still reads as dimmed - fieldfx's fx.js gate
+    // wants > .2 - but the Button and the pillar's base show through it, not a faint stripe)
     const lift = on && FF.pillars.some(p => p.t < 1.5);
-    FF.dim += ((on ? (lift ? 0.12 : 0.42) : 0) - FF.dim) * Math.min(1, dt * (on ? 5 : 3));
+    FF.dim += ((on ? (lift ? 0.24 : 0.42) : 0) - FF.dim) * Math.min(1, dt * (on ? 5 : 3));
     if (FF.dim > 0.01) { lctx.globalAlpha = FF.dim; lctx.fillStyle = '#06040c'; lctx.fillRect(0, 0, W, H); lctx.globalAlpha = 1; }
     if (!L) return;
     L.t += dt;

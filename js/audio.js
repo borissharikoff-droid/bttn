@@ -55,8 +55,9 @@
     const t = ac.currentTime + (when || 0);
     const o = ac.createOscillator(), g = ac.createGain();
     o.type = type || 'square';
-    o.frequency.setValueAtTime(freq, t);
-    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, slide), t + dur);
+    const nyq = ac.sampleRate * 0.45; // (uifix: never past Nyquist: Chrome clamps and warns)
+    o.frequency.setValueAtTime(Math.min(nyq, freq), t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.min(nyq, Math.max(30, slide)), t + dur);
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(vol || 0.2, t + 0.005);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
@@ -160,7 +161,10 @@
   };
   // A bell: sine partials with a quick strike, the core of every good drop sound
   function bell(f, dur, vol, when) {
-    [[1, 1], [2.76, 0.5], [5.4, 0.25], [8.93, 0.12]].forEach(([m, g]) => tone(f * m, dur / Math.sqrt(m), 'sine', vol * g, when));
+    // (4.0 uifix: a partial over Nyquist is folded down an octave until it fits - Chrome clamped them to 22,050 Hz with a
+    // console warning each; the ultra stings' top partials were an inaudible aliasing sine)
+    const top = ac ? ac.sampleRate * 0.45 : 19000;
+    [[1, 1], [2.76, 0.5], [5.4, 0.25], [8.93, 0.12]].forEach(([m, g]) => { let fr = f * m; while (fr > top && fr > 40) fr /= 2; tone(fr, dur / Math.sqrt(m), 'sine', vol * g, when); });
   }
   // Loot hitting the ground. L is how much it matters (0 junk .. 8 top tier);
   // p climbs a semitone per drop while a shower is coming down.

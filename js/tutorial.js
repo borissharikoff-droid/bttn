@@ -186,7 +186,18 @@
   G.on('door', seeMoment('doors'));
   // (a phase that ended after its words showed counts too: a camp the auto-continue closed)
   G.on('runPhase', (ph, ctx, prev) => { if (!active()) return; const st = STEPS[G.S.tut]; if (st && st.wait && stepShown === st.id && ph !== st.id) seen()['tut_' + st.id] = 1; });
-  let stepShown = '';
+  let stepShown = '', stepTouched = '';
+  // a run screen over the field (a card, the loot moment, a boon, a pact): what the run_ui router has open
+  const screenUp = () => { try { const s = G.RunUI && G.RunUI.state ? G.RunUI.state().screens : null; return !!(s && s.some(k => k === 'cards' || k === 'loot' || k === 'boon' || k === 'pact')); } catch (e) { return false; } };
+  // the moment's auto clock stops while its step is read (the player then acts: the clock does not resume on its own)
+  function touchMoment(id) {
+    try {
+      if (id === 'loot' && G.lootTouch) G.lootTouch();
+      else if (id === 'card' && G.cardTouch) G.cardTouch();
+      else if (id === 'camp' && G.campTouch) G.campTouch();
+      else if (id === 'doors' && G.doorsTouch) G.doorsTouch();
+    } catch (e) { /* the run owns its clocks */ }
+  }
 
   // ---------- One-time tips (after the tutorial) ----------
   const TIPS = [
@@ -200,7 +211,7 @@
     { id: 'hoard', when: () => (G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob), point: () => { const m = G.R.mobs.find(x => x.kind === 'hoard' && !x.gob); return m && G.Stage.mobPoint(m); }, text: 'tip_hoard', until: () => !(G.R.mobs || []).some(m => m.kind === 'hoard' && !m.gob) },
     { id: 'shrine', when: () => G.R.shrine, point: () => G.Stage.shrinePoint(), text: 'tip_shrine', until: () => !G.R.shrine },
     { id: 'powers', when: () => G.R.boss && G.R.boss.t < G.R.boss.T - 2, point: () => P.el('#powers'), text: 'tip_powers', until: () => !G.R.boss },
-    { id: 'move', when: () => G.R.boss && G.R.boss.move, point: () => G.Stage.weakPoint && G.Stage.weakPoint() && (() => { const w = G.Stage.weakPoint(), r = document.querySelector('#stage').getBoundingClientRect(); return { x: r.left + w.x, y: r.top + w.y - 10 }; })(), text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
+    { id: 'move', when: () => G.R.boss && G.R.boss.move, point: () => G.Stage.weakPoint && G.Stage.weakPoint() && (() => { const w = G.Stage.weakPoint(), r = (G.Stage.rect && G.Stage.rect()) || document.querySelector('#stage').getBoundingClientRect(); return { x: r.left + w.x, y: r.top + w.y - 10 }; })(), text: 'tip_move', until: () => !(G.R.boss && G.R.boss.move) },
     { id: 'town', when: () => G.UI._up && G.townOk() && !G.R.town && !(G.runHeld && G.runHeld()), point: () => P.el('#btnTown'), text: 'tip_town', until: () => !!G.R.town },
     { id: 'orb', when: S => G.ORB_IDS.some(k => S.hero.orbs[k] > 0), point: () => P.tab('enchant'), text: 'tip_orb', until: () => G.UI.townId() === 'enchant' },
     { id: 'relic', when: S => !!(S.run && S.run.on && S.run.phase === 'relic'), point: null, text: 'tip_relic', top: 1, until: S => !(S.run && S.run.phase === 'relic') },
@@ -305,7 +316,7 @@
     const momentUp = !!((st0 && st0.wait && st0.wait(S)) || (st0 && st0.done && st0.done(S) && nx0 && nx0.wait && nx0.wait(S)));
     if (!busy && !momentUp && G.RunUI && G.RunUI.busy && G.RunUI.busy()) { hide(); return; }
     if (!S || !$('#coach') || busy) {
-      hidePointer(); if (busy) $('#coach').hidden = true;
+      hidePointer(); if (busy && !$('#coach').hidden) $('#coach').hidden = true;
       // a step already done still finishes behind a level-up card; only a real window holds the clock back
       if (active() && S.hero && S.hero.cls) { const st = STEPS[S.tut]; if (st.done && st.done(S) && performance.now() - stepAt.t > (st.minT || 3500)) { complete(); return; } }
       if (!$('#modal').hidden || !$('#intro').hidden) stepAt.t += 120;
@@ -344,12 +355,21 @@
       // (a moment of the run: its words over its screen; before it comes, what leads there, or nothing)
       const up = !!(st.wait && st.wait(S));
       if (st.wait && !up && typeof st.text !== 'function') { hide(); return; }
-      if (up) stepShown = st.id;
+      // (uifix: a step about the field - hold, the Horde, the boss - while a card or the loot moment is up: it waits,
+      // unseen; its bottom bubble covered the third card and the loot cards on a phone)
+      if (!up && screenUp()) { hide(); return; }
+      if (up) {
+        stepShown = st.id;
+        // (uifix: the moment's own clock - the loot's 8 s, the camp's 30 s, the doors' - waits while its step is being
+        // read: a new player got camp 1 and the first loot card decided for them under the coach)
+        if (stepTouched !== st.id) { stepTouched = st.id; touchMoment(st.id); }
+      }
       render(st.id + (up ? ':up' : ''), t(val(st.text, S)), t('tu_step', S.tut + 1, STEPS.length), st.manual, up);
       if (pointDue()) point(st.point ? val(st.point, S) : null);
       return;
     }
     if (G.Stage.busyCelebrating && G.Stage.busyCelebrating()) return; // don't talk over a big drop
+    if (tipLater && !screenUp() && !G.R.boss) { const tp = tipLater; tipLater = null; if (!seen().tips[tp.id]) { showTip(tp); return; } }
     // the wall tip comes back for each new wall
     if (S.scar && S.scar.n >= 3 && seen().tips.wall && seen().wallD !== S.scar.d) { delete seen().tips.wall; seen().wallD = S.scar.d; }
     // (a big moment or a title card on the field: the tips that can wait, wait)
@@ -365,7 +385,11 @@
     hide();
   };
 
+  // (uifix: a tip about the field - the Button broke, a pip cracked - while a card or the loot moment is up waits for the
+  // field; on a phone it sat right over the loot cards)
+  let tipLater = null;
   function showTip(tp) {
+    if (!tp.top && screenUp()) { tipLater = tp; return; }
     tip = tp; tipT = 9;
     const text = tp.raw ? tp.text() : t(val(tp.text, G.S));
     if (!text) { finishTip(); return; }
@@ -390,7 +414,8 @@
       c.innerHTML = `<div class="guide">${img('p_buttonling', 5)}</div>
         <div class="say"><b>${esc(t('tu_guide'))}</b>${step ? `<small>${esc(step)}</small>` : ''}<p>${esc(text)}</p>
           <div class="acts">${manual ? `<button class="btn gold" data-ok>${esc(t('tu_ok'))}</button>` : ''}${active() ? `<button class="linkBtn" data-skip>${esc(t('tu_skip'))}</button>` : ''}</div></div>`;
-      c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
+      // (the pop, restarted without a reflow: the Web Animations API, not the remove/offsetWidth/add trick)
+      try { if (c.animate) c.animate([{ transform: 'translateY(10px) scale(.96)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 250, easing: 'cubic-bezier(.2,1.5,.4,1)' }); } catch (e) { }
     }
     const was = c.hidden;
     c.hidden = false;
@@ -410,8 +435,16 @@
     const bb = G.R.boss && G.UI.bossBarRect ? G.UI.bossBarRect() : null;
     return bb ? { left: bb.left - 6, right: bb.right + 6, top: r.top, bottom: bb.bottom } : null;
   }
-  let placeT = 0;
+  let placeT = 0, placeDue = false;
+  // (uifix: the bubble's periodic re-placing reads the page's layout: it runs at the frame's read phase (js/ui.js
+  // UI.onPreFrame, before the HUD writes), not inside UI.update after them, where each read forced a layout; a forced
+  // place (new text, a first show, a resize) still happens at once)
   function place(force) {
+    if (force || !G.UI || !G.UI.onPreFrame) return placeNow(force);
+    placeDue = true;
+  }
+  if (G.UI && G.UI.onPreFrame) G.UI.onPreFrame(now => { if (!placeDue) return null; if (now - placeT < 300) return null; placeDue = false; placeNow(false); return null; });
+  function placeNow(force) {
     const c = $('#coach'), w = $('#stageWrap');
     if (!c || c.hidden || !w) return;
     // (it reads the page's layout: a few times a second is plenty, unless what it says just changed)
@@ -422,7 +455,8 @@
     const width = Math.round(wide ? Math.min(r.width - 20, 400) : Math.min(r.width - 12, 360));
     if (c._w !== width) { c._w = width; c.style.width = width + 'px'; }
     // (over a run screen: a slim strip along the top edge, as wide as the page allows, so it covers the screen's title only)
-    if (c.classList.contains('top')) { const wt = Math.round(Math.min(window.innerWidth - 12, 620)), x = Math.round((window.innerWidth - wt) / 2); if (c._w !== wt) { c._w = wt; c.style.width = wt + 'px'; } c.style.left = x + 'px'; c.style.top = '4px'; placedX = x; placedY = 4; return; }
+    const vw = G.UI.vw ? G.UI.vw() : window.innerWidth, vh = G.UI.vh ? G.UI.vh() : window.innerHeight;
+    if (c.classList.contains('top')) { const wt = Math.round(Math.min(vw - 12, 620)), x = Math.round((vw - wt) / 2); if (c._w !== wt) { c._w = wt; c.style.width = wt + 'px'; } if (c.style.left !== x + 'px') c.style.left = x + 'px'; if (c.style.top !== '4px') c.style.top = '4px'; placedX = x; placedY = 4; return; }
     const meters = document.querySelector('.hud.bottom');
     const bottom = meters ? meters.getBoundingClientRect().top : r.bottom;
     const h = c.offsetHeight;
@@ -431,7 +465,7 @@
     const band = bossBand(r);
     if (band) top = Math.max(top, band.bottom + 4);
     // (a phone's field is small: the bubble would rather sit over the panel below it than on the field's top)
-    const low = window.innerHeight - h - 10;
+    const low = vh - h - 10;
     const ys = wide ? [Math.max(top, bottom - h - 10), top, low] : [Math.max(top, bottom - h - 10), low, top];
     const xs = wide ? [r.left + 10, r.right - width - 10, r.left + (r.width - width) / 2] : [r.left + (r.width - width) / 2];
     // what it keeps off: the target, the Button where the player keeps tapping, and whatever else is up
@@ -458,12 +492,14 @@
     const [x, y] = best;
     if (y !== placedY || x !== placedX) shownT = performance.now();
     placedY = y; placedX = x;
-    c.style.left = Math.round(x) + 'px'; c.style.top = Math.round(y) + 'px';
+    // (written only when it moves: the periodic placing is then a pure read)
+    const lx = Math.round(x) + 'px', ly = Math.round(y) + 'px';
+    if (c.style.left !== lx) c.style.left = lx; if (c.style.top !== ly) c.style.top = ly;
   }
   function point(p) {
     const el = $('#pointer');
     if (lastHl && (!p || p.el !== lastHl)) { lastHl.classList.remove('tut-hl'); lastHl = null; }
-    if (!p) { el.hidden = true; aim = null; aimEl = null; place(); return; }
+    if (!p) { if (!el.hidden) el.hidden = true; aim = null; aimEl = null; place(); return; }
     if (p.el && !lastHl) {
       lastHl = p.el; lastHl.classList.add('tut-hl');
       const body = p.el.closest('.tabBody');
@@ -480,8 +516,9 @@
     if (p.el) { const er = p.el.getBoundingClientRect(); aim.top = Math.min(aim.top, er.top); aim.bottom = Math.max(aim.bottom, er.bottom); }
     place();
   }
-  function hidePointer() { const el = $('#pointer'); if (el) el.hidden = true; if (lastHl) { lastHl.classList.remove('tut-hl'); lastHl = null; } }
-  function hide() { const c = $('#coach'); if (c) c.hidden = true; lastKey = ''; placedY = null; placedX = null; aim = null; hidePointer(); }
+  // (uifix: a hidden coach or pointer is not re-hidden 5-6 times a second: each write was a style recalc)
+  function hidePointer() { const el = $('#pointer'); if (el && !el.hidden) el.hidden = true; if (lastHl) { lastHl.classList.remove('tut-hl'); lastHl = null; } }
+  function hide() { const c = $('#coach'); if (c && !c.hidden) c.hidden = true; lastKey = ''; placedY = null; placedX = null; aim = null; hidePointer(); }
 
   // ---------- Intro ----------
   // slide 2: the Horde closes in on the Button from both sides, wave after wave, and the Button flinches at every blow
@@ -539,12 +576,21 @@
     };
     closeIntro = end;
     const next = () => { G.Audio && G.Audio.unlock(); if (i < slides.length - 1) { i++; show(); } else end(false); };
+    const advance = () => { const h = box.querySelector('.type'); if (h && h.dataset.done !== '1') { h.textContent = h.dataset.full; h.dataset.done = '1'; } else next(); };
     box.onclick = e => {
       if (e.target.closest('[data-skip]')) { end(false); return; }
       if (e.target.closest('[data-next]')) { next(); return; }
-      const h = box.querySelector('.type');
-      if (h && h.dataset.done !== '1') { h.textContent = h.dataset.full; h.dataset.done = '1'; } else next();
+      advance();
     };
+    // (uifix: Enter / Space advance the intro like a tap; Escape skips it. Keyboard players could only Tab to the buttons)
+    const onKey = e => {
+      if (box.hidden) { window.removeEventListener('keydown', onKey, true); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') { e.preventDefault(); e.stopPropagation(); advance(); }
+      else if (e.code === 'Escape') { e.preventDefault(); e.stopPropagation(); end(false); }
+    };
+    window.addEventListener('keydown', onKey, true);
     box.hidden = false;
     show();
   };
