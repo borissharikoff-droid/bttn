@@ -2,3 +2,6 @@ node_modules/
 server/dev.sqlite
 playtest-results.json
 data/
+
+# agent probe logs written into the repo root during 4.0 work
+*.log
