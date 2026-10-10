@@ -32,6 +32,12 @@ const CELLS = [
   // (the §4.3 'first run 60-100 Embers' row: a weak persona's run 1 - the half-attentive casual with no meta falls in Act I-II;
   // the attentive one (T0) extracts at Camp 4 or wins, and no active no-meta run fell before zone 9 in 4 seeds x 90 min)
   { name: 'E1', title: 'half-attentive casual (duty 0.6), no meta, Heat 0 (the first-run Embers row)', persona: 'casual', opts: { meta: 'none', heat: 0 } },
+  // (bots C2: the §4.3 'Act II extract 250-400' row is an extract INSIDE Act II - DESIGN §2.4 pays an extract x1 'in full', the
+  // 'Act II fall' row (120-200) is the same ground at x0.5, and the design's own §8 walkthrough prices the Camp-4 decision after
+  // the Act II boss at ~1,050 of its scale (= the ~420 the Camp-4 cells read here) - so the row is measured at Camp 3 (zone 9):
+  // the attentive casual who always extracts there, no meta; X3m the same with a third of the meta for the comparison)
+  { name: 'X3', title: 'attentive casual, no meta, Heat 0, extracts at Camp 3 (the Act II extract Embers row)', persona: 'attentive', opts: { meta: 'none', heat: 0, pol: { extract: { camp: 3, pips: 99 } } } },
+  { name: 'X3m', title: 'attentive casual, 1/3 meta, Heat 0, extracts at Camp 3', persona: 'attentive', opts: { meta: 'third', heat: 0, pol: { extract: { camp: 3, pips: 99 } } } },
 ];
 const med = a => { const s = a.filter(x => x != null && !Number.isNaN(x)).sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 const mean = a => { const s = a.filter(x => x != null); return s.length ? s.reduce((x, y) => x + y, 0) / s.length : null; };
@@ -75,7 +81,7 @@ function aggregate(jobs) {
     chestsPerMin: r2(runs.reduce((a, r) => a + r.chests, 0) / fieldMin), labelsPerMin: r2(runs.reduce((a, r) => a + r.labels, 0) / fieldMin),
     embers: { all: med(runs.map(r => r.embers)), win: med(wins.map(r => r.embers)), fall: med(falls.map(r => r.embers)), extract: med(exts.map(r => r.embers)),
       first: med(runs.filter(r => r.n === 1).map(r => r.embers)), early: med(falls.filter(r => r.cleared <= 8).map(r => r.embers)), act2fall: med(falls.filter(r => r.cleared >= 6 && r.cleared <= 11).map(r => r.embers)),
-      act2ext: med(exts.filter(r => r.cleared >= 6 && r.cleared <= 12).map(r => r.embers)), in60_150: embIn(60, 150), perHour: mins ? Math.round(60 * runs.reduce((a, r) => a + r.embers, 0) / mins) : null },
+      act2ext: med(exts.filter(r => r.cleared >= 6 && r.cleared <= 9).map(r => r.embers)), camp4ext: med(exts.filter(r => r.cleared >= 10 && r.cleared <= 12).map(r => r.embers)), in60_150: embIn(60, 150), perHour: mins ? Math.round(60 * runs.reduce((a, r) => a + r.embers, 0) / mins) : null },
     fame: { all: med(runs.map(r => r.fame)), win: med(wins.map(r => r.fame)), fall: med(falls.map(r => r.fame)), first: med(runs.filter(r => r.n === 1).map(r => r.fame)) },
     loots: med(runs.map(r => r.loots)), lootSecs: r2(med(runs.map(r => r.lootSecs))), lootSecsMax: r1(Math.max(0, ...runs.map(r => r.lootSecsMax || 0))), lootUltra: r2(mean(runs.map(r => r.lootUltra))),
     cardSecs: r2(med(runs.map(r => r.cardSecs))), campSecs: r2(med(runs.map(r => r.campSecs))),
@@ -94,7 +100,7 @@ function cellLine(name, A) {
     `${name.padEnd(4)} runs ${String(A.runs).padStart(3)} (${A.ok} jobs x ${A.ok ? Math.round(A.minutes / A.ok) : 0} min) | win ${fmt(A.winPct)}%${A.extPct ? ' ext ' + A.extPct + '%' : ''} | by run index ${bi} | first win ${A.firstWin.map(x => x == null ? '-' : x).join('/')} | depth med ${fmt(A.depthMed)} | runs/h ${fmt(A.runsPerHour)} (+part ${fmt(A.runsPerHourPart)})`,
     `     run min ${fmt(A.runMin)} (win ${fmt(A.winMin)}, field ${fmt(A.winField)}, wall ${fmt(A.winWall)}; fall ${fmt(A.fallMin)}) | falls: land1 ${fmt(A.fallsLand1)}% lord/act/mad ${fmt(A.fallsLord)}% | fall depth hist ${hist || '-'} | causes ${causes || '-'}`,
     `     evos ${fmt(A.evoMean)}/run, >=1 in Act II+ ${fmt(A.evo1Act2)}%, >=2 in wins ${fmt(A.evo2Wins)}% | picks ${fmt(A.picks)} cards ${fmt(A.cards)} | Button<50% ${fmt(A.low)} (mean ${fmt(A.lowMean)}) | choices/min ${fmt(A.choicesPerMin)} autos/min ${fmt(A.autosPerMin)} | chests/min ${fmt(A.chestsPerMin)} labels/min ${fmt(A.labelsPerMin)}`,
-    `     Embers med ${fmt(A.embers.all)} (win ${fmt(A.embers.win)}, fall ${fmt(A.embers.fall)}, extract ${fmt(A.embers.extract)}; run 1 ${fmt(A.embers.first)}, early fall ${fmt(A.embers.early)}, Act II fall ${fmt(A.embers.act2fall)}, Act II extract ${fmt(A.embers.act2ext)}; in 60-150: ${fmt(A.embers.in60_150)}%; /h ${fmt(A.embers.perHour)}) | Fame med ${fmt(A.fame.all)} (win ${fmt(A.fame.win)}, fall ${fmt(A.fame.fall)}, run 1 ${fmt(A.fame.first)})`,
+    `     Embers med ${fmt(A.embers.all)} (win ${fmt(A.embers.win)}, fall ${fmt(A.embers.fall)}, extract ${fmt(A.embers.extract)}; run 1 ${fmt(A.embers.first)}, early fall ${fmt(A.embers.early)}, Act II fall ${fmt(A.embers.act2fall)}, Act II extract ${fmt(A.embers.act2ext)}, Camp-4 extract ${fmt(A.embers.camp4ext)}; in 60-150: ${fmt(A.embers.in60_150)}%; /h ${fmt(A.embers.perHour)}) | Fame med ${fmt(A.fame.all)} (win ${fmt(A.fame.win)}, fall ${fmt(A.fame.fall)}, run 1 ${fmt(A.fame.first)})`,
     `     loot moments ${fmt(A.loots)}/run, ${fmt(A.lootSecs)} s each (max ${fmt(A.lootSecsMax)}), ultra ${fmt(A.lootUltra)}/run | card ${fmt(A.cardSecs)} s, camp ${fmt(A.campSecs)} s | shrines ${fmt(A.shrines)}/${fmt(A.shrinesSeen)} seen (charged ${fmt(A.charged)}) | uniques ${fmt(A.uniques)} keys ${fmt(A.keys)} relics ${fmt(A.relics)} pacts ${fmt(A.pacts)} deeds ${fmt(A.deeds)} | wipes ${fmt(A.wipes)} lordF ${fmt(A.lordFails)} lord ${fmt(A.lordMed)} s boss ${fmt(A.bossMed)} s | lvl ${fmt(A.lvl)} party ${fmt(A.party)}`
       + (A.errors.length ? ` | ERRORS ${A.errors.length}: ${A.errors.map(e => 's' + e.seed + ' ' + String(e.err).slice(0, 120)).join(' | ')}` : ''),
   ].join('\n');
@@ -133,9 +139,12 @@ const GATES = [
   // (the §4.3 rows read the no-meta Heat-0 cells: 'first run' = an early fall (Act I or the start of Act II, as §4.2's
   // first-run example at depth 7), 'Act II fall' = a fall at zones 6-11, 'Act II extract' = an extract at zones 6-12 (the
   // casual's Camp 4), 'win' = the active's Heat-0 wins)
-  // ('first run': the E1 cell's run-1 Embers (a half-attentive casual's first Siege, no meta), else an early fall (cleared <= 8)
-  // of any no-meta Heat-0 cell)
-  { id: 'emb', gate: 'Embers (DESIGN §4.3): first run / Act II fall / Act II extract / Heat-0 win', target: '60-100 / 120-200 / 250-400 / 1200-1500', cells: ['A0', 'T0', 'T3', 'E1'], value: by => { const A = by.A0, T = by.T0 || by.T3, E = by.E1; if (!A) return { v: null, pass: null }; const f1 = E && E.embers.first != null ? E.embers.first : A.embers.early != null ? A.embers.early : (T && T.embers.early != null ? T.embers.early : E && E.embers.early), a2 = A.embers.act2fall != null ? A.embers.act2fall : T && T.embers.act2fall, ex = (T && T.embers.act2ext) || (by.T3 && by.T3.embers.act2ext) || (by.CF && by.CF.embers.act2ext), w = A.embers.win; const ps = [f1 == null ? null : inBand(f1, 60, 100), a2 == null ? null : inBand(a2, 120, 200), ex == null ? null : inBand(ex, 250, 400), inBand(w, 1200, 1500)]; return { v: `${fmt(f1)} / ${fmt(a2)} / ${fmt(ex)} / ${fmt(w)}`, pass: ps.every(p => p !== false) && ps.some(p => p === true) }; } },
+  // ('first run': DESIGN §4.3 orders it below 'Act II fall', so it is the SHORT first run - the E1 cell's early falls (zone <= 8;
+  // a half-attentive casual with no meta), else E1's run-1 median (its first Siege is an Act II fall for 4 seeds in 6, which pays
+  // the Act II band by construction), else an early fall of any no-meta Heat-0 cell)
+  // ('Act II extract': an extract inside Act II (Camps 2-3, zones 6-9: the X3 cell, else any no-meta Heat-0 cell's), as DESIGN §2.4 /
+  // §8 read: the Camp-4 extract after the Act II boss is reported apart (camp4ext) and is ~1/3 of a win by construction)
+  { id: 'emb', gate: 'Embers (DESIGN §4.3): first run / Act II fall / Act II extract / Heat-0 win', target: '60-100 / 120-200 / 250-400 / 1200-1500', cells: ['A0', 'T0', 'T3', 'E1', 'X3'], value: by => { const A = by.A0, T = by.T0 || by.T3, E = by.E1; if (!A) return { v: null, pass: null }; const f1 = E && E.embers.early != null ? E.embers.early : E && E.embers.first != null ? E.embers.first : A.embers.early != null ? A.embers.early : T && T.embers.early, a2 = A.embers.act2fall != null ? A.embers.act2fall : T && T.embers.act2fall, ex = (by.X3 && by.X3.embers.act2ext) || (T && T.embers.act2ext) || (by.T3 && by.T3.embers.act2ext) || (by.CF && by.CF.embers.act2ext) || (by.X3m && by.X3m.embers.act2ext), w = A.embers.win; const ps = [f1 == null ? null : inBand(f1, 60, 100), a2 == null ? null : inBand(a2, 120, 200), ex == null ? null : inBand(ex, 250, 400), inBand(w, 1200, 1500)]; return { v: `${fmt(f1)} / ${fmt(a2)} / ${fmt(ex)} / ${fmt(w)}`, pass: ps.every(p => p !== false) && ps.some(p => p === true) }; } },
   { id: 'boom', gate: 'BOOM -> field', target: '<= 60 s', cells: [], value: () => ({ v: 'UI (not measured here)', pass: null }) },
   { id: 'frame', gate: 'Last Stand frame time, mid tier, 600 mobs', target: '<= 16 ms', cells: [], value: () => ({ v: 'stage (tests/runflow/ls_frame.js)', pass: null }) },
 ];

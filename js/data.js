@@ -490,6 +490,10 @@
   // against the 1,200-1,500 band and an Act II extract ~405 against 250-400 (tests/bots/out/t2); the early fall (~90) and
   // the Act II fall (~150) stay inside their bands. One-decimal values: the Furnace rounds each item to 0.1)
   G.EMBER_R = [0.4, 0.8, 1.2, 2, 3.2, 6, 12];
+  // (4.0 bots C2: the extract stays x1 - DESIGN §2.4 'paid in full', its §8 example 'N Embers safe at x1'. The §4.3 'Act II
+  // extract 250-400' row is an extract INSIDE Act II (Camp 3, zone 9: the same ground as the 'Act II fall 120-200' row at x1
+  // instead of x0.5), not the Camp-4 decision after the Act II boss, which the design's own walkthrough prices at ~1,050 of
+  // its scale (x0.4 here = the ~420 the bots read at Camp 4). Measured at Camp 3 by tools/siege.js's X3 cell: notes/gates.md)
   G.EMBERS = { uq: 10, relic: 30, shard: 25, orb: { whet: 0.5, flux: 0.5, ruin: 1.5, ascent: 1.5, grace: 5 }, key: 10,
     kill: { boss: 2, lord: 10, act: 25, final: 100 }, end: { fall: 0.5, abandon: 0.5, extract: 1, win: 1.5 }, heat: 0.15, card: 0.5 };
   // Heat 0-10 (chosen at setup; Heat N opens with a win at N-1). Each level: Horde and boss health x1.36, bites x1.19 (game.js TUNE.heatHp / heatBite)
